@@ -242,6 +242,9 @@ pub(super) fn register(e: &mut Exporter<'_>) {
         for concern in &sa.concerns {
             e.register(&package, id_of(&concern.attributes, &concern.id), &[&concern.id]);
         }
+        for stakeholder in &sa.stakeholders {
+            e.register(&package, id_of(&stakeholder.attributes, &stakeholder.id), &[&stakeholder.id]);
+        }
     }
     super::architecture::register(e);
 }
@@ -649,6 +652,9 @@ fn system(e: &mut Exporter<'_>, sa: &SystemAnalysis) {
         let keys = function_keys(&sa.functions.iter().collect::<Vec<_>>());
         for chain_ in &sa.functional_chains {
             chain(e, "FunctionalChain", chain_, &keys);
+        }
+        for stakeholder in &sa.stakeholders {
+            super::relations::stakeholder(e, stakeholder);
         }
         for concern in &sa.concerns {
             super::relations::concern(e, concern);

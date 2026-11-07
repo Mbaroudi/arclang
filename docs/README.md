@@ -33,6 +33,10 @@ compiler when the site is built.
 - [realization.md](realization.md): the realization ladder, what each stage
   (simulation, SIL, PIL, HDL, SoC, board, twin) says of each requirement from
   the verdicts the runs cached, in `check`, the tables and the workbench.
+- [cesam.md](cesam.md): the model through the CESAM framework, the grid of
+  operational, functional and constructional views computed from the Arcadia
+  layers, stakeholders, lifecycle, modes and configurations, the method's
+  rules (`arclang table --kind cesam_grid`, `check --method cesam`).
 - [MIGRATION_4.0.md](MIGRATION_4.0.md): moving a model from 3.x to 4.0.
 - [VERSIONING.md](VERSIONING.md): what a major, minor and patch release may change.
 - [qualification/](qualification/): tool-qualification support kit.

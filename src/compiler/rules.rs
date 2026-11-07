@@ -114,6 +114,36 @@ const RULES: &[Rule] = &[
     rule!("method.exchange-transport", Severity::Info, "Exchange between nodes without a physical link",
         "A behavioral exchange between components deployed on different nodes must be carried by a physical link or exchange.",
         "Declare the physical link (or physical exchange) between the two nodes."),
+    rule!("cesam.role", Severity::Warning, "CESAM relation to a state of the wrong role",
+        "A technical configuration `realizes:` something other than a functional mode, a mode or configuration is available `during:` something other than a lifecycle phase, or a `context:` is written on a state that is no lifecycle phase.",
+        "Point the relation at a state of the expected machine (`kind: functional_modes`, `kind: lifecycle`), or give the machine the `kind:` it has."),
+    rule!("cesam.view-empty", Severity::Info, "CESAM view not modelled",
+        "A cell of the CESAM grid (a vision seen through one aspect) holds nothing: that view of the system is not described yet. `arclang table --kind cesam_grid` shows the grid.",
+        "Model the view; the advisory names the Capella diagrams that draw it."),
+    rule!("cesam.stakeholder-need", Severity::Info, "Stakeholder without a need",
+        "CESAM's stakeholder analysis gives every stakeholder its needs: here no concern names the stakeholder in `stakeholders:`.",
+        "Declare the stakeholder's concerns (`concern \"...\" { stakeholders: [\"<stakeholder>\"] }`), or remove the stakeholder."),
+    rule!("cesam.need-stakeholder", Severity::Info, "Need without a stakeholder",
+        "A concern names no stakeholder although the model declares stakeholders: whose need it is is not said.",
+        "Write `stakeholders: [...]` on the concern."),
+    rule!("cesam.need-requirement", Severity::Info, "Need framed by no requirement",
+        "No requirement frames the concern: the need is not turned into a stakeholder requirement.",
+        "Write `frames: [\"<concern>\"]` on the requirements that answer it."),
+    rule!("cesam.mission-use-case", Severity::Info, "Mission without a use case",
+        "CESAM decomposes each mission into use cases (capabilities): no capability names this mission in `mission:`.",
+        "Declare the capabilities contributing to the mission, with `mission:`."),
+    rule!("cesam.use-case-scenario", Severity::Info, "Use case without a scenario",
+        "CESAM illustrates each use case by operational scenarios: no scenario nor functional chain names this capability in `capability:`.",
+        "Write a scenario of the use case and give it `capability:`."),
+    rule!("cesam.lifecycle-context", Severity::Info, "Lifecycle phase without an operational context",
+        "Each lifecycle phase has its operational context: the actors, systems and stakeholders around the system during it.",
+        "Write `context: [...]` on the phase."),
+    rule!("cesam.mode-configuration", Severity::Info, "Functional mode realized by no technical configuration",
+        "The model has technical configurations, and none `realizes:` this functional mode: the mode has no concrete realization.",
+        "Write `realizes: [\"<machine>.<mode>\"]` on the configuration that provides the mode."),
+    rule!("cesam.requirement-vision", Severity::Info, "Requirement without a CESAM vision",
+        "Nothing says whether the requirement is a stakeholder, a functional or a technical requirement: no block subtype, no `vision:`, nothing satisfying it.",
+        "Declare it in `requirements stakeholder|functional|technical`, write `vision:`, or trace what satisfies it."),
     rule!("method.other", Severity::Info, "Methodology advisory",
         "An Arcadia advisory the catalog does not classify further.", "Read the advisory."),
     rule!("compile.other", Severity::Warning, "Compiler warning",
@@ -197,6 +227,10 @@ pub fn classify_warning(message: &str) -> Finding {
     if message.contains("is not yet represented in the compiled model") {
         return finding("syntax.unmodeled", message, None, None);
     }
+    if let Some(rest) = message.strip_prefix("cesam: ") {
+        let element = between(rest, "state '", "'");
+        return finding("cesam.role", message, element, None);
+    }
     if message.contains("is not yet stored in the model") {
         return finding("syntax.attribute-not-stored", message, None, None);
     }
@@ -238,7 +272,21 @@ pub fn findings(result: &CompilationResult) -> Vec<Finding> {
     let mut all: Vec<Finding> = result.warnings.iter().map(|line| classify_warning(line)).collect();
     all.extend(result.semantic_model.validate_traceability().iter().map(|line| classify_traceability(line)));
     all.extend(super::semantic::arcadia_methodology_lints(&result.ast).iter().map(|line| classify_lint(line)));
+    if super::cesam_rules::declared(&result.ast) {
+        all.extend(cesam_findings(result));
+    }
     all
+}
+
+/// The CESAM methodology advisories of a model, as findings.
+pub fn cesam_findings(result: &CompilationResult) -> Vec<Finding> {
+    super::cesam_rules::advisories(&result.ast, &result.semantic_model)
+        .into_iter()
+        .map(|a| {
+            let severity = rule(a.rule).map(|r| r.severity).unwrap_or(Severity::Info);
+            Finding { rule: a.rule, severity, message: a.message, element: a.element, fix: None }
+        })
+        .collect()
 }
 
 /// The catalog as Markdown, for the documentation and `arclang rules`.

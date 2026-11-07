@@ -176,6 +176,7 @@ pub fn kind_placement(kind: &str) -> Option<(Placement, bool)> {
     let refined = |v, a| at(v, a).map(|p| (p, true));
     match kind {
         "Concern" => fixed(Operational, Requirements),
+        "Stakeholder" => fixed(Operational, Structure),
         "Requirement" => refined(Functional, Requirements),
         "Actor" | "OperationalEntity" | "SystemActor" | "OperationalCapability" | "Mission" | "Capability" | "CapabilityRealization" => fixed(Operational, Structure),
         "SystemComponent" | "OperationalExchange" => fixed(Operational, Interactions),
@@ -317,6 +318,11 @@ impl<'a> Classifier<'a> {
             _ => Self::stated(&relationship.attributes),
         };
         Some(Placement { vision: vision.unwrap_or(default.vision), aspect: default.aspect })
+    }
+
+    /// Whether anything gives a requirement its vision (else it defaults).
+    pub fn requirement_vision_known(&self, element: &ElementRecord) -> bool {
+        self.requirement_vision(element).is_some()
     }
 
     fn requirement_vision(&self, element: &ElementRecord) -> Option<Vision> {
@@ -486,4 +492,51 @@ mod tests {
         assert_eq!(Vision::parse("organique"), Some(Vision::Constructional));
         assert_eq!(Vision::parse("nope"), None);
     }
+}
+
+/// The CESAM view a viewpoint diagram draws: `oab`/`sab` the environment,
+/// `cap` the use cases, `lab`/`pab` the constructional interactions, `pbs`
+/// the product breakdown, `cdb` the interfaces, `req` the requirements of every vision (first), a
+/// machine (`msm:<name>`) or a scenario (`es:<name>`) the states or the
+/// scenarios of its own vision. `None` for the SysML v2 views and the
+/// parametric one, which CESAM does not name.
+pub fn diagram_view(id: &str, machine_vision: impl Fn(&str) -> Option<Vision>, scenario_vision: impl Fn(&str) -> Option<Vision>) -> Option<View> {
+    use Aspect::*;
+    use Vision::*;
+    let (kind, name) = id.split_once(':').unwrap_or((id, ""));
+    let (vision, aspect) = match kind {
+        "oab" | "sab" => (Operational, Interactions),
+        "cap" => (Operational, Structure),
+        "lab" | "pab" => (Constructional, Interactions),
+        "pbs" => (Constructional, Structure),
+        "cdb" => (Functional, Interfaces),
+        "req" => (Operational, Requirements),
+        "msm" => (machine_vision(name).unwrap_or(Functional), States),
+        "es" => (scenario_vision(name).unwrap_or(Operational), Scenarios),
+        _ => return None,
+    };
+    Some(view(vision, aspect))
+}
+
+/// Keep the diagrams of a set that draw a CESAM view, in the order of the
+/// grid, titled `<view> — <diagram>`; their diagnostics follow them.
+pub fn arrange_diagrams(set: &mut super::diagram::DiagramSet, ast: &Model, graph: &ElementGraph) {
+    let classifier = Classifier::new(graph, ast);
+    let machine = |name: &str| ast.state_machines.iter().find(|m| m.name == name).map(|m| machine_vision(&m.attributes, &m.name));
+    let scenario = |name: &str| graph.elements.iter().find(|e| e.kind == "Scenario" && e.name == name).and_then(|e| classifier.element(e)).map(|p| p.vision);
+    let mut placed: Vec<(usize, super::diagram::Diagram)> = std::mem::take(&mut set.diagrams)
+        .into_iter()
+        .filter_map(|mut diagram| {
+            let cell = diagram_view(&diagram.id, machine, scenario)?;
+            let rank = VISIONS.iter().position(|v| *v == cell.vision).unwrap_or(0) * ASPECTS.len() + ASPECTS.iter().position(|a| *a == cell.aspect).unwrap_or(0);
+            diagram.title = if diagram.id == "req" {
+                format!("Expected properties of the three visions — {}", diagram.title)
+            } else {
+                format!("{} — {} ({})", cell.name, diagram.title, cell.vision.label())
+            };
+            Some((rank, diagram))
+        })
+        .collect();
+    placed.sort_by_key(|(rank, _)| *rank);
+    set.diagrams = placed.into_iter().map(|(_, d)| d).collect();
 }

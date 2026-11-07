@@ -957,6 +957,13 @@ impl Parser {
     }
     
     /// `concern "Name" { ... }`: `concern` is a keyword in a requirements or system analysis block only.
+    fn parse_stakeholder(&mut self) -> Result<Stakeholder, String> {
+        self.advance();
+        let id = self.expect_name()?;
+        let attributes = self.parse_attributes_block()?;
+        Ok(Stakeholder { id, attributes })
+    }
+
     fn parse_concern(&mut self) -> Result<Concern, String> {
         self.advance();
         let id = self.expect_name()?;
@@ -980,6 +987,7 @@ impl Parser {
         let mut capabilities = Vec::new();
         let mut functional_chains = Vec::new();
         let mut concerns = Vec::new();
+        let mut stakeholders = Vec::new();
 
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             match self.current() {
@@ -991,6 +999,9 @@ impl Parser {
                 }
                 Token::Identifier(ref word) if word == "concern" => {
                     concerns.push(self.parse_concern()?);
+                }
+                Token::Stakeholder => {
+                    stakeholders.push(self.parse_stakeholder()?);
                 }
                 Token::Function => {
                     functions.push(self.parse_system_function()?);
@@ -1048,6 +1059,7 @@ impl Parser {
             name,
             requirements,
             concerns,
+            stakeholders,
             functions,
             components,
             external_actors,
@@ -2145,6 +2157,7 @@ impl Parser {
         
         let mut requirements = Vec::new();
         let mut concerns = Vec::new();
+        let mut stakeholders = Vec::new();
 
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             match self.current() {
@@ -2157,9 +2170,12 @@ impl Parser {
                 Token::Identifier(ref word) if word == "concern" => {
                     concerns.push(self.parse_concern()?);
                 }
+                Token::Stakeholder => {
+                    stakeholders.push(self.parse_stakeholder()?);
+                }
                 _ => {
                     return Err(self.err(format!(
-                        "Unexpected token in requirements block: {} (expected 'req', 'requirement' or 'concern')",
+                        "Unexpected token in requirements block: {} (expected 'req', 'requirement', 'concern' or 'stakeholder')",
                         self.current()
                     )));
                 }
@@ -2174,6 +2190,7 @@ impl Parser {
             name,
             requirements,
             concerns,
+            stakeholders,
             functions: Vec::new(),
             components: Vec::new(),
             external_actors: Vec::new(),

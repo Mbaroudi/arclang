@@ -73,6 +73,11 @@ pub enum Commands {
         
         #[clap(long)]
         lint: bool,
+
+        /// With --lint, the method whose rules are reported: arcadia (default) or cesam.
+        /// A model declaring `method: cesam` is checked against CESAM without it.
+        #[clap(long)]
+        method: Option<String>,
         
         #[clap(long)]
         safety: bool,
@@ -983,7 +988,8 @@ pub enum Commands {
 
         /// Restrict the output to one kind of view: oab, sab, lab, pab, msm
         /// (mode and state machines), es (scenarios), cap, cdb, pbs, req
-        /// (requirements) or par (parametric)
+        /// (requirements) or par (parametric); or cesam: the views of the CESAM
+        /// framework, titled and ordered by its grid
         #[clap(long)]
         view: Option<String>,
 
@@ -1210,11 +1216,16 @@ impl CliRunner {
             Commands::Ci { command } => cicd::run_ci(&command), // cicd hook
             Commands::Report(args) => cicd::run_report(&args), // cicd hook
             Commands::Sarif(args) => cicd::run_sarif(&args), // cicd hook
-            Commands::Check { input, lint, safety, json, format: _ } => {
+            Commands::Check { input, lint, method, safety, json, format: _ } => {
+                let cesam = match method.as_deref().map(str::to_ascii_lowercase).as_deref() {
+                    None | Some("arcadia") => false,
+                    Some("cesam") => true,
+                    Some(other) => return Err(CliError::Compilation(format!("unknown method '{other}': arcadia or cesam"))),
+                };
                 if json {
-                    self.run_check_json(input)
+                    self.run_check_json(input, cesam)
                 } else {
-                    self.run_check(input, lint, safety)
+                    self.run_check(input, lint, safety, cesam)
                 }
             }
             Commands::Transition { input, step, into, plan, write } => {
@@ -1601,12 +1612,15 @@ impl CliRunner {
     /// `check --json`: the outcome as one JSON document — errors, or the
     /// findings each named after its rule, with the element concerned and
     /// the edit that answers it when one can be named.
-    fn run_check_json(&self, input: PathBuf) -> Result<(), CliError> {
+    fn run_check_json(&self, input: PathBuf, cesam: bool) -> Result<(), CliError> {
         let config = crate::CompilerConfig::default();
         let mut compiler = crate::Compiler::new(config);
         let document = match compiler.compile_file(&input) {
             Ok(result) => {
-                let findings = crate::compiler::rules::findings(&result);
+                let mut findings = crate::compiler::rules::findings(&result);
+                if cesam && !crate::compiler::cesam_rules::declared(&result.ast) {
+                    findings.extend(crate::compiler::rules::cesam_findings(&result));
+                }
                 let realization = crate::compiler::realization::ladders(&result, Some(&input));
                 serde_json::json!({
                     "success": true,
@@ -1637,7 +1651,7 @@ impl CliRunner {
         }
     }
 
-    fn run_check(&self, input: PathBuf, lint: bool, safety: bool) -> Result<(), CliError> {
+    fn run_check(&self, input: PathBuf, lint: bool, safety: bool, cesam: bool) -> Result<(), CliError> {
         println!("Checking {}...", input.display());
         
         let config = crate::CompilerConfig::default();
@@ -1695,6 +1709,18 @@ impl CliRunner {
                         println!("\nℹ Arcadia methodology advisories:");
                         for advisory in &lints {
                             println!("  {}", advisory);
+                        }
+                    }
+                }
+
+                if (lint && cesam) || crate::compiler::cesam_rules::declared(&result.ast) {
+                    let advisories = crate::compiler::cesam_rules::advisories(&result.ast, &result.semantic_model);
+                    if advisories.is_empty() {
+                        println!("\n✓ CESAM methodology: no advisories");
+                    } else {
+                        println!("\nℹ CESAM methodology advisories ({}):", advisories.len());
+                        for line in crate::compiler::cesam_rules::lines(&advisories) {
+                            println!("  {}", line);
                         }
                     }
                 }
@@ -3491,10 +3517,12 @@ impl CliRunner {
         // A theme is checked before anything is compiled: a refused one stops here.
         let theme = theme.as_deref().map(themes::resolve).transpose().map_err(CliError::Config)?;
 
+        let cesam = view.as_deref().map(|v| v.eq_ignore_ascii_case("cesam")).unwrap_or(false);
         let selected = match view.as_deref() {
             None => None,
+            Some(_) if cesam => None,
             Some(text) => Some(ViewKind::parse(text).ok_or_else(|| {
-                CliError::Compilation(format!("unknown view '{text}' — expected oab, sab, lab, pab, msm, es, cap, cdb, pbs, req or par"))
+                CliError::Compilation(format!("unknown view '{text}' — expected oab, sab, lab, pab, msm, es, cap, cdb, pbs, req, par or cesam"))
             })?),
         };
         let result = crate::Compiler::new(crate::CompilerConfig::default())
@@ -3506,6 +3534,10 @@ impl CliRunner {
         // The layout is checked against every view before one is selected:
         // a view left out by `--view` is not a stale entry of the file.
         layout_file::arrange(&mut set, &input, layout.as_deref()).map_err(CliError::Compilation)?;
+        if cesam {
+            let graph = crate::compiler::elements::build(&result.ast, &result.semantic_model);
+            crate::compiler::cesam::arrange_diagrams(&mut set, &result.ast, &graph);
+        }
         if let Some(kind) = selected {
             set.diagrams.retain(|diagram| diagram.kind == kind);
             let (whole, named) = (format!("[{}]", kind.id()), format!("[{}:", kind.id()));

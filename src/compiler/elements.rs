@@ -565,6 +565,10 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
             let name = concern.attributes.get("name").and_then(|v| v.as_string()).unwrap_or(&concern.id).to_string();
             builder.typed_element("Concern", &concern.id, &name, &root, &concern.attributes);
         }
+        for stakeholder in &sa.stakeholders {
+            let name = stakeholder.attributes.get("name").and_then(|v| v.as_string()).unwrap_or(&stakeholder.id).to_string();
+            builder.typed_element("Stakeholder", &stakeholder.id, &name, &root, &stakeholder.attributes);
+        }
         for function in &sa.functions {
             builder.function(function, &root);
         }
@@ -917,6 +921,24 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
                     if let Some(requirement) = item.as_string() {
                         builder.relate("Mitigation", None, requirement, &hazard.name, &empty(), Vec::new());
                     }
+                }
+            }
+        }
+    }
+    // A concern is had by the stakeholders it names that the model declares
+    // (a name it gives without a declaration stays text).
+    let stakeholders: Vec<(&str, &str)> = ast
+        .system_analysis
+        .iter()
+        .flat_map(|sa| &sa.stakeholders)
+        .map(|s| (s.attributes.get("id").and_then(|v| v.as_string()).unwrap_or(&s.id), s.attributes.get("name").and_then(|v| v.as_string()).unwrap_or(&s.id)))
+        .collect();
+    for concern in ast.system_analysis.iter().flat_map(|sa| &sa.concerns) {
+        let id = concern.attributes.get("id").and_then(|v| v.as_string()).unwrap_or(&concern.id);
+        if let Some(AttributeValue::List(names)) = concern.attributes.get("stakeholders") {
+            for name in names.iter().filter_map(|n| n.as_string()) {
+                if let Some((stakeholder, _)) = stakeholders.iter().find(|(sid, sname)| *sid == name || *sname == name) {
+                    builder.relate("Stakeholding", None, id, stakeholder, &empty(), Vec::new());
                 }
             }
         }

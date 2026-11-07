@@ -88,6 +88,7 @@ impl CapellaImporter {
                 name: "Imported System".to_string(),
                 requirements,
                 concerns: Vec::new(),
+                stakeholders: Vec::new(),
                 functions: Vec::new(),
                 components: Vec::new(),
                 external_actors: Vec::new(),

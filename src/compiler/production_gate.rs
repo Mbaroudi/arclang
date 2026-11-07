@@ -601,6 +601,12 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
     for lint in super::semantic::arcadia_methodology_lints(ast) {
         push("methodology", Severity::Warning, lint);
     }
+    // A model following CESAM (`method: cesam`) is held to its rules too.
+    if super::cesam_rules::declared(ast) {
+        for advisory in super::cesam_rules::advisories(ast, semantic) {
+            push("methodology.cesam", Severity::Warning, format!("[{}] {}", advisory.rule, advisory.message));
+        }
+    }
 
     let passed = !findings.iter().any(|f| f.severity == Severity::Blocker);
     GateReport {

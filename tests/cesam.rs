@@ -153,3 +153,142 @@ fn the_metamodel_names_the_cesam_view_of_each_placed_kind() {
     assert!(metamodel.kind("Trace").unwrap().cesam.is_none());
     assert!(metamodel.to_markdown().contains("## CESAM views"));
 }
+
+// ---- Stakeholders, machine roles, state relations, methodology rules ----
+
+use arclang::compiler::{cesam_rules, elements, rules};
+
+fn compile(source: &str) -> Result<arclang::CompilationResult, String> {
+    Compiler::new(CompilerConfig::default()).compile_string(source).map_err(|e| e.to_string())
+}
+
+fn example() -> arclang::CompilationResult {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/cesam/smart-lock/smart_lock.arc");
+    Compiler::new(CompilerConfig::default()).compile_file(&path).expect("the CESAM example compiles")
+}
+
+#[test]
+fn a_stakeholder_is_an_element_and_has_the_concerns_naming_it() {
+    let result = example();
+    let graph = elements::build(&result.ast, &result.semantic_model);
+    let resident = graph.elements.iter().find(|e| e.kind == "Stakeholder" && e.id == "STK-RES").expect("stakeholder in the graph");
+    assert_eq!(resident.name, "Resident");
+    let needs: Vec<&str> = graph
+        .relationships
+        .iter()
+        .filter(|r| r.kind == "Stakeholding" && r.target == resident.uuid)
+        .filter_map(|r| graph.elements.iter().find(|e| e.uuid == r.source).map(|e| e.id.as_str()))
+        .collect();
+    assert_eq!(needs, ["NEED-1", "NEED-2", "NEED-3"]);
+    assert!(graph.unresolved.is_empty(), "{:?}", graph.unresolved);
+}
+
+#[test]
+fn the_cesam_example_fills_every_view_and_holds_every_rule() {
+    let result = example();
+    assert!(cesam_rules::declared(&result.ast));
+    let advisories = cesam_rules::advisories(&result.ast, &result.semantic_model);
+    assert!(advisories.is_empty(), "{advisories:?}");
+    let spec = TableSpec { kind: "cesam_grid".to_string(), ..TableSpec::default() };
+    let table = tables::compute(&result, &spec, &Options::default()).unwrap();
+    for row in &table.rows {
+        for (key, cell) in &row.cells {
+            assert_ne!(cell.status.as_deref(), Some("gap"), "{} {key} is empty", row.id);
+        }
+    }
+    assert_eq!(names(&table, "operational", "states")[0], "Lock lifecycle");
+    assert_eq!(names(&table, "constructional", "states")[0], "Lock configurations");
+    assert!(names(&table, "operational", "interfaces").contains(&"Access request".to_string()), "typed by operational exchanges");
+}
+
+#[test]
+fn a_machine_kind_outside_its_enumeration_is_an_error() {
+    let error = compile("state_machine \"M\" { kind: \"phases\" initial: \"A\" state A {} }").unwrap_err();
+    assert!(error.contains("kind 'phases' is not one of lifecycle, functional_modes, technical_configurations"), "{error}");
+    let error = compile("scenario \"S\" { vision: \"sideways\" }").unwrap_err();
+    assert!(error.contains("vision 'sideways'"), "{error}");
+}
+
+#[test]
+fn a_relation_to_no_state_is_an_error_and_to_a_state_of_another_role_a_warning() {
+    let modes = "state_machine \"Modes\" { kind: \"functional_modes\" initial: \"On\" mode On {} }\n";
+    let error = compile(&format!("{modes}state_machine \"Configs\" {{ kind: \"technical_configurations\" initial: \"C\" state C {{ realizes: [\"Modes.Off\"] }} }}")).unwrap_err();
+    assert!(error.contains("realizes 'Modes.Off' is not a declared state"), "{error}");
+    let lifecycle = "state_machine \"Life\" { kind: \"lifecycle\" initial: \"Use\" state Use {} }\n";
+    let result = compile(&format!("{modes}{lifecycle}state_machine \"Configs\" {{ kind: \"technical_configurations\" initial: \"C\" state C {{ realizes: [\"Life.Use\"] }} }}")).unwrap();
+    let warning = result.warnings.iter().find(|w| w.starts_with("cesam: ")).expect("a cesam warning");
+    assert!(warning.contains("is a lifecycle phase, expected a functional mode"), "{warning}");
+    assert_eq!(rules::classify_warning(warning).rule, "cesam.role");
+    let error = compile(&format!("{lifecycle}state_machine \"L2\" {{ kind: \"lifecycle\" initial: \"P\" state P {{ context: [\"Nobody\"] }} }}")).unwrap_err();
+    assert!(error.contains("context 'Nobody' is not a declared element"), "{error}");
+}
+
+#[test]
+fn the_methodology_rules_name_what_cesam_expects() {
+    let source = r#"
+model M { method: "cesam" }
+requirements stakeholder {
+    stakeholder "Owner" { id: "STK-1" }
+    stakeholder "Neighbour" { id: "STK-2" }
+    concern "Quiet" { id: "NEED-1" stakeholders: ["STK-1"] }
+}
+system_analysis "S" {
+    mission "Mow" { id: "MIS-1" }
+    mission "Guard" { id: "MIS-2" }
+    capability "Cut grass" { id: "UC-1" mission: "MIS-1" }
+}
+requirements { req "R-1" "Loose" { priority: Low } }
+state_machine "Life" { kind: "lifecycle" initial: "Use" state Use {} }
+state_machine "Modes" { kind: "functional_modes" initial: "On" mode On {} }
+state_machine "Configs" { kind: "technical_configurations" initial: "C" state C {} }
+"#;
+    let result = compile(source).unwrap();
+    let advisories = cesam_rules::advisories(&result.ast, &result.semantic_model);
+    let rule = |id: &str| advisories.iter().filter(|a| a.rule == id).filter_map(|a| a.element.clone()).collect::<Vec<_>>();
+    assert_eq!(rule("cesam.stakeholder-need"), ["STK-2"]);
+    assert_eq!(rule("cesam.need-requirement"), ["NEED-1"]);
+    assert_eq!(rule("cesam.mission-use-case"), ["MIS-2"]);
+    assert_eq!(rule("cesam.use-case-scenario"), ["UC-1"]);
+    assert_eq!(rule("cesam.lifecycle-context"), ["Life.Use"]);
+    assert_eq!(rule("cesam.mode-configuration"), ["Modes.On"]);
+    assert_eq!(rule("cesam.requirement-vision"), ["R-1"]);
+    assert!(advisories.iter().any(|a| a.rule == "cesam.view-empty" && a.message.contains("Product breakdown")));
+    // A model declaring the method reports them with its findings, and the gate warns.
+    let findings = rules::findings(&result);
+    assert!(findings.iter().any(|f| f.rule == "cesam.mission-use-case"));
+    for advisory in &advisories {
+        assert!(rules::rule(advisory.rule).is_some(), "{} is in the catalog", advisory.rule);
+    }
+    let gate = arclang::compiler::production_gate::run_gate(&result.ast, &result.semantic_model, "ISO26262");
+    assert!(gate.findings.iter().any(|f| f.check == "methodology.cesam"));
+}
+
+#[test]
+fn a_model_not_following_cesam_gets_no_cesam_findings() {
+    let result = compile("requirements { req \"R-1\" \"Loose\" { priority: Low } }").unwrap();
+    assert!(!cesam_rules::declared(&result.ast));
+    assert!(rules::findings(&result).iter().all(|f| !f.rule.starts_with("cesam.")));
+}
+
+#[test]
+fn stakeholders_are_exported_to_sysml_v2() {
+    let result = example();
+    let sysml = arclang::compiler::sysmlv2_generator::generate_sysmlv2(&result.semantic_model, &result.ast);
+    assert!(sysml.contains("part def") && sysml.contains("Resident"), "stakeholder part def exported");
+}
+
+#[test]
+fn the_cesam_diagrams_are_the_viewpoint_diagrams_titled_and_ordered_by_the_grid() {
+    let result = example();
+    let mut set = arclang::compiler::diagram::build_diagrams(&result.ast);
+    let graph = elements::build(&result.ast, &result.semantic_model);
+    arclang::compiler::cesam::arrange_diagrams(&mut set, &result.ast, &graph);
+    let ids: Vec<&str> = set.diagrams.iter().map(|d| d.id.as_str()).collect();
+    let at = |id: &str| ids.iter().position(|i| *i == id).unwrap_or_else(|| panic!("{id} missing from {ids:?}"));
+    assert!(at("msm:Lock lifecycle") < at("msm:Lock modes") && at("msm:Lock modes") < at("msm:Lock configurations"));
+    assert!(at("es:Resident comes home") < at("es:Credential check") && at("es:Credential check") < at("es:Unlock on the boards"));
+    assert!(at("cap") < at("lab"));
+    assert!(set.diagrams.iter().all(|d| !d.id.starts_with("gv") && !d.id.starts_with("par")));
+    let lifecycle = set.diagrams.iter().find(|d| d.id == "msm:Lock lifecycle").unwrap();
+    assert_eq!(lifecycle.title, "Lifecycle — Lock lifecycle (Operational vision)");
+}

@@ -178,6 +178,7 @@ Stakeholder, system or safety requirement.
 | `reqif_id` | `text` | Identifier the requirement has in the tool it came from (ReqIF IDENTIFIER), given back on export. |
 | `applies_to` | `list<ref<Configuration>>` | The configurations of the product line the requirement holds for; every one when absent. A case verifying it runs in one of them, and the gate wants a case in each. |
 | `frames` | `list<ref<Concern>>` | The concerns the requirement addresses (SysML v2 `frame`). |
+| `vision` | `enum Vision` | CESAM vision the requirement is placed in, overriding its block (`requirements stakeholder|functional|technical`) and what satisfies it. |
 | `subject` | `ref<Element>` | What the requirement is about: a component, a node, a function (SysML v2 `subject`). The element shows it in its requirements compartment. |
 | `require` | `list<text>` | Constraints the subject must meet, as expressions (`"mass <= 1200 kg"`; SysML v2 `require constraint`). |
 | `assume` | `list<text>` | Constraints taken for granted for the requirement to hold (`"ambient >= -20 °C"`; SysML v2 `assume constraint`). |
@@ -187,7 +188,7 @@ Stakeholder, system or safety requirement.
 
 #### Concern
 
-What a stakeholder cares about, framed by the requirements that address it. Declared in a `requirements` block: `concern "Resists to bullets" { stakeholders: ["Owner"] }`.
+What a stakeholder cares about, framed by the requirements that address it. Declared in a `requirements` block: `concern "Resists to bullets" { stakeholders: ["Owner"] }`. The CESAM need (besoin) of a stakeholder.
 
 - Arcadia: `(none: carried as a requirement)`
 - SysML v2: `concern`
@@ -203,6 +204,25 @@ What a stakeholder cares about, framed by the requirements that address it. Decl
 | `stakeholders` | `list<text>` | Who has the concern (SysML v2 `stakeholder`). |
 | `rationale` | `text` | Why it matters. |
 | `parent` | `ref<Concern>` | Concern it sits under. |
+
+#### Stakeholder
+
+Someone the system matters to (CESAM stakeholder analysis): `stakeholder "Owner" { interest: "..." }` in a `requirements` block. The concerns naming it in `stakeholders:` are its needs; the requirements framing them, its stakeholder requirements.
+
+- Arcadia: `(none: closest OperationalEntity / OperationalActor)`
+- SysML v2: `part def (stakeholder)`
+- CESAM: Operational vision · Static elements (Stakeholders and use cases)
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `id` | `identifier` | Stable identity; drives the UUIDv5. Defaults to the name. |
+| `name` | `text` | Display name; overrides the block name. |
+| `description` | `text` | Free-text description. |
+| `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
+| `category` | `text` | Kind of stakeholder (user, customer, operator, authority, maintainer...). |
+| `interest` | `text` | What the stakeholder expects of the system. |
+| `influence` | `enum Priority` | How much the stakeholder weighs on the decisions. |
 
 #### Mission
 
@@ -1119,6 +1139,7 @@ The model itself: root of the element graph, owner of every top-level element.
 |---|---|---|
 | `name` | `text` | Model name. |
 | `version` | `text` | Model version. |
+| `method` | `enum Method` | The method the model follows: `arcadia` (by default) or `cesam`, whose methodology rules every check then reports. |
 | `description` | `text` | Free-text description. |
 
 #### Type
@@ -1217,12 +1238,14 @@ Modes and states of an element.
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `initial` | `ref<State>` | Initial state. |
+| `kind` | `enum MachineKind` | CESAM role of the machine: `lifecycle` (its states are the lifecycle phases), `functional_modes` or `technical_configurations`. Without it, a machine named like a lifecycle or configurations is taken as one, else as functional modes. |
+| `vision` | `enum Vision` | CESAM vision the machine is placed in, overriding its `kind:`. |
 | `variables` | `list<text>` | Typed variables (SysML v2 attributes): `[in|out|const] name: Type [unit] [range lo .. hi] [resolution r | format Qi.f] = initial`, Type Boolean, Integer (int32_t), Real (double) or Float (float), the unit from the unit table (`"in voltage: Real [V]"`, `"out count: Integer = 0"`). `in`: set by the caller every step. `range`, `resolution` and `format` say how the hardware holds a value when the machine is allocated to programmable logic (fixed point: the range gives the integer bits, a resolution the narrowest word with that step, a format `Qi.f` the word of i + f + 1 bits); the model itself does not clamp. See docs/embedded-c.md and docs/embedded-fpga.md. |
 | `equations` | `list<text>` | Difference equations evaluated every step in the order written, before the transitions: `target = expression` over the variables, with the blocks `delay`, `integrator`, `pid` and the functions `min`, `max`, `abs`, `saturate`, `gain`. Typed and unit-checked. |
 
 #### State
 
-State (undergone) or mode (chosen behavior).
+State (undergone) or mode (chosen behavior). In CESAM terms, a state of a `lifecycle` machine is a lifecycle phase, of a `functional_modes` machine a functional mode, of a `technical_configurations` machine a technical configuration.
 
 - Arcadia: `State / Mode`
 - SysML v2: `state`
@@ -1235,6 +1258,9 @@ State (undergone) or mode (chosen behavior).
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
+| `realizes` | `list<ref<State>>` | For a technical configuration: the functional modes it realizes (`Machine.Mode` or the mode's name). |
+| `during` | `list<ref<State>>` | For a functional mode or a technical configuration: the lifecycle phases it is available in. |
+| `context` | `list<ref<Element>>` | For a lifecycle phase: its operational context, the actors, entities and stakeholders around the system then. |
 
 #### Transition
 
@@ -1306,6 +1332,8 @@ Sequence of messages between participants.
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `participants` | `list<ref<Element>>` | Lifelines. |
+| `capability` | `ref<Element>` | The use case (mission, capability or operational capability) the scenario illustrates. |
+| `vision` | `enum Vision` | CESAM vision the scenario is placed in, overriding its participants (functions: functional; components: constructional; else operational). |
 
 #### Fragment
 
@@ -1383,6 +1411,7 @@ The element graph served by the Systems Modeling API (`/api/systems-modeling`) i
 | `Verification` | TestCase | Requirement | `verifies:` of a test case. |
 | `Annotation` | Note | element | `about:` of a note. |
 | `Mitigation` | Requirement | Hazard | `mitigated_by:` of a hazard. |
+| `Stakeholding` | Concern | Stakeholder | `stakeholders:` of a concern naming a declared stakeholder. |
 | `ThreatApplication` | Threat | PrimaryAsset | `applies_to:` of a threat. |
 | `ThreatInvolvement` | Threat | component, entity or actor | `involves:` of a threat. |
 | `AssetMember` | PrimaryAsset | element | `members:` of a primary asset. |
@@ -1419,6 +1448,9 @@ Values match ignoring case and the separators `-`, `_` and space.
 | Dal | `DAL-A`, `DAL-B`, `DAL-C`, `DAL-D`, `DAL-E` | DO-178C design assurance level. |
 | Sil | `SIL-1`, `SIL-2`, `SIL-3`, `SIL-4` | IEC 61508 safety integrity level. |
 | SafetyLevel | `QM`, `ASIL-A`, `ASIL-B`, `ASIL-C`, `ASIL-D`, `DAL-A`, `DAL-B`, `DAL-C`, `DAL-D`, `DAL-E`, `SIL-1`, `SIL-2`, `SIL-3`, `SIL-4` | Any integrity level: ASIL (ISO 26262), DAL (DO-178C) or SIL (IEC 61508). |
+| Method | `arcadia`, `cesam` | Systems engineering method a model follows. |
+| Vision | `operational`, `functional`, `constructional` | CESAM vision an element is placed in: operational (why), functional (what), constructional (how). |
+| MachineKind | `lifecycle`, `functional_modes`, `technical_configurations` | CESAM role of a state machine: the lifecycle of the system (operational), its functional modes, or its technical configurations (constructional). |
 | Priority | `Critical`, `High`, `Medium`, `Low` | Requirement priority. |
 | HazardSeverity | `S0`, `S1`, `S2`, `S3`, `Catastrophic`, `Hazardous`, `Major`, `Minor`, `No Effect` | ISO 26262 severity class or DO-178C failure condition. |
 | Exposure | `E0`, `E1`, `E2`, `E3`, `E4` | ISO 26262 exposure class. |

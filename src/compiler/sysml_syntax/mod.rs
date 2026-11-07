@@ -81,6 +81,7 @@ const KINDS: &[(&[&str], &str, Option<&str>)] = &[
     (&["attribute"], "AttributeUsage", Some("AttributeDefinition")),
     (&["port"], "PortUsage", Some("PortDefinition")),
     (&["requirement"], "RequirementUsage", Some("RequirementDefinition")),
+    (&["concern"], "ConcernUsage", Some("ConcernDefinition")),
     (&["constraint"], "ConstraintUsage", Some("ConstraintDefinition")),
     (&["connection"], "ConnectionUsage", Some("ConnectionDefinition")),
     (&["interface"], "InterfaceUsage", Some("InterfaceDefinition")),
@@ -390,6 +391,12 @@ impl Reader {
         } else if head.take_word("verify") {
             declaration.metaclass = "RequirementUsage";
             declaration.membership = "RequirementVerificationMembership";
+            declaration.references = vec![head.path()?];
+        } else if head.take_word("frame") {
+            // `frame 'NEED-1';` / `frame concern 'NEED-1';`: the concern a requirement addresses.
+            head.take_word("concern");
+            declaration.metaclass = "ConcernUsage";
+            declaration.membership = "FramedConcernMembership";
             declaration.references = vec![head.path()?];
         } else if head.take_word("objective") {
             declaration.metaclass = "RequirementUsage";

@@ -10,6 +10,7 @@ pub mod constraint;
 pub mod types;
 pub mod elements;
 pub mod cesam;
+pub mod cesam_rules;
 pub mod metamodel;
 pub mod metamodel_check;
 pub mod spatial;
@@ -455,6 +456,10 @@ impl Compiler {
             let graph = elements::build(&ast, &semantic_model);
             warnings.extend(suspect::suspects(&ast, &graph).map_err(CompilerError::Semantic)?.iter().map(|s| s.line()));
         }
+
+        // CESAM: the roles of state machines, the visions written, the
+        // relations between configurations, modes and lifecycle phases.
+        warnings.extend(cesam_rules::check(&ast, &semantic_model).map_err(CompilerError::Semantic)?);
 
         // Fault trees: failure modes leading to hazards, held to their budgets.
         warnings.extend(fta::check(&ast, &semantic_model).map_err(CompilerError::Semantic)?);

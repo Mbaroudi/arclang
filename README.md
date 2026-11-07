@@ -52,6 +52,14 @@ the long-term goal.
   viewpoint diagrams described below, in one self-contained file.
 - **Traceability analysis computed from the model** (`arclang trace --validate
   --matrix`): real coverage numbers, real gap warnings.
+- **CESAM, on the same model** ([docs/cesam.md](docs/cesam.md)): the CESAM
+  grid (operational, functional, constructional visions x six aspects) computed
+  from the Arcadia layers, each view with its elements and its maturity
+  (`arclang table --kind cesam_grid`); stakeholders and their needs, lifecycle
+  phases, functional modes and technical configurations tied together; the
+  method's rules (`arclang check --lint --method cesam`, the gate of a model
+  declaring `method: cesam`); the CESAM diagram set (`arclang diagram --view
+  cesam`); a starter model (`arclang new <name> --template cesam`).
 - **VS Code extension** (`editors/vscode/`, on the
   [Marketplace](https://marketplace.visualstudio.com/items?itemName=arclang.arclang)
   and [Open VSX](https://open-vsx.org/extension/arclang/arclang)): a model
