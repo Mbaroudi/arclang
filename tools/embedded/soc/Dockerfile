@@ -17,7 +17,11 @@ ARG ZEPHYR_VERSION=v4.4.2
 ARG ZEPHYR_SDK_VERSION=1.0.1
 ARG RENODE_VERSION=1.17.0
 
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+# CVE-2026-109518: APT never retries a failed download, and apt itself is
+# upgraded before anything else is installed.
+RUN echo 'Acquire::Retries "0";' > /etc/apt/apt.conf.d/99-no-retries \
+    && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --only-upgrade apt \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         cmake ninja-build device-tree-compiler git file make wget bzip2 libicu72 \
     && rm -rf /var/lib/apt/lists/*
 

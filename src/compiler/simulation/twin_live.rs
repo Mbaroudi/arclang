@@ -209,47 +209,48 @@ pub fn now() -> f64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0)
 }
 
-/// Follows an MQTT broker in a thread of its own.
+/// Follows an MQTT broker in a thread of its own (see [`super::twin_mqtt`]).
 fn mqtt(live: &Live, topics: &[String], client_id: Option<&str>, feed: Sender<Feed>) -> Result<(), String> {
-    use rumqttc::{Client, Event, MqttOptions, Packet, QoS, Transport};
+    use super::twin_mqtt::{session, Event, Options};
     let (tls, host, port) = broker(&live.url)?;
-    let client_id = client_id.map(str::to_string).unwrap_or_else(|| format!("arclang-twin-{}", std::process::id()));
-    let mut options = MqttOptions::new(client_id, host, port);
-    options.set_keep_alive(Duration::from_secs(30));
+    if topics.is_empty() {
+        return Err(format!("{}: name the topics to follow, topics: [\"site/#\"]", live.url));
+    }
     if tls {
-        let config = super::twin_tls::client_config("mqtts://")?;
-        options.set_transport(Transport::tls_with_config(rumqttc::TlsConfiguration::Rustls(config)));
+        super::twin_tls::client_config("mqtts://")?;
     }
-    if let (Ok(user), Ok(password)) = (std::env::var("ARCLANG_MQTT_USERNAME"), std::env::var("ARCLANG_MQTT_PASSWORD")) {
-        options.set_credentials(user, password);
-    }
-    let (client, mut connection) = Client::new(options, 64);
-    for topic in topics {
-        client.subscribe(topic.clone(), QoS::AtMostOnce).map_err(|e| format!("cannot subscribe to {topic}: {e}"))?;
-    }
+    let credentials = match (std::env::var("ARCLANG_MQTT_USERNAME"), std::env::var("ARCLANG_MQTT_PASSWORD")) {
+        (Ok(user), Ok(password)) => Some((user, password)),
+        _ => None,
+    };
+    let client_id = client_id.map(str::to_string).unwrap_or_else(|| format!("arclang-twin-{}", std::process::id()));
+    let options = Options { host, port, tls, client_id, credentials, topics: topics.to_vec() };
     let (url, topics) = (live.url.clone(), topics.join(", "));
     std::thread::spawn(move || {
-        let _client = client;
         let mut connected = false;
-        for event in connection.iter() {
-            let sent = match event {
-                Ok(Event::Incoming(Packet::ConnAck(_))) => {
-                    connected = true;
-                    feed.send(Feed::Status(Status::new("connected", format!("{url} ({topics})"))))
-                }
-                Ok(Event::Incoming(Packet::Publish(message))) => feed.send(Feed::Samples(decode(&message.topic, &message.payload, now()))),
-                Ok(_) => Ok(()),
-                Err(error) => {
-                    let status = if connected { Status::new("disconnected", error.to_string()) } else { Status::new("unreachable", format!("{url}: {error}")) };
-                    connected = false;
-                    let sent = feed.send(Feed::Status(status));
-                    std::thread::sleep(Duration::from_secs(2));
-                    sent
-                }
-            };
-            if sent.is_err() {
+        loop {
+            let mut gone = false;
+            let ended = session(&options, &mut |event| {
+                let sent = match event {
+                    Event::Connected => {
+                        connected = true;
+                        feed.send(Feed::Status(Status::new("connected", format!("{url} ({topics})"))))
+                    }
+                    Event::Message { topic, payload } => feed.send(Feed::Samples(decode(&topic, &payload, now()))),
+                };
+                gone = sent.is_err();
+                !gone
+            });
+            if gone {
                 return;
             }
+            let error = ended.err().unwrap_or_else(|| "the connection ended".into());
+            let status = if connected { Status::new("disconnected", error) } else { Status::new("unreachable", format!("{url}: {error}")) };
+            connected = false;
+            if feed.send(Feed::Status(status)).is_err() {
+                return;
+            }
+            std::thread::sleep(Duration::from_secs(2));
         }
     });
     Ok(())

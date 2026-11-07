@@ -21,7 +21,7 @@ native = [
     "dep:reqwest",
     "dep:toml", "dep:bincode",
     "dep:rayon", "dep:rand", "dep:config", "dep:indicatif",
-    "dep:parquet", "dep:rumqttc", "dep:async-opcua", "dep:futures",
+    "dep:parquet", "dep:async-opcua", "dep:futures",
     "dep:rskafka", "dep:rustls", "dep:rustls-native-certs",
 ]
 
@@ -68,9 +68,8 @@ statrs = { version = "0.18", default-features = false }
 rand_chacha = "0.3"
 config = { version = "0.13", optional = true }
 indicatif = { version = "0.17", optional = true }
-# Digital twins: measurements in Parquet; live data over MQTT.
+# Digital twins: measurements in Parquet. Live MQTT is our own client (twin_mqtt.rs).
 parquet = { version = "60", default-features = false, features = ["snap", "zstd", "lz4"], optional = true }
-rumqttc = { version = "0.25", default-features = false, features = ["use-rustls-no-provider"], optional = true }
 async-opcua = { version = "0.19", default-features = false, features = ["client"], optional = true }
 futures = { version = "0.3", optional = true }
 rskafka = { version = "0.6", features = ["transport-tls"], optional = true }

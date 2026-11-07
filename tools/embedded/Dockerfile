@@ -6,7 +6,11 @@
 #   tools/embedded/run.sh cargo test --test embedded_c
 FROM rust:1-bookworm
 
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+# CVE-2026-109518: APT never retries a failed download, and apt itself is
+# upgraded before anything else is installed.
+RUN echo 'Acquire::Retries "0";' > /etc/apt/apt.conf.d/99-no-retries \
+    && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --only-upgrade apt \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         gcc clang cppcheck python3 python3-venv python3-pip \
         xvfb xauth libgtk-3-0 libnss3 libasound2 libxss1 libgbm1 libxkbfile1 libsecret-1-0 \
         libdrm2 libxshmfence1 libatk-bridge2.0-0 libcups2 ca-certificates curl xz-utils imagemagick \
