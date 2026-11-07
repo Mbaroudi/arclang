@@ -9,7 +9,7 @@
 //   ARCLANG_BINARY=/path/to/arclang \
 //   ARCLANG_OMC_DOCKER=openmodelica/openmodelica:v1.27.1-minimal node vscode_simulation_test.js
 // SHOTS=/dir keeps pictures.
-const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
+const { launchVSCode } = require('./launch');
 const fs = require('fs'); const os = require('os'); const path = require('path');
 const { spawnSync } = require('child_process');
 
@@ -53,10 +53,8 @@ async function tableFrame(win) {
   };
   fs.mkdirSync(path.join(dir, 'u', 'User'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'u', 'User', 'settings.json'), JSON.stringify(settings));
-  const app = await _electron.launch({ executablePath: path.join(APP, 'Contents/MacOS/Electron'), args: [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', model] });
-  const win = await app.firstWindow();
+  const { win, close } = await launchVSCode(APP, [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', '--new-window', model], { width: 1600, height: 1000 });
   try {
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: 1600, height: 1000 }));
     await win.waitForTimeout(4000);
     await win.keyboard.press('Meta+Shift+P'); await win.waitForTimeout(300);
     await win.keyboard.type('ArcLang: Requirement coverage table'); await win.waitForTimeout(600); await win.keyboard.press('Enter');
@@ -72,7 +70,7 @@ async function tableFrame(win) {
     report('the test ran to its end', false, String(error).slice(0, 200));
     if (SHOTS) await win.screenshot({ path: path.join(SHOTS, 'vscode-simulation-error.png') }).catch(() => undefined);
   } finally {
-    await app.close().catch(() => undefined);
+    await close().catch(() => undefined);
   }
   const failed = results.filter((ok) => !ok).length;
   console.log(`\n${results.length - failed}/${results.length} checks passed`);
