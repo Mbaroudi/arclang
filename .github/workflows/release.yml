@@ -63,6 +63,9 @@ jobs:
         run: |
           bin=target/${{ matrix.target }}/release/arclang
           for image in rockylinux:9 debian:bookworm-slim debian:bullseye-slim ubuntu:22.04; do
+            # Pulled first: docker run would otherwise print its download
+            # progress into what the binary answered.
+            docker pull -q "$image" >/dev/null
             out=$(docker run --rm -v "$PWD/$bin":/arclang:ro "$image" /arclang --version 2>&1)
             echo "$image: $out"
             [ "$out" = "arclang ${GITHUB_REF_NAME#v}" ] || { echo "::error::the Linux binary does not run cleanly on $image"; exit 1; }
@@ -144,11 +147,11 @@ jobs:
 
       - name: Visual Studio Marketplace
         if: env.VSCE_PAT != ''
-        run: npx --yes @vscode/vsce@4 publish --packagePath arclang-vscode-*.vsix
+        run: npx --yes @vscode/vsce@4 publish --skip-duplicate --packagePath arclang-vscode-*.vsix
 
       - name: Open VSX
         if: env.OVSX_PAT != ''
-        run: npx --yes ovsx@1 publish arclang-vscode-*.vsix
+        run: npx --yes ovsx@1 publish --skip-duplicate arclang-vscode-*.vsix
 
   release:
     name: Publish release
