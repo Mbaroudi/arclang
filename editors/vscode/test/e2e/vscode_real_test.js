@@ -4,8 +4,8 @@
 // The compiler is the `arclang` on the PATH, or ARCLANG_BINARY. The keys of
 // the draw.io checks are typed as on a French (AZERTY) Mac keyboard (azerty.js);
 // SHOTS=/dir keeps pictures of the themes, the narrow panel and the gestures.
-const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
-const fs = require('fs'); const os = require('os'); const path = require('path');
+const { launchVSCode } = require('./launch');
+const fs = require('fs'); const os = require('os'); const path = require('path'); const { execFileSync } = require('child_process');
 
 const APP = process.env.VSCODE_APP || '/Applications/Visual Studio Code.app';
 const { azerty } = require('./azerty');
@@ -17,16 +17,14 @@ async function launch(dir, models, extra = {}) {
   const settings = { 'files.simpleDialog.enable': true, 'update.mode': 'none', 'arclang.workbench.doubleClick': 'rename', 'extensions.autoCheckUpdates': false, 'extensions.autoUpdate': false, 'telemetry.telemetryLevel': 'off', 'workbench.startupEditor': 'none', 'security.workspace.trust.enabled': false, 'window.restoreWindows': 'none', ...(process.env.ARCLANG_BINARY ? { 'arclang.binary': process.env.ARCLANG_BINARY } : {}), ...extra };
   fs.mkdirSync(path.join(dir, 'u', 'User'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'u', 'User', 'settings.json'), JSON.stringify(settings));
-  const app = await _electron.launch({ executablePath: path.join(APP, 'Contents/MacOS/Electron'), args: [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', ...files] });
-  const win = await app.firstWindow();
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: 1600, height: 1000 }));
+  const { win, close } = await launchVSCode(APP, [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', '--new-window', ...files], { width: 1600, height: 1000 });
   await win.waitForTimeout(4000);
   const command = async (name) => { await win.keyboard.press('Meta+Shift+P'); await win.waitForTimeout(300); await win.keyboard.type(name); await win.waitForTimeout(500); await win.keyboard.press('Enter'); await win.waitForTimeout(500); };
   await command('View: Close Secondary Side Bar');
   await command('ArcLang: Open the workbench');
   const page = await workbenchPage(win);
   await win.waitForTimeout(1200);
-  return { app, win, page, command };
+  return { close, win, page, command };
 }
 
 /** The frame of a workbench page (not one of `not`), once its drawing is there. */
@@ -43,7 +41,7 @@ async function basics() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arcvs-'));
   const model = path.join(dir, 'model.arc'); const layout = path.join(dir, 'model.layout.json');
   fs.copyFileSync(path.join(EXT, 'media', 'reference.arc'), model);
-  let { app, win, page } = await launch(dir, model);
+  let { close, win, page } = await launch(dir, model);
   try {
     report('the workbench opens with its diagram', !!page);
     if (!page) throw new Error('no workbench page');
@@ -103,11 +101,11 @@ async function basics() {
     report('Esc leaves full screen', (await page.evaluate(() => innerWidth)) < full.w * 0.8);
 
     // 5. Reopened: the arrangement is back
-    await app.close();
+    await close();
     // VS Code lets go of its profile a moment after its window closes.
     for (let i = 0; i < 40 && fs.existsSync(path.join(dir, 'u', 'code.lock')); i++) await new Promise((r) => setTimeout(r, 250));
     await new Promise((r) => setTimeout(r, 1500));
-    ({ app, win, page } = await launch(dir, model));
+    ({ close, win, page } = await launch(dir, model));
     if (!page) { await win.screenshot({ path: path.join(os.tmpdir(), 'arcvs-reopen.png') }); throw new Error('the workbench did not open again'); }
     await page.locator('.wb-layer', { hasText: 'Logical' }).first().click(); await win.waitForTimeout(1500);
     const camera = await box('LC-CAM'); const actuator = await box('LC-ACT');
@@ -176,7 +174,7 @@ async function basics() {
   } catch (error) {
     report('no error', false, String(error));
   } finally {
-    await app.close().catch(() => {});
+    await close().catch(() => {});
     fs.rmSync(dir, { recursive: true, force: true });
   }
 }
@@ -207,7 +205,7 @@ function on(ctx) {
       const p = await ctx.page.locator(`.arcviz-stage [data-id="${id}"]`).first().evaluate((g) => { const line = g.querySelector('.av-line'); const len = line.getTotalLength(); const q = line.getPointAtLength(len / 2); const m = line.getScreenCTM(); return { x: q.x * m.a + q.y * m.c + m.e, y: q.x * m.b + q.y * m.d + m.f }; });
       return { x: p.x + o.x, y: p.y + o.y };
     },
-    clipboard: () => ctx.app.evaluate(({ clipboard }) => clipboard.readText()),
+    clipboard: () => execFileSync('/usr/bin/pbpaste', { encoding: 'utf8' }),
     shot: async (name) => { if (process.env.SHOTS) await win.screenshot({ path: path.join(process.env.SHOTS, `${name}.png`) }); },
   };
   return h;
@@ -220,7 +218,7 @@ async function drawio() {
   fs.copyFileSync(path.join(EXT, 'media', 'reference.arc'), model);
   fs.copyFileSync(path.join(EXT, '..', '..', 'examples', 'automotive', 'ev_product_line.arc'), other);
   const ctx = await launch(dir, model);
-  const { app, win } = ctx;
+  const { close, win } = ctx;
   try {
     report('the workbench opens on the model (draw.io checks)', !!ctx.page && (await ctx.page.evaluate(() => document.getElementById('workbench')?.dataset.file)) === 'model.arc');
     if (!ctx.page) throw new Error('no workbench page');
@@ -284,7 +282,8 @@ async function drawio() {
     await h.deselect();
 
     // 4. Zoom keys zoom the sheet, not the window; ⌘0 and Shift+1 fit
-    const zoomOf = () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.getZoomLevel());
+    // The window's zoom shows in its device pixel ratio (1.2 per level).
+    const zoomOf = () => win.evaluate(() => Math.round(Math.log(devicePixelRatio) / Math.log(1.2) * 100) / 100);
     const z0 = await zoomOf(); const k0 = await h.scale();
     await h.key('Meta+=', 900); const k1 = await h.scale();
     await h.key('Meta+-', 900); const k2 = await h.scale();
@@ -383,7 +382,7 @@ async function drawio() {
   } catch (error) {
     report('no error (draw.io checks)', false, String(error).slice(0, 300));
   } finally {
-    await app.close().catch(() => {});
+    await close().catch(() => {});
     fs.rmSync(dir, { recursive: true, force: true });
   }
 }
@@ -395,7 +394,7 @@ async function twoModels() {
   fs.copyFileSync(path.join(EXT, 'media', 'reference.arc'), model);
   fs.copyFileSync(path.join(EXT, 'media', 'reference.arc'), other);
   const ctx = await launch(dir, model);
-  const { app, win } = ctx;
+  const { close, win } = ctx;
   try {
     if (!ctx.page) throw new Error('no workbench page');
     ctx.press = await azerty(win);
@@ -422,7 +421,7 @@ async function twoModels() {
   } catch (error) {
     report('no error (two models)', false, String(error).slice(0, 300));
   } finally {
-    await app.close().catch(() => {});
+    await close().catch(() => {});
     fs.rmSync(dir, { recursive: true, force: true });
   }
 }
@@ -434,7 +433,7 @@ async function looks() {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arcvs-look-'));
     const model = path.join(dir, 'model.arc'); fs.copyFileSync(path.join(EXT, 'media', 'reference.arc'), model);
     const ctx = await launch(dir, model, { 'workbench.colorTheme': theme });
-    const { app, win } = ctx;
+    const { close, win } = ctx;
     try {
       if (!ctx.page) throw new Error('no workbench page');
       ctx.press = await azerty(win); const h = on(ctx);
@@ -458,8 +457,7 @@ async function looks() {
         let inner = 0;
         for (let attempt = 0; attempt < 3 && Math.abs(inner - width) > 20; attempt++) {
           inner = await ctx.page.evaluate(() => innerWidth);
-          const bounds = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBounds());
-          await app.evaluate(({ BrowserWindow }, w) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: w, height: 900 }), bounds.width + width - inner);
+          await win.setViewportSize({ width: win.viewportSize().width + width - inner, height: 900 });
           await win.waitForTimeout(2000);
           inner = await ctx.page.evaluate(() => innerWidth);
         }
@@ -472,7 +470,7 @@ async function looks() {
     } catch (error) {
       report(`no error (${theme})`, false, String(error).slice(0, 300));
     } finally {
-      await app.close().catch(() => {});
+      await close().catch(() => {});
       fs.rmSync(dir, { recursive: true, force: true });
     }
   }
@@ -480,12 +478,11 @@ async function looks() {
 
 /** The window sized until the webview is `width` px wide (the editor chrome takes the rest). */
 async function sizeTo(ctx, width) {
-  const { app, win } = ctx;
+  const { win } = ctx;
   let inner = 0;
   for (let attempt = 0; attempt < 4 && Math.abs(inner - width) > 12; attempt++) {
     inner = await ctx.page.evaluate(() => innerWidth);
-    const bounds = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBounds());
-    await app.evaluate(({ BrowserWindow }, w) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: w, height: 900 }), bounds.width + width - inner);
+    await win.setViewportSize({ width: win.viewportSize().width + width - inner, height: 900 });
     await win.waitForTimeout(1800);
     inner = await ctx.page.evaluate(() => innerWidth);
   }
@@ -586,7 +583,7 @@ async function toolbar() {
     } catch (error) {
       report(`no error (toolbar, ${theme})`, false, String(error).slice(0, 300));
     } finally {
-      await ctx.app.close().catch(() => {});
+      await ctx.close().catch(() => {});
       fs.rmSync(dir, { recursive: true, force: true });
     }
   }

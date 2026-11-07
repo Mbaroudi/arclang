@@ -2,7 +2,7 @@
 // (test/ai/fake-llm-server.js, OpenAI-compatible): no network, no key, no cost.
 //   VSCODE_APP="/Applications/Visual Studio Code.app" PLAYWRIGHT=/path/to/node_modules/playwright node vscode_ai_test.js
 // The compiler is ARCLANG_BINARY, else the repository's release build, else the PATH. SHOTS=dir keeps pictures.
-const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
+const { launchVSCode } = require('./launch');
 const fs = require('fs'); const os = require('os'); const path = require('path'); const { spawnSync } = require('child_process');
 const { startFakeServer, arclangScenario } = require('../ai/fake-llm-server.js');
 
@@ -49,10 +49,7 @@ const until = async (win, test, ms = 20000) => { const end = Date.now() + ms; wh
   };
   fs.mkdirSync(path.join(dir, 'u', 'User'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'u', 'User', 'settings.json'), JSON.stringify(settings));
-  const exe = ['Electron', 'Code'].map((n) => path.join(APP, 'Contents/MacOS', n)).find((p) => fs.existsSync(p));
-  const app = await _electron.launch({ executablePath: exe, args: [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', '--disable-workspace-trust', model] });
-  const win = await app.firstWindow();
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: 1600, height: 1000 }));
+  const { win, close } = await launchVSCode(APP, [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', '--new-window', '--disable-workspace-trust', model], { width: 1600, height: 1000 });
   await win.waitForTimeout(4000);
   const press = await azerty(win);
   const shot = async (name) => { if (SHOTS) { fs.mkdirSync(SHOTS, { recursive: true }); await win.screenshot({ path: path.join(SHOTS, `${name}.png`) }); } };
@@ -180,8 +177,8 @@ const until = async (win, test, ms = 20000) => { const end = Date.now() + ms; wh
     await card.locator('.wb-ai-apply').first().click(); await win.waitForTimeout(2500);
     await page.locator('.arcviz-stage').click({ position: { x: 6, y: 6 } }); await press('Meta+s'); await win.waitForTimeout(1200);
     // The same pane in a wide workbench: the drawer beside the canvas, the AI tab chosen in it.
-    const bounds = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBounds());
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: 3000, height: 1000 }));
+    const bounds = win.viewportSize();
+    await win.setViewportSize({ width: 3000, height: 1000 });
     await win.waitForTimeout(2000);
     if (await page.locator('.wb-right').isHidden()) await page.evaluate(() => document.querySelector('.wb-icon-button[title="Properties"]').click());
     await page.locator('.wb-ai-tab').click().catch(() => {}); await win.waitForTimeout(600);
@@ -189,7 +186,7 @@ const until = async (win, test, ms = 20000) => { const end = Date.now() + ms; wh
     const wideFloat = await page.evaluate(() => getComputedStyle(document.querySelector('.wb-right')).position);
     report('wide workbench: the AI pane sits in the drawer beside the canvas', wideShown && wideFloat !== 'absolute', `${await page.evaluate(() => innerWidth)} px, ${wideFloat}`);
     await shot('ai-6c-wide');
-    await app.evaluate(({ BrowserWindow }, b) => BrowserWindow.getAllWindows()[0].setBounds(b), bounds); await win.waitForTimeout(1500);
+    await win.setViewportSize(bounds); await win.waitForTimeout(1500);
     report('applying the suggestion puts the trace back', /trace "LC-CAM" satisfies "REQ-LKA-001"/.test(source()) && compiles(model));
     const suggestRequest = fake.requests.find((r) => /propose_changes/.test(r.all));
     report('the suggestion request carried the consequences and impact', !!suggestRequest && /Its consequences found by the compiler/.test(suggestRequest.all) && /arclang impact/.test(suggestRequest.all));
@@ -204,7 +201,7 @@ const until = async (win, test, ms = 20000) => { const end = Date.now() + ms; wh
     report('no error', false, String(error && error.stack || error));
     await shot('ai-error');
   } finally {
-    await app.close().catch(() => {});
+    await close().catch(() => {});
     await fake.close();
     fs.rmSync(dir, { recursive: true, force: true });
   }

@@ -3,7 +3,7 @@
 // back by macOS's own reader), then a template of the user's as Markdown,
 // opened in the editor with its directives filled.
 //   VSCODE_APP=... PLAYWRIGHT=... ARCLANG_BINARY=... node vscode_document_test.js
-const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
+const { launchVSCode } = require('./launch');
 const fs = require('fs'); const os = require('os'); const path = require('path');
 const { spawnSync } = require('child_process');
 
@@ -23,9 +23,7 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok });
   const settings = { 'files.simpleDialog.enable': true, 'update.mode': 'none', 'extensions.autoCheckUpdates': false, 'extensions.autoUpdate': false, 'telemetry.telemetryLevel': 'off', 'workbench.startupEditor': 'none', 'security.workspace.trust.enabled': false, 'window.restoreWindows': 'none', 'arclang.binary': BINARY };
   fs.mkdirSync(path.join(dir, 'u', 'User'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'u', 'User', 'settings.json'), JSON.stringify(settings));
-  const app = await _electron.launch({ executablePath: path.join(APP, 'Contents/MacOS/Electron'), args: [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', dir, model] });
-  const win = await app.firstWindow();
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: 1600, height: 1000 }));
+  const { win, close } = await launchVSCode(APP, [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', '--new-window', dir, model], { width: 1600, height: 1000 });
   await win.waitForTimeout(5000);
   const quick = win.locator('.quick-input-widget input').first();
   const command = async (name) => { await win.keyboard.press('Meta+Shift+P'); await win.waitForTimeout(300); await win.keyboard.type(name); await win.waitForTimeout(600); await win.keyboard.press('Enter'); await win.waitForTimeout(1200); };
@@ -67,7 +65,7 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok });
   } catch (error) {
     report('the test ran to its end', false, error.message);
   } finally {
-    await app.close().catch(() => {});
+    await close().catch(() => {});
     fs.rmSync(dir, { recursive: true, force: true });
     const failed = rows.filter((r) => !r.ok).length;
     console.log(`${rows.length - failed}/${rows.length} passed`);

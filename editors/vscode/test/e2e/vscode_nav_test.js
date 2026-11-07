@@ -7,7 +7,7 @@
 // The state of the editors is read through the extension's test probe
 // (ARCLANG_NAV_PROBE): visible editors, groups, selections, the highlight.
 // Keys are AZERTY's (azerty.js); SHOTS=/dir keeps pictures.
-const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
+const { launchVSCode } = require('./launch');
 const { spawnSync } = require('child_process');
 const fs = require('fs'); const os = require('os'); const path = require('path');
 const { azerty } = require('./azerty');
@@ -25,17 +25,18 @@ async function launch(dir, files, extra = {}, open = true) {
   fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
   fs.writeFileSync(settingsFile, JSON.stringify({ ...SETTINGS, ...extra }));
   const probeFile = path.join(dir, 'probe.json');
-  const app = await _electron.launch({ executablePath: path.join(APP, 'Contents/MacOS/Electron'), env: { ...process.env, ARCLANG_NAV_PROBE: probeFile }, args: [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', dir, ...files] });
-  const win = await app.firstWindow();
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: 1680, height: 1050 }));
+  const { win, close } = await launchVSCode(APP, [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', '--new-window', dir, ...files], { env: { ...process.env, ARCLANG_NAV_PROBE: probeFile }, width: 1680, height: 1050 });
   await win.waitForTimeout(4000);
   const press = await azerty(win);
-  const command = async (name, settle = 700) => { await press('Meta+Shift+p'); await win.waitForTimeout(300); await win.keyboard.type(name); await win.waitForTimeout(700); await press('Enter'); await win.waitForTimeout(settle); };
+  const command = async (name, settle = 700) => {
+    // Focus on the active tab: a key typed in a webview (a diagram just opened) reaches the page, not always the palette.
+    await win.locator('.editor-group-container.active .tabs-container .tab.active').first().click({ timeout: 1000 }).catch(() => undefined); await win.waitForTimeout(300);
+    await press('Meta+Shift+p'); await win.waitForTimeout(300); await win.keyboard.type(name); await win.waitForTimeout(700); await press('Enter'); await win.waitForTimeout(settle); };
   const setSettings = async (more) => { fs.writeFileSync(settingsFile, JSON.stringify({ ...SETTINGS, ...extra, ...more })); await win.waitForTimeout(2000); };
   const probe = async () => { fs.rmSync(probeFile, { force: true }); await command('ArcLang: Dump the editor layout (test)', 500); for (let i = 0; i < 20 && !fs.existsSync(probeFile); i++) await win.waitForTimeout(150); return JSON.parse(fs.readFileSync(probeFile, 'utf8')); };
   await command('View: Close Secondary Side Bar');
   if (open) await command('ArcLang: Open the workbench', 1500);
-  return { app, win, command, press, probe, setSettings };
+  return { close, win, command, press, probe, setSettings };
 }
 
 async function workbenchPage(win, not = []) {
@@ -59,7 +60,7 @@ async function navigation() {
   const model = path.join(dir, 'model.arc');
   fs.copyFileSync(path.join(EXT, 'media', 'reference.arc'), model);
   const source = fs.readFileSync(model, 'utf8');
-  const { app, win, command, press, probe, setSettings } = await launch(dir, [model]);
+  const { close, win, command, press, probe, setSettings } = await launch(dir, [model]);
   try {
     const page = await workbenchPage(win);
     report('the workbench opens beside the text', !!page);
@@ -154,14 +155,14 @@ async function navigation() {
     if (!(await link.count()) || textEditors(goto).length !== 1) { console.log('     debug', await link.count(), tabsOf(goto).join(' | '), JSON.stringify(goto.visibleEditors)); if (SHOTS) await win.screenshot({ path: path.join(SHOTS, 'nav-debug-goto.png') }); }
     void unfold;
   } finally {
-    await app.close().catch(() => undefined);
+    await close().catch(() => undefined);
   }
 }
 
 async function creation() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arcnew-'));
   fs.mkdirSync(path.join(dir, 'models'));
-  const { app, win, command, press, probe } = await launch(dir, [], {}, false);
+  const { close, win, command, press, probe } = await launch(dir, [], {}, false);
   const check = (file) => spawnSync(ARCLANG, ['check', file], { encoding: 'utf8' });
   const saveAs = async (file) => { const input = win.locator('.quick-input-widget input').first(); await input.waitFor({ timeout: 8000 }); await input.fill(file); await win.waitForTimeout(500); await press('Enter'); await win.waitForTimeout(2500); };
   const pickItem = async (label) => { await win.waitForTimeout(600); await win.locator('.quick-input-list .monaco-list-row', { hasText: label }).first().click(); await win.waitForTimeout(1200); };
@@ -249,7 +250,7 @@ async function creation() {
     const p4 = await probe();
     report('… the button opens it in a tab of its own', p4.groups.some((g) => g.tabs.some((t) => t.kind === 'diagram' && /Lane keeping chain/.test(t.label))), tabsOf(p4).join(' | '));
   } finally {
-    await app.close().catch(() => undefined);
+    await close().catch(() => undefined);
   }
 }
 

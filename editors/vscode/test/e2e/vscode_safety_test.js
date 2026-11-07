@@ -2,7 +2,7 @@
 // open model (hazards, FMEA by risk, a fault tree per hazard with its rate and
 // budget) and opens it in the Markdown preview.
 //   VSCODE_APP="/Applications/Visual Studio Code.app" PLAYWRIGHT=/path/to/playwright ARCLANG_BINARY=/path/to/arclang node vscode_safety_test.js
-const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
+const { launchVSCode } = require('./launch');
 const fs = require('fs'); const os = require('os'); const path = require('path');
 const { azerty } = require('./azerty');
 
@@ -18,9 +18,7 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok });
   const settings = { 'update.mode': 'none', 'extensions.autoCheckUpdates': false, 'extensions.autoUpdate': false, 'telemetry.telemetryLevel': 'off', 'workbench.startupEditor': 'none', 'security.workspace.trust.enabled': false, 'window.restoreWindows': 'none', ...(process.env.ARCLANG_BINARY ? { 'arclang.binary': process.env.ARCLANG_BINARY } : {}) };
   fs.mkdirSync(path.join(dir, 'u', 'User'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'u', 'User', 'settings.json'), JSON.stringify(settings));
-  const app = await _electron.launch({ executablePath: path.join(APP, 'Contents/MacOS/Electron'), args: [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', model] });
-  const win = await app.firstWindow();
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: 1600, height: 1000 }));
+  const { win, close } = await launchVSCode(APP, [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', '--new-window', model], { width: 1600, height: 1000 });
   await win.waitForTimeout(5000);
   try {
     await win.keyboard.press('Meta+Shift+P'); await win.waitForTimeout(300);
@@ -39,7 +37,7 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok });
   } catch (error) {
     report('the test ran to its end', false, error.message);
   } finally {
-    await app.close().catch(() => {});
+    await close().catch(() => {});
     fs.rmSync(dir, { recursive: true, force: true });
     const failed = rows.filter((r) => !r.ok).length;
     console.log(`${rows.length - failed}/${rows.length} passed`);

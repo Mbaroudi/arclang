@@ -4,7 +4,7 @@
 // of the source changes, nothing else); Delete removes it, ⌘Z brings it back.
 //   VSCODE_APP="/Applications/Visual Studio Code.app" PLAYWRIGHT=/path/to/playwright ARCLANG_BINARY=/path/to/arclang node vscode_trace_test.js
 // SHOTS=dir saves pictures. Keys are sent as a French (AZERTY) Mac sends them.
-const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
+const { launchVSCode } = require('./launch');
 const fs = require('fs'); const os = require('os'); const path = require('path');
 const { azerty } = require('./azerty');
 
@@ -17,9 +17,7 @@ async function launch(dir, model) {
   const settings = { 'files.simpleDialog.enable': true, 'update.mode': 'none', 'extensions.autoCheckUpdates': false, 'extensions.autoUpdate': false, 'telemetry.telemetryLevel': 'off', 'workbench.startupEditor': 'none', 'security.workspace.trust.enabled': false, 'window.restoreWindows': 'none', ...(process.env.ARCLANG_BINARY ? { 'arclang.binary': process.env.ARCLANG_BINARY } : {}) };
   fs.mkdirSync(path.join(dir, 'u', 'User'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'u', 'User', 'settings.json'), JSON.stringify(settings));
-  const app = await _electron.launch({ executablePath: path.join(APP, 'Contents/MacOS/Electron'), args: [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', model] });
-  const win = await app.firstWindow();
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: 1600, height: 1000 }));
+  const { win, close } = await launchVSCode(APP, [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', '--new-window', model], { width: 1600, height: 1000 });
   await win.waitForTimeout(4000);
   const command = async (name) => { await win.keyboard.press('Meta+Shift+P'); await win.waitForTimeout(300); await win.keyboard.type(name); await win.waitForTimeout(500); await win.keyboard.press('Enter'); await win.waitForTimeout(800); };
   await command('View: Close Secondary Side Bar');
@@ -27,7 +25,7 @@ async function launch(dir, model) {
   let page = null;
   for (let i = 0; i < 60 && !page; i++) { await win.waitForTimeout(500); for (const f of win.frames()) { try { if (await f.$('.arcviz-stage svg')) page = f; } catch { /* a frame going away */ } } }
   await win.waitForTimeout(1500);
-  return { app, win, page, press: await azerty(win) };
+  return { close, win, page, press: await azerty(win) };
 }
 
 (async () => {
@@ -35,7 +33,7 @@ async function launch(dir, model) {
   const model = path.join(dir, 'model.arc');
   const reference = fs.readFileSync(path.join(EXT, 'media', 'reference.arc'), 'utf8');
   fs.writeFileSync(model, `${reference.trimEnd()}\ntrace "LC-CAM" allocates "LC-CTL"\n`);
-  const { app, win, page, press } = await launch(dir, model);
+  const { close, win, page, press } = await launch(dir, model);
   const shot = async (name) => { if (SHOTS) await win.screenshot({ path: path.join(SHOTS, `${name}.png`) }); };
   const source = async () => { await press('Meta+s'); await win.waitForTimeout(900); return fs.readFileSync(model, 'utf8'); };
   const settle = (ms = 3000) => win.waitForTimeout(ms);
@@ -94,7 +92,7 @@ async function launch(dir, model) {
   } catch (error) {
     report('the test ran to its end', false, error.message);
   } finally {
-    await app.close().catch(() => {});
+    await close().catch(() => {});
     fs.rmSync(dir, { recursive: true, force: true });
     const failed = rows.filter((r) => !r.ok).length;
     console.log(`${rows.length - failed}/${rows.length} passed`);

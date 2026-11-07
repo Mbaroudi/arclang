@@ -6,7 +6,7 @@
 //   VSCODE_APP="/Applications/Visual Studio Code.app" PLAYWRIGHT=/path/to/playwright node vscode_drawio_test.js
 // The compiler is the `arclang` on the PATH, or ARCLANG_BINARY. SHOTS=dir saves pictures.
 // Keys are sent as a French (AZERTY) Mac keyboard sends them.
-const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
+const { launchVSCode } = require('./launch');
 const fs = require('fs'); const os = require('os'); const path = require('path');
 
 const APP = process.env.VSCODE_APP || '/Applications/Visual Studio Code.app';
@@ -35,9 +35,7 @@ async function launch(dir, model) {
   const settings = { 'files.simpleDialog.enable': true, 'update.mode': 'none', 'arclang.workbench.doubleClick': 'rename', 'extensions.autoCheckUpdates': false, 'extensions.autoUpdate': false, 'telemetry.telemetryLevel': 'off', 'workbench.startupEditor': 'none', 'security.workspace.trust.enabled': false, 'window.restoreWindows': 'none', ...(process.env.ARCLANG_BINARY ? { 'arclang.binary': process.env.ARCLANG_BINARY } : {}) };
   fs.mkdirSync(path.join(dir, 'u', 'User'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'u', 'User', 'settings.json'), JSON.stringify(settings));
-  const app = await _electron.launch({ executablePath: path.join(APP, 'Contents/MacOS/Electron'), args: [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', model] });
-  const win = await app.firstWindow();
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: 1600, height: 1000 }));
+  const { win, close } = await launchVSCode(APP, [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', '--new-window', model], { width: 1600, height: 1000 });
   await win.waitForTimeout(4000);
   const command = async (name) => { await win.keyboard.press('Meta+Shift+P'); await win.waitForTimeout(300); await win.keyboard.type(name); await win.waitForTimeout(500); await win.keyboard.press('Enter'); await win.waitForTimeout(500); };
   await command('View: Close Secondary Side Bar');
@@ -45,14 +43,14 @@ async function launch(dir, model) {
   let page = null;
   for (let i = 0; i < 60 && !page; i++) { await win.waitForTimeout(500); for (const f of win.frames()) { try { if (await f.$('.arcviz-stage svg')) page = f; } catch { /* a frame going away */ } } }
   await win.waitForTimeout(1200);
-  return { app, win, page, press: await azerty(win) };
+  return { close, win, page, press: await azerty(win) };
 }
 
 (async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arcdraw-'));
   const model = path.join(dir, 'model.arc'); const layoutFile = path.join(dir, 'model.layout.json');
   fs.copyFileSync(path.join(EXT, 'media', 'reference.arc'), model);
-  const { app, win, page, press } = await launch(dir, model);
+  const { close, win, page, press } = await launch(dir, model);
   const shot = async (name) => { if (SHOTS) await win.screenshot({ path: path.join(SHOTS, `${name}.png`) }); };
   const layout = () => (fs.existsSync(layoutFile) ? fs.readFileSync(layoutFile, 'utf8') : '');
   const source = async () => { await press('Meta+s'); await win.waitForTimeout(900); return fs.readFileSync(model, 'utf8'); };
@@ -222,7 +220,7 @@ async function launch(dir, model) {
   } catch (error) {
     report('the run completes', false, String(error).slice(0, 300)); await shot('drawio-failure').catch(() => {});
   } finally {
-    await app.close().catch(() => {});
+    await close().catch(() => {});
     const failed = rows.filter((r) => !r.ok);
     console.log(`\n${rows.length - failed.length}/${rows.length} passed`);
     process.exit(failed.length ? 1 : 0);

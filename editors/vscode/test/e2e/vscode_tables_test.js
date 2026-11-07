@@ -8,7 +8,7 @@
 //   VSCODE_APP=".../Visual Studio Code.app" PLAYWRIGHT=/path/to/playwright \
 //   ARCLANG_BINARY=/path/to/arclang OPENPYXL_PYTHON=/venv/bin/python node vscode_tables_test.js
 // SHOTS=/dir keeps pictures (light, dark, high contrast, the matrix).
-const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
+const { launchVSCode } = require('./launch');
 const fs = require('fs'); const os = require('os'); const path = require('path');
 const { execFileSync } = require('child_process');
 const { azerty } = require('./azerty');
@@ -27,16 +27,14 @@ async function launch(dir, model, extra = {}) {
   };
   fs.mkdirSync(path.join(dir, 'u', 'User'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'u', 'User', 'settings.json'), JSON.stringify(settings));
-  const app = await _electron.launch({ executablePath: path.join(APP, 'Contents/MacOS/Electron'), args: [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', model] });
-  const win = await app.firstWindow();
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: 1600, height: 1000 }));
+  const { win, close } = await launchVSCode(APP, [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', '--new-window', model], { width: 1600, height: 1000 });
   await win.waitForTimeout(4000);
   const command = async (name, pick = []) => {
     await win.keyboard.press('Meta+Shift+P'); await win.waitForTimeout(300); await win.keyboard.type(name); await win.waitForTimeout(600); await win.keyboard.press('Enter'); await win.waitForTimeout(700);
     for (const choice of pick) { await win.keyboard.type(choice); await win.waitForTimeout(500); await win.keyboard.press('Enter'); await win.waitForTimeout(700); }
   };
   await command('View: Close Secondary Side Bar');
-  return { app, win, command };
+  return { close, win, command };
 }
 
 /** The frame of a table view (not one of `not`), once its rows are there. */
@@ -61,7 +59,7 @@ async function saveTo(win, file) {
   const model = path.join(dir, 'aeb.arc');
   fs.copyFileSync(path.join(EXT, '..', '..', 'examples', 'complete_emergency_braking_simple.arc'), model);
   const original = fs.readFileSync(model, 'utf8');
-  const { app, win, command } = await launch(dir, model);
+  const { close, win, command } = await launch(dir, model);
   const press = await azerty(win);
   try {
     // 1. The coverage table opens in its own editor tab
@@ -174,7 +172,7 @@ async function saveTo(win, file) {
     report('the run went to its end', false, String(error && error.message));
     if (SHOTS) await win.screenshot({ path: path.join(SHOTS, 'vscode-failure.png') }).catch(() => undefined);
   } finally {
-    await app.close();
+    await close();
   }
   const failed = results.filter((ok) => !ok).length;
   console.log(failed ? `${failed} FAILED` : `all ${results.length} table checks passed in VS Code`);
