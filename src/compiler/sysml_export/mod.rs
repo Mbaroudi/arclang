@@ -8,6 +8,7 @@
 mod architecture;
 mod attributes;
 mod behavior;
+mod cesam_views;
 mod constraints;
 mod data;
 mod levels;
@@ -194,6 +195,7 @@ impl<'m> Exporter<'m> {
             relations::write(e);
             security::write(e);
             views::write(e);
+            cesam_views::write(e);
             tables::write(e); // tables hook
             e.units();
         });

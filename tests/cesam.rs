@@ -292,3 +292,46 @@ fn the_cesam_diagrams_are_the_viewpoint_diagrams_titled_and_ordered_by_the_grid(
     let lifecycle = set.diagrams.iter().find(|d| d.id == "msm:Lock lifecycle").unwrap();
     assert_eq!(lifecycle.title, "Lifecycle — Lock lifecycle (Operational vision)");
 }
+
+// ---- Levels, the system of interest, the template, the SysML v2 views ----
+
+#[test]
+fn a_cell_counts_its_elements_per_arcadia_level() {
+    let table = grid(MODEL);
+    let functional = table.rows.iter().find(|r| r.id == "functional").unwrap();
+    let text = &functional.cells["structure"].text;
+    assert!(text.starts_with("4 (SA 2, LA 2) · "), "{text}");
+}
+
+#[test]
+fn a_component_as_the_system_of_interest_keeps_what_it_holds_and_what_crosses_its_boundary() {
+    let result = example();
+    let spec = TableSpec { kind: "cesam_grid".to_string(), scope: Some("LC-2".to_string()), ..TableSpec::default() };
+    let table = tables::compute(&result, &spec, &Options::default()).unwrap();
+    assert_eq!(names(&table, "functional", "structure"), ["Check credential", "Store codes", "Publish state"]);
+    let interactions = names(&table, "constructional", "interactions");
+    assert!(interactions.contains(&"Credential".to_string()) && interactions.contains(&"Bolt command".to_string()), "{interactions:?}");
+    assert!(names(&table, "operational", "structure").is_empty());
+}
+
+#[test]
+fn the_cesam_template_compiles_passes_the_gate_and_holds_every_rule() {
+    let source = include_str!("../src/cli/templates/cesam.arc").replace("{{NAME}}", "Door").replace("{{FILE}}", "door.arc");
+    let result = compile(&source).expect("the template compiles");
+    assert!(cesam_rules::advisories(&result.ast, &result.semantic_model).is_empty());
+    let gate = arclang::compiler::production_gate::run_gate(&result.ast, &result.semantic_model, "ISO26262");
+    assert!(gate.passed, "{:?}", gate.findings);
+}
+
+#[test]
+fn a_model_following_cesam_exports_its_views_to_sysml_v2_and_they_read_back() {
+    let result = example();
+    let sysml = arclang::compiler::sysmlv2_generator::generate_sysmlv2(&result.semantic_model, &result.ast);
+    assert!(sysml.contains("view 'CESAM Lifecycle' {"), "{sysml}");
+    assert!(sysml.contains("attribute vision : String = \"constructional\";"));
+    assert!(sysml.contains("expose Behaviors::'Lock lifecycle';"));
+    arclang::compiler::sysml_records::from_text(&sysml).expect("the export reads back");
+    let plain = compile(MODEL).unwrap();
+    let sysml = arclang::compiler::sysmlv2_generator::generate_sysmlv2(&plain.semantic_model, &plain.ast);
+    assert!(!sysml.contains("view 'CESAM"), "a model not following CESAM gets no CESAM views");
+}

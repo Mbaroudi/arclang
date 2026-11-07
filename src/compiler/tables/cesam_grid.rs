@@ -1,9 +1,12 @@
 //! `cesam_grid`: the model seen through the CESAM framework — one row per
 //! vision (operational, functional, constructional), one column per aspect
 //! (requirements, states, structure, interactions, scenarios, interfaces).
-//! A cell lists the elements and exchanges of the model in that view; its
+//! A cell lists the elements and exchanges of the model in that view, counted
+//! per Arcadia level (CESAM's abstraction levels: how deep the view goes); its
 //! status says how mature the view is: `gap` when empty, `warn` when the
-//! gate or the CESAM rules flag one of its elements, else `ok`.
+//! gate flags one of its elements, else `ok`. A scope keeps one level, or one
+//! element and what it holds: the grid of a subsystem taken as the system of
+//! interest.
 
 use super::context::Context;
 use super::{Cell, Column, Link, Row, TableSpec};
@@ -44,11 +47,11 @@ pub fn placements(context: &Context, scope: Option<&str>) -> HashMap<Placement, 
     }
     for relationship in &context.graph.relationships {
         let Some(placement) = classifier.relationship(relationship) else { continue };
-        let source = context.index_of_uuid(&relationship.source);
-        if let Some(source) = source {
-            if !context.in_scope(source, scope) {
-                continue;
-            }
+        // An exchange belongs to the scope when either end does: the
+        // interfaces of a system of interest are what crosses its boundary.
+        let ends = [context.index_of_uuid(&relationship.source), context.index_of_uuid(&relationship.target)];
+        if scope.is_some() && !ends.iter().flatten().any(|&i| context.in_scope(i, scope)) {
+            continue;
         }
         let end = |uuid: &str| context.index_of_uuid(uuid).map(|i| context.link(i).name).unwrap_or_default();
         let name = relationship.name.clone().filter(|n| !n.is_empty()).unwrap_or_else(|| format!("{} -> {}", end(&relationship.source), end(&relationship.target)));
@@ -56,6 +59,35 @@ pub fn placements(context: &Context, scope: Option<&str>) -> HashMap<Placement, 
         cells.entry(placement).or_default().push((link, None));
     }
     cells
+}
+
+/// How many entries of a cell sit at each Arcadia level, in level order
+/// (` (OA 2, SA 5)`): an exchange counts at its source's level.
+fn levels_of(context: &Context, entries: &[(Link, Option<usize>)]) -> String {
+    use crate::compiler::metamodel::Layer;
+    let mut counts: BTreeMap<usize, (&'static str, usize)> = BTreeMap::new();
+    for (link, index) in entries {
+        let index = index.or_else(|| {
+            let relationship = context.graph.relationships.iter().find(|r| r.uuid == link.uuid)?;
+            context.index_of_uuid(&relationship.source)
+        });
+        let Some(index) = index else { continue };
+        let layer = context.layer_of(index);
+        let short = match layer {
+            Layer::Operational => "OA",
+            Layer::System => "SA",
+            Layer::Logical => "LA",
+            Layer::Physical => "PA",
+            Layer::Epbs => "EPBS",
+            Layer::Data => "Data",
+            Layer::Transverse => continue,
+        };
+        counts.entry(super::context::layer_rank(layer)).or_insert((short, 0)).1 += 1;
+    }
+    if counts.is_empty() {
+        return String::new();
+    }
+    format!(" ({})", counts.values().map(|(short, n)| format!("{short} {n}")).collect::<Vec<_>>().join(", "))
 }
 
 fn cell_of(context: &Context, vision: Vision, aspect: Aspect, entries: &[(Link, Option<usize>)], issues: &mut Vec<String>) -> Cell {
@@ -71,7 +103,7 @@ fn cell_of(context: &Context, vision: Vision, aspect: Aspect, entries: &[(Link, 
     }
     let links: Vec<Link> = entries.iter().map(|(l, _)| l.clone()).collect();
     let mut cell = Cell::links(links);
-    cell.text = format!("{} · {}", entries.len(), names.join(", "));
+    cell.text = format!("{}{} · {}", entries.len(), levels_of(context, entries), names.join(", "));
     if flagged.is_empty() {
         cell.with_status("ok")
     } else {

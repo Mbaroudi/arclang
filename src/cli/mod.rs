@@ -131,12 +131,20 @@ pub enum Commands {
         write: bool,
     },
     
+    /// Start a model from a template: `arclang new door --template cesam`
+    /// writes door.arc, a model following CESAM with one section per vision,
+    /// every element a placeholder to rename, which compiles and passes the gate
     New {
         #[clap(value_parser)]
         name: String,
-        
+
+        /// The template: cesam
         #[clap(long)]
         template: Option<String>,
+
+        /// Write the file here instead of <name>.arc in the current directory
+        #[clap(short, long, value_parser)]
+        output: Option<PathBuf>,
     },
     
     Sync {
@@ -1244,8 +1252,8 @@ impl CliRunner {
             Commands::Format { input, check, write } => {
                 self.run_format(input, check, write)
             }
-            Commands::New { name, template } => {
-                self.run_new(name, template)
+            Commands::New { name, template, output } => {
+                self.run_new(name, template, output)
             }
             Commands::Sync { sync_command } => {
                 self.run_sync(sync_command)
@@ -1805,10 +1813,36 @@ impl CliRunner {
         Ok(())
     }
 
-    fn run_new(&self, _name: String, _template: Option<String>) -> Result<(), CliError> {
-        Err(CliError::NotImplemented(
-            "project scaffolding ('new') is not implemented yet".to_string(),
-        ))
+    /// The templates `arclang new` starts from, by name.
+    const TEMPLATES: &'static [(&'static str, &'static str)] = &[("cesam", include_str!("templates/cesam.arc"))];
+
+    fn run_new(&self, name: String, template: Option<String>, output: Option<PathBuf>) -> Result<(), CliError> {
+        let available = || Self::TEMPLATES.iter().map(|(n, _)| *n).collect::<Vec<_>>().join(", ");
+        let Some(template) = template else {
+            return Err(CliError::Config(format!("arclang new needs --template <name>: one of {}", available())));
+        };
+        let Some((_, text)) = Self::TEMPLATES.iter().find(|(n, _)| n.eq_ignore_ascii_case(&template)) else {
+            return Err(CliError::Config(format!("unknown template '{template}': one of {}", available())));
+        };
+        let identifier: String = name.chars().filter(|c| c.is_alphanumeric() || *c == '_').collect();
+        if identifier.is_empty() || !identifier.chars().next().is_some_and(|c| c.is_alphabetic() || c == '_') {
+            return Err(CliError::Config(format!("'{name}' is not a model name: letters, digits and underscores, starting with a letter")));
+        }
+        let output = output.unwrap_or_else(|| PathBuf::from(format!("{identifier}.arc")));
+        if output.exists() {
+            return Err(CliError::Config(format!("{} exists already; choose another name or --output", output.display())));
+        }
+        let file = output.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
+        let source = text.replace("{{NAME}}", &identifier).replace("{{FILE}}", &file);
+        // The template is checked before it is written: a model that does not compile is never left behind.
+        crate::Compiler::new(crate::CompilerConfig::default())
+            .compile_string(&source)
+            .map_err(|e| CliError::Compilation(format!("the {template} template does not compile as {identifier}: {e}")))?;
+        std::fs::write(&output, &source).map_err(|e| CliError::Config(format!("cannot write {}: {e}", output.display())))?;
+        println!("✓ {} written from the {template} template", output.display());
+        println!("  arclang check {} --lint", output.display());
+        println!("  arclang table {} --kind cesam_grid -f md", output.display());
+        Ok(())
     }
 
     fn run_sync(&self, _sync_command: SyncCommands) -> Result<(), CliError> {
