@@ -2,7 +2,14 @@
 
 ## Unreleased
 
+## 4.12.0
+
 - **ArcLang Studio** (docs/studio.md): one image, `ghcr.io/mbaroudi/arclang-studio`, published for amd64 and arm64 at each release. It holds VS Code in the browser with this extension, the compiler, OpenModelica with the Modelica Standard Library, Zephyr and Renode, GHDL, Yosys, nextpnr, LiteX and Verilator. It runs on a laptop, on a server or in Codespaces, and `.devcontainer/devcontainer.json` attaches your own VS Code to it. The compiler on a computer without the tools now runs `pil`, `hdl` and `soc` in the Studio of its own version, pulled once, as your user. `ARCLANG_EMBEDDED_DOCKER=dev` keeps the images built from the sources.
+- **Digital twins online**: on arclang.fr, signed in, "ArcLang: Run the digital twins" runs the model's twins on the server, with the measurements (CSV or Parquet) beside the model, counted like a simulation, and shows them in the same view as the desktop. A live twin (MQTT, OPC UA, Kafka, HTTP) runs in the desktop extension: an online job has no network. Online, the server also has OMSimulator and every Modelica library OpenModelica's index marks as fully supported (Buildings, ThermofluidStream, PlanarMechanics, PowerGrids, iPSL…): a `.mo` that declares one in `uses(...)` gets it, for the simulation and the drawing. Fixed: a `.mat` file sent online was decoded as text; binary files now go as bytes.
+- **The Linux binary runs on RHEL/Rocky 9, Debian 11 and 12, Ubuntu 22.04**: built against glibc 2.31, TLS by rustls (no OpenSSL), and checked on each of these distributions before the release is published.
+- **Without the compiler**, opening a `.arc` file shows the prompt to install or locate `arclang`, instead of raw `spawn arclang ENOENT` errors from the language server.
+- **From a Capella architecture to its simulation**: quantities in property values (`60 Wh`, `6000 N`) are imported as quantities, requirement ids survive the round trip, `refine "<id>" { ... }` adds what simulation needs to an element declared in another file, `Executable.<Configuration>` rolls the elements' Modelica models up, and `arclang --as <path>` compiles a copy as the file it stands for. Capella export: a link designating a port by its id is exported; the root system the export adds is not read back; property values keep their order (the corpus round trip is identical again, 363 of 363).
+- **MCP server**: `arclang_partition` (what PIL and HDL would run, what is measured) and `arclang_schedule` (the schedule from measured step times or given WCETs). `arclang schedule` no longer prints `-0.0 %` when nothing was measured.
 
 ## 4.11.0
 

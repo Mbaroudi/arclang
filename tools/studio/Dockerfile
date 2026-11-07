@@ -6,7 +6,7 @@
 # embedded stages to when this computer lacks their tools, and what a
 # server runs for a remote team: one environment, local or remote.
 #
-#   docker run --rm -p 127.0.0.1:3000:3000 -v "$PWD":/home/arclang/workspace ghcr.io/mbaroudi/arclang-studio:4.11.0
+#   docker run --rm -p 127.0.0.1:3000:3000 -v "$PWD":/home/arclang/workspace ghcr.io/mbaroudi/arclang-studio:4.12.0
 #
 # Build (the chain's images first: tools/studio/build.sh does it all):
 #   docker build -f tools/studio/Dockerfile -t arclang-studio:dev .
