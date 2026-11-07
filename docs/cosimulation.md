@@ -22,7 +22,7 @@ proven again on the standard exchange.
 
 ## Tutorial: a charger and its battery in OMSimulator
 
-About fifteen minutes. You need ArcLang Studio (docs/studio.md), which
+About fifteen minutes. You need [ArcLang Studio](studio.md), which
 holds the compiler, OpenModelica and OMSimulator, or a computer with all
 three. The model is `examples/energy/battery-charger` of the repository:
 the charge controller of a 48 V battery, written as a state machine
@@ -190,7 +190,7 @@ may set it: it is an output, the value after each step. Only the filter's
 
 ## What a case becomes
 
-For each case with `execute:` (docs/embedded-c.md, "Test cases executed
+For each case with `execute:` ([embedded-c.md](embedded-c.md), "Test cases executed
 at fixed step"), ArcLang writes `cosim.ssp`:
 
 | In the SSP | What it is |
@@ -270,8 +270,8 @@ proves the channels.
 
 - On this computer: `OMSimulator` on the `PATH`, or the program named by
   `ARCLANG_OMSIMULATOR`. A Modelica plant also needs `omc`
-  (docs/modelica.md).
-- Otherwise the command runs in ArcLang Studio (docs/studio.md), which holds
+  ([modelica.md](modelica.md)).
+- Otherwise the command runs in [ArcLang Studio](studio.md), which holds
   OMSimulator next to OpenModelica, as `pil`, `hdl` and `soc` do. Set
   `ARCLANG_EMBEDDED_DOCKER=off` to never relay.
 
@@ -294,5 +294,5 @@ never reads. An event is then read as exactly 1 or 0, never as `1e-15`.
 - A given plant FMU with its own units: the machine variables wired to it
   must be in SI.
 - The verdict is not yet a rung of the realization ladder
-  (docs/realization.md).
+  ([realization.md](realization.md)).
 - An FMI 3.0 export of the behavior.
