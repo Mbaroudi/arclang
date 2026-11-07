@@ -37,9 +37,9 @@ export interface ViewerApi {
   tidyUp?: () => Promise<void>;
   /** What follows a move by hand that leaves the diagram harder to read (the host's setting). */
   setReorganize?: (mode: 'ask' | 'always' | 'never') => void;
-  /** Colour every view with a theme (null: the built-in colours); see the viewer's setTheme. */
+  /** Color every view with a theme (null: the built-in colors); see the viewer's setTheme. */
   setTheme?: (theme: unknown, settings?: { dark?: boolean; draft?: boolean }) => Promise<ThemeVerdict>;
-  /** The view (or `view`), or the box around `ids`, as SVG drawn with the export colours. */
+  /** The view (or `view`), or the box around `ids`, as SVG drawn with the export colors. */
   exportSvg?: (options?: ExportOptions) => Promise<ExportedDrawing | null>;
   /** The same as a PNG blob, `scale` pixels per unit. */
   exportImage?: (options?: ExportOptions & { scale?: number }) => Promise<(ExportedDrawing & { blob: Blob }) | null>;
@@ -66,6 +66,8 @@ export interface ExportedDrawing {
   title: string;
   view: string;
   elements: { id: string; name: string; kind: string; line?: boolean }[];
+  /** One entry per kind of box, then per kind of line, as the view's legend shows them. */
+  legend?: { label: string; stroke: string; fill?: string; line?: boolean; dash?: boolean }[];
 }
 
 export interface ToolbarHookItem {
@@ -103,7 +105,7 @@ export interface ViewerOptions {
   /** More entries in Export, above SVG and PNG; a Theme menu when not empty. */
   exportItems?: ToolbarHookItem[] | (() => ToolbarHookItem[]);
   themeItems?: ToolbarHookItem[] | (() => ToolbarHookItem[]);
-  /** The colour theme to draw with, in its dark variant when `dark`. */
+  /** The color theme to draw with, in its dark variant when `dark`. */
   theme?: { theme: Record<string, unknown>; dark: boolean };
 }
 

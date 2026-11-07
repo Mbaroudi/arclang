@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CapabilityRelation {
-    /// The source adds behaviour to the target under some condition.
+    /// The source adds behavior to the target under some condition.
     Extends,
     /// The source always incorporates the target.
     Includes,

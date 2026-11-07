@@ -87,6 +87,8 @@ export interface Snapshot {
   elements: { elements: ElementRecord[]; relationships: RelationshipRecord[] } | null;
   findings: Finding[];
   gate: GateReport | null;
+  /** The realization ladder of each requirement (docs/realization.md); absent from older compilers. */
+  realization?: import('./realization').Ladder[];
 }
 
 export interface AttributeType {
@@ -163,26 +165,30 @@ export type ToWebview =
   | { type: 'diagram-op'; op: 'hide' | 'related' | 'new' | 'rename'; id: string; drawing?: string }
   | { type: 'edit-result'; ok: boolean; label: string; error?: string }
   | { type: 'busy'; busy: boolean; label?: string }
+  /** Full screen entered or left from VS Code (the title bar's button, Esc): the page follows without asking back. */
+  | { type: 'full-screen'; on: boolean }
   /** A key of the canvas, bound in VS Code (so it follows the keyboard layout) and run by the page. */
   | { type: 'key'; command: CanvasCommand; text?: string }
   /** What ⌘Z and ⌘⇧Z would take back and bring back; `done` names the step just undone or redone. */
   | { type: 'history'; undo: string | null; redo: string | null; done?: string }
-  /** The colour themes on offer and the one drawn (`problem`: why the one asked for is not). */
+  /** The color themes on offer and the one drawn (`problem`: why the one asked for is not). */
   | { type: 'themes'; entries: ThemeEntry[]; active: string; problem: string | null; dark: boolean; copyBackground: 'white' | 'transparent' }
   /** A command of the diagram, run by the page (copy as image, PowerPoint, the theme editor). */
   | { type: 'diagram-action'; action: DiagramAction }
   /** Draw these views for the slides of a PowerPoint file; `target`, where the host writes it. */
-  | { type: 'pptx-render'; ids: string[]; target?: string }
+  | { type: 'pptx-render'; ids: string[]; target?: string; format?: SlideFormat }
+  /** In a browser (VS Code for the Web): a file the page hands to the browser's downloads. */
+  | { type: 'download'; name: string; mime: string; data: string }
   /** A theme saved by the host, or one read from a file the user chose. */
   | { type: 'theme-saved'; entry: ThemeEntry }
   | { type: 'theme-imported'; theme: unknown; errors: string[]; name: string }
   /** The model's file: unsaved changes, auto save on, and its language (a .sysml saves as SysML v2). */
   | { type: 'file-state'; dirty: boolean; autoSave: boolean; language: 'arclang' | 'sysml' };
 
-/** Where a colour theme comes from. */
+/** Where a color theme comes from. */
 export type ThemeSource = 'preset' | 'team' | 'user' | 'file';
 
-/** A colour theme on offer, as the host read and checked it. */
+/** A color theme on offer, as the host read and checked it. */
 export interface ThemeEntry {
   /** `preset:<id>`, `team:<id>`, `user:<id>` or `file:<id>`. */
   key: string;
@@ -198,16 +204,22 @@ export interface ThemeEntry {
 }
 
 /** The diagram commands the host asks the page to run. */
-export type DiagramAction = 'copy-image' | 'copy-svg' | 'export-pptx' | 'choose-theme' | 'edit-theme';
+export type DiagramAction = 'copy-image' | 'copy-svg' | 'export-pptx' | 'export-pdf' | 'choose-theme' | 'edit-theme';
 
 /** One slide of a PowerPoint export, as the page draws it: the PNG in base64. */
 export interface SlideData {
   title: string;
+  /** The drawing, base64: a PNG for PowerPoint, a JPEG for PDF. */
   data: string;
   width: number;
   height: number;
   notes: string[];
+  /** The legend of what the diagram shows, printed on its slide or page. */
+  legend?: { label: string; stroke: string; fill?: string; line?: boolean; dash?: boolean }[];
 }
+
+/** The two files of slides: one diagram a slide (PowerPoint) or a page (PDF). */
+export type SlideFormat = 'pptx' | 'pdf';
 
 /** The canvas commands VS Code's keybindings run on the workbench. */
 export type CanvasCommand = 'copy' | 'cut' | 'paste' | 'paste-text' | 'duplicate' | 'select-all' | 'delete' | 'zoom-in' | 'zoom-out' | 'fit' | ArrangeCommand; // zorder hook: ArrangeCommand
@@ -249,8 +261,8 @@ export type FromWebview =
   /** A line for the status bar (an export done), or an error to show. */
   | { type: 'notify'; text: string; error?: boolean }
   /** The views a PowerPoint export may take, for the host to ask which. */
-  | { type: 'pptx-request'; views: { id: string; title: string; view: string }[]; current: string | null }
-  | { type: 'pptx'; slides: SlideData[]; title: string; target?: string }
+  | { type: 'pptx-request'; views: { id: string; title: string; view: string }[]; current: string | null; format?: SlideFormat }
+  | { type: 'pptx'; slides: SlideData[]; title: string; target?: string; format?: SlideFormat }
   | { type: 'theme-choose'; key: string }
   | { type: 'theme-save'; scope: 'team' | 'user'; theme: Record<string, unknown> }
   | { type: 'theme-export'; theme: Record<string, unknown> }
@@ -293,6 +305,7 @@ export function parseSnapshot(text: string): Snapshot {
     elements: elements && Array.isArray(elements.elements) ? { elements: elements.elements, relationships: elements.relationships ?? [] } : null,
     findings: Array.isArray(value.findings) ? (value.findings as Finding[]) : [],
     gate: (value.gate as GateReport | null) ?? null,
+    realization: Array.isArray(value.realization) ? (value.realization as Snapshot['realization']) : [],
   };
 }
 
@@ -786,7 +799,7 @@ export function elementLabel(element: Pick<ElementRecord, 'id' | 'name' | 'kind'
 }
 
 /** The relationships and traces an element takes part in, for the semantic browser. */
-export function neighbours(
+export function neighbors(
   element: ElementRecord,
   snapshot: Snapshot,
 ): { incoming: { kind: string; name: string; other: ElementRecord | null }[]; outgoing: { kind: string; name: string; other: ElementRecord | null }[] } {
@@ -835,6 +848,23 @@ export function requirementRequests(id: string, text: string, satisfiedBy: strin
     : { op: 'add_raw', declaration: `requirements {\n  ${declaration.replace(/\n/g, '\n  ')}\n}`, top_level: true };
   if (derivedFrom) return [create, { op: 'add_trace', from: id, kind: 'derives', to: derivedFrom }];
   return satisfiedBy ? [create, { op: 'add_trace', from: satisfiedBy, kind: 'satisfies', to: id }] : [create];
+}
+
+/** The id of a new requirement under `parent`: `REQ-1.3` after `REQ-1.1` and `REQ-1.2`. */
+export function childRequirementId(parent: string, ids: string[]): string {
+  const prefix = `${parent}.`;
+  const taken = new Set(ids);
+  let next = 1 + ids.reduce((highest, id) => (id.startsWith(prefix) && /^\d+$/.test(id.slice(prefix.length)) ? Math.max(highest, Number(id.slice(prefix.length))) : highest), 0);
+  while (taken.has(`${prefix}${next}`)) next++;
+  return `${prefix}${next}`;
+}
+
+/** A new requirement under `parent` (its `parent:`), in the requirements block. */
+export function childRequirementRequests(id: string, text: string, parent: string, hasRequirementsBlock: boolean): EditRequest[] {
+  const declaration = `requirement ${stringLiteral(id)} {\n  description: ${stringLiteral(text)}\n  parent: ${stringLiteral(parent)}\n}`;
+  return hasRequirementsBlock
+    ? [{ op: 'add_raw', declaration, layer: 'requirements' }]
+    : [{ op: 'add_raw', declaration: `requirements {\n  ${declaration.replace(/\n/g, '\n  ')}\n}`, top_level: true }];
 }
 
 /** A note about elements, declared at the top of the file: `note "Text" { about: ["LC-A"] }`. */

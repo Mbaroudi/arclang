@@ -2,7 +2,7 @@
 //! representation of the Capella diagram kind its name or view gives, with
 //! one box per element it shows, nested as Capella draws them (a function
 //! in the component that performs it, a component in its parent, a
-//! behaviour in the node it is deployed on). The mappings and styles of the
+//! behavior in the node it is deployed on). The mappings and styles of the
 //! boxes are those real Capella diagrams use (`sirius_boxes.json`, read
 //! from Capella's own models); Capella lays the boxes out when it opens the
 //! diagram.
@@ -206,8 +206,25 @@ pub(super) fn sirius(tag: &str, kind: &str, uid: &str) -> El {
     El::root(tag).attr("xmi:type", kind).attr("uid", uid)
 }
 
+/// The URI of an element of the model file as EMF writes it: the file
+/// encoded, the id as it is (`Model%20Test.capella#an id`). EMF looks the
+/// fragment up without decoding it: Capella does not find `#an%20id`.
+pub(super) fn uri(file: &str, id: &str) -> String {
+    let encode = |text: &str| {
+        let mut out = String::with_capacity(text.len());
+        for c in text.chars() {
+            match c {
+                ' ' | '%' | '#' | '"' | '<' | '>' | '{' | '}' | '|' | '\\' | '^' | '`' => out.push_str(&format!("%{:02X}", c as u32)),
+                c => out.push(c),
+            }
+        }
+        out
+    };
+    format!("{}#{}", encode(file), id)
+}
+
 fn href(kind: &str, file: &str, id: &str) -> El {
-    El::root("").attr("xmi:type", &super::xml::xsi_type(kind)).attr("href", &format!("{}#{id}", file.replace(' ', "%20")))
+    El::root("").attr("xmi:type", &super::xml::xsi_type(kind)).attr("href", &uri(file, id))
 }
 
 pub(super) fn reference(tag: &str, kind: &str, file: &str, id: &str) -> El {

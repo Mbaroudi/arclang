@@ -139,7 +139,7 @@ fn table(name: &str, columns: &[(&str, &str)], rows: Vec<Row>) -> Table {
 }
 
 fn row(id: &str, status: &str, cells: Vec<(&str, Cell)>) -> Row {
-    Row { id: id.to_string(), uuid: String::new(), kind: String::new(), name: id.to_string(), status: status.to_string(), issues: Vec::new(), cells: cells.into_iter().map(|(k, c)| (k.to_string(), c)).collect::<BTreeMap<_, _>>() }
+    Row { id: id.to_string(), uuid: String::new(), kind: String::new(), name: id.to_string(), status: status.to_string(), issues: Vec::new(), cells: cells.into_iter().map(|(k, c)| (k.to_string(), c)).collect::<BTreeMap<_, _>>(), parent: None, depth: 0 }
 }
 
 const IMPACT_COLUMNS: [(&str, &str); 9] = [("id", "Element"), ("name", "Name"), ("kind", "Kind"), ("layer", "Layer"), ("category", "Category"), ("severity", "Severity"), ("distance", "Distance"), ("reason", "Reason"), ("why", "Why")];

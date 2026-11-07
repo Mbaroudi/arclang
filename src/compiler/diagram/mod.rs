@@ -7,7 +7,7 @@
 //! | `oab` | Operational Architecture Blank | entities/actors, their activities, interactions |
 //! | `sab` | System Architecture Blank      | the system and actors, functions, exchanges     |
 //! | `lab` | Logical Architecture Blank     | components, allocated functions, both exchanges |
-//! | `pab` | Physical Architecture Blank    | nodes, behaviour components, links, exchanges   |
+//! | `pab` | Physical Architecture Blank    | nodes, behavior components, links, exchanges   |
 //! | `msm` | Mode and State Machine         | modes, states and transitions (one per machine) |
 //! | `es`  | Exchange Scenario              | lifelines and ordered messages (one per scenario)|
 //! | `cap` | Missions and Capabilities      | missions, capabilities, what they involve       |
@@ -274,6 +274,8 @@ pub enum NodeKind {
     Note,
     /// A requirement: its id and text are its compartment.
     Requirement,
+    /// A concern a requirement frames (SysML v2): its stakeholders are its compartment.
+    Concern,
     /// A verification case and the requirements it verifies.
     TestCase,
     /// A constraint: its expression, the value of each side, its verdict.
@@ -509,6 +511,7 @@ pub fn build_diagrams(model: &Model) -> DiagramSet {
         diagrams.push(diagram);
     }
 
+    requirements::show_on_subjects(model, &mut diagrams);
     links::draw_traces(model, &mut diagrams);
     links::draw_notes(model, &mut diagrams);
     let links = links::cross_links(model, &diagrams);

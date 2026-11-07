@@ -921,7 +921,7 @@ impl<'a> Generator<'a> {
                 }
                 for behavior in &node.behavior_components {
                     let bc_def = self.defs.get(&format!("part:{}", behavior.id), &behavior.name);
-                    self.out.push_str(&format!("        part {} : {};  // behaviour component\n", ident(&format!("bc_{}", behavior.id)), bc_def));
+                    self.out.push_str(&format!("        part {} : {};  // behavior component\n", ident(&format!("bc_{}", behavior.id)), bc_def));
                 }
                 self.out.push_str("    }\n");
                 let multiplicity = multiplicity_suffix("PhysicalNode", &node.attributes);
@@ -1073,7 +1073,7 @@ impl<'a> Generator<'a> {
         None
     }
 
-    // ---- behaviour, verification, traces ---------------------------------
+    // ---- behavior, verification, traces ---------------------------------
 
     fn emit_state_machines(&mut self) {
         if self.ast.state_machines.is_empty() {
@@ -2015,7 +2015,7 @@ architecture physical {
 
     #[test]
     fn export_is_deterministic() {
-        let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/examples/complete_emergency_braking_simple.arc")).unwrap();
+        let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/examples/automotive/emergency-braking/complete_emergency_braking_simple.arc")).unwrap();
         assert_eq!(export(&source), export(&source));
     }
 }

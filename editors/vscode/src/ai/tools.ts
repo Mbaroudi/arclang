@@ -2,10 +2,10 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { failureText, run, RunResult, withTempFile } from '../cli';
+import { asFile, failureText, run, RunResult, withTempFile } from '../cli';
 import { clip, exitLine, parseCheckReport, renderTransitionPlan, summarizeCheck, TransitionPlan } from '../pure/arc';
 import { confirmEdits, mdText } from '../pure/confirm';
-import { EditRequest, layerOfKind, Metamodel, neighbours, Snapshot } from '../pure/workbench';
+import { EditRequest, layerOfKind, Metamodel, neighbors, Snapshot } from '../pure/workbench';
 import { applyRequests } from '../workbench/edits';
 import { metamodelJson, snapshotOf } from '../workbench/snapshot';
 
@@ -60,7 +60,7 @@ function refused(candidate: string | undefined): vscode.LanguageModelToolResult 
 async function runOnModel(file: string, args: (model: string) => string[], token: vscode.CancellationToken): Promise<RunResult> {
   const open = openDocument(file);
   if (open && open.isDirty) {
-    return withTempFile(open.getText(), path.basename(file), (tmp) => run(args(tmp), { cwd: path.dirname(file), token }));
+    return withTempFile(open.getText(), path.basename(file), (tmp) => run([...args(tmp), ...asFile(file)], { cwd: path.dirname(file), token }));
   }
   return run(args(file), { cwd: path.dirname(file), token });
 }
@@ -121,6 +121,21 @@ export function registerTools(context: vscode.ExtensionContext): void {
       },
     }),
 
+    vscode.lm.registerTool<{ path: string; requirement?: string; up_to?: string }>('arclang_realize', {
+      prepareInvocation: () => ({ invocationMessage: 'Planning the realization ladder' }),
+      async invoke(options, token) {
+        const file = allowedPath(options.input.path);
+        if (!file) return refused(options.input.path);
+        const args = ['realize', '--dry-run', '--json', ...(options.input.requirement ? ['--requirement', options.input.requirement] : []), ...(options.input.up_to ? ['--up-to', options.input.up_to] : [])];
+        const result = await runOnModel(file, (m) => [...args, '--', m], token);
+        if (result.code !== 0) return answer([exitLine('realize --dry-run', result.code), failureText(result)]);
+        return answer([
+          `realize --dry-run ${path.basename(file)}: the plan climbs the stages in order (simulation, sil, pil, hdl, soc, board, twin); a gap is a requirement nothing climbs. Propose the missing test_case or twin with arclang_edit; the engineer runs \`arclang realize\` (or Run in the Realization ladder view).`,
+          clip(result.stdout, MAX_RESULT),
+        ]);
+      },
+    }),
+
     vscode.lm.registerTool<{ kind?: string }>('arclang_metamodel', {
       prepareInvocation: () => ({ invocationMessage: 'Reading the ArcLang metamodel' }),
       async invoke(options, token) {
@@ -132,7 +147,7 @@ export function registerTools(context: vscode.ExtensionContext): void {
     }),
 
     vscode.lm.registerTool<Record<string, never>>('arclang_rules', {
-      prepareInvocation: () => ({ invocationMessage: 'Reading the catalogue of rules' }),
+      prepareInvocation: () => ({ invocationMessage: 'Reading the catalog of rules' }),
       async invoke(_options, token) {
         const result = await run(['rules', '--format', 'json'], { token });
         return answer([exitLine('rules --format json', result.code), result.code === 0 ? clip(result.stdout, MAX_RESULT) : failureText(result)]);
@@ -299,7 +314,7 @@ export function describeModel(snapshot: Snapshot, metamodel: Metamodel | null, f
     lines.push(`${e.id} | ${e.kind} | ${e.name} | ${owner} | ${attributes}`);
   }
   if (filter.element && wanted.length === 1) {
-    const around = neighbours(wanted[0], snapshot);
+    const around = neighbors(wanted[0], snapshot);
     lines.push(`Incoming: ${around.incoming.map((n) => `${n.kind}${n.name ? ` ${n.name}` : ''} from ${n.other?.id ?? '?'}`).join('; ') || 'none'}`);
     lines.push(`Outgoing: ${around.outgoing.map((n) => `${n.kind}${n.name ? ` ${n.name}` : ''} to ${n.other?.id ?? '?'}`).join('; ') || 'none'}`);
   }

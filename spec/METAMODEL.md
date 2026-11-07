@@ -30,7 +30,7 @@ Human or external system interacting with the system.
 
 #### OperationalEntity
 
-Organisation or system of the operational world.
+Organization or system of the operational world.
 
 - Arcadia: `Entity`
 - SysML v2: `part def`
@@ -170,9 +170,31 @@ Stakeholder, system or safety requirement.
 | `parent` | `ref<Requirement>` | Requirement it sits under in its document (ReqIF SPEC-HIERARCHY); structure, not refinement. |
 | `reqif_id` | `text` | Identifier the requirement has in the tool it came from (ReqIF IDENTIFIER), given back on export. |
 | `applies_to` | `list<ref<Configuration>>` | The configurations of the product line the requirement holds for; every one when absent. A case verifying it runs in one of them, and the gate wants a case in each. |
+| `frames` | `list<ref<Concern>>` | The concerns the requirement addresses (SysML v2 `frame`). |
+| `subject` | `ref<Element>` | What the requirement is about: a component, a node, a function (SysML v2 `subject`). The element shows it in its requirements compartment. |
+| `require` | `list<text>` | Constraints the subject must meet, as expressions (`"mass <= 1200 kg"`; SysML v2 `require constraint`). |
+| `assume` | `list<text>` | Constraints taken for granted for the requirement to hold (`"ambient >= -20 °C"`; SysML v2 `assume constraint`). |
 | `safety_level` | `enum SafetyLevel` | ASIL, DAL or SIL assigned to the element. |
 | `asil` | `enum Asil` | ISO 26262 ASIL (QM, ASIL-A..D). |
 | `dal` | `enum Dal` | DO-178C design assurance level (DAL-A..E). |
+
+#### Concern
+
+What a stakeholder cares about, framed by the requirements that address it. Declared in a `requirements` block: `concern "Resists to bullets" { stakeholders: ["Owner"] }`.
+
+- Arcadia: `(none: carried as a requirement)`
+- SysML v2: `concern`
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `id` | `identifier` | Stable identity; drives the UUIDv5. Defaults to the name. |
+| `name` | `text` | Display name; overrides the block name. |
+| `description` | `text` | Free-text description. |
+| `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
+| `stakeholders` | `list<text>` | Who has the concern (SysML v2 `stakeholder`). |
+| `rationale` | `text` | Why it matters. |
+| `parent` | `ref<Concern>` | Concern it sits under. |
 
 #### Mission
 
@@ -374,7 +396,7 @@ Control node of a functional chain: `control and|or|iterate "Name"`, joined to t
 
 #### LogicalComponent
 
-Behavioural building block, may be nested. In a product line, a component `variation: true` holds the components that are its variants (`variant: true`).
+Behavioral building block, may be nested. In a product line, a component `variation: true` holds the components that are its variants (`variant: true`).
 
 - Arcadia: `LogicalComponent`
 - SysML v2: `part def + part`
@@ -519,7 +541,7 @@ Realization of a system capability by components. May be declared inside another
 
 #### PhysicalNode
 
-Hardware node hosting behaviour components.
+Hardware node hosting behavior components.
 
 - Arcadia: `PhysicalComponent (NODE)`
 - SysML v2: `part def + part`
@@ -552,6 +574,7 @@ Hardware node hosting behaviour components.
 | `processor` | `text` | Processor. |
 | `cpu` | `text` | CPU description. |
 | `redundancy` | `text` | Redundancy scheme. |
+| `model` | `text` | The executable model of the element: a Modelica class extending the class `arclang export -f modelica` generates for it, with modifiers if needed (`"DronePhysics.Rotors(rho=airframe.rho)"`). The export rolls these up into `Executable.<Configuration>`, the model a simulated case without `model:` runs. Often written in a `refine` of an element imported from another tool. |
 
 #### PhysicalPort
 
@@ -569,7 +592,7 @@ Unoriented physical connector.
 
 #### BehaviorComponent
 
-Software/behaviour deployed on a node; declares the physical functions it performs.
+Software/behavior deployed on a node; declares the physical functions it performs.
 
 - Arcadia: `PhysicalComponent (BEHAVIOR)`
 - SysML v2: `part`
@@ -588,10 +611,11 @@ Software/behaviour deployed on a node; declares the physical functions it perfor
 | `position` | `position {x, y, z}` | Where it stands in its owner (the model at the top), in lengths: `{ x: 1.2 m y: 0 m z: 0.4 m }`, a missing axis being 0. Placed so in CAD (`arclang export -f step`). |
 | `orientation` | `orientation {yaw, pitch, roll}` | How it is turned in its owner: `{ yaw: 90 deg pitch: 0 deg roll: 0 deg }`, about z, then y, then x. |
 | `shape` | `shape {box | cylinder}` | Its envelope: `{ box: [length, width, height] }` or `{ cylinder: [diameter, height] }`. Exported as a solid to CAD (`arclang export -f step`). |
+| `model` | `text` | The executable model of the element: a Modelica class extending the class `arclang export -f modelica` generates for it, with modifiers if needed (`"DronePhysics.Rotors(rho=airframe.rho)"`). The export rolls these up into `Executable.<Configuration>`, the model a simulated case without `model:` runs. Often written in a `refine` of an element imported from another tool. |
 
 #### PhysicalFunction
 
-Function of the physical level, declared inside the behaviour component that performs it (or at the level, unallocated), with its ports and sub-functions; `realizes:` names the logical function it realizes.
+Function of the physical level, declared inside the behavior component that performs it (or at the level, unallocated), with its ports and sub-functions; `realizes:` names the logical function it realizes.
 
 - Arcadia: `PhysicalFunction`
 - SysML v2: `action def (perform)`
@@ -1000,6 +1024,23 @@ One product of a product line: the variant it selects in each variation. Two var
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `selects` | `list<ref<LogicalComponent>>` | The variants selected, one per variation. |
 
+#### IoBinding
+
+`io_binding "ECU" { ... }`: the inputs and outputs of a state machine bound once to the channels of the I/O interface `arclang_io.h` (gpio, adc, dac, pwm, can, uart, with a clock and a watchdog). Checked by the compiler, against its target's channels too; `arclang export -f c` generates the glue that calls the channels, `arclang sil` runs it on the host board, `arclang pil` on the target's processor. See docs/embedded-c.md.
+
+- Arcadia: `(embedded extension)`
+- SysML v2: `(none: an allocation of a state machine's events, conditions, states and actions to I/O channels)`
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `machine` | `ref<StateMachine>` | The state machine bound (optional when the model has one). |
+| `period` | `quantity<time>` | The step period on the target, a time (`10 ms`): the glue runs one cycle per period. |
+| `watchdog` | `boolean` | Kick the watchdog after every cycle that read, stepped and wrote without error. |
+| `target` | `text` | The target package it is deployed on (`zephyr/litex_vexriscv`; `host` by default): the compiler checks that the target has every channel bound. `arclang export -f zephyr` and `arclang pil` use it. See docs/embedded-targets.md. |
+| `inputs` | `list<text>` | `event or condition <- channel`: an event from an edge (`gpio 4 rising`), a frame (`can 0x120`) or a byte (`uart 0 0x41`); a condition from a level (`gpio 3`), a raw threshold (`adc 0 > 2048`) or the first byte of the last frame (`can 0x121`). An event bound to a level, a condition to an edge, or an input bound twice is an error; an input left unbound, a warning. |
+| `outputs` | `list<text>` | `state or action -> channel`: a state (1 while active) or an action (times run in the step) written to `gpio 10`, `pwm 2 750` (per mille while not zero), `dac 1 4095` (while not zero), `can 0x300` (first byte, every period) or `uart 1 0x45` (each step it is not zero). A channel written twice, or a pin both read and written, is an error. |
+| `description` | `text` | Free-text description. |
+
 #### TestCase
 
 Verification case covering requirements.
@@ -1020,8 +1061,10 @@ Verification case covering requirements.
 | `expected` | `text` | Expected result. |
 | `asserts` | `list<ref<Constraint>>` | An analysis: the constraints whose evaluation is its verdict (pass when they all hold). |
 | `verdict` | `enum Verdict` | Outcome of a test run elsewhere; computed, not given, when the case `asserts:` constraints or `simulate:`s. A requirement with a failing case is not verified. |
-| `simulate` | `{backend, model, configuration, stop_time, start_time, sources, tolerance, intervals, sweep, uncertain, samples, seed, probability, confidence}` | Verified by simulation: the `backend` (`openmodelica`, the default; `fmu` and `command` are declared, not built yet), the Modelica `model` to simulate (extending a system model of `arclang export -f modelica`), the `configuration` it is, `stop_time` (and `start_time`), the hand-written Modelica `sources` (paths from the model file), `tolerance`, `intervals`, and a `sweep` (`["body.mass = 1800 kg, 2100 kg", "vcu.target_speed = 80 km/h .. 130 km/h step 10 km/h"]`: every combination is simulated, and the expectations must hold at each). Or `uncertain` parameters (`["body.mass ~ normal(1850 kg, 40 kg)", "cell.capacity ~ uniform(58 kWh, 62 kWh)", "drive.efficiency ~ normal(0.9, 0.03) in [0.8, 0.97]"]`: `normal`, `uniform` or `triangular`, kept between bounds by `in [low, high]`) drawn in `samples` (10 to 1000, default 200) from a `seed`: the case passes when the probability that the expectations hold is shown, at `confidence` (default 0.95), to reach `probability` (the Clopper-Pearson lower bound). Run by `arclang verify`; the verdict is cached, and inconclusive when stale or never run. |
-| `expects` | `list<text>` | What the simulation result must show: comparisons over its variables read with `min`, `max`, `final`, `initial`, `mean` or `at(t, var)`, with units (`final(vehicle.distance) >= 300 km`). A comparison may name the requirement it checks (`"REQ-SHED: at(40 min, cabin.drawn) <= 1 W"`): each requirement is then judged on the comparisons naming it and those naming none. |
+| `simulate` | `{backend, model, configuration, stop_time, start_time, sources, tolerance, intervals, sweep, uncertain, samples, seed, probability, confidence, mission}` | Verified by simulation: the `backend` (`openmodelica`, the default; `fmu` and `command` are declared, not built yet), the Modelica `model` to simulate (extending a system model of `arclang export -f modelica`; without it, the roll-up of the configuration, `Executable.<Configuration>`, when its elements carry `model:`), the `configuration` it is, a `mission` (a file of parameter values, one `"Element".parameter = value` a line, relative to the model file, added to the sweep), `stop_time` (and `start_time`), the hand-written Modelica `sources` (paths from the model file), `tolerance`, `intervals`, and a `sweep` (`["body.mass = 1800 kg, 2100 kg", "vcu.target_speed = 80 km/h .. 130 km/h step 10 km/h"]`: every combination is simulated, and the expectations must hold at each). Or `uncertain` parameters (`["body.mass ~ normal(1850 kg, 40 kg)", "cell.capacity ~ uniform(58 kWh, 62 kWh)", "drive.efficiency ~ normal(0.9, 0.03) in [0.8, 0.97]"]`: `normal`, `uniform` or `triangular`, kept between bounds by `in [low, high]`) drawn in `samples` (10 to 1000, default 200) from a `seed`: the case passes when the probability that the expectations hold is shown, at `confidence` (default 0.95), to reach `probability` (the Clopper-Pearson lower bound). Run by `arclang verify`; the verdict is cached, and inconclusive when stale or never run. |
+| `execute` | `{machine, step, stop_time, inputs, binding, tolerance, quantisation, plant}` | Verified by executing a state machine at fixed step: the `machine`, the `step` (default the binding's period, else 10 ms), `stop_time`, the `inputs` (`["0 s: main switch on", "10 ms: LF-022", "300 ms: main switch on = false"]`: an event occurs in the step at its time, a condition holds or not from it on, an `in` variable takes a value from it on: `"100 ms: speed = 50 km/h"`), a `binding` (the run then goes through the I/O glue and the host board) and the `tolerance` of the comparison with the C (`quantisation`: of the fixed point of a machine allocated to programmable logic against the model, in `arclang hdl` and `arclang soc`). The expectations read the states (`"Machine".State`, 1 while active), the actions (`"Machine".action.close_contactors`, times run in the step) and the variables (`"Machine".speed`, in their unit). Compiling runs the model and reports a failing case; `arclang sil` runs the generated C against it. |
+| `snapshots` | `list<text>` | Snapshots the simulation must reach: a snapshot, a timeslice (its snapshots) or an element (all its snapshots), by id (`["LC-DRONE.Takeoff.At cruise"]`). Each value of each one, at its `at:`, is an expectation within the snapshot's tolerance (`at(40 s, "LC-DRONE".altitude) == 120 m within 1 %`). |
+| `expects` | `list<text>` | What the simulation result must show: comparisons over its variables read with `min`, `max`, `final`, `initial`, `mean` or `at(t, var)`, with units (`final(vehicle.distance) >= 300 km`); `==` and `!=` may say how far equal may be (`at(1 h, battery.soc) == 0.7 within 2 %`, or `within 0.05`). A comparison may name the requirement it checks (`"REQ-SHED: at(40 min, cabin.drawn) <= 1 W"`): each requirement is then judged on the comparisons naming it and those naming none. |
 | `reviewed` | `list<text>` | The verifications reviewed: one entry per verified requirement, the requirement and the fingerprints of the case and of the requirement, written by `arclang trace --review`. A verification whose case or requirement changed since is suspect, and so is one the case verifies but does not name here. |
 
 #### Model
@@ -1083,6 +1126,40 @@ Dimension-checked comparison over typed attributes (`assert: <expression>`). Ill
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 
+#### Timeslice
+
+A stretch of an element's life, declared in it (`timeslice "Takeoff" { start: 0 s end: 40 s }`); holds the snapshots it goes through. Its other attributes are the values the element has during it.
+
+- Arcadia: `(none: carried as a property)`
+- SysML v2: `timeslice`
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `id` | `identifier` | Stable identity; drives the UUIDv5. Defaults to the name. |
+| `name` | `text` | Display name; overrides the block name. |
+| `description` | `text` | Free-text description. |
+| `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
+| `start` | `quantity<time>` | When it starts. |
+| `end` | `quantity<time>` | When it ends; not before it starts. |
+
+#### Snapshot
+
+One moment of an element's life, declared in it or in one of its timeslices (`snapshot "Landed" { at: 5 min altitude: 0 m }`). Its other attributes are the values the element has then; a value the element declares as a quantity keeps its dimension.
+
+- Arcadia: `(none: carried as a property)`
+- SysML v2: `snapshot`
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `id` | `identifier` | Stable identity; drives the UUIDv5. Defaults to the name. |
+| `name` | `text` | Display name; overrides the block name. |
+| `description` | `text` | Free-text description. |
+| `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
+| `at` | `quantity<time>` | When it is; within its timeslice. |
+| `tolerance` | `text` | How far a simulated value may be from the snapshot's and still reach it, when a test case checks it: a percentage of the value (`2 %`) or an amount (`0.5 m`). 1 % when absent. |
+
 #### StateMachine
 
 Modes and states of an element.
@@ -1098,10 +1175,12 @@ Modes and states of an element.
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `initial` | `ref<State>` | Initial state. |
+| `variables` | `list<text>` | Typed variables (SysML v2 attributes): `[in|out|const] name: Type [unit] [range lo .. hi] [resolution r | format Qi.f] = initial`, Type Boolean, Integer (int32_t), Real (double) or Float (float), the unit from the unit table (`"in voltage: Real [V]"`, `"out count: Integer = 0"`). `in`: set by the caller every step. `range`, `resolution` and `format` say how the hardware holds a value when the machine is allocated to programmable logic (fixed point: the range gives the integer bits, a resolution the narrowest word with that step, a format `Qi.f` the word of i + f + 1 bits); the model itself does not clamp. See docs/embedded-c.md and docs/embedded-fpga.md. |
+| `equations` | `list<text>` | Difference equations evaluated every step in the order written, before the transitions: `target = expression` over the variables, with the blocks `delay`, `integrator`, `pid` and the functions `min`, `max`, `abs`, `saturate`, `gain`. Typed and unit-checked. |
 
 #### State
 
-State (undergone) or mode (chosen behaviour).
+State (undergone) or mode (chosen behavior).
 
 - Arcadia: `State / Mode`
 - SysML v2: `state`
@@ -1124,9 +1203,11 @@ Transition between states.
 | Attribute | Type | Meaning |
 |---|---|---|
 | `trigger` | `text` | Triggering event. |
-| `guard` | `text` | Guard condition. |
-| `action` | `text` | Effect. |
-| `timing` | `quantity<time>` | Timing constraint. |
+| `guard` | `text` | Guard condition: an expression over the machine's variables (`speed > 30 km/h and armed`), else prose (a condition the reader sets). |
+| `action` | `text` | Effect: assignments to the machine's variables (`count := count + 1; on := true`), else prose (reported, not executed). |
+| `timing` | `quantity<time>` | Timing constraint: without a trigger, a timer (as `after:`); beside a trigger, a budget (as `budget:`). |
+| `after` | `quantity<time>` | A timer: the transition fires when its source has been active this long (SysML v2 `accept after`). Not with a trigger. |
+| `budget` | `quantity<time>` | A budget: how long the source may stay active before the transition fires; watched every step, an overrun is an output (`"Machine".budget.<transition>`), never a timer. |
 | `priority` | `number` | Priority among concurrent transitions. |
 
 #### Diagram
@@ -1363,6 +1444,8 @@ A quantity is `<number> <unit>` (`latency: 25 ms`). Symbols are case-sensitive. 
 | `cm²` | area (m²) | 0.0001 | `'cm²'` |
 | `m²` | area (m²) | 1 | `'m²'` |
 | `m2` | area (m²) | 1 | `'m²'` |
+| `kg/s` | mass flow rate (kg/s) | 1 | `'kg⋅s⁻¹'` |
+| `g/s` | mass flow rate (kg/s) | 0.001 | `'g/s'` |
 | `m/s` | speed (m/s) | 1 | `'m/s'` |
 | `km/h` | speed (m/s) | 0.2777777777777778 | `'km/h'` |
 | `percent` | ratio (one) | 0.01 | `'%'` |

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<org.eclipse.capella.simulink.core:Project xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:org.eclipse.capella.simulink.core="http://www.eclipse.org/capella/simulink/core/1.0" xmlns:org.eclipse.capella.simulink.infra="http://www.eclipse.org/capella/simulink/infra/1.0" id="7b2b89b1-225d-4143-a96b-b346ff4de9aa" name="MyProject">
+  <systems id="df88603b-35bc-4e36-9686-91d33cd1615f" name="MySystem7">
+    <ports id="00e1c060-6982-4f9a-8ff7-cf0ce226bc4b" name="in2" index="2">
+      <parameters id="fb2ef853-c08e-48a1-94aa-6203d195ed05" key="bounds">
+        <value xsi:type="org.eclipse.capella.simulink.infra:MultipleValue" id="92129b79-81c1-47f1-ad67-c48d49db0aae">
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="a8e4a743-d869-4709-a87c-5d2883be39d9" specification="10"/>
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="b55d87c2-c50e-4f1e-8885-2eb3db9bf242" specification="10"/>
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="38285f7d-a3e9-4fa3-8db0-5ccad32d2c8d" specification="30"/>
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="b48fdfd6-9c77-42ef-837f-87cf4f85a198" specification="20"/>
+        </value>
+      </parameters>
+    </ports>
+    <ports id="006581e9-7e97-4b25-ad8b-7c1c8635b3de" name="in1">
+      <parameters id="68345a74-17aa-4256-b438-b816cc6c16dc" key="bounds">
+        <value xsi:type="org.eclipse.capella.simulink.infra:MultipleValue" id="76af105f-1900-473d-9927-d5e035da76af">
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="fbae5133-8a32-436d-91b2-3cb51d76b23e" specification="10"/>
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="8c4a856f-872f-49aa-ae90-cd3aa1a0f59e" specification="60"/>
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="31499869-6ffa-49b3-8403-07dd7a4c26b6" specification="30"/>
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="0034dea8-6dbf-44a9-a493-280cd3a783e6" specification="20"/>
+        </value>
+      </parameters>
+    </ports>
+    <ports id="c0f68f7f-4efc-4e95-bfa8-bd472b2a90be" name="out1" kind="Outport">
+      <parameters id="3b2c6e19-9fda-48ec-9ac7-7d6680fb229f" key="bounds">
+        <value xsi:type="org.eclipse.capella.simulink.infra:MultipleValue" id="7a010afe-fb31-448a-b7a3-993cf1c40a42">
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="1c5360f9-3e49-43ec-993d-3c502a9d4a71" specification="100"/>
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="b01b6226-feab-4a21-af3b-011c2aadd876" specification="30"/>
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="58bef4ba-db51-4257-9c10-afa09c9b9e12" specification="30"/>
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="508b5224-b8a2-40b5-b4c3-8da96b9d0c59" specification="20"/>
+        </value>
+      </parameters>
+    </ports>
+  </systems>
+</org.eclipse.capella.simulink.core:Project>

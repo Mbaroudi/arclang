@@ -13,7 +13,7 @@ review them in pull requests, compile them to JSON and diagrams.
 [playground](https://arclang.fr/playground/) runs this compiler in WebAssembly;
 nothing is uploaded.
 
-> **Version 4.9.0.** Upgrading from 3.0: see
+> **Version 4.11.0.** Upgrading from 3.0: see
 > [docs/MIGRATION_4.0.md](docs/MIGRATION_4.0.md).
 > This README only claims what the test suite verifies. Anything not listed under
 > *Works today* should be assumed absent. See the [Roadmap](#roadmap).
@@ -45,7 +45,7 @@ the long-term goal.
 - **A canonical grammar**: [`spec/GRAMMAR.ebnf`](spec/GRAMMAR.ebnf) is the single
   source of truth for the syntax and matches the parser.
 - **Golden corpus in CI**: every example under `examples/` (except
-  `examples/legacy/`) must compile — `cargo test` fails otherwise.
+  `examples/archive/`) must compile — `cargo test` fails otherwise.
 - **JSON export** of the parsed model (`arclang build`, `arclang export -f json`).
 - **HTML architecture document** (`arclang export -f html`,
   `arclang explorer`): requirements, components, traceability and the
@@ -249,7 +249,7 @@ the long-term goal.
   compile error. Products and quotients carry derived dimensions
   (`voltage * current <= power`, `frame / bandwidth < 1 ms`). A violated constraint is a warning at compile time and a
   blocker in the production gate; `arclang check` prints each verdict with
-  both evaluated sides. See `examples/automotive/timing_constraints.arc`.
+  both evaluated sides. See `examples/features/timing-constraints/timing_constraints.arc`.
 - **Industrial governance**: MIT-licensed; dependency audit (RustSec) on
   every CI run; releases ship binaries + `SHA256SUMS` + GitHub build
   provenance attestations; language stability policy in
@@ -264,7 +264,7 @@ the long-term goal.
 - **Multi-file models**: `import "fragment.arc"` assembles a model from
   team-owned files (paths relative to the importing file, recursive, cycles
   and missing files are hard errors). Traces in one file resolve against
-  elements of another — see `examples/multifile/`.
+  elements of another — see `examples/01-getting-started/multifile/`.
 - **ReqIF exchange**: `arclang export -f req-if` emits OMG ReqIF 1.0 (the
   DOORS/Polarion/Jama exchange format) with deterministic identifiers and
   requirement-to-requirement relations; `arclang import -f req-if` reads
@@ -275,9 +275,9 @@ the long-term goal.
   ports, connections) plus Stateflow skeletons for state machines;
   `arclang export -f fmi` emits one FMI 2.0 `modelDescription.xml` per
   component (causality from exchange direction, GUID = the component's
-  deterministic ArcLang UUID). Interface contracts only — behaviour stays in
+  deterministic ArcLang UUID). Interface contracts only — behavior stays in
   the simulation tool.
-- **Spatial modelling, to maps and to CAD**: where elements stand on the
+- **Spatial modeling, to maps and to CAD**: where elements stand on the
   Earth (`location: { lat: 47.795 deg lon: 3.661 deg alt: 180 m }`, WGS 84),
   where they stand in their owner (`position: { x: 0.3 m y: 0.3 m }`), how
   they are turned (`orientation: { yaw: 90 deg }`), their envelope
@@ -292,16 +292,16 @@ the long-term goal.
   a gate blocker. `arclang export -f geojson` puts the located elements
   and the links on a map (RFC 7946: QGIS, kepler.gl, GitHub);
   `arclang export -f step` writes the product structure (levels, nodes,
-  behaviour components, EPBS) with its shapes as STEP AP242
+  behavior components, EPBS) with its shapes as STEP AP242
   (ISO 10303-242), read by CATIA, SOLIDWORKS, NX, Creo and FreeCAD. The
   STEP output is checked with Open CASCADE (`tools/step_validate.py`):
   valid closed solids, volumes and placements as declared. In SysML v2 the
   values are nested attributes typed `LengthValue` and
   `AngularMeasureValue`, accepted by the OMG pilot and read back exactly.
-  Example: [`examples/spatial/charging_corridor.arc`](examples/spatial/charging_corridor.arc).
+  Example: [`examples/spatial/charging-corridor/charging_corridor.arc`](examples/spatial/charging-corridor/charging_corridor.arc).
 - **Requirements verified by simulation (OpenModelica)**: `arclang export -f
   modelica` writes the physical architecture as a Modelica package (one
-  partial model per node and behaviour component, MSL connectors from the
+  partial model per node and behavior component, MSL connectors from the
   ports' `physics:`, SI parameters from typed quantities, one system model
   per configuration); a `test_case` that says `simulate: { ... }` and
   `expects: ["final(vehicle.distance) >= 300 km"]` is run by `arclang
@@ -381,7 +381,7 @@ the long-term goal.
   edited in that file.
 
 - **Workbench API**: `arclang workbench model.arc` prints, as one JSON
-  document, everything a modelling workbench shows of a model: the
+  document, everything a modeling workbench shows of a model: the
   diagrams as the viewer mounts them, the explorer document, every element
   with its typed attributes and the id the compiler gives it, the findings
   named after their rule, the production gate (`--gate-standard`, `--exports`
@@ -436,21 +436,32 @@ round-trip goes through `tools/capella_bridge/` (capellambse).
 
 ## Quick start
 
+Everything at once, VS Code included, in one image ([docs/studio.md](docs/studio.md)):
+
+```bash
+docker run --rm -p 127.0.0.1:3000:3000 -v "$PWD":/home/arclang/workspace ghcr.io/mbaroudi/arclang-studio:4.11.0
+```
+
+It holds the compiler, OpenModelica, Zephyr and Renode, GHDL, Yosys, LiteX
+and Verilator. It runs the same on a laptop, on a server or in Codespaces,
+and [`.devcontainer`](.devcontainer/devcontainer.json) attaches your own VS
+Code to it. Or build the compiler alone:
+
 ```bash
 # Build
 cargo build --release
 
 # Compile a model (JSON output + real element counts)
-./target/release/arclang build examples/complete_emergency_braking_simple.arc
+./target/release/arclang build examples/automotive/emergency-braking/complete_emergency_braking_simple.arc
 
 # Check with traceability warnings
-./target/release/arclang check examples/automotive/adaptive_cruise_control.arc --lint
+./target/release/arclang check examples/automotive/adaptive-cruise/adaptive_cruise_control.arc --lint
 
 # Traceability matrix
-./target/release/arclang trace examples/automotive/acc_from_capella.arc --validate --matrix
+./target/release/arclang trace examples/capella/acc-from-capella/acc_from_capella.arc --validate --matrix
 
 # Model metrics
-./target/release/arclang info examples/aerospace/flight_control_system.arc --metrics
+./target/release/arclang info examples/aerospace/flight-control/flight_control_system.arc --metrics
 ```
 
 ## Language at a glance

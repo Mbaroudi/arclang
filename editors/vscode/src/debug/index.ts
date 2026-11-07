@@ -69,11 +69,13 @@ async function runnablesOf(program: string): Promise<Runnables | null> {
   return null;
 }
 
-export function registerDebug(context: vscode.ExtensionContext): void {
+/** The desktop's adapter: the compiler itself, `arclang debug --dap`. */
+const nativeAdapter = (): vscode.DebugAdapterDescriptor => new vscode.DebugAdapterExecutable(binary(), ['debug', '--dap']);
+
+/** `adapter`: the desktop runs the compiler; the browser runs it in WebAssembly (`web/debug-adapter.ts`). */
+export function registerDebug(context: vscode.ExtensionContext, adapter: () => vscode.DebugAdapterDescriptor = nativeAdapter): void {
   context.subscriptions.push(
-    vscode.debug.registerDebugAdapterDescriptorFactory('arclang', {
-      createDebugAdapterDescriptor: () => new vscode.DebugAdapterExecutable(binary(), ['debug', '--dap']),
-    }),
+    vscode.debug.registerDebugAdapterDescriptorFactory('arclang', { createDebugAdapterDescriptor: () => adapter() }),
     vscode.debug.registerDebugConfigurationProvider('arclang', {
       async resolveDebugConfiguration(_folder, config) {
         const program = typeof config.program === 'string' && config.program ? config.program : activeModel();

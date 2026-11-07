@@ -41,7 +41,7 @@ export interface SuggestionView {
   proposal: ProposalView;
 }
 
-export type SuggestionsState = 'idle' | 'analysing' | 'thinking' | 'ready' | 'none' | 'error' | 'off';
+export type SuggestionsState = 'idle' | 'analyzing' | 'thinking' | 'ready' | 'none' | 'error' | 'off';
 
 /** Page → host. */
 export type FromPageAi =

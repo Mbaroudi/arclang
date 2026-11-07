@@ -103,7 +103,7 @@ export function renderTable(items: ImpactedItem[], sort: Sort, selected: string 
       event.stopPropagation();
       host.reveal(item.id, true);
     });
-    const again = el('button', { type: 'button', class: 'ip-act', title: 'Analyse the impact from here', 'aria-label': `Analyse impact of ${item.id}`, text: '⚡' });
+    const again = el('button', { type: 'button', class: 'ip-act', title: 'Analyze the impact from here', 'aria-label': `Analyze impact of ${item.id}`, text: '⚡' });
     again.addEventListener('click', (event) => {
       event.stopPropagation();
       host.analyze(item.id);

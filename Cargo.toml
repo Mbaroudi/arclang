@@ -1,6 +1,6 @@
 [package]
 name = "arclang"
-version = "4.9.0"
+version = "4.11.0"
 edition = "2021"
 authors = ["ArcLang Contributors"]
 description = "Industrial-grade Arcadia-as-Code compiler with Phase 1 & 2 Rendering Pipeline"
@@ -21,6 +21,8 @@ native = [
     "dep:reqwest",
     "dep:toml", "dep:bincode",
     "dep:rayon", "dep:rand", "dep:config", "dep:indicatif",
+    "dep:parquet", "dep:rumqttc", "dep:async-opcua", "dep:futures",
+    "dep:rskafka", "dep:rustls", "dep:rustls-native-certs",
 ]
 
 [[bin]]
@@ -38,6 +40,7 @@ sha2 = "0.10"
 petgraph = "0.6"
 regex = "1.10"
 quick-xml = "0.41"
+unicode-normalization = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 # v5 only: deterministic identity must not depend on an entropy source
 uuid = { version = "1.6", features = ["v5", "serde"] }
@@ -56,7 +59,8 @@ async-trait = { version = "0.1", optional = true }
 tower-lsp = { version = "0.20", optional = true }
 tracing = { version = "0.1", optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
-reqwest = { version = "0.12", features = ["json", "blocking"], optional = true }
+# TLS by rustls (ring) and the system's roots: no OpenSSL, so the Linux binary needs no libssl.
+reqwest = { version = "0.12", default-features = false, features = ["json", "blocking", "charset", "http2", "rustls-tls-native-roots"], optional = true }
 rayon = { version = "1.8", optional = true }
 rand = { version = "0.8", optional = true }
 # Monte Carlo verification: laws, quantiles, Clopper-Pearson; seeded samples.
@@ -64,6 +68,14 @@ statrs = { version = "0.18", default-features = false }
 rand_chacha = "0.3"
 config = { version = "0.13", optional = true }
 indicatif = { version = "0.17", optional = true }
+# Digital twins: measurements in Parquet; live data over MQTT.
+parquet = { version = "60", default-features = false, features = ["snap", "zstd", "lz4"], optional = true }
+rumqttc = { version = "0.25", default-features = false, features = ["use-rustls-no-provider"], optional = true }
+async-opcua = { version = "0.19", default-features = false, features = ["client"], optional = true }
+futures = { version = "0.3", optional = true }
+rskafka = { version = "0.6", features = ["transport-tls"], optional = true }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"], optional = true }
+rustls-native-certs = { version = "0.8", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }

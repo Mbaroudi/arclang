@@ -1,0 +1,77 @@
+/* The realization ladder: one row per requirement, a chip per stage. Color
+   carries the state only (green fresh pass, red fail, amber stale, grey
+   never run); everything else follows the VS Code theme. */
+:root {
+  --rl-bg: var(--vscode-editor-background, #ffffff);
+  --rl-fg: var(--vscode-editor-foreground, #1f1f1f);
+  --rl-muted: var(--vscode-descriptionForeground, #6b6b6b);
+  --rl-line: color-mix(in srgb, var(--rl-fg) 12%, transparent);
+  --rl-panel: color-mix(in srgb, var(--rl-fg) 4%, var(--rl-bg));
+  --rl-hover: var(--vscode-list-hoverBackground, color-mix(in srgb, var(--rl-fg) 7%, transparent));
+  --rl-focus: var(--vscode-focusBorder, #005fb8);
+  --rl-link: var(--vscode-textLink-foreground, #005fb8);
+  --rl-accent: var(--vscode-button-background, #005fb8);
+  --rl-accent-fg: var(--vscode-button-foreground, #ffffff);
+  --rl-ok: #1d7a4b;
+  --rl-fail: #b3261e;
+  --rl-stale: #a35a00;
+  --rl-missing: #6b6b6b;
+  --rl-mono: var(--vscode-editor-font-family, "SF Mono", Menlo, monospace);
+  --rl-sans: var(--vscode-font-family, system-ui, sans-serif);
+  color-scheme: light dark;
+}
+body.vscode-dark {
+  --rl-ok: #5ec98b;
+  --rl-fail: #ff7b72;
+  --rl-stale: #e9b64e;
+  --rl-missing: #9a9a9a;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: var(--rl-sans); font-size: 13px; color: var(--rl-fg); background: var(--rl-bg); }
+main { padding: 12px 16px 24px; max-width: 1200px; }
+h1 { font-size: 16px; margin: 0; }
+h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--rl-muted); margin: 10px 0 6px; }
+code { font-family: var(--rl-mono); font-size: 12px; }
+button { font: inherit; color: var(--rl-fg); background: transparent; border: 1px solid var(--rl-line); border-radius: 4px; padding: 3px 10px; cursor: pointer; }
+button:hover { background: var(--rl-hover); }
+button:focus-visible { outline: 2px solid var(--rl-focus); outline-offset: 1px; }
+.rl-run { color: var(--rl-accent-fg); background: var(--rl-accent); border-color: transparent; }
+.rl-run:hover { filter: brightness(1.1); background: var(--rl-accent); }
+.rl-run.rl-small { padding: 1px 8px; font-size: 12px; }
+.rl-link { border: none; padding: 0; color: var(--rl-link); font-weight: 600; }
+.rl-link:hover { background: transparent; text-decoration: underline; }
+.rl-header { display: flex; flex-direction: column; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--rl-line); }
+.rl-title { display: flex; align-items: baseline; gap: 10px; }
+.rl-file { color: var(--rl-muted); font-family: var(--rl-mono); }
+.rl-busy { color: var(--rl-stale); }
+.rl-muted { color: var(--rl-muted); }
+.rl-counts { display: flex; flex-wrap: wrap; gap: 14px; }
+.rl-count.rl-ok { color: var(--rl-ok); }
+.rl-count.rl-fail { color: var(--rl-fail); }
+.rl-count.rl-stale { color: var(--rl-stale); }
+.rl-count.rl-missing { color: var(--rl-missing); }
+.rl-actions { display: flex; align-items: center; gap: 8px; }
+.rl-toggle { display: inline-flex; align-items: center; gap: 6px; color: var(--rl-muted); margin-left: 8px; }
+.rl-next { background: var(--rl-panel); border-radius: 6px; padding: 6px 10px 8px; }
+.rl-next-row { display: flex; align-items: center; gap: 10px; padding: 3px 0; }
+.rl-legend { display: flex; flex-wrap: wrap; gap: 12px; padding: 8px 0; color: var(--rl-muted); font-size: 12px; }
+.rl-rows { display: flex; flex-direction: column; }
+.rl-row { display: grid; grid-template-columns: minmax(180px, 1.2fr) minmax(420px, 3fr) 120px minmax(200px, 2fr); gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--rl-line); }
+.rl-row.rl-idle { opacity: 0.55; }
+.rl-req { display: flex; flex-direction: column; gap: 2px; }
+.rl-name { color: var(--rl-muted); }
+.rl-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.rl-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--rl-line); font-size: 12px; white-space: nowrap; }
+.rl-chip b { font-weight: 700; }
+.rl-pass { color: var(--rl-ok); border-color: color-mix(in srgb, var(--rl-ok) 55%, transparent); background: color-mix(in srgb, var(--rl-ok) 12%, transparent); }
+.rl-fail, .rl-error { color: var(--rl-fail); border-color: color-mix(in srgb, var(--rl-fail) 55%, transparent); background: color-mix(in srgb, var(--rl-fail) 12%, transparent); }
+.rl-stale { color: var(--rl-stale); border-color: color-mix(in srgb, var(--rl-stale) 55%, transparent); background: color-mix(in srgb, var(--rl-stale) 12%, transparent); }
+.rl-missing { color: var(--rl-missing); border-style: dashed; }
+.rl-na { color: var(--rl-muted); opacity: 0.6; }
+.rl-reached { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.rl-reached .rl-ok { color: var(--rl-ok); font-weight: 600; }
+.rl-next-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.rl-next-cell code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rl-notice { margin: 8px 0; padding: 6px 10px; border-radius: 4px; background: color-mix(in srgb, var(--rl-ok) 14%, transparent); }
+.rl-notice-error { background: color-mix(in srgb, var(--rl-fail) 14%, transparent); }
+.rl-error { margin: 12px 0; color: var(--rl-fail); white-space: pre-wrap; font-family: var(--rl-mono); }

@@ -1,9 +1,10 @@
 // The commands of the palette and menus: each one is one CLI subcommand.
-import { execFile } from 'node:child_process';
+import { git } from './semgit/git';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { deliver } from './download';
 import { failureText, output, refusedHere, report, run, tempDir } from './cli';
 import { shownDiagramFile } from './diagrams';
 import { EXPORT_FORMATS, parseCheckReport, renderTransitionPlan, summarizeCheck, TransitionPlan } from './pure/arc';
@@ -75,7 +76,10 @@ export async function safetyReport(uri?: vscode.Uri): Promise<void> {
     report(`arclang safety --report ${path.basename(file)}`, result);
     return;
   }
-  await vscode.commands.executeCommand('markdown.showPreview', vscode.Uri.file(out));
+  // The browser build has no Markdown preview: the report opens as a Markdown document there.
+  const preview = (await vscode.commands.getCommands(true)).includes('markdown.showPreview');
+  if (preview) await vscode.commands.executeCommand('markdown.showPreview', vscode.Uri.file(out));
+  else await vscode.window.showTextDocument(await vscode.workspace.openTextDocument({ language: 'markdown', content: fs.readFileSync(out, 'utf8') }), { preview: false });
   if (result.code !== 0) vscode.window.showWarningMessage('ArcLang: a fault tree is beyond its budget (see the safety report).');
 }
 
@@ -171,14 +175,6 @@ export async function impact(uri?: vscode.Uri, element?: string): Promise<void> 
   report(`arclang impact ${path.basename(file)} ${target}`, result);
 }
 
-function git(args: string[], cwd: string): Promise<{ code: number; stdout: string; stderr: string }> {
-  return new Promise((resolve) => {
-    execFile('git', args, { cwd, maxBuffer: 64 * 1024 * 1024 }, (error, stdout, stderr) => {
-      resolve({ code: error && typeof error.code === 'number' ? error.code : error ? 1 : 0, stdout: String(stdout), stderr: String(stderr) });
-    });
-  });
-}
-
 /** `arclang diff` between the committed version (git HEAD) and the file on disk. */
 export async function diffWithHead(uri?: vscode.Uri): Promise<void> {
   if (refusedHere(['diff'])) return; // web hook
@@ -230,8 +226,10 @@ export async function exportModel(uri?: vscode.Uri): Promise<void> {
     vscode.window.showErrorMessage(`ArcLang: export failed. ${failureText(result).split('\n')[0]}`);
     return;
   }
+  const isFile = await vscode.workspace.fs.stat(target).then((s) => s.type === vscode.FileType.File, () => false);
+  if (isFile) await deliver(target);
   const choice = await vscode.window.showInformationMessage(`ArcLang: exported to ${path.basename(target.fsPath)}.`, 'Open');
-  if (choice === 'Open' && fs.existsSync(target.fsPath) && fs.statSync(target.fsPath).isFile()) {
+  if (choice === 'Open' && isFile) {
     await vscode.commands.executeCommand('vscode.open', target);
   }
 }

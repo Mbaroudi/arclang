@@ -196,7 +196,7 @@ export class Properties {
       );
     }
     actions.appendChild(action('⏱', 'History', () => openHistory(element.id), { title: 'The commits that changed it, found by the semantic diff between revisions' })); // semgit hook
-    actions.appendChild(action('⚡', 'Impact', () => openImpact(element.id), { title: 'Analyse the impact of a change to it, or ask what if…' })); // impact hook
+    actions.appendChild(action('⚡', 'Impact', () => openImpact(element.id), { title: 'Analyze the impact of a change to it, or ask what if…' })); // impact hook
     actions.appendChild(action('⌫', 'Delete', () => this.owner.submit([removalOf(element, this.owner.snapshot?.())], `delete ${element.name || element.id}`), { class: 'wb-danger', title: 'Delete the declaration (⌘Z takes it back)' }));
     const linked = ends
       ? el('p', { class: 'wb-ends' }, [
@@ -243,6 +243,8 @@ export class Properties {
       const types = [...new Set(inherited.map((i) => i.from.name || i.from.id))].join(', ');
       sections.push({ id: 'inherited', label: `Inherited from ${types}`, count: String(inherited.length), body: () => this.inherited(element, inherited) });
     }
+    const life = records.filter((r) => r.owner === element.uuid && (r.kind === 'Timeslice' || r.kind === 'Snapshot'));
+    if (life.length) sections.push({ id: 'life', label: 'Timeslices and snapshots', count: String(life.length), body: () => this.life(life, records) });
     if (snapshot) {
       const relations = relationsOf(element, snapshot);
       const traces = tracesOf(element, snapshot);
@@ -408,6 +410,28 @@ export class Properties {
         resolve(null);
       }, VALIDATION_TIMEOUT);
     });
+  }
+
+  /** The stretches and moments of an element's life: when, then the values it has. */
+  private life(occurrences: ElementRecord[], records: ElementRecord[]): HTMLElement {
+    const list = el('ul', { class: 'wb-life' });
+    for (const occurrence of occurrences) {
+      const when = (['start', 'end', 'at'] as const).filter((k) => isSet(occurrence.attributes[k])).map((k) => `${k} ${displayValue(occurrence.attributes[k])}`).join(' · ');
+      const values = Object.entries(occurrence.attributes)
+        .filter(([k]) => !['start', 'end', 'at', 'id', 'name', 'description'].includes(k))
+        .map(([k, v]) => `${humanise(k)} ${displayValue(v)}`)
+        .join(' · ');
+      const item = el('li', { class: `wb-life-${occurrence.kind.toLowerCase()}`, 'data-id': occurrence.id }, [
+        el('span', { class: 'wb-life-kind', text: occurrence.kind === 'Timeslice' ? 'timeslice' : 'snapshot' }),
+        el('span', { class: 'wb-life-name', text: occurrence.name }),
+        ...(when ? [el('span', { class: 'wb-life-when', text: when })] : []),
+        ...(values ? [el('span', { class: 'wb-life-values', text: values })] : []),
+      ]);
+      const inner = records.filter((r) => r.owner === occurrence.uuid && r.kind === 'Snapshot');
+      if (inner.length) item.append(this.life(inner, records));
+      list.append(item);
+    }
+    return list;
   }
 
   private inherited(element: ElementRecord, inherited: ReturnType<typeof inheritedOf>): HTMLElement {

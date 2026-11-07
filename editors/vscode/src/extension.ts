@@ -17,7 +17,10 @@ import { registerWorkbench } from './workbench';
 import { registerImport } from './importing';
 import { registerTables } from './tables'; // tables hook
 import { registerImpact } from './impact'; // impact hook
+import { registerRealization } from './realization'; // realization hook
 import { registerDebug } from './debug'; // debug hook
+import { registerPdfViewer } from './pdf/viewer';
+import { registerFullScreen } from './fullscreen';
 import { registerSemgit } from './semgit'; // semgit hook
 import { registerCi } from './cicd'; // cicd hook
 import { registerSimulation } from './simulation'; // simulation hook
@@ -56,7 +59,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   registerImport(context);
   registerTables(context); // tables hook
   registerImpact(context); // impact hook
+  registerRealization(context); // realization hook
   registerDebug(context); // debug hook
+  registerPdfViewer(context);
+  registerFullScreen(context);
   registerSemgit(context); // semgit hook
   registerCi(context); // cicd hook
   registerSimulation(context); // simulation hook
@@ -67,9 +73,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   registerAi(context); // ai-design hook
   registerMcpProvider(context);
 
-  // The language server starts with the first .arc document, not at startup.
-  const startForArc = (document: vscode.TextDocument) => {
-    if (document.languageId === 'arclang') void startClient(context);
+  // The language server starts with the first .arc document, not at startup,
+  // and only once the compiler answers: without it the user gets the guided
+  // "install or locate" prompt, not the language client's raw spawn errors.
+  const startForArc = async (document: vscode.TextDocument) => {
+    if (document.languageId !== 'arclang' || !workspaceTrusted()) return;
+    if (await warnIfMissing()) await startClient(context);
   };
   context.subscriptions.push(vscode.workspace.onDidOpenTextDocument(startForArc));
   context.subscriptions.push(

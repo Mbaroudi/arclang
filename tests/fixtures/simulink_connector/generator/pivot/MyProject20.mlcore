@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:org.eclipse.capella.simulink.core="http://www.eclipse.org/capella/simulink/core/1.0">
+  <org.eclipse.capella.simulink.core:Project id="46db87e7-fa72-4e39-bfea-697889bb2f66" name="MyProject20" dictionaries="c3fe2d5e-463e-4535-abb6-da80c2c150ce">
+    <systems id="f9b23aac-e67a-4cc9-925e-2039aa2a4641" name="mySys" dictionary="c3fe2d5e-463e-4535-abb6-da80c2c150ce"/>
+  </org.eclipse.capella.simulink.core:Project>
+  <org.eclipse.capella.simulink.core:Dictionary id="c3fe2d5e-463e-4535-abb6-da80c2c150ce" name="MyProject20_dict">
+    <datatypes xsi:type="org.eclipse.capella.simulink.core:Signal" id="my_id_01" originatorId="originSignalInSeconds" name="MySignalInSeconds" initialValue="11.23" unit="s">
+      <datatype xsi:type="org.eclipse.capella.simulink.core:BuiltIntype" href="library:/model/builtInTypes.mlcore#2741be9b-8e19-48c0-baef-b109fdbd243c"/>
+    </datatypes>
+    <datatypes xsi:type="org.eclipse.capella.simulink.core:Signal" id="8bc09890-224e-4297-96bc-0314a91c8b9e" originatorId="originSignalInTons" name="MySignalInTons" initialValue="2" unit="t">
+      <datatype xsi:type="org.eclipse.capella.simulink.core:BuiltIntype" href="library:/model/builtInTypes.mlcore#73495737-7776-4b32-bd60-679298ddd36b"/>
+    </datatypes>
+  </org.eclipse.capella.simulink.core:Dictionary>
+</xmi:XMI>

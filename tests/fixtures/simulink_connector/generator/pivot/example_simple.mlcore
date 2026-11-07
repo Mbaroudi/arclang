@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<org.eclipse.capella.simulink.core:System xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:org.eclipse.capella.simulink.core="http://www.eclipse.org/capella/simulink/core/1.0" xmlns:org.eclipse.capella.simulink.infra="http://www.eclipse.org/capella/simulink/infra/1.0" id="id1" name="MyTestSystem">
+  <blocks xsi:type="org.eclipse.capella.simulink.core:Chart" id="id2" name="MyChart" source="sflib/Chart">
+    <parameters id="d53767ab-3d49-43c9-92e0-c63820914ec4" key="bounds">
+      <value xsi:type="org.eclipse.capella.simulink.infra:MultipleValue" id="594cb014-1e11-483d-ace7-c6a689f70b08">
+        <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="05c49653-7ae3-4e8f-94a6-ff70a43c4c0a" specification="10"/>
+        <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="b48fe746-c63a-44c8-82d9-a3b44a4ace19" specification="10"/>
+        <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="2248ef39-66de-48dc-ba72-e7f2638f593d" specification="50"/>
+        <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="9d1ac589-2173-4c60-a54c-961003773840" specification="50"/>
+      </value>
+    </parameters>
+    <transitions id="id6" name="1-2" destination="id4" source="id3" comment="1->2">
+      <parameters id="id31" key="position.source">
+        <value xsi:type="org.eclipse.capella.simulink.infra:MultipleValue" id="id200">
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id13" specification="6"/>
+        </value>
+      </parameters>
+      <parameters id="id32" key="position.destination">
+        <value xsi:type="org.eclipse.capella.simulink.infra:MultipleValue" id="id201">
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id14" specification="0"/>
+        </value>
+      </parameters>
+    </transitions>
+    <transitions id="id7" name="2-3" destination="id5" source="id4" comment="2->3">
+      <parameters id="id33" key="position.source">
+        <value xsi:type="org.eclipse.capella.simulink.infra:MultipleValue" id="id202">
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id15" specification="2"/>
+        </value>
+      </parameters>
+      <parameters id="id34" key="position.destination">
+        <value xsi:type="org.eclipse.capella.simulink.infra:MultipleValue" id="id203">
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id16" specification="8"/>
+        </value>
+      </parameters>
+    </transitions>
+    <transitions id="id8" name="3-1" destination="id3" source="id5" comment="3->1">
+      <parameters id="id35" key="position.source">
+        <value xsi:type="org.eclipse.capella.simulink.infra:MultipleValue" id="id204">
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id17" specification="10"/>
+        </value>
+      </parameters>
+      <parameters id="id36" key="position.destination">
+        <value xsi:type="org.eclipse.capella.simulink.infra:MultipleValue" id="id205">
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id18" specification="4"/>
+        </value>
+      </parameters>
+    </transitions>
+    <transitions id="id9" name="initial" destination="id3" comment="initial">
+      <parameters id="id37" key="position.source">
+        <value xsi:type="org.eclipse.capella.simulink.infra:MultipleValue" id="id206">
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id19" specification="300"/>
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id19b" specification="40"/>
+        </value>
+      </parameters>
+      <parameters id="id38" key="position.destination">
+        <value xsi:type="org.eclipse.capella.simulink.infra:MultipleValue" id="id207">
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id20" specification="0"/>
+        </value>
+      </parameters>
+    </transitions>
+    <transitions id="id23" name="3->junction" destination="id21" source="id5">
+      <parameters id="id39" key="position.source">
+        <value xsi:type="org.eclipse.capella.simulink.infra:MultipleValue" id="id208">
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id24" specification="6"/>
+        </value>
+      </parameters>
+      <parameters id="id40" key="position.destination">
+        <value xsi:type="org.eclipse.capella.simulink.infra:MultipleValue" id="id209">
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id25" specification="0"/>
+        </value>
+      </parameters>
+    </transitions>
+    <transitions id="id26" destination="id4" source="id21">
+      <parameters id="id41" key="position.source">
+        <value xsi:type="org.eclipse.capella.simulink.infra:MultipleValue" id="id210">
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id27" specification="9"/>
+        </value>
+      </parameters>
+      <parameters id="id42" key="position.destination">
+        <value xsi:type="org.eclipse.capella.simulink.infra:MultipleValue" id="id211">
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id28" specification="3"/>
+        </value>
+      </parameters>
+    </transitions>
+    <states xsi:type="org.eclipse.capella.simulink.core:State" id="id3" name="State1" incomingTransitions="id9 id8" outgoingTransitions="id6">
+      <parameters id="id43" key="bounds">
+        <value xsi:type="org.eclipse.capella.simulink.infra:MultipleValue" id="id212">
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id10" specification="50"/>
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id10b" specification="50"/>
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id10c" specification="100"/>
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id10d" specification="30"/>
+        </value>
+      </parameters>
+    </states>
+    <states xsi:type="org.eclipse.capella.simulink.core:State" id="id4" name="State2" incomingTransitions="id6 id26" outgoingTransitions="id7">
+      <parameters id="id44" key="bounds">
+        <value xsi:type="org.eclipse.capella.simulink.infra:MultipleValue" id="id213">
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id11" specification="50"/>
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id11b" specification="150"/>
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id11c" specification="100"/>
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id11d" specification="30"/>
+        </value>
+      </parameters>
+    </states>
+    <states xsi:type="org.eclipse.capella.simulink.core:State" id="id5" name="State3" incomingTransitions="id7" outgoingTransitions="id8 id23">
+      <parameters id="id45" key="bounds">
+        <value xsi:type="org.eclipse.capella.simulink.infra:MultipleValue" id="id214">
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id12" specification="250"/>
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id12b" specification="90"/>
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id12c" specification="100"/>
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id12d" specification="30"/>
+        </value>
+      </parameters>
+    </states>
+    <states xsi:type="org.eclipse.capella.simulink.core:Junction" id="id21" incomingTransitions="id23" outgoingTransitions="id26">
+      <parameters id="id46" key="bounds">
+        <value xsi:type="org.eclipse.capella.simulink.infra:MultipleValue" id="id215">
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id30" specification="300"/>
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id30b" specification="180"/>
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id30c" specification="16"/>
+          <values xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="id30d" specification="16"/>
+        </value>
+      </parameters>
+    </states>
+  </blocks>
+</org.eclipse.capella.simulink.core:System>

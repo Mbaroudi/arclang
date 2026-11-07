@@ -141,6 +141,7 @@ pub enum Token {
     Value,
     ValidationKeyword,
     TestCase,
+    Twin,
     /// `constraint Name { assert: <expression> }`
     ConstraintKw,
     Measure,
@@ -307,6 +308,7 @@ impl Token {
             Token::Value => "value",
             Token::ValidationKeyword => "validation",
             Token::TestCase => "test_case",
+            Token::Twin => "twin",
             Token::ConstraintKw => "constraint",
             Token::Measure => "measure",
             Token::DataFlows => "data_flows",
@@ -699,6 +701,7 @@ impl Lexer {
             "value" => Token::Value,
             "validation" => Token::ValidationKeyword,
             "test_case" => Token::TestCase,
+            "twin" => Token::Twin,
             "constraint" => Token::ConstraintKw,
             "measure" => Token::Measure,
             "data_flows" => Token::DataFlows,

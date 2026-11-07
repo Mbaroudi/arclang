@@ -22,6 +22,9 @@ pub(super) struct Context {
     refs: HashMap<String, String>,
     /// Data types and classes by id and by name: a field or an element names a type.
     types: HashMap<String, String>,
+    /// A port designated by its own id (what the compiler accepts at a link's
+    /// or an exchange's end) -> the id of the node or behavior component that has it.
+    pub(super) port_owners: HashMap<String, String>,
     /// Capella ids of the functions of every level.
     pub(super) functions: std::collections::HashSet<String>,
     /// Functions by name (empty when two share it), for what names functions.

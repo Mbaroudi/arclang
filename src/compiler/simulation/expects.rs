@@ -73,12 +73,18 @@ pub struct Expect {
     /// The requirement it checks (`REQ-SHED: ...`); `None`: every requirement the case verifies.
     pub requirement: Option<String>,
     pub lhs: Term,
+    /// `== 120 m within 1 %` / `within 0.5 m`: how far equal may be, relative
+    /// (a percentage of the right side) or absolute; `None`: numerically equal.
+    pub tolerance: Option<Term>,
     pub cmp: Cmp,
     pub rhs: Term,
 }
 
+/// A token of an expectation, and of the action language
+/// (`execution::expr`), which shares the lexer: numbers with their unit,
+/// names, quoted ids, operators.
 #[derive(Debug, Clone, PartialEq)]
-enum Token {
+pub(crate) enum Token {
     Number(f64, Option<String>),
     Name(String),
     Quoted(String),
@@ -103,7 +109,7 @@ fn unit_at(text: &str) -> Option<&'static str> {
     best
 }
 
-fn tokens(text: &str) -> Result<Vec<Token>, String> {
+pub(crate) fn tokens(text: &str) -> Result<Vec<Token>, String> {
     let mut out = Vec::new();
     let chars: Vec<(usize, char)> = text.char_indices().collect();
     let mut i = 0;
@@ -165,6 +171,9 @@ fn tokens(text: &str) -> Result<Vec<Token>, String> {
             let two = text.get(at..at + 2).unwrap_or("");
             let op: &'static str = match (two, c) {
                 (">=", _) => ">=",
+                (":=", _) => ":=",
+                ("&&", _) => "&&",
+                ("||", _) => "||",
                 ("<=", _) => "<=",
                 ("==", _) => "==",
                 ("!=", _) => "!=",
@@ -174,6 +183,9 @@ fn tokens(text: &str) -> Result<Vec<Token>, String> {
                 (_, '-') => "-",
                 (_, '*') => "*",
                 (_, '/') => "/",
+                (_, '=') => "=",
+                (_, '!') => "!",
+                (_, ';') => ";",
                 (_, '(') => {
                     out.push(Token::Open);
                     i += 1;
@@ -202,6 +214,8 @@ struct Parser<'a> {
     tokens: Vec<Token>,
     at: usize,
     aliases: &'a BTreeMap<String, String>,
+    /// A bare variable stands for its value (a requirement's constraint), not a time series.
+    values: bool,
 }
 
 impl Parser<'_> {
@@ -282,6 +296,10 @@ impl Parser<'_> {
                 self.expect(Token::Close)?;
                 Ok(Term::Call { function, at, variable })
             }
+            Some(Token::Name(_)) | Some(Token::Quoted(_)) if self.values => {
+                self.at -= 1;
+                Ok(Term::Call { function: "value".to_string(), at: None, variable: self.variable()? })
+            }
             Some(Token::Name(name)) | Some(Token::Quoted(name)) => Err(format!(
                 "'{}' is a time series: read it with {}(...) or at(t, ...)",
                 name.replace('\u{0}', ""),
@@ -324,9 +342,13 @@ pub fn split_requirement(text: &str) -> (Option<&str>, &str) {
 }
 
 pub fn parse(full: &str, aliases: &BTreeMap<String, String>) -> Result<Expect, String> {
+    parse_with(full, aliases, false)
+}
+
+fn parse_with(full: &str, aliases: &BTreeMap<String, String>, values: bool) -> Result<Expect, String> {
     let (requirement, text) = split_requirement(full);
     let tokens = tokens(text).map_err(|e| format!("expects \"{text}\": {e}"))?;
-    let mut parser = Parser { tokens, at: 0, aliases };
+    let mut parser = Parser { tokens, at: 0, aliases, values };
     let wrap = |e: String| format!("expects \"{text}\": {e}");
     let lhs = parser.sum().map_err(wrap)?;
     let cmp = match parser.next() {
@@ -339,15 +361,28 @@ pub fn parse(full: &str, aliases: &BTreeMap<String, String>) -> Result<Expect, S
         other => return Err(wrap(format!("expected a comparison (>=, <=, >, <, ==, !=), got {}", describe(other.as_ref())))),
     };
     let rhs = parser.sum().map_err(wrap)?;
+    let tolerance = if parser.peek() == Some(&Token::Name("within".to_string())) {
+        parser.at += 1;
+        if !matches!(cmp, Cmp::Eq | Cmp::Ne) {
+            return Err(wrap("`within` says how far equal may be: it goes with == or !=".to_string()));
+        }
+        Some(parser.sum().map_err(wrap)?)
+    } else {
+        None
+    };
     if let Some(extra) = parser.peek() {
         return Err(wrap(format!("unexpected {} after the comparison", describe(Some(extra)))));
     }
-    Ok(Expect { text: text.to_string(), requirement: requirement.map(str::to_string), lhs, cmp, rhs })
+    Ok(Expect { text: text.to_string(), requirement: requirement.map(str::to_string), lhs, cmp, rhs, tolerance })
 }
 
 /// The syntax of an expectation, without the model: quoted ids are not
 /// resolved yet.
 pub fn check_syntax(full: &str) -> Result<(), String> {
+    syntax(full, false)
+}
+
+fn syntax(full: &str, values: bool) -> Result<(), String> {
     let text = split_requirement(full).1;
     let tokens = tokens(text).map_err(|e| format!("expects \"{text}\": {e}"))?;
     let aliases: BTreeMap<String, String> = tokens
@@ -357,7 +392,14 @@ pub fn check_syntax(full: &str) -> Result<(), String> {
             _ => None,
         })
         .collect();
-    parse(full, &aliases).map(|_| ())
+    parse_with(full, &aliases, values).map(|_| ())
+}
+
+/// A requirement's constraint (`require:`, `assume:`): a comparison written as an
+/// expectation is (`mass <= 1200 kg`, `max(cabin.T) <= 30 °C`), its variables the subject's
+/// features. Its syntax and units are checked; it is not evaluated here.
+pub fn check_constraint(text: &str) -> Result<(), String> {
+    syntax(text, true).map_err(|e| e.trim_start_matches(&format!("expects \"{text}\": ")).to_string())
 }
 
 /// A value in SI; `dim` is `None` when a variable's unit is unknown.
@@ -439,7 +481,11 @@ fn eval(term: &Term, context: &mut Context<'_>) -> Result<Value, String> {
                             return Err(format!("at(...): the instant is a {}, not a time", dim.label()));
                         }
                     }
-                    series.at(column, time.si).ok_or_else(|| format!("at({} s, ...) is outside the simulated time", time.si))?
+                    series.at(column, time.si).ok_or_else(|| {
+                        let seconds = |t: f64| format!("{} s", (t * 1000.0).round() / 1000.0);
+                        let span = |t: Option<f64>| t.map(seconds).unwrap_or_else(|| "?".to_string());
+                        format!("at({}, ...) is outside the simulated time ({} to {})", seconds(time.si), span(series.times().next()), span(series.times().last()))
+                    })?
                 }
             };
             Ok(match unit {
@@ -488,6 +534,7 @@ fn shown(value: Value, unit: Option<&str>) -> String {
 
 fn label(term: &Term) -> String {
     match term {
+        Term::Call { function, at: None, variable } if function == "value" => variable.clone(),
         Term::Call { function, at: None, variable } => format!("{function}({variable})"),
         Term::Call { variable, at: Some(t), .. } => match t.as_ref() {
             Term::Number { value, dim, unit } => format!("at({}, {variable})", shown(Value { si: *value, dim: Some(*dim) }, unit.as_deref())),
@@ -502,7 +549,24 @@ pub fn evaluate(expect: &Expect, context: &mut Context<'_>) -> Result<Evaluated,
     let lhs = eval(&expect.lhs, context).map_err(wrap)?;
     let rhs = eval(&expect.rhs, context).map_err(wrap)?;
     same(lhs.dim, rhs.dim, &format!("comparing with {}", expect.cmp.symbol())).map_err(wrap)?;
-    let holds = expect.cmp.holds(lhs.si, rhs.si);
+    let within = match &expect.tolerance {
+        None => None,
+        Some(term) => {
+            let tolerance = eval(term, context).map_err(wrap)?;
+            if written_unit(term) == Some("%") {
+                Some(tolerance.si.abs() * rhs.si.abs())
+            } else {
+                same(tolerance.dim, rhs.dim, "within").map_err(wrap)?;
+                Some(tolerance.si.abs())
+            }
+        }
+    };
+    let close = |a: f64, b: f64| within.is_some_and(|w| (a - b).abs() <= w) || Cmp::Eq.holds(a, b);
+    let holds = match (expect.cmp, within) {
+        (Cmp::Eq, Some(_)) => close(lhs.si, rhs.si),
+        (Cmp::Ne, Some(_)) => !close(lhs.si, rhs.si),
+        _ => expect.cmp.holds(lhs.si, rhs.si),
+    };
     let unit = written_unit(&expect.rhs).or_else(|| written_unit(&expect.lhs));
     let value = format!("{} = {}", label(&expect.lhs), shown(lhs, unit));
     let gap_si = (lhs.si - rhs.si).abs();
@@ -512,6 +576,7 @@ pub fn evaluate(expect: &Expect, context: &mut Context<'_>) -> Result<Evaluated,
     // A gap below what four significant digits show: the value sits on its bound.
     let on_bound = gap_si <= 5e-5 * lhs.si.abs().max(rhs.si.abs());
     let margin = match (expect.cmp, holds) {
+        (Cmp::Eq, true) if within.is_some() && !Cmp::Eq.holds(lhs.si, rhs.si) => format!("off by {gap}, within its tolerance"),
         (Cmp::Eq, true) => String::new(),
         (_, true) if on_bound => "at the bound".to_string(),
         (Cmp::Ne, false) => "equal".to_string(),
@@ -694,5 +759,43 @@ mod tests {
         assert!(check_syntax("min(battery.soc)").unwrap_err().contains("comparison"));
         assert!(check_syntax("min(battery.soc >= 1").unwrap_err().contains("expected ')'"));
         assert!(check_syntax("at(battery.soc) > 1").is_err());
+    }
+}
+
+#[cfg(test)]
+mod constraint_tests {
+    use super::check_constraint;
+
+    #[test]
+    fn a_requirement_constraint_is_a_comparison_of_the_subjects_features() {
+        for ok in ["mass <= 1200 kg", "max(cabin.T) <= 30 °C", "range >= 400 km", "ambient.T >= -20 °C"] {
+            assert!(check_constraint(ok).is_ok(), "{ok}: {:?}", check_constraint(ok));
+        }
+        assert!(check_constraint("mass").unwrap_err().contains("comparison"));
+        assert!(check_constraint("mass <= ").is_err());
+    }
+}
+
+#[cfg(test)]
+mod tolerance_tests {
+    use super::{evaluate, parse, Context};
+    use crate::compiler::simulation::results::Series;
+    use std::collections::BTreeMap;
+
+    fn holds(text: &str) -> (bool, String) {
+        let series = Series::from_csv("\"time\",\"x\"\n0,0\n10,0.6933\n").unwrap();
+        let expect = parse(text, &BTreeMap::new()).unwrap();
+        let evaluated = evaluate(&expect, &mut Context { series: &series, notes: &mut Vec::new() }).unwrap();
+        (evaluated.holds, evaluated.margin)
+    }
+
+    #[test]
+    fn equal_within_a_percentage_or_an_amount() {
+        assert!(!holds("at(10 s, x) == 0.69").0, "numerically equal only");
+        assert_eq!(holds("at(10 s, x) == 0.69 within 1 %"), (true, "off by 0.0033, within its tolerance".to_string()));
+        assert!(!holds("at(10 s, x) == 0.69 within 0.1 %").0);
+        assert!(holds("at(10 s, x) == 0.69 within 0.01").0);
+        assert!(holds("at(10 s, x) != 0.5 within 1 %").0);
+        assert!(parse("final(x) >= 1 within 1 %", &BTreeMap::new()).unwrap_err().contains("goes with == or !="));
     }
 }

@@ -1,0 +1,71 @@
+// The SoC of ArcLang's target zephyr/litex_vexriscv, as Renode emulates it:
+// a LiteX SoC with a VexRiscv core (Renode's LiteX/VexRiscv platform for
+// Zephyr), and what the target adds on the bus, matching
+// ../litex_vexriscv.overlay. Load the C# models first:
+//   include @ArcLangSJA1000.cs ... (pil_bench.py does it)
+// Renode's LiteX/VexRiscv platform for Zephyr (platforms/cpus/
+// litex_vexriscv_zephyr.repl), with the timer of LiteX's 32-bit CSR bus
+// (what Zephyr's litex,timer0 driver programs now) and the console
+// unbuffered (what the CPU writes reaches the bench at once).
+ram: Memory.MappedMemory @ {
+        sysbus 0x40000000;
+        sysbus 0xc0000000
+    }
+    size: 0x10000000
+
+cpu: CPU.VexRiscv @ sysbus
+    cpuType: "rv32im_zicsr_zifencei"
+
+uart: UART.LiteX_UART @ {
+        sysbus 0x60001800;
+        sysbus 0xE0001800
+    }
+    txFifoCapacity: 0
+    -> cpu@2
+
+timer0: Timers.LiteX_Timer_CSR32 @ {
+        sysbus 0x60002800;
+        sysbus 0xE0002800
+    }
+    frequency: 100000000
+    -> cpu@1
+
+// 32 lines each: arclang gpio N is line N.
+gpio_out: GPIOPort.LiteX_GPIO @ {
+        sysbus 0x60005800;
+        sysbus 0xE0005800
+    }
+    type: Type.Out
+
+gpio_in: GPIOPort.LiteX_GPIO @ {
+        sysbus 0x60006000;
+        sysbus 0xE0006000
+    }
+    type: Type.In
+
+// arclang uart 0 and 1: two more LiteX UARTs.
+uart_a0: UART.LiteX_UART @ sysbus 0xE000F000
+    txFifoCapacity: 0
+    -> cpu@3
+
+uart_a1: UART.LiteX_UART @ sysbus 0xE000F800
+    txFifoCapacity: 0
+    -> cpu@5
+
+// arclang pwm 0 and 1: LiteX's PWM core (Renode only tags it).
+pwm0: ArcLang.LiteXPWM @ sysbus 0xE0007000
+
+pwm1: ArcLang.LiteXPWM @ sysbus 0xE0012000
+
+// The watchdog: LiteX's watchdog core (absent from Renode's platform).
+wdt0: ArcLang.LiteXWatchdog @ sysbus 0xE000D000
+    frequency: 100000000
+    -> cpu@8
+
+// arclang can: an SJA1000-compatible controller.
+can0: ArcLang.SJA1000 @ sysbus 0xE0010000
+    -> cpu@6
+
+// arclang adc 0 to 7: a register bank.
+adc0: ArcLang.RegisterADC @ sysbus 0xE0011000
+    channels: 8

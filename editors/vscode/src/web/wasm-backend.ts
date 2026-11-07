@@ -10,6 +10,8 @@ import type { Wasm } from './wasm';
 export const NOT_AVAILABLE = (what: string): string =>
   `${what} is not available in the browser yet: the web playground runs the compiler in WebAssembly, which carries the model, edits, checks, SysML v2 and the viewer for now. Use the desktop extension for this command.`;
 
+import { runRemote, runsRemotely } from './remote';
+
 const done = (stdout: string, code = 0): RunResult => ({ code, stdout, stderr: '' });
 const failed = (stderr: string, code = 1): RunResult => ({ code, stdout: '', stderr });
 
@@ -39,6 +41,12 @@ function positionals(args: string[], withValue: string[]): string[] {
   return out;
 }
 
+/** An output: in the workspace when its path is there (the user chose it), else a temporary file of the extension. */
+async function writeOut(path: string, text: string): Promise<void> {
+  if (path === '/workspace' || path.startsWith('/workspace/')) await vscode.workspace.fs.writeFile(vscode.Uri.file(path), new TextEncoder().encode(text));
+  else vfs.write(path, text);
+}
+
 /** A temporary file of the extension, else a file of the workspace. */
 async function readModel(path: string | undefined): Promise<{ ok: true; text: string } | { ok: false; result: RunResult }> {
   if (!path) return { ok: false, result: failed('(no file)', 2) };
@@ -51,11 +59,13 @@ async function readModel(path: string | undefined): Promise<{ ok: true; text: st
 }
 
 /** What this build answers: the subcommands, and for export and import the formats. */
-const SUPPORTED = new Set(['--version', 'workbench', 'check', 'edit', 'format', 'metamodel', 'rules', 'transition']);
+const SUPPORTED = new Set(['--version', 'workbench', 'check', 'edit', 'format', 'metamodel', 'rules', 'transition', 'debug']);
 
 export function createWasmBackend(wasm: Wasm): Backend {
   function unavailable(args: string[]): string | null {
     const [command, ...rest] = args;
+    // Online (arclang.fr, signed in), the server runs what this build does not.
+    if (runsRemotely(command) && !local(args)) return null;
     if (command === 'export' || command === 'import') {
       const format = option(rest, '-f', '--format');
       const known = command === 'export' ? format === 'sys-ml' || format === 'sysml' : format === 'sysml';
@@ -64,8 +74,21 @@ export function createWasmBackend(wasm: Wasm): Backend {
     return SUPPORTED.has(command ?? '') ? null : NOT_AVAILABLE(`'arclang ${command ?? ''}'`);
   }
 
-  async function run(args: string[], _options: RunOptions): Promise<RunResult> {
+  /** Whether this build answers the command itself. */
+  function local(args: string[]): boolean {
     const [command, ...rest] = args;
+    if (command === 'export' || command === 'import') {
+      const format = option(rest, '-f', '--format');
+      return command === 'export' ? format === 'sys-ml' || format === 'sysml' : format === 'sysml';
+    }
+    // The workbench of a revision reads the history: online.
+    if (command === 'workbench' && rest.some((a) => a === '--rev' || a.startsWith('--rev='))) return false;
+    return SUPPORTED.has(command ?? '');
+  }
+
+  async function run(args: string[], options: RunOptions): Promise<RunResult> {
+    const [command, ...rest] = args;
+    if (!local(args) && runsRemotely(command)) return runRemote(args, options);
     try {
       switch (command) {
         case '--version':
@@ -101,7 +124,7 @@ export function createWasmBackend(wasm: Wasm): Backend {
           if (!model.ok) return model.result;
           const answer = JSON.parse(wasm.export_sysml(model.text)) as { success: boolean; text?: string; error?: string };
           if (!answer.success) return failed(answer.error ?? 'the model could not be exported');
-          if (out) vfs.write(out, answer.text ?? '');
+          if (out) await writeOut(out, answer.text ?? '');
           return done(out ? '' : (answer.text ?? ''));
         }
         case 'import': {
@@ -112,7 +135,7 @@ export function createWasmBackend(wasm: Wasm): Backend {
           if (!model.ok) return model.result;
           const answer = JSON.parse(wasm.import_sysml(model.text)) as { success: boolean; source?: string; error?: string; notes?: string[] };
           if (!answer.success) return failed(answer.error ?? 'the SysML v2 text could not be imported');
-          if (out) vfs.write(out, answer.source ?? '');
+          if (out) await writeOut(out, answer.source ?? '');
           return done((answer.notes ?? []).map((note) => `  note: ${note}\n`).join(''));
         }
         case 'transition': {
@@ -122,6 +145,14 @@ export function createWasmBackend(wasm: Wasm): Backend {
           const answer = JSON.parse(wasm.transition(model.text, option(rest, '--step') ?? '', option(rest, '--into') ?? '', plan)) as { success: boolean; plans?: unknown; source?: string; error?: string };
           if (!answer.success) return failed(answer.error ?? 'the transition was refused');
           return done(plan ? JSON.stringify(answer.plans) : (answer.source ?? ''));
+        }
+        case 'debug': {
+          // What a model runs step by step; the run itself is the inline debug adapter (debug-adapter.ts).
+          if (!rest.includes('--list')) return failed(NOT_AVAILABLE(`'arclang debug' outside the debugger`), 78);
+          const model = await readModel(positionals(rest, [])[0]);
+          if (!model.ok) return model.result;
+          const answer = wasm.debug_runnables(model.text);
+          return answer === 'null' ? failed('the model does not compile') : done(answer);
         }
         case 'metamodel':
           return done(option(rest, '--format') === 'json' ? wasm.metamodel() : wasm.metamodel_markdown());

@@ -11,7 +11,7 @@ fn exported(source: &str) -> String {
 }
 
 fn flagship() -> String {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/complete_emergency_braking_simple.arc");
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/automotive/emergency-braking/complete_emergency_braking_simple.arc");
     exported(&std::fs::read_to_string(path).unwrap())
 }
 
@@ -43,7 +43,7 @@ fn a_test_method_is_written_once() {
 
 #[test]
 fn a_class_association_is_a_connection_def_with_its_role() {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/capella/in_flight_entertainment.arc");
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/capella/in-flight-entertainment/in_flight_entertainment.arc");
     let text = exported(&std::fs::read_to_string(path).unwrap());
     let at = text.find("#Association connection def <'0945715c-8c26-495b-ab84-8dd5f86ce7cb'> has {").expect("association exported");
     let block = &text[at..at + text[at..].find("\n    }").unwrap()];
@@ -59,7 +59,7 @@ fn a_trace_can_name_a_scenario_by_its_id() {
 }
 
 fn ife() -> String {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/capella/in_flight_entertainment.arc");
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/capella/in-flight-entertainment/in_flight_entertainment.arc");
     exported(&std::fs::read_to_string(path).unwrap())
 }
 

@@ -45,8 +45,28 @@ jobs:
         run: cargo test
         if: matrix.target != 'x86_64-apple-darwin'
 
+      # Linux: built on Debian 11 (glibc 2.31), so the binary runs on RHEL/Rocky 9,
+      # Debian 11+ and Ubuntu 20.04+ (built on the runner it needed glibc 2.39).
+      # TLS is rustls: no libssl needed.
       - name: Build release binary
+        if: runner.os != 'Linux'
         run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Build release binary (Linux, on glibc 2.31)
+        if: runner.os == 'Linux'
+        run: |
+          docker run --rm -v "$PWD":/src -w /src -e CARGO_HOME=/src/.cargo-home rust:1-bullseye \
+            sh -c 'cargo build --release --locked --target ${{ matrix.target }} && chown -R '"$(id -u):$(id -g)"' target .cargo-home'
+
+      - name: The Linux binary runs on older and minimal distributions
+        if: runner.os == 'Linux'
+        run: |
+          bin=target/${{ matrix.target }}/release/arclang
+          for image in rockylinux:9 debian:bookworm-slim debian:bullseye-slim ubuntu:22.04; do
+            out=$(docker run --rm -v "$PWD/$bin":/arclang:ro "$image" /arclang --version 2>&1)
+            echo "$image: $out"
+            [ "$out" = "arclang ${GITHUB_REF_NAME#v}" ] || { echo "::error::the Linux binary does not run cleanly on $image"; exit 1; }
+          done
 
       - name: Package
         run: |

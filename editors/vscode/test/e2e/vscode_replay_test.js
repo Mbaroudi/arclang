@@ -18,9 +18,9 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok });
 (async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arcreplay-'));
   const model = path.join(dir, 'aircraft.arc');
-  fs.copyFileSync(path.join(REPO, 'examples/aerospace/aircraft_electrical_network.arc'), model);
+  fs.copyFileSync(path.join(REPO, 'examples/aerospace/electrical-network/aircraft_electrical_network.arc'), model);
   fs.mkdirSync(path.join(dir, 'physics'));
-  fs.copyFileSync(path.join(REPO, 'examples/aerospace/physics/ElectricalNetworkPhysics.mo'), path.join(dir, 'physics/ElectricalNetworkPhysics.mo'));
+  fs.copyFileSync(path.join(REPO, 'examples/aerospace/electrical-network/physics/ElectricalNetworkPhysics.mo'), path.join(dir, 'physics/ElectricalNetworkPhysics.mo'));
   const verified = spawnSync(BINARY, ['verify', model, '--test', 'TC-LOSS-25'], { encoding: 'utf8', env: process.env });
   report('the case is simulated by OpenModelica first', /short by/.test(verified.stdout) && fs.existsSync(path.join(dir, '.arclang/sim-results/TC-LOSS-25/0.csv')), (verified.stdout.match(/FAIL[^\n]*/) || [verified.stderr.slice(-200)])[0]);
   const settings = { 'update.mode': 'none', 'extensions.autoCheckUpdates': false, 'extensions.autoUpdate': false, 'telemetry.telemetryLevel': 'off', 'workbench.startupEditor': 'none', 'security.workspace.trust.enabled': false, 'window.restoreWindows': 'none', 'arclang.binary': BINARY };

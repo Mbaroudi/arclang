@@ -121,6 +121,12 @@ impl Parser {
                 Token::Identifier(ref id) if id == "rule" && !self.peek_is_colon() => {
                     model.rules.push(self.parse_rule()?);
                 }
+                Token::Identifier(ref id) if id == "io_binding" && !self.peek_is_colon() => {
+                    model.io_bindings.push(self.parse_io_binding()?);
+                }
+                Token::Identifier(ref id) if id == "refine" && !self.peek_is_colon() => {
+                    model.refinements.push(self.parse_refine()?);
+                }
                 Token::SecurityScales => {
                     let scales = self.parse_security_scales()?;
                     if model.security_scales.is_some() {
@@ -164,6 +170,9 @@ impl Parser {
                 }
                 Token::TestCase if !self.peek_is_colon() => {
                     model.test_cases.push(self.parse_test_case()?);
+                }
+                Token::Twin if !self.peek_is_colon() => {
+                    model.twins.push(self.parse_twin()?);
                 }
                 Token::ConstraintKw if !self.peek_is_colon() => {
                     model.constraints.push(self.parse_constraint()?);
@@ -278,6 +287,12 @@ impl Parser {
                 Token::Identifier(ref id) if id == "rule" && !self.peek_is_colon() => {
                     model.rules.push(self.parse_rule()?);
                 }
+                Token::Identifier(ref id) if id == "io_binding" && !self.peek_is_colon() => {
+                    model.io_bindings.push(self.parse_io_binding()?);
+                }
+                Token::Identifier(ref id) if id == "refine" && !self.peek_is_colon() => {
+                    model.refinements.push(self.parse_refine()?);
+                }
                 Token::SecurityScales => {
                     let scales = self.parse_security_scales()?;
                     if model.security_scales.is_some() {
@@ -321,6 +336,9 @@ impl Parser {
                 }
                 Token::TestCase if !self.peek_is_colon() => {
                     model.test_cases.push(self.parse_test_case()?);
+                }
+                Token::Twin if !self.peek_is_colon() => {
+                    model.twins.push(self.parse_twin()?);
                 }
                 Token::ConstraintKw if !self.peek_is_colon() => {
                     model.constraints.push(self.parse_constraint()?);
@@ -394,6 +412,12 @@ impl Parser {
                 Token::Identifier(ref id) if id == "rule" && !self.peek_is_colon() => {
                     model.rules.push(self.parse_rule()?);
                 }
+                Token::Identifier(ref id) if id == "io_binding" && !self.peek_is_colon() => {
+                    model.io_bindings.push(self.parse_io_binding()?);
+                }
+                Token::Identifier(ref id) if id == "refine" && !self.peek_is_colon() => {
+                    model.refinements.push(self.parse_refine()?);
+                }
                 Token::SecurityScales => {
                     let scales = self.parse_security_scales()?;
                     if model.security_scales.is_some() {
@@ -437,6 +461,9 @@ impl Parser {
                 }
                 Token::TestCase if !self.peek_is_colon() => {
                     model.test_cases.push(self.parse_test_case()?);
+                }
+                Token::Twin if !self.peek_is_colon() => {
+                    model.twins.push(self.parse_twin()?);
                 }
                 Token::ConstraintKw if !self.peek_is_colon() => {
                     model.constraints.push(self.parse_constraint()?);
@@ -579,6 +606,12 @@ impl Parser {
                 Token::Identifier(ref id) if id == "rule" && !self.peek_is_colon() => {
                     model.rules.push(self.parse_rule()?);
                 }
+                Token::Identifier(ref id) if id == "io_binding" && !self.peek_is_colon() => {
+                    model.io_bindings.push(self.parse_io_binding()?);
+                }
+                Token::Identifier(ref id) if id == "refine" && !self.peek_is_colon() => {
+                    model.refinements.push(self.parse_refine()?);
+                }
                 Token::SecurityScales => {
                     let scales = self.parse_security_scales()?;
                     if model.security_scales.is_some() {
@@ -622,6 +655,9 @@ impl Parser {
                 }
                 Token::TestCase if !self.peek_is_colon() => {
                     model.test_cases.push(self.parse_test_case()?);
+                }
+                Token::Twin if !self.peek_is_colon() => {
+                    model.twins.push(self.parse_twin()?);
                 }
                 Token::ConstraintKw if !self.peek_is_colon() => {
                     model.constraints.push(self.parse_constraint()?);
@@ -920,6 +956,14 @@ impl Parser {
         })
     }
     
+    /// `concern "Name" { ... }`: `concern` is a keyword in a requirements or system analysis block only.
+    fn parse_concern(&mut self) -> Result<Concern, String> {
+        self.advance();
+        let id = self.expect_name()?;
+        let attributes = self.parse_attributes_block()?;
+        Ok(Concern { id, attributes })
+    }
+
     fn parse_system_analysis(&mut self) -> Result<SystemAnalysis, String> {
         let mut level_attributes: HashMap<String, AttributeValue> = HashMap::new();
         self.expect(Token::SystemAnalysis)?;
@@ -935,6 +979,7 @@ impl Parser {
         let mut missions = Vec::new();
         let mut capabilities = Vec::new();
         let mut functional_chains = Vec::new();
+        let mut concerns = Vec::new();
 
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             match self.current() {
@@ -943,6 +988,9 @@ impl Parser {
                 }
                 Token::Req => {
                     requirements.push(self.parse_req_statement()?);
+                }
+                Token::Identifier(ref word) if word == "concern" => {
+                    concerns.push(self.parse_concern()?);
                 }
                 Token::Function => {
                     functions.push(self.parse_system_function()?);
@@ -999,6 +1047,7 @@ impl Parser {
             attributes: level_attributes,
             name,
             requirements,
+            concerns,
             functions,
             components,
             external_actors,
@@ -1312,11 +1361,20 @@ impl Parser {
         let mut attributes = HashMap::new();
         let mut sub_states = Vec::new();
         let mut own_transitions: Vec<Transition> = Vec::new();
+        let mut regions: Vec<Region> = Vec::new();
         if self.check(&Token::LeftBrace) {
             self.expect(Token::LeftBrace)?;
             while !self.check(&Token::RightBrace) && !self.is_at_end() {
                 match self.current() {
                     Token::StateKw | Token::Mode => sub_states.push(self.parse_state(transitions)?),
+                    Token::Region if !self.peek_is_colon() => {
+                        // An orthogonal region of the state: its states are the
+                        // state's too, its transitions the machine's.
+                        let region = self.parse_region(&name)?;
+                        sub_states.extend(region.states.iter().cloned());
+                        transitions.extend(region.transitions.iter().cloned());
+                        regions.push(region);
+                    }
                     Token::Transition => {
                         // Owned by this region, and in the machine's flat list.
                         let transition = self.parse_transition()?;
@@ -1344,6 +1402,7 @@ impl Parser {
             color: attributes.get("color").and_then(|v| v.as_string()).map(|s| s.to_string()),
             initial: attributes.get("initial").and_then(|v| v.as_string()).map(|s| s.to_string()).unwrap_or_default(),
             attributes,
+            regions,
         })
     }
 
@@ -1612,7 +1671,8 @@ impl Parser {
         let Some(Token::Identifier(unit)) = self.tokens.get(self.position) else {
             return Ok((n, integer, None));
         };
-        if matches!(self.tokens.get(self.position + 1), Some(Token::Colon)) {
+        // Followed by a name, the identifier opens a declaration (`snapshot "Landed" { ... }`).
+        if matches!(self.tokens.get(self.position + 1), Some(Token::Colon) | Some(Token::StringLiteral(_))) {
             return Ok((n, integer, None));
         }
         let unit = unit.clone();
@@ -1837,6 +1897,17 @@ impl Parser {
                 None => Err(self.err(format!("Expected a value, a name or '(' in expression, got {}", token))),
             },
         }
+    }
+
+    /// Parse: twin Name { verifies: [...] simulate: { model: ... } data: { file: ... } drives: [...] compares: [...] expects: [...] }
+    fn parse_twin(&mut self) -> Result<Twin, String> {
+        self.expect(Token::Twin)?;
+        let name = self.expect_name()?;
+        let attributes = self.parse_attributes_block()?;
+        let id = attributes.get("id").and_then(|v| v.as_string()).map(|s| s.to_string()).unwrap_or_else(|| name.clone());
+        let verifies = Self::string_list(&attributes, "verifies");
+        super::simulation::twin::validate(&attributes).map_err(|e| self.err(format!("twin '{}': {e}", name)))?;
+        Ok(Twin { id, name, verifies, attributes })
     }
 
     /// Parse: test_case Name { verifies: ["REQ-1"] method: "test" description: "..." }
@@ -2073,7 +2144,8 @@ impl Parser {
         self.expect(Token::LeftBrace)?;
         
         let mut requirements = Vec::new();
-        
+        let mut concerns = Vec::new();
+
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             match self.current() {
                 Token::Req => {
@@ -2082,9 +2154,12 @@ impl Parser {
                 Token::Requirement => {
                     requirements.push(self.parse_requirement()?);
                 }
+                Token::Identifier(ref word) if word == "concern" => {
+                    concerns.push(self.parse_concern()?);
+                }
                 _ => {
                     return Err(self.err(format!(
-                        "Unexpected token in requirements block: {} (expected 'req' or 'requirement')",
+                        "Unexpected token in requirements block: {} (expected 'req', 'requirement' or 'concern')",
                         self.current()
                     )));
                 }
@@ -2098,6 +2173,7 @@ impl Parser {
             attributes: HashMap::new(),
             name,
             requirements,
+            concerns,
             functions: Vec::new(),
             components: Vec::new(),
             external_actors: Vec::new(),
@@ -2424,9 +2500,13 @@ impl Parser {
         let mut sub_components = Vec::new();
         let mut ports = Vec::new();
         let mut attributes = HashMap::new();
+        let mut occurrences = Vec::new();
         
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             match self.current() {
+                Token::Identifier(ref word) if (word == "timeslice" || word == "snapshot") && !self.peek_is_colon() => {
+                    occurrences.push(self.parse_occurrence()?);
+                }
                 Token::Component => {
                     // Nested component
                     sub_components.push(self.parse_logical_component()?);
@@ -2496,7 +2576,40 @@ impl Parser {
             interfaces_in,
             interfaces_out,
             attributes,
+            occurrences,
         })
+    }
+
+    /// `timeslice "Name" { attributes, snapshot ... }` or `snapshot "Name" { attributes }`.
+    fn parse_occurrence(&mut self) -> Result<Occurrence, String> {
+        let kind = match self.current() {
+            Token::Identifier(ref word) if word == "timeslice" => OccurrenceKind::Timeslice,
+            _ => OccurrenceKind::Snapshot,
+        };
+        self.advance();
+        let name = self.expect_name()?;
+        self.expect(Token::LeftBrace)?;
+        let mut attributes = HashMap::new();
+        let mut snapshots = Vec::new();
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            match self.current() {
+                Token::Identifier(ref word) if word == "snapshot" && !self.peek_is_colon() => {
+                    if kind == OccurrenceKind::Snapshot {
+                        return Err(self.err(format!("snapshot '{name}': a snapshot is one moment, it holds no snapshot (a timeslice does)")));
+                    }
+                    snapshots.push(self.parse_occurrence()?);
+                }
+                Token::Identifier(ref word) if word == "timeslice" && !self.peek_is_colon() => {
+                    return Err(self.err(format!("{} '{name}': a timeslice is declared in the element it is a part of the life of", kind.keyword())));
+                }
+                _ => {
+                    let (key, value) = self.parse_attribute()?;
+                    attributes.insert(key, value);
+                }
+            }
+        }
+        self.expect(Token::RightBrace)?;
+        Ok(Occurrence { kind, name, attributes, snapshots })
     }
     
     /// A function of the logical or physical level:
@@ -2804,6 +2917,18 @@ impl Parser {
     fn parse_physical_node(&mut self) -> Result<PhysicalNode, String> {
         self.expect(Token::Node)?;
         let name = self.expect_name()?;
+        self.parse_physical_node_body(name)
+    }
+
+    /// `refine "<id>" { <a node's body> }`.
+    fn parse_refine(&mut self) -> Result<crate::compiler::refine::Refinement, String> {
+        self.advance(); // refine
+        let target = self.expect_name()?;
+        let body = self.parse_physical_node_body(target.clone())?;
+        Ok(crate::compiler::refine::Refinement { target, body })
+    }
+
+    fn parse_physical_node_body(&mut self, name: String) -> Result<PhysicalNode, String> {
         self.expect(Token::LeftBrace)?;
         
         let mut deployments = Vec::new();
@@ -2813,9 +2938,13 @@ impl Parser {
         let mut component_ports = Vec::new();
         let mut node_functions = Vec::new();
         let mut attributes = HashMap::new();
+        let mut occurrences = Vec::new();
         
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             match self.current() {
+                Token::Identifier(ref word) if (word == "timeslice" || word == "snapshot") && !self.peek_is_colon() => {
+                    occurrences.push(self.parse_occurrence()?);
+                }
                 Token::Deploys => {
                     deployments.push(self.parse_deployment()?);
                 }
@@ -2868,6 +2997,7 @@ impl Parser {
             component_ports,
             ports: node_ports,
             attributes,
+            occurrences,
         })
     }
     
@@ -3013,6 +3143,7 @@ impl Parser {
             ports: Vec::new(),
             component_ports: Vec::new(),
             attributes,
+            occurrences: Vec::new(),
         })
     }
     
@@ -3302,6 +3433,16 @@ impl Parser {
     }
 
     /// `rule "Every node declares its mass" { kind: "PhysicalNode" require: "has(mass)" }`.
+    /// `io_binding "ACC ECU" { machine: "..." period: 10 ms inputs: [...] outputs: [...] }`;
+    /// what it binds is checked against the machine by `embedded::binding`.
+    fn parse_io_binding(&mut self) -> Result<IoBinding, String> {
+        self.advance(); // io_binding
+        let name = self.expect_name()?;
+        let attributes = self.parse_attributes_block()?;
+        let id = attributes.get("id").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_else(|| name.clone());
+        Ok(IoBinding { id, name, attributes })
+    }
+
     fn parse_rule(&mut self) -> Result<RuleDecl, String> {
         self.advance(); // rule
         let name = self.expect_name()?;

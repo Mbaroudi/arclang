@@ -1,4 +1,4 @@
-//! What a modelling workbench needs from the compiler, in one place: the
+//! What a modeling workbench needs from the compiler, in one place: the
 //! snapshot of a model (diagrams as the viewer mounts them, the explorer
 //! document, every element with its typed attributes, the findings, the
 //! gate) and the edits of its text (set, unset, rename, add, remove, move,
@@ -90,12 +90,16 @@ pub struct Snapshot {
     /// scenarios and the data model, resolved by the compiler.
     pub document: Option<serde_json::Value>,
     /// Every element of the compiled model with its typed attributes, as
-    /// the modelling API lists them: what a properties view edits.
+    /// the modeling API lists them: what a properties view edits.
     pub elements: Option<serde_json::Value>,
     /// Every warning, traceability and methodology finding, each named
     /// after its rule (`rules()` lists them) with the element concerned.
     pub findings: Vec<crate::compiler::rules::Finding>,
     pub gate: Option<GateOut>,
+    /// The realization ladder of each requirement: what the simulation,
+    /// the C, the processor, the logic, the SoC, the board and the twin say.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub realization: Vec<crate::compiler::realization::Ladder>,
     /// OMG SysML v2 textual notation (interop subset).
     pub sysmlv2: Option<String>,
     /// OMG ReqIF 1.0 (requirements exchange).
@@ -111,7 +115,7 @@ pub fn snapshot(source: &str, options: &SnapshotOptions) -> Snapshot {
         optimization_level: 0,
         target: "json".to_string(),
     });
-    snapshot_of(compiler.compile_string(source), options)
+    snapshot_of(compiler.compile_string(source), options, None)
 }
 
 /// The snapshot of a model file, its imports resolved relative to it.
@@ -120,11 +124,11 @@ pub fn snapshot_file_json(path: &std::path::Path, options: &SnapshotOptions) -> 
         optimization_level: 0,
         target: "json".to_string(),
     });
-    serde_json::to_string(&snapshot_of(compiler.compile_file(path), options))
+    serde_json::to_string(&snapshot_of(compiler.compile_file(path), options, Some(path)))
         .unwrap_or_else(|e| format!("{{\"success\":false,\"errors\":[\"serialization: {e}\"]}}"))
 }
 
-fn snapshot_of(compiled: Result<crate::CompilationResult, crate::CompilerError>, options: &SnapshotOptions) -> Snapshot {
+fn snapshot_of(compiled: Result<crate::CompilationResult, crate::CompilerError>, options: &SnapshotOptions, model_path: Option<&std::path::Path>) -> Snapshot {
     match compiled {
         Err(e) => Snapshot {
             success: false,
@@ -137,6 +141,7 @@ fn snapshot_of(compiled: Result<crate::CompilationResult, crate::CompilerError>,
             elements: None,
             findings: Vec::new(),
             gate: None,
+            realization: Vec::new(),
             sysmlv2: None,
             reqif: None,
             c_headers: None,
@@ -168,6 +173,7 @@ fn snapshot_of(compiled: Result<crate::CompilationResult, crate::CompilerError>,
                 .clone()
                 .unwrap_or_else(|| "System Architecture".to_string());
             let findings = crate::compiler::rules::findings(&result);
+            let realization = crate::compiler::realization::ladders(&result, model_path);
             let mut diagrams = crate::compiler::diagram::build_diagrams(&result.ast);
             crate::compiler::diagram::judge_requirements(&mut diagrams, &result.ast, model);
             let diagrams = crate::compiler::diagram::html::viewer_payload(&diagrams, &title);
@@ -201,6 +207,7 @@ fn snapshot_of(compiled: Result<crate::CompilationResult, crate::CompilerError>,
                 elements: Some(elements_json(&elements::build(&result.ast, model))),
                 findings,
                 gate: Some(gate),
+                realization,
                 sysmlv2: options.exports.then(|| crate::compiler::sysmlv2_generator::generate_sysmlv2(model, &result.ast)),
                 reqif: options.exports.then(|| crate::compiler::reqif::generate_reqif(model, &result.ast)),
                 c_headers: options.exports.then(|| crate::compiler::c_header_generator::generate_c_headers(model, &result.ast)),
@@ -210,7 +217,7 @@ fn snapshot_of(compiled: Result<crate::CompilationResult, crate::CompilerError>,
     }
 }
 
-/// Rename an element the way a modelling workbench does: the element keeps
+/// Rename an element the way a modeling workbench does: the element keeps
 /// its identity and what referred to it still does. An element that
 /// writes no `id` is first given its current id in writing; references
 /// that used its name are rewritten to the id; then the name changes. The
@@ -296,7 +303,7 @@ pub fn elements_json(graph: &ElementGraph) -> serde_json::Value {
 }
 
 /// One edit of the model text, as `arclang set`, `unset`, `rename`, the
-/// modelling API's create and delete, and `trace` write it. Attribute
+/// modeling API's create and delete, and `trace` write it. Attribute
 /// values are ArcLang source (`"text"`, `25 ms`, `[A, B]`).
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
@@ -546,6 +553,15 @@ fn edit_links(source: &str, request: &EditRequest) -> Option<Result<String, Stri
 }
 
 /// Apply one edit written as JSON (`{"op": "set", ...}`); see [`edit`].
+/// A keyword whose declaration lives at the top level of a model only (a
+/// layer, the model header): an `add` of one needs no container.
+fn is_top_level_keyword(keyword: &str) -> bool {
+    matches!(
+        keyword,
+        "model" | "operational_analysis" | "system_analysis" | "logical_architecture" | "physical_architecture" | "epbs" | "architecture" | "requirements" | "safety_analysis" | "security_analysis" | "security_scales" | "scenarios"
+    )
+}
+
 pub fn edit_json(source: &str, request: &str) -> Result<String, String> {
     let request: EditRequest = serde_json::from_str(request).map_err(|e| format!("invalid edit request: {e}"))?;
     edit(source, &request)
@@ -571,16 +587,16 @@ pub fn edit(source: &str, request: &EditRequest) -> Result<String, String> {
         EditRequest::Unset { element, key } => source_edit::remove_attribute(source, element, key),
         EditRequest::Rename { element, name } => source_edit::rename_element(source, element, name),
         EditRequest::Add { keyword, name, attributes, container, layer, layer_name, top_level } => {
-            let container = match (container, layer, top_level) {
+            let container = match (container, layer, *top_level || is_top_level_keyword(keyword)) {
                 (Some(element), _, _) => Container::Element(element),
                 (None, Some(layer), _) => Container::Layer { keyword: layer, name: layer_name.as_deref() },
                 (None, None, true) => Container::Document,
-                (None, None, false) => return Err("an element is added inside an element, a layer, or at the top level".to_string()),
+                (None, None, false) => return Err("an element is added inside an element (container), a layer (layer), or at the top level (top_level: true)".to_string()),
             };
             source_edit::add_element(source, container, keyword, name, attributes)
         }
         EditRequest::AddRaw { declaration, container, layer, layer_name, top_level } => {
-            let container = match (container, layer, top_level) {
+            let container = match (container, layer, *top_level || declaration.split_whitespace().next().is_some_and(is_top_level_keyword)) {
                 (Some(element), _, _) => Container::Element(element),
                 (None, Some(layer), _) => Container::Layer { keyword: layer, name: layer_name.as_deref() },
                 (None, None, true) => Container::Document,
@@ -885,6 +901,17 @@ requirements system {
 mod connect_tests {
     use super::tests::{compile, edit};
     use super::*;
+
+    #[test]
+    fn a_layer_added_to_an_empty_model_goes_at_the_top_level() {
+        let edited = edit_json("", r#"{"op":"add","keyword":"logical_architecture","name":"Drone"}"#).unwrap();
+        assert!(edited.contains("logical_architecture \"Drone\""), "{edited}");
+        let raw = edit_json("model \"M\" {}\n", r#"{"op":"add_raw","declaration":"requirements system {\n    req \"REQ-1\" \"Endure\" {}\n}"}"#).unwrap();
+        assert!(raw.contains("requirements system"), "{raw}");
+        // An element still needs its place.
+        let refused = edit_json("", r#"{"op":"add","keyword":"component","name":"Battery"}"#).err().unwrap();
+        assert!(refused.contains("top_level: true"), "{refused}");
+    }
 
     #[test]
     fn ports_and_an_exchange_can_be_added_from_the_workbench() {

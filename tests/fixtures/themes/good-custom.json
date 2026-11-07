@@ -1,5 +1,5 @@
 {
   "description": "A team theme built on Capella classic with its own name: valid.",
   "expect": { "ok": true, "rules": [], "errors": [] },
-  "theme": { "version": 1, "id": "our-programme", "name": "Our programme", "extends": "capella-classic" }
+  "theme": { "version": 1, "id": "our-program", "name": "Our program", "extends": "capella-classic" }
 }

@@ -1,4 +1,4 @@
-/* The table view: a ledger, dense and exact. Colours carry meaning only:
+/* The table view: a ledger, dense and exact. Colors carry meaning only:
    green covered, amber pending, red a gap or a failure; the rest follows
    the VS Code theme (dark, light, high contrast). */
 :root {
@@ -217,3 +217,68 @@ body.vscode-high-contrast .tb-mfilled, body.vscode-high-contrast-light .tb-mfill
 .tb-n2 .tb-mcell span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .tb-n2 .tb-mfilled { background: color-mix(in srgb, var(--tb-k-component) 16%, transparent) !important; box-shadow: inset 3px 0 0 var(--tb-k-component); }
 .tb-n2 .tb-mself { background: var(--tb-head) !important; font-weight: 650; text-align: center; color: var(--tb-fg); }
+
+/* The requirements tree: indentation, fold toggle, a requirement added under a row. */
+.tb-tree {
+  display: inline-flex;
+  flex: none;
+  justify-content: flex-end;
+  align-items: center;
+}
+.tb-twisty {
+  width: 16px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--tb-muted);
+  font-size: 11px;
+  line-height: 18px;
+  cursor: pointer;
+}
+.tb-twisty:hover,
+.tb-twisty:focus-visible {
+  color: var(--tb-fg);
+}
+.tb-add-child {
+  margin-left: auto;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  padding: 0;
+  border: 1px solid var(--tb-line-strong);
+  border-radius: 4px;
+  background: var(--tb-bg);
+  color: var(--tb-k-requirement);
+  font-weight: 600;
+  line-height: 18px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--duration-fast, 120ms) ease-out;
+}
+.tb-row:hover .tb-add-child,
+.tb-add-child:focus-visible {
+  opacity: 1;
+}
+.tb-ask {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--tb-line);
+  background: var(--tb-head);
+}
+.tb-ask label {
+  color: var(--tb-muted);
+  white-space: nowrap;
+}
+.tb-ask-input {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px;
+  border: 1px solid var(--tb-focus);
+  border-radius: 3px;
+  background: var(--vscode-input-background, var(--tb-bg));
+  color: var(--vscode-input-foreground, var(--tb-fg));
+  font: inherit;
+}

@@ -111,6 +111,16 @@ export async function withTempFile<T>(text: string, name: string, use: (file: st
   }
 }
 
+/**
+ * `--as <path>`: the file a temporary copy stands for, so the compiler resolves
+ * its imports and reads its cached verdicts next to the real file. Nothing for
+ * a text that stands for no file on disk.
+ */
+export function asFile(origin: vscode.TextDocument | string | undefined): string[] {
+  const file = typeof origin === 'string' ? origin : origin?.uri.scheme === 'file' ? origin.uri.fsPath : undefined;
+  return file ? ['--as', file] : [];
+}
+
 /** A fresh private temporary directory (mode 0700); the caller removes it. */
 export function tempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'arclang-'));

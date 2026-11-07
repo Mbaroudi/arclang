@@ -39,7 +39,7 @@ fn ports_keep_their_ids_and_exchanges_join_ports_or_whole_components() {
 
 #[test]
 fn the_timing_example_comes_back_with_its_types_quantities_and_constraints() {
-    let source = imported(&exported_example("examples/automotive/timing_constraints.arc"));
+    let source = imported(&exported_example("examples/features/timing-constraints/timing_constraints.arc"));
     // Types of the `Types` package, their required attributes and defaults.
     assert_has(&source, "type \"ECU\" {\n    required: [\"ram\"]\n    voltage: 12 V\n}");
     assert_has(&source, "type \"Safety ECU\" extends \"ECU\" {\n    safety_level: \"ASIL-B\"\n}");
@@ -61,7 +61,7 @@ fn the_timing_example_comes_back_with_its_types_quantities_and_constraints() {
 
 #[test]
 fn the_flight_control_example_comes_back_with_its_interfaces_and_lists() {
-    let source = imported(&exported_example("examples/aerospace/flight_control_system.arc"));
+    let source = imported(&exported_example("examples/aerospace/flight-control/flight_control_system.arc"));
     assert_has(&source, "interface \"Command Interface\" {\n        id: \"LI-001\"\n        from: \"LC-001\"\n        to: \"LC-003\"\n        interface_type: \"Data\"");
     assert_has(&source, "phases: [\"takeoff\", \"cruise\", \"landing\"]");
 }
@@ -89,7 +89,7 @@ fn chain_controls_come_back() {
 
 #[test]
 fn the_cybersecurity_analysis_comes_back_with_its_scales_assets_and_threats() {
-    let source = imported(&exported_example("examples/defense/isr_drone.arc"));
+    let source = imported(&exported_example("examples/defense/isr-drone/isr_drone.arc"));
     assert_has(&source, "security_scales {\n    id: \"SEC-SCALES\"");
     assert_has(&source, "threat_kinds: [\"Jamming\", \"Spoofing\", \"Hijack\", \"Exfiltration\", \"Tampering\"]");
     assert_has(&source, "security_analysis {\n    id: \"SEC-SA\"\n    level: \"sa\"");

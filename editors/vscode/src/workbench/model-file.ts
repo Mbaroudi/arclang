@@ -2,10 +2,10 @@
 // .arc as it is, a .sysml as the SysML v2 export the edits already wrote),
 // Save as… another format through `arclang export`, and the state the
 // Save button shows (unsaved changes, auto save on).
-import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { failureText, report, run, withTempFile } from '../cli';
+import { deliver, reveal } from '../download';
+import { asFile, failureText, report, run, withTempFile } from '../cli';
 import { arcTextOf, modelLanguage } from './source';
 
 export interface SaveAsFormat {
@@ -73,22 +73,23 @@ export async function saveModelAs(document: vscode.TextDocument, wanted?: string
     return null;
   }
   if (picked.format === null) {
-    fs.writeFileSync(out, source.text);
+    await vscode.workspace.fs.writeFile(target, new TextEncoder().encode(source.text));
   } else {
     const onDisk = modelLanguage(document) === 'arclang' && document.uri.scheme === 'file' && !document.isDirty;
     const exportFrom = (file: string, cwd: string) => run(['export', file, '-f', picked.format!, '-o', out], { cwd });
     const result = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `ArcLang: saving as ${picked.label}` }, () =>
-      onDisk ? exportFrom(document.uri.fsPath, path.dirname(document.uri.fsPath)) : withTempFile(source.text, `${base}.arc`, (file, dir) => exportFrom(file, dir)),
+      onDisk ? exportFrom(document.uri.fsPath, path.dirname(document.uri.fsPath)) : withTempFile(source.text, `${base}.arc`, (file, dir) => run(['export', file, '-f', picked.format!, '-o', out, ...asFile(document)], { cwd: dir })),
     );
     report(`arclang export ${path.basename(document.uri.fsPath)} -f ${picked.format} -o ${out}`, result, false);
-    if (result.code !== 0 || !fs.existsSync(out)) {
+    if (result.code !== 0 || !(await vscode.workspace.fs.stat(target).then(() => true, () => false))) {
       void vscode.window.showErrorMessage(`ArcLang: the model could not be saved as ${picked.label}. ${failureText(result).split('\n')[0]}`);
       return null;
     }
   }
+  await deliver(target);
   void vscode.window.showInformationMessage(`ArcLang: the model is saved as ${path.basename(out)}.`, 'Open', 'Reveal').then(async (choice) => {
     if (choice === 'Open') await vscode.commands.executeCommand('vscode.open', target);
-    if (choice === 'Reveal') await vscode.commands.executeCommand('revealFileInOS', target);
+    if (choice === 'Reveal') await reveal(target);
   });
   return out;
 }

@@ -52,7 +52,7 @@ an element kind accepts and with which type.
 10. Multiplicity (logical components and physical nodes): `multiplicity: 4`,
     or `"0..1"`, `"1..*"`, `"*"`.
 11. Reusable definitions are top-level `type "Name" { attributes }` blocks,
-    `type "B" extends "A" { }` specialising one; `is: "Name"` on an element
+    `type "B" extends "A" { }` specializing one; `is: "Name"` on an element
     gives it the type's attributes. Writing one of them differently on the
     element is an error.
 12. A `constraint "Name" { assert: <expression> }` compares the model's
@@ -61,7 +61,7 @@ an element kind accepts and with which type.
     a `constraint.violated` finding and a gate blocker.
 13. Modes and states: `state_machine Name { initial: "A" mode A { } state B { }
     transition A -> B { trigger: "LF-001" guard: "..." } }`. A `mode` is a
-    chosen behaviour, a `state` an undergone one. The ends of a transition
+    chosen behavior, a `state` an undergone one. The ends of a transition
     must be declared; a `trigger` that names no declared element is a warning.
 14. Scenarios: `scenario Name { participants: ["LC-001", "LC-002"]
     message "LC-001" -> "LC-002" "label" { type: "async" exchange: "X" } }`.
@@ -156,7 +156,7 @@ model EmergencyBraking {
         }
     }
 
-    // Logical Architecture: how the system is organised.
+    // Logical Architecture: how the system is organized.
     architecture logical {
         component "ThreatAssessor" {
             id: "LC-001"
@@ -293,6 +293,6 @@ constraint "Reaction time" {
 // Traces: element, relation, element. The rationale says why.
 trace "LC-002" satisfies "REQ-BRK-001" { rationale: "Computes and commands the braking force" }
 trace "LC-001" satisfies "REQ-BRK-001" { rationale: "Detects the imminent collision" }
-trace "LF-001" realizes "SF-001" { rationale: "Logical realisation of the threat assessment" }
-trace "LF-002" realizes "SF-002" { rationale: "Logical realisation of the braking command" }
+trace "LF-001" realizes "SF-001" { rationale: "Logical realization of the threat assessment" }
+trace "LF-002" realizes "SF-002" { rationale: "Logical realization of the braking command" }
 ```

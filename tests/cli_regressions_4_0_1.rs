@@ -441,3 +441,20 @@ fn diagram_help_lists_only_formats_that_exist() {
         assert!(!help.contains(absent), "`{absent}` is listed but was never implemented:\n{help}");
     }
 }
+
+#[test]
+fn each_command_has_its_own_help() {
+    // The doc comments of partition, realize and twin were once interleaved:
+    // `partition --help` described three commands and `realize` none.
+    for (command, first) in [
+        ("partition", "HW/SW partitioning"),
+        ("realize", "Climb the realization ladder"),
+        ("twin", "Run the digital twins of a model"),
+        ("schedule", "Tasks and scheduling"),
+    ] {
+        let help = text(&arclang(&[command, "--help"]));
+        assert!(help.starts_with(first), "`{command} --help` starts:\n{help}");
+    }
+    let partition = text(&arclang(&["partition", "--help"]));
+    assert!(!partition.contains("realization ladder") && !partition.contains("digital twins"), "{partition}");
+}

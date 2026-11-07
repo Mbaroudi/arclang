@@ -31,7 +31,7 @@ async function launch(dir, model) {
 (async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arcsv2-'));
   const model = path.join(dir, 'drone.arc');
-  fs.copyFileSync(path.resolve(EXT, '../../examples/aerospace/drone_endurance.arc'), model);
+  fs.copyFileSync(path.resolve(EXT, '../../examples/aerospace/drone-endurance/drone_endurance.arc'), model);
   const { close, win, page } = await launch(dir, model);
   const shot = async (name) => { if (SHOTS) await win.screenshot({ path: path.join(SHOTS, `${name}.png`) }); };
   const settle = (ms = 2500) => win.waitForTimeout(ms);

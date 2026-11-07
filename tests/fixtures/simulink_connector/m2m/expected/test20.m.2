@@ -1,0 +1,70 @@
+if not(exist('project_path', 'var'))
+	project_path = userpath;
+	project_path =  fullfile(project_path, 'mystate');
+end
+if isfolder(project_path)
+	proj = slproject.loadProject(project_path);
+else
+	proj = Simulink.createFromTemplate('Cap2SL2.sltx', 'Name', 'mystate', 'Folder', project_path);
+end
+cd(project_path);
+if isfile('data/LA/LA_FunctionalExchanges_Categories.sldd')
+	LA_FunctionalExchanges_Categories = Simulink.data.dictionary.open('data/LA/LA_FunctionalExchanges_Categories.sldd');
+else
+	LA_FunctionalExchanges_Categories = Simulink.data.dictionary.create('data/LA/LA_FunctionalExchanges_Categories.sldd');
+end
+saveChanges(LA_FunctionalExchanges_Categories);
+clear LA_FunctionalExchanges_Categories;
+file = proj.addFile('data/LA/LA_FunctionalExchanges_Categories.sldd');
+addLabel(file, 'Capella Layer', 'LA');
+if isfile('data/LA/LA_StateMachine_8.sldd')
+	LA_StateMachine_8 = Simulink.data.dictionary.open('data/LA/LA_StateMachine_8.sldd');
+else
+	LA_StateMachine_8 = Simulink.data.dictionary.create('data/LA/LA_StateMachine_8.sldd');
+end
+addDataSource(LA_StateMachine_8, 'LA_FunctionalExchanges_Categories.sldd');
+saveChanges(LA_StateMachine_8);
+clear LA_StateMachine_8;
+file = proj.addFile('data/LA/LA_StateMachine_8.sldd');
+addLabel(file, 'Capella Layer', 'LA');
+new_system('LA_StateMachine_8');
+set_param('LA_StateMachine_8', 'Tag', 'ModelerId:a972889a-2e75-4f38-b6b8-2b796a51e1a6');
+set_param('LA_StateMachine_8', 'DataDictionary', 'LA_StateMachine_8.sldd');
+states = containers.Map;
+add_block('sflib/Chart', 'LA_StateMachine_8/StateMachine_8');
+set_param('LA_StateMachine_8/StateMachine_8', 'Tag', 'ModelerId:a972889a-2e75-4f38-b6b8-2b796a51e1a6');
+rt = sfroot;
+ch = rt.find('-isa','Stateflow.Chart','Path', 'LA_StateMachine_8/StateMachine_8');
+parent = ch;
+state = Stateflow.State(parent);
+state.Position = [30 30 51 70];
+state.Tag = 'ModelerId:a8e8ab13-31c5-48cf-aa79-afb5edc85a85';
+state.labelString = 'Mode_1';
+state.Decomposition = 'EXCLUSIVE_OR';
+states('a8e8ab13-31c5-48cf-aa79-afb5edc85a85') = state;
+parent = ch;
+state = Stateflow.State(parent);
+state.Position = [440 340 51 70];
+state.Tag = 'ModelerId:e8bed883-9cca-47e7-9468-b17d9ede37d8';
+state.labelString = 'Mode_2';
+state.Decomposition = 'EXCLUSIVE_OR';
+states('e8bed883-9cca-47e7-9468-b17d9ede37d8') = state;
+transition = Stateflow.Transition(ch);
+transition.Tag = 'ModelerId:5264d551-b7e6-4b88-87fe-f9d2df5251ba';
+source = states('e8bed883-9cca-47e7-9468-b17d9ede37d8');
+transition.source = source;
+transition.SourceOClock = 7.266624414750155;
+destination = states('a8e8ab13-31c5-48cf-aa79-afb5edc85a85');
+transition.Destination = destination;
+transition.DestinationOClock = 4.008547905450975;
+transition.LabelString = ['after(this is my event)' newline '...Trigger:trg description'];
+clear states rt ch parent transition destination junction myVar source state;
+try
+	Simulink.BlockDiagram.arrangeSystem('LA_StateMachine_8');
+catch
+end
+save_system('LA_StateMachine_8', fullfile(project_path, 'models/LA/LA_StateMachine_8.slx'));
+file = proj.addFile('models/LA/LA_StateMachine_8.slx');
+addLabel(file, 'Capella Layer', 'LA');
+cd(proj.Information.ProjectStartupFolder);
+clear proj file project_path;

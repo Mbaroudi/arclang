@@ -7,6 +7,9 @@
       "include": "#comments"
     },
     {
+      "include": "#code"
+    },
+    {
       "include": "#strings"
     },
     {
@@ -68,7 +71,7 @@
       }
     },
     "declarations": {
-      "match": "\\b(actor|entity|operational_capability|operational_activity|activity|operational_process|mission|capability|capability_realization|function|functional_exchange|functional_chain|component|behavior_component|hardware_component|port|interface|component_exchange|node|link|physical_link|physical_exchange|deployment|deploys|physical_path|configuration_item|system|class|enumeration|data_type|exchange_item|hazard|fmea|threat|asset|association|interaction|interface_in|interface_out|control|sequence|fragment|test_case|type|constraint|state_machine|state|mode|transition|scenario|message|diagram|note|req|requirement)\\b",
+      "match": "\\b(actor|entity|operational_capability|operational_activity|activity|operational_process|mission|capability|capability_realization|function|functional_exchange|functional_chain|component|behavior_component|hardware_component|port|interface|component_exchange|node|link|physical_link|physical_exchange|deployment|deploys|physical_path|configuration_item|system|class|enumeration|data_type|exchange_item|hazard|fmea|threat|asset|association|interaction|interface_in|interface_out|control|sequence|fragment|test_case|twin|type|constraint|state_machine|state|mode|transition|region|io_binding|scenario|message|diagram|note|req|requirement|concern|timeslice|snapshot)\\b",
       "captures": {
         "1": {
           "name": "storage.type.declaration.arclang"
@@ -119,6 +122,116 @@
     "arrows": {
       "name": "keyword.operator.arrow.arclang",
       "match": "->"
+    },
+    "code-string": {
+      "name": "string.quoted.double.code.arclang",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "keyword.operator.assignment.arclang",
+          "match": ":=|(?<![=!<>])=(?!=)"
+        },
+        {
+          "name": "keyword.operator.comparison.arclang",
+          "match": "==|!=|<=|>=|<-|->|<|>"
+        },
+        {
+          "name": "keyword.operator.logical.arclang",
+          "match": "&&|\\|\\||!|\\b(and|or|not)\\b"
+        },
+        {
+          "name": "keyword.operator.arithmetic.arclang",
+          "match": "[-+*/]"
+        },
+        {
+          "name": "constant.language.boolean.arclang",
+          "match": "\\b(true|false|else)\\b"
+        },
+        {
+          "name": "support.function.block.arclang",
+          "match": "\\b(delay|integrator|pid)(?=\\s*\\()"
+        },
+        {
+          "name": "support.function.arclang",
+          "match": "\\b(min|max|abs|saturate|gain)(?=\\s*\\()"
+        },
+        {
+          "name": "storage.type.variable.arclang",
+          "match": "\\b(Boolean|Integer|Real|Float)\\b"
+        },
+        {
+          "name": "storage.modifier.direction.arclang",
+          "match": "^\\s*(in|out|const)\\b(?=\\s+[A-Za-z_])|(?<=\")(in|out|const)\\b(?=\\s+[A-Za-z_])"
+        },
+        {
+          "name": "support.type.channel.arclang",
+          "match": "\\b(gpio|adc|dac|pwm|can|uart|rising|falling)\\b"
+        },
+        {
+          "name": "keyword.other.unit.arclang",
+          "match": "\\[[^\\]\"]*\\]"
+        },
+        {
+          "include": "#quantities"
+        },
+        {
+          "include": "#numbers"
+        },
+        {
+          "name": "variable.other.code.arclang",
+          "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
+        }
+      ]
+    },
+    "code": {
+      "patterns": [
+        {
+          "begin": "\\b(guard|action|entry|exit|do|equations|variables|inputs|outputs)\\s*(:)\\s*(\\[)",
+          "beginCaptures": {
+            "1": {
+              "name": "variable.other.attribute.arclang"
+            },
+            "2": {
+              "name": "punctuation.separator.key-value.arclang"
+            },
+            "3": {
+              "name": "punctuation.section.brackets.begin.arclang"
+            }
+          },
+          "end": "\\]",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.section.brackets.end.arclang"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "include": "#code-string"
+            }
+          ]
+        },
+        {
+          "begin": "\\b(guard|action|entry|exit|do|equations|variables|inputs|outputs)\\s*(:)\\s*(?=\")",
+          "beginCaptures": {
+            "1": {
+              "name": "variable.other.attribute.arclang"
+            },
+            "2": {
+              "name": "punctuation.separator.key-value.arclang"
+            }
+          },
+          "end": "(?<=\")",
+          "patterns": [
+            {
+              "include": "#code-string"
+            }
+          ]
+        }
+      ]
     }
   }
 }

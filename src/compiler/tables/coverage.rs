@@ -62,7 +62,9 @@ pub fn compute(context: &Context, spec: &TableSpec) -> Result<(Vec<Column>, Vec<
     };
     let columns: Vec<Column> = keys.iter().map(|k| available.iter().find(|c| &c.key == k).cloned().unwrap_or_else(|| column(k, "text"))).collect();
     let rows = requirements.iter().map(|&r| row(context, r, &keys)).collect();
-    Ok((columns, available, rows))
+    // A requirement under another (`parent:`) is a row under its row.
+    let parent_of = |row: &Row| context.index_of_uuid(&row.uuid).and_then(|i| context.element(i).attributes.get("parent").and_then(|p| p.as_string()).map(str::to_string));
+    Ok((columns, available, super::nest(rows, parent_of)))
 }
 
 /// The sources of the traces of `kind` ending on `target`, in graph order.
@@ -183,5 +185,5 @@ fn row(context: &Context, index: usize, keys: &[String]) -> Row {
         };
         cells.insert(key.clone(), cell);
     }
-    Row { id: element.id.clone(), uuid, kind: element.kind.to_string(), name: element.name.clone(), status: status.to_string(), issues, cells }
+    Row { id: element.id.clone(), uuid, kind: element.kind.to_string(), name: element.name.clone(), status: status.to_string(), issues, cells, parent: None, depth: 0 }
 }

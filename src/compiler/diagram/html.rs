@@ -71,8 +71,8 @@ pub fn viewer_parts(set: &DiagramSet, title: &str) -> ViewerParts {
     viewer_parts_themed(set, title, None)
 }
 
-/// The same, coloured with `theme` (a complete theme the validator passed,
-/// see [`super::theme::resolve`]); `None` keeps the built-in colours.
+/// The same, colored with `theme` (a complete theme the validator passed,
+/// see [`super::theme::resolve`]); `None` keeps the built-in colors.
 pub fn viewer_parts_themed(set: &DiagramSet, title: &str, theme: Option<&serde_json::Value>) -> ViewerParts {
     let mut payload = viewer_payload(set, title);
     if let Some(theme) = theme {
@@ -135,7 +135,7 @@ pub fn standalone_html(set: &DiagramSet, title: &str) -> String {
     standalone_html_themed(set, title, None)
 }
 
-/// The same page, coloured with `theme` (see [`viewer_parts_themed`]).
+/// The same page, colored with `theme` (see [`viewer_parts_themed`]).
 pub fn standalone_html_themed(set: &DiagramSet, title: &str, theme: Option<&serde_json::Value>) -> String {
     let parts = viewer_parts_themed(set, title, theme);
     format!(

@@ -1,8 +1,11 @@
 pub mod debug;
-pub mod debug_target;
+
 pub mod diagram_service;
 pub mod edit;
 pub mod table; // tables hook
+mod partition;
+mod realize; // realization hook
+mod schedule;
 pub mod impact; // impact hook
 pub mod semgit; // semgit hook
 pub mod cicd; // cicd hook
@@ -27,6 +30,12 @@ pub struct Cli {
     
     #[clap(short, long, global = true)]
     pub config: Option<PathBuf>,
+
+    /// The file the input stands for, when the input is a copy of it (an
+    /// editor's buffer written to a temporary file): its imports, its
+    /// cached verdicts and the files next to it are those of this file.
+    #[clap(long = "as", global = true, value_name = "PATH")]
+    pub origin: Option<PathBuf>,
 }
 
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
@@ -95,7 +104,7 @@ pub enum Commands {
         write: bool,
     },
 
-    /// Print the catalogue of validation rules (what `check` reports) as Markdown or JSON
+    /// Print the catalog of validation rules (what `check` reports) as Markdown or JSON
     Rules {
         #[clap(long, default_value = "markdown")]
         format: MetamodelFormat,
@@ -295,12 +304,286 @@ pub enum Commands {
         #[clap(long)]
         list: bool,
 
-        /// Do not simulate: analyse the samples of the last run of a Monte
+        /// Do not simulate: analyze the samples of the last run of a Monte
         /// Carlo case (--test) with R or Python (`r` or `python`): failure
         /// probability by a normal fit, influence of each parameter (PRCC,
         /// SRRC; delta and S1 with SALib). The verdict stays the compiler's
         #[clap(long, value_name = "ENGINE")]
         statistics: Option<String>,
+
+        /// Do not simulate: list, as JSON, the Modelica classes of the model
+        /// worth drawing (each simulated case's model, each configuration's
+        /// system)
+        #[clap(long)]
+        drawings: bool,
+
+        /// Do not simulate: print OpenModelica's instance of this Modelica
+        /// class (getModelInstance: its components, icons, placements and
+        /// connections) as JSON, for VS Code to draw it
+        #[clap(long, value_name = "CLASS")]
+        drawing: Option<String>,
+    },
+
+    /// Software in the loop: compile the C generated from the state machines
+    /// (`export -f c`) on this computer, run each test case that `execute:`s
+    /// with its input vectors, compare the outputs with the model-level run
+    /// step by step and judge its `expects:` on both
+    Sil {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// Only this test case (id or name)
+        #[clap(long)]
+        test: Option<String>,
+
+        /// The C compiler (gcc, clang, gcc-15...); repeat it to run every case
+        /// with each. Default: $CC, else cc
+        #[clap(long = "cc")]
+        compilers: Vec<String>,
+
+        /// Keep the generated files, harnesses and binaries in this directory
+        #[clap(long)]
+        keep: Option<PathBuf>,
+
+        /// Print the outcomes as JSON
+        #[clap(long)]
+        json: bool,
+    },
+
+    /// Processor in the loop: build the generated C for a target package
+    /// (Zephyr, `zephyr/litex_vexriscv`), run it on the target's processor in
+    /// its emulator (Renode), drive each test case that `execute:`s through
+    /// the bound channels (or the step() API), compare the outputs with the
+    /// model-level run step by step and judge its `expects:` on both
+    Pil {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// Only this test case (id or name)
+        #[clap(long)]
+        test: Option<String>,
+
+        /// The target package (default: the io_binding's `target:`)
+        #[clap(long)]
+        target: Option<String>,
+
+        /// Keep the applications, builds, plans and logs in this directory
+        #[clap(long)]
+        keep: Option<PathBuf>,
+
+        /// Print the outcomes as JSON
+        #[clap(long)]
+        json: bool,
+    },
+
+    /// Hardware in simulation: the VHDL of each state machine allocated to
+    /// programmable logic (`export -f vhdl`) simulated by GHDL through its
+    /// registers, each test case that `execute:`s compared step by step with
+    /// the bit-exact fixed-point C (difference 0) and with the model (within
+    /// the quantisation tolerance), its `expects:` judged; `--synth` also
+    /// synthesises it for its node's ECP5 (Yosys, nextpnr-ecp5, ecppack)
+    Hdl {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// Only this test case (id or name)
+        #[clap(long)]
+        test: Option<String>,
+
+        /// Synthesise, place and route each block, report its resources and Fmax
+        #[clap(long)]
+        synth: bool,
+
+        /// With --synth: every machine as if allocated to this ECP5 part, at this clock (DEVICE[@MHZ], e.g. LFE5U-25F-6BG381C@25)
+        #[clap(long, value_name = "DEVICE[@MHZ]")]
+        as_if: Option<String>,
+
+        /// With --synth: only this machine (name or id)
+        #[clap(long)]
+        machine: Option<String>,
+
+        /// Keep the VHDL, the testbenches, the C reference and the netlists in this directory
+        #[clap(long)]
+        keep: Option<PathBuf>,
+
+        /// Print the outcomes as JSON
+        #[clap(long)]
+        json: bool,
+    },
+
+    /// The processor and the programmable logic together: one LiteX SoC
+    /// (a VexRiscv running the Zephyr application, the blocks of the
+    /// machines allocated to programmable logic on its bus) simulated cycle
+    /// by cycle in Verilator, each test case that `execute:`s such a machine
+    /// run through the driver and compared, as `hdl` compares the VHDL, with
+    /// the fixed-point C and the model; `--board` also builds the same SoC
+    /// into one bitstream; `--port` runs the cases on the board instead
+    Soc {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// Only this test case (id or name)
+        #[clap(long)]
+        test: Option<String>,
+
+        /// Build the bitstream, for the node's board (board:, else the board of its part)
+        #[clap(long)]
+        bitstream: bool,
+
+        /// Build the bitstream for this board (ulx3s, colorlight_i5, colorlight_i9, ecp5_evn)
+        #[clap(long)]
+        board: Option<String>,
+
+        /// Do not simulate (with --board: the bitstream only)
+        #[clap(long)]
+        no_sim: bool,
+
+        /// Simulate the SoC as synthesised for the ECP5 by Yosys (a netlist of ECP5 cells), not as written
+        #[clap(long)]
+        gate_level: bool,
+
+        /// Run the cases on the board through this serial port, the board holding the bitstream (implies --no-sim)
+        #[clap(long)]
+        port: Option<String>,
+
+        /// Keep the application, the SoC, the simulator and the bitstream in this directory
+        #[clap(long)]
+        keep: Option<PathBuf>,
+
+        /// Print the outcomes as JSON
+        #[clap(long)]
+        json: bool,
+    },
+
+    /// HW/SW partitioning: every machine measured as C on the processor
+    /// (arclang pil: the step's time, the code's footprint) and as VHDL on
+    /// the logic (arclang hdl --synth --as-if: resources, Fmax), what fits
+    /// its period, what the model allocates today; kept beside the model
+    /// for the table kind `partition`.
+    Partition {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// The target package of the C (else the bindings', else zephyr/litex_vexriscv)
+        #[clap(long)]
+        target: Option<String>,
+
+        /// The ECP5 part of the logic (else the first logic node's, else LFE5U-25F-6BG381C)
+        #[clap(long)]
+        device: Option<String>,
+
+        /// The clock of the logic, MHz (else the node's, else 25)
+        #[clap(long)]
+        clock: Option<f64>,
+
+        /// Only this machine (name or id)
+        #[clap(long)]
+        machine: Option<String>,
+
+        /// Print the two runs, run nothing
+        #[clap(long)]
+        dry_run: bool,
+
+        /// The measurements as JSON
+        #[clap(long)]
+        json: bool,
+    },
+
+    /// Tasks and scheduling: the io_bindings of a target as tasks (a
+    /// period and a priority each), the worst response time of each from
+    /// the step times arclang partition measured, whether every task meets
+    /// its period (fixed-priority response-time analysis).
+    Schedule {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// The target package (else the bindings')
+        #[clap(long)]
+        target: Option<String>,
+
+        /// A step time given instead of measured: MACHINE=MICROSECONDS (repeatable)
+        #[clap(long, value_name = "MACHINE=US")]
+        wcet: Vec<String>,
+
+        /// Run every task together on the target first (its emulator): each period proved kept, the step times under load
+        #[clap(long)]
+        prove: bool,
+
+        /// With --prove: cycles of the longest period to run
+        #[clap(long, default_value_t = 10)]
+        cycles: usize,
+
+        /// With --prove: keep the application, the build, the plan and the logs in this directory
+        #[clap(long)]
+        keep: Option<PathBuf>,
+
+        /// The analysis as JSON
+        #[clap(long)]
+        json: bool,
+    },
+
+    /// Climb the realization ladder (docs/realization.md): for each
+    /// requirement, run in order what each stage is missing or stale
+    /// (verify, sil, pil, hdl, soc, twin), read the ladder back after each
+    /// step, stop a requirement's climb at a failure. --dry-run prints the
+    /// plan and the gaps (a requirement nothing climbs) without running.
+    Realize {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// Only this requirement (id or name)
+        #[clap(long)]
+        requirement: Option<String>,
+
+        /// Climb up to this stage only: simulation, sil, pil, hdl, soc, board or twin
+        #[clap(long, value_name = "STAGE")]
+        up_to: Option<String>,
+
+        /// Print the plan and the gaps, run nothing
+        #[clap(long)]
+        dry_run: bool,
+
+        /// Go on past a failure or an error (every step that can run runs)
+        #[clap(long)]
+        keep_going: bool,
+
+        /// Include the board (the bitstream through --port): off by default, it needs the hardware
+        #[clap(long)]
+        board: bool,
+
+        /// The plan, the runs and the ladder after, as JSON (the steps' output captured)
+        #[clap(long)]
+        json: bool,
+    },
+
+    /// Run the digital twins of a model: each `twin`'s physical model
+    /// driven by its measured data (drives:) in OpenModelica, compared to
+    /// the measurements (compares:) and checked against its expects:
+    Twin {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// Only this twin (id or name)
+        #[clap(long)]
+        twin: Option<String>,
+
+        /// Print the outcomes as JSON (with the curves, for VS Code)
+        #[clap(long)]
+        json: bool,
+
+        /// Do not run: list the twins as JSON
+        #[clap(long)]
+        list: bool,
+
+        /// Follow the twin's live data (mqtt, opcua, kafka, http): run it over
+        /// the latest window at every refresh, until stopped (or --for);
+        /// with --json, one JSON line per run
+        #[clap(long)]
+        live: bool,
+
+        /// With --live: stop after this many seconds
+        #[clap(long = "for", value_name = "SECONDS")]
+        for_seconds: Option<u64>,
     },
 
     /// A document filled from a template: Markdown whose {{ ... }}
@@ -341,6 +624,37 @@ pub enum Commands {
         /// Modex browses a package by its folders
         #[clap(long)]
         split: bool,
+
+        /// Simulink connector only: what to export, as the Capella-Simulink
+        /// connector's operations: functions, functional-chains,
+        /// state-machines or data-pkg
+        #[clap(long, default_value = "functions")]
+        strategy: String,
+
+        /// Simulink connector only: the elements to export, by Capella id or
+        /// by name (repeat it, or separate them by commas); by default the
+        /// strategy's roots (the top functions, every chain, every state
+        /// machine, the layers' data packages)
+        #[clap(long = "element", value_delimiter = ',')]
+        elements: Vec<String>,
+
+        /// Simulink connector only: leaf functions as `model` (one Simulink
+        /// model each, referenced) or as `subsystem`
+        #[clap(long, default_value = "model")]
+        leaf_functions: String,
+
+        /// Simulink connector only: ports named after the functional
+        /// exchange (`ExchangeItem`) or after the Capella port (`CapellaElement`)
+        #[clap(long, default_value = "ExchangeItem")]
+        port_naming: String,
+
+        /// Zephyr only: the target package (default: the io_binding's `target:`)
+        #[clap(long)]
+        target: Option<String>,
+
+        /// Zephyr only: the io_binding the controller runs (default: the only one)
+        #[clap(long)]
+        binding: Option<String>,
     },
     
     Import {
@@ -547,7 +861,7 @@ pub enum Commands {
         write: bool,
     },
 
-    /// Everything a modelling workbench shows of one model, as JSON: the
+    /// Everything a modeling workbench shows of one model, as JSON: the
     /// diagrams as the viewer mounts them, the explorer document, every
     /// element with its typed attributes, the findings (named after their
     /// rule) and the production gate. A model that does not compile gives
@@ -651,10 +965,10 @@ pub enum Commands {
         #[clap(long, value_parser)]
         layout: Option<PathBuf>,
 
-        /// Colour theme of the HTML viewer (-f html): a preset
+        /// Color theme of the HTML viewer (-f html): a preset
         /// (arclang-default, capella-classic, colorblind-safe,
         /// print-grayscale, high-contrast, monochrome-document) or an
-        /// arclang-theme.json file. A file that breaks a colour rule is refused
+        /// arclang-theme.json file. A file that breaks a color rule is refused
         #[clap(long)]
         theme: Option<String>,
 
@@ -755,6 +1069,11 @@ pub enum ExportFormat {
     #[clap(name = "sysml-json")]
     SysMLJson,
     Simulink,
+    /// What the Capella-Simulink connector exports: the pivot (`.mlcore`)
+    /// and the MATLAB script that builds the Simulink project; the input is
+    /// an ArcLang model or a `.capella` file
+    #[clap(name = "simulink-connector")]
+    SimulinkConnector,
     FMI,
     ReqIF,
     CHeaders,
@@ -767,6 +1086,27 @@ pub enum ExportFormat {
     /// A Modelica package of the physical architecture (OpenModelica):
     /// `output` is a DIRECTORY
     Modelica,
+    /// Portable C99 of the state machines (`<model>.h/.c`, init/step), the
+    /// I/O interface `arclang_io.h`, the glue of each `io_binding` and the
+    /// host implementation of the I/O for SIL: `output` is a DIRECTORY
+    #[clap(name = "c")]
+    C,
+    /// The generated C as an FMI 2.0 co-simulation FMU (`<model>.fmu`, with
+    /// this computer's binary when $CC or cc compiles it) and the inputs
+    /// and model-level reference of each executed case: `output` is a DIRECTORY
+    #[clap(name = "fmu")]
+    Fmu,
+    /// A Zephyr application of the model for a target package (`--target`,
+    /// else the io_binding's): the C, the glue, the target's arclang_io,
+    /// drivers, devicetree overlay, build files and emulator: `output` is a DIRECTORY
+    #[clap(name = "zephyr")]
+    Zephyr,
+    /// VHDL-2008 of the state machines allocated to programmable logic (one
+    /// entity each and its Wishbone wrapper), the register map (JSON, LiteX
+    /// csr.csv), the C driver and the bit-exact fixed-point C reference:
+    /// `output` is a DIRECTORY
+    #[clap(name = "vhdl")]
+    Vhdl,
 }
 
 #[derive(Debug, clap::ValueEnum, Clone)]
@@ -856,7 +1196,7 @@ impl CliRunner {
                 match format {
                     MetamodelFormat::Json => println!(
                         "{}",
-                        serde_json::to_string_pretty(crate::compiler::rules::catalogue()).unwrap_or_default()
+                        serde_json::to_string_pretty(crate::compiler::rules::catalog()).unwrap_or_default()
                     ),
                     _ => print!("{}", crate::compiler::rules::to_markdown()),
                 }
@@ -901,19 +1241,42 @@ impl CliRunner {
             Commands::Gate { input, standard, format: _ } => {
                 self.run_gate(input, standard)
             }
-            Commands::Export { input, output, format, no_placement, split } => {
+            Commands::Export { input, output, format, no_placement, split, strategy, elements, leaf_functions, port_naming, target, binding } => {
+                if matches!(format, ExportFormat::Zephyr) {
+                    return self.run_export_zephyr(&input, &output, target.as_deref(), binding.as_deref());
+                }
+                if target.is_some() || binding.is_some() {
+                    return Err(CliError::Compilation("--target and --binding apply to the Zephyr export (-f zephyr)".to_string()));
+                }
                 if (no_placement || split) && !matches!(format, ExportFormat::Modelica) {
                     return Err(CliError::Compilation("--no-placement and --split apply to the Modelica export (-f modelica)".to_string()));
                 }
+                if matches!(format, ExportFormat::SimulinkConnector) {
+                    let options = crate::compiler::simulink_connector::m2m::Options { leaf_functions, port_naming, draw_without_diagram: true, ..Default::default() };
+                    return self.run_simulink_connector(&input, &output, &strategy, &elements, &options);
+                }
+                if !elements.is_empty() || strategy != "functions" || leaf_functions != "model" || port_naming != "ExchangeItem" {
+                    return Err(CliError::Compilation("--strategy, --element, --leaf-functions and --port-naming apply to the Simulink connector export (-f simulink-connector)".to_string()));
+                }
                 self.run_export(input, output, format, no_placement, split)
             }
-            Commands::Verify { input, test, json, check_tools, replay, point, list, statistics } => {
+            Commands::Verify { input, test, json, check_tools, replay, point, list, statistics, drawings, drawing } => {
                 if check_tools {
                     return self.run_check_tools(json);
                 }
                 let input = input.ok_or_else(|| CliError::Config("give a model file to verify".into()))?;
                 if let Some(engine) = statistics {
                     return self.run_statistics(&input, test.as_deref(), &engine, json);
+                }
+                if drawings || drawing.is_some() {
+                    let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(&input).map_err(|e| CliError::Compilation(e.to_string()))?;
+                    use crate::compiler::simulation::drawing;
+                    let text = match drawing {
+                        Some(class) => drawing::instance(&result, &input, &class, &crate::compiler::simulation::tool::ToolConfig::from_env()).map_err(CliError::Compilation)?,
+                        None => drawing::drawables_json(&result).map_err(CliError::Compilation)?.to_string(),
+                    };
+                    println!("{text}");
+                    return Ok(());
                 }
                 if list {
                     let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(&input).map_err(|e| CliError::Compilation(e.to_string()))?;
@@ -935,6 +1298,20 @@ impl CliRunner {
                     return Ok(());
                 }
                 self.run_verify(input, test, json)
+            }
+            Commands::Sil { input, test, compilers, keep, json } => self.run_sil(&input, test, compilers, keep, json),
+            Commands::Pil { input, test, target, keep, json } => self.run_pil(&input, test, target, keep, json),
+            Commands::Hdl { input, test, synth, as_if, machine, keep, json } => self.run_hdl(&input, test, synth, as_if, machine, keep, json),
+            Commands::Partition { input, target, device, clock, machine, dry_run, json } => partition::run(&input, partition::Options { target, device, clock_mhz: clock, machine, dry_run, json }),
+            Commands::Schedule { input, target, wcet, prove, cycles, keep, json } => schedule::run(&input, schedule::Options { target, wcet, prove, cycles, keep, json }),
+            Commands::Soc { input, test, bitstream, board, no_sim, gate_level, port, keep, json } => self.run_soc(&input, test, bitstream || board.is_some(), board, !no_sim && port.is_none(), gate_level, port, keep, json),
+            Commands::Realize { input, requirement, up_to, dry_run, keep_going, board, json } => realize::run(&input, realize::Options { requirement, up_to, dry_run, keep_going, board, json }),
+            Commands::Twin { input, twin, json, list, live, for_seconds } => {
+                if live {
+                    self.run_twin_live(input, twin, json, for_seconds)
+                } else {
+                    self.run_twin(input, twin, json, list)
+                }
             }
             Commands::Document { input, template, output } => self.run_document(input, template, output),
             Commands::Import { input, format, output } => {
@@ -971,7 +1348,7 @@ impl CliRunner {
                 ..
             } => self.run_viewpoint_diagrams(input, output, view, format, layout, theme),
             Commands::Diagram { theme: Some(_), format, .. } => Err(CliError::Compilation(format!(
-                "--theme colours the HTML viewer (-f html), not {format:?}"
+                "--theme colors the HTML viewer (-f html), not {format:?}"
             ))),
             Commands::Diagram {
                 input,
@@ -1201,11 +1578,13 @@ impl CliRunner {
         let document = match compiler.compile_file(&input) {
             Ok(result) => {
                 let findings = crate::compiler::rules::findings(&result);
+                let realization = crate::compiler::realization::ladders(&result, Some(&input));
                 serde_json::json!({
                     "success": true,
                     "file": input.display().to_string(),
                     "errors": [],
                     "findings": findings,
+                    "realization": realization,
                     "metrics": {
                         "requirements": result.semantic_model.requirements.len(),
                         "components": result.semantic_model.components.len(),
@@ -1265,6 +1644,17 @@ impl CliRunner {
                     println!("\n⚠ Traceability warnings:");
                     for warning in &warnings {
                         println!("  {}", warning);
+                    }
+                }
+
+                let ladders = crate::compiler::realization::ladders(&result, Some(&input));
+                if crate::compiler::realization::applies(&ladders) {
+                    println!("\nRealization (what each stage says of each requirement; {}):", crate::compiler::realization::LEGEND);
+                    for ladder in ladders.iter().filter(|l| l.applies()) {
+                        println!("  {}", crate::compiler::realization::line(ladder));
+                        if !ladder.next.is_empty() {
+                            println!("      next: {}", ladder.next);
+                        }
                     }
                 }
                 
@@ -1565,10 +1955,10 @@ impl CliRunner {
     fn run_statistics(&self, input: &std::path::Path, test: Option<&str>, engine: &str, json: bool) -> Result<(), CliError> {
         use crate::compiler::simulation::{replay, statistics};
         let engine = statistics::Engine::parse(engine).ok_or_else(|| CliError::Config(format!("--statistics takes r or python, not '{engine}'")))?;
-        let test = test.ok_or_else(|| CliError::Config("--statistics needs --test CASE, the Monte Carlo case whose samples to analyse".into()))?;
+        let test = test.ok_or_else(|| CliError::Config("--statistics needs --test CASE, the Monte Carlo case whose samples to analyze".into()))?;
         let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
         let case = result.ast.test_cases.iter().find(|t| t.id == test || t.name == test).ok_or_else(|| CliError::Config(format!("no test_case '{test}'")))?;
-        let report = statistics::analyse(&replay::case_dir(&replay::dir(input), &case.id), engine).map_err(CliError::Compilation)?;
+        let report = statistics::analyze(&replay::case_dir(&replay::dir(input), &case.id), engine).map_err(CliError::Compilation)?;
         if json {
             println!("{}", serde_json::to_string_pretty(&report).map_err(|e| CliError::Compilation(e.to_string()))?);
         } else {
@@ -1674,6 +2064,327 @@ impl CliRunner {
         }
     }
 
+    fn run_export_zephyr(&self, input: &std::path::Path, output: &std::path::Path, target: Option<&str>, binding: Option<&str>) -> Result<(), CliError> {
+        let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
+        let app = crate::compiler::embedded::zephyr::export(&result.ast, target, binding).map_err(CliError::Compilation)?;
+        for (name, text, executable) in &app.files {
+            let path = output.join(name);
+            if let Some(dir) = path.parent() {
+                std::fs::create_dir_all(dir).map_err(CliError::Io)?;
+            }
+            std::fs::write(&path, text).map_err(CliError::Io)?;
+            #[cfg(unix)]
+            if *executable {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).map_err(CliError::Io)?;
+            }
+            #[cfg(not(unix))]
+            let _ = executable;
+        }
+        for note in &app.notes {
+            println!("  note: {note}");
+        }
+        println!("✓ Export successful — a Zephyr application of {} file(s) in {}", app.files.len(), output.display());
+        println!("  Build: west build -b <board> {} (or {}/run.sh); see docs/embedded-targets.md.", output.display(), output.display());
+        Ok(())
+    }
+
+    fn run_sil(&self, input: &std::path::Path, test: Option<String>, compilers: Vec<String>, keep: Option<PathBuf>, json: bool) -> Result<(), CliError> {
+        prebuild_plants(input, test.as_deref())?;
+        use crate::compiler::embedded::sil;
+        let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
+        let compilers = if compilers.is_empty() { vec![std::env::var("CC").ok().filter(|c| !c.trim().is_empty()).unwrap_or_else(|| "cc".to_string())] } else { compilers };
+        let scratch = keep.is_none();
+        let work = keep.unwrap_or_else(|| std::env::temp_dir().join(format!("arclang-sil-{}", std::process::id())));
+        let mut outcomes = Vec::new();
+        for compiler in &compilers {
+            let version = sil::compiler_version(compiler).ok_or_else(|| CliError::Config(format!("the C compiler '{compiler}' does not run (give one with --cc, or set CC)")))?;
+            let options = sil::Options { compiler: compiler.clone(), work: work.join(compiler.replace(['/', '\\'], "_")), only: test.clone() };
+            let run = sil::run_with(&result.ast, &options, &mut plants_of(input));
+            let run = run.map_err(CliError::Compilation)?;
+            if !json {
+                println!("\nSIL {} — {compiler} ({version})", input.display());
+                for outcome in &run {
+                    self.print_sil(outcome);
+                }
+            }
+            outcomes.extend(run);
+        }
+        if scratch {
+            let _ = std::fs::remove_dir_all(&work);
+        } else if !json {
+            println!("\n  Generated files, harnesses and binaries kept in {}", work.display());
+        }
+        // Kept where check, gate and the tables read verdicts.
+        let cached = sil::cache(&result.ast, input, &outcomes).map_err(CliError::Compilation)?;
+        if json {
+            println!("{}", serde_json::to_string_pretty(&outcomes).unwrap_or_default());
+        } else if !cached.is_empty() {
+            println!("\n  {} verdict(s) cached in {}", cached.len(), crate::compiler::simulation::cache::dir(input).display());
+        }
+        let failed = outcomes.iter().filter(|o| o.verdict != "pass").count();
+        if failed == 0 {
+            Ok(())
+        } else {
+            Err(CliError::CiFailed(format!("{failed} of {} SIL run(s) do not pass", outcomes.len())))
+        }
+    }
+
+    fn run_pil(&self, input: &std::path::Path, test: Option<String>, target: Option<String>, keep: Option<PathBuf>, json: bool) -> Result<(), CliError> {
+        use crate::compiler::embedded::pil;
+        // No Zephyr or Renode here: the same command in the SoC image, its verdict in the model's cache.
+        prebuild_plants(input, test.as_deref())?;
+        if let Some(code) = crate::compiler::embedded::docker::relay("pil", input).map_err(CliError::Config)? {
+            std::process::exit(code);
+        }
+        let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
+        let scratch = keep.is_none();
+        let work = keep.unwrap_or_else(|| std::env::temp_dir().join(format!("arclang-pil-{}", std::process::id())));
+        let options = pil::Options { target, work: work.clone(), only: test };
+        let mut plants = plants_of(input);
+        let (package, outcomes) = pil::run_with(&result.ast, &options, &mut plants).map_err(CliError::Compilation)?;
+        if !json {
+            println!("\nPIL {} — {}", input.display(), outcomes.first().map(|o| o.compiler.as_str()).unwrap_or(package.name.as_str()));
+            for outcome in &outcomes {
+                self.print_sil(outcome);
+            }
+        }
+        if scratch {
+            let _ = std::fs::remove_dir_all(&work);
+        } else if !json {
+            println!("\n  Applications, builds, plans and logs kept in {}", work.display());
+        }
+        let cached = pil::cache(&result.ast, input, &package, &outcomes).map_err(CliError::Compilation)?;
+        if json {
+            println!("{}", serde_json::to_string_pretty(&outcomes).unwrap_or_default());
+        } else if !cached.is_empty() {
+            println!("\n  {} PIL verdict(s) cached in {}", cached.len(), crate::compiler::simulation::cache::dir(input).display());
+        }
+        let failed = outcomes.iter().filter(|o| o.verdict != "pass").count();
+        if failed == 0 {
+            Ok(())
+        } else {
+            Err(CliError::CiFailed(format!("{failed} of {} PIL run(s) do not pass", outcomes.len())))
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn run_hdl(&self, input: &std::path::Path, test: Option<String>, synth: bool, as_if: Option<String>, machine: Option<String>, keep: Option<PathBuf>, json: bool) -> Result<(), CliError> {
+        use crate::compiler::embedded::hdl;
+        // No GHDL here: the same command in the FPGA image.
+        prebuild_plants(input, test.as_deref())?;
+        if let Some(code) = crate::compiler::embedded::docker::relay("hdl", input).map_err(CliError::Config)? {
+            std::process::exit(code);
+        }
+        let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
+        let scratch = keep.is_none();
+        let work = keep.unwrap_or_else(|| std::env::temp_dir().join(format!("arclang-hdl-{}", std::process::id())));
+        let compiler = std::env::var("CC").ok().filter(|c| !c.trim().is_empty()).unwrap_or_else(|| "cc".to_string());
+        let as_if = match as_if {
+            None => None,
+            Some(text) => {
+                if !synth {
+                    return Err(CliError::Config("--as-if goes with --synth".to_string()));
+                }
+                let (part, mhz) = text.split_once('@').map(|(p, m)| (p.to_string(), Some(m.to_string()))).unwrap_or((text.clone(), None));
+                crate::compiler::embedded::alloc::device(&part).map_err(CliError::Config)?;
+                let clock_hz = match mhz {
+                    Some(m) => m.trim().parse::<f64>().ok().filter(|m| *m > 0.0).ok_or_else(|| CliError::Config(format!("--as-if: '{m}' is not a clock in MHz")))? * 1e6,
+                    None => crate::compiler::embedded::alloc::DEFAULT_CLOCK_HZ,
+                };
+                Some((part, clock_hz))
+            }
+        };
+        let options = hdl::Options { work: work.clone(), only: test, synth, compiler, as_if, machine };
+        let mut plants = plants_of(input);
+        let (outcomes, synthesis) = hdl::run_with(&result.ast, &options, &mut plants).map_err(CliError::Compilation)?;
+        if !json {
+            println!("\nHDL {} — {}", input.display(), outcomes.first().map(|o| o.tools.as_str()).unwrap_or(""));
+            for o in &outcomes {
+                self.print_hdl(o, "VHDL");
+            }
+            for s in &synthesis {
+                match s {
+                    Ok(s) => {
+                        println!("\n  {} synthesis {} on {}", if s.timing_met { "✓" } else { "✗ TIMING NOT MET:" }, s.block, s.device);
+                        println!("    {} LUT4, {} flip-flops, {} DSP (MULT18X18D), {} block RAM (DP16KD), {} I/O", s.luts, s.ffs, s.dsps, s.brams, s.ios);
+                        println!("    Fmax {:.2} MHz for a clock of {} MHz: {}", s.fmax_mhz, s.clock_mhz, if s.timing_met { "met" } else { "NOT met" });
+                        println!("    bitstream {}", s.bitstream);
+                        for n in &s.notes {
+                            println!("    note: {n}");
+                        }
+                    }
+                    Err(e) => println!("\n  ! ERROR synthesis: {e}"),
+                }
+            }
+        }
+        if scratch {
+            let _ = std::fs::remove_dir_all(&work);
+        } else if !json {
+            println!("\n  VHDL, testbenches, C reference and netlists kept in {}", work.display());
+        }
+        let cached = hdl::cache(&result.ast, input, &outcomes).map_err(CliError::Compilation)?;
+        if json {
+            let synthesis: Vec<serde_json::Value> = synthesis.iter().map(|s| match s {
+                Ok(s) => serde_json::to_value(s).unwrap_or_default(),
+                Err(e) => serde_json::json!({ "error": e }),
+            }).collect();
+            println!("{}", serde_json::to_string_pretty(&serde_json::json!({ "cases": outcomes, "synthesis": synthesis })).unwrap_or_default());
+        } else if !cached.is_empty() {
+            println!("\n  {} HDL verdict(s) cached in {}", cached.len(), crate::compiler::simulation::cache::dir(input).display());
+        }
+        let failed = outcomes.iter().filter(|o| o.verdict != "pass").count();
+        let unsynthesised = synthesis.iter().filter(|s| !matches!(s, Ok(s) if s.timing_met)).count();
+        if failed == 0 && unsynthesised == 0 {
+            Ok(())
+        } else {
+            Err(CliError::CiFailed(format!("{failed} of {} HDL run(s) do not pass, {unsynthesised} of {} synthesis fail or miss timing", outcomes.len(), synthesis.len())))
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn run_soc(&self, input: &std::path::Path, test: Option<String>, bitstream: bool, board: Option<String>, simulate: bool, gate_level: bool, port: Option<String>, keep: Option<PathBuf>, json: bool) -> Result<(), CliError> {
+        use crate::compiler::embedded::system;
+        // No LiteX or Verilator here: the same command in the system image. A board on a port stays on this host.
+        if port.is_none() {
+            prebuild_plants(input, test.as_deref())?;
+        if let Some(code) = crate::compiler::embedded::docker::relay("soc", input).map_err(CliError::Config)? {
+                std::process::exit(code);
+            }
+        }
+        let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
+        let scratch = keep.is_none();
+        let work = keep.unwrap_or_else(|| std::env::temp_dir().join(format!("arclang-soc-{}", std::process::id())));
+        let compiler = std::env::var("CC").ok().filter(|c| !c.trim().is_empty()).unwrap_or_else(|| "cc".to_string());
+        let on_board = port.is_some();
+        let options = system::Options { work: work.clone(), only: test, compiler, simulate, gate_level, bitstream, board, port };
+        let mut plants = plants_of(input);
+        let report = system::run_with(&result.ast, &options, &mut plants).map_err(CliError::Compilation)?;
+        let device = if on_board { "board" } else { "SoC" };
+        if !json {
+            println!("\nSoC {} — {}", input.display(), report.outcomes.first().map(|o| o.tools.as_str()).unwrap_or(""));
+            for o in &report.outcomes {
+                self.print_hdl(o, device);
+            }
+            match &report.bitstream {
+                Some(Ok(b)) => {
+                    println!("\n  {} bitstream for {} ({}): VexRiscv, {} KiB of RAM holding the Zephyr application ({} bytes), {}", if b.timing_met { "✓" } else { "✗ TIMING NOT MET:" }, b.board, b.device, system::RAM_BYTES / 1024, b.image_bytes, b.blocks.join(", "));
+                    println!("    {} LUT4, {} flip-flops, {} DSP (MULT18X18D), {} block RAM (DP16KD)", b.luts, b.ffs, b.dsps, b.brams);
+                    for (name, fmax, target) in &b.clocks {
+                        println!("    clock {name}: Fmax {fmax:.2} MHz for {target:.2} MHz: {}", if fmax >= target { "met" } else { "NOT met" });
+                    }
+                    println!("    bitstream {}", b.bitstream);
+                    println!("    to the board: {}", b.flash);
+                }
+                Some(Err(e)) => println!("\n  ! ERROR bitstream: {e}"),
+                None => {}
+            }
+        }
+        if scratch && !on_board && !bitstream {
+            let _ = std::fs::remove_dir_all(&work);
+        } else if !json {
+            println!("\n  application, SoC, simulator and bitstream kept in {}", work.display());
+        }
+        let cached = system::cache(&result.ast, input, &report.outcomes).map_err(CliError::Compilation)?;
+        if json {
+            println!("{}", serde_json::to_string_pretty(&report).unwrap_or_default());
+        } else if !cached.is_empty() {
+            println!("\n  {} SoC verdict(s) cached in {}", cached.len(), crate::compiler::simulation::cache::dir(input).display());
+        }
+        let failed = report.outcomes.iter().filter(|o| o.verdict != "pass").count();
+        let unbuilt = usize::from(report.bitstream.as_ref().is_some_and(|b| !matches!(b, Ok(b) if b.timing_met)));
+        if failed == 0 && unbuilt == 0 {
+            Ok(())
+        } else {
+            Err(CliError::CiFailed(format!("{failed} of {} SoC run(s) do not pass{}", report.outcomes.len(), if unbuilt > 0 { "; the bitstream failed or misses timing" } else { "" })))
+        }
+    }
+
+    fn print_hdl(&self, o: &crate::compiler::embedded::hdl::Outcome, device: &str) {
+        let mark = match o.verdict.as_str() {
+            "pass" => "✓ pass ",
+            "fail" => "✗ FAIL ",
+            _ => "! ERROR",
+        };
+        let title = if o.name == o.test_case { o.name.clone() } else { format!("{} ({})", o.name, o.test_case) };
+        println!("\n  {mark} {title}");
+        let mut context = vec![format!("machine {}", o.machine), format!("block {}", o.block)];
+        if !o.verifies.is_empty() {
+            context.insert(0, format!("verifies {}", o.verifies.join(", ")));
+        }
+        println!("    {}", context.join(" · "));
+        println!("    model: {} · {device}: {}", o.model_verdict, o.hdl_verdict);
+        if let Some(c) = &o.cycles {
+            println!("    timing: {c}");
+        }
+        if let Some(b) = &o.bit_exact {
+            match &b.first_mismatch {
+                None => println!("    {device} vs fixed-point C: {} steps × {} outputs, largest difference {} (bit-exact)", b.steps, b.columns, b.max_difference),
+                Some(m) => println!("    {device} vs fixed-point C: MISMATCH {m}"),
+            }
+        }
+        if let Some(q) = &o.quantisation {
+            match &q.first_mismatch {
+                None if q.column.is_empty() => println!("    fixed point vs model: no Real variable, every output equal"),
+                None => println!("    fixed point vs model: largest difference {:.3e} on {} (tolerance {:.3e}, {})", q.max_difference, q.column, q.tolerance, q.origin),
+                Some(m) => println!("    fixed point vs model: MISMATCH {m}"),
+            }
+            for (column, format, d, t) in &q.variables {
+                println!("      {column} {format}: {d:.3e} ≤ {t:.3e}");
+            }
+        }
+        for judged in &o.expectations {
+            let value = |v: &Option<crate::compiler::simulation::expects::Evaluated>| match v {
+                Some(v) => format!("{}{}", v.value.rsplit_once(" = ").map(|(_, x)| x).unwrap_or(&v.value), if v.holds { "" } else { " (fails)" }),
+                None => "—".to_string(),
+            };
+            let holds = judged.c.as_ref().is_some_and(|v| v.holds);
+            println!("    {} {}   model {} · {device} {}", if holds { "ok  " } else { "FAIL" }, judged.expect, value(&judged.model), value(&judged.c));
+        }
+        if !o.reason.is_empty() {
+            println!("    {}", o.reason);
+        }
+    }
+
+    fn print_sil(&self, outcome: &crate::compiler::embedded::sil::Outcome) {
+        let mark = match outcome.verdict.as_str() {
+            "pass" => "✓ pass ",
+            "fail" => "✗ FAIL ",
+            _ => "! ERROR",
+        };
+        let title = if outcome.name == outcome.test_case { outcome.name.clone() } else { format!("{} ({})", outcome.name, outcome.test_case) };
+        println!("\n  {mark} {title}");
+        let mut context = vec![format!("machine {}", outcome.machine)];
+        if !outcome.verifies.is_empty() {
+            context.insert(0, format!("verifies {}", outcome.verifies.join(", ")));
+        }
+        if let Some(binding) = &outcome.binding {
+            context.push(format!("through io_binding {binding}"));
+        }
+        println!("    {}", context.join(" · "));
+        println!("    model: {} · C: {} · {}", outcome.model_verdict, outcome.c_verdict, if outcome.agrees { "the C reproduces the model" } else { "the C does NOT reproduce the model" });
+        if let Some(timing) = &outcome.timing {
+            println!("    timing: {timing}");
+        }
+        if let Some(b2b) = &outcome.back_to_back {
+            match &b2b.first_mismatch {
+                None => println!("    back to back: {} steps × {} outputs, largest difference {} (tolerance {})", b2b.steps, b2b.columns, b2b.max_difference, b2b.tolerance),
+                Some(m) => println!("    back to back: MISMATCH {m}"),
+            }
+        }
+        for judged in &outcome.expectations {
+            let value = |v: &Option<crate::compiler::simulation::expects::Evaluated>| match v {
+                Some(v) => format!("{}{}", v.value.rsplit_once(" = ").map(|(_, x)| x).unwrap_or(&v.value), if v.holds { "" } else { " (fails)" }),
+                None => "—".to_string(),
+            };
+            let holds = judged.c.as_ref().is_some_and(|v| v.holds);
+            println!("    {} {}   model {} · C {}", if holds { "ok  " } else { "FAIL" }, judged.expect, value(&judged.model), value(&judged.c));
+        }
+        if !outcome.reason.is_empty() {
+            println!("    {}", outcome.reason);
+        }
+    }
+
     fn run_gate(&self, input: PathBuf, standard: SafetyStandard) -> Result<(), CliError> {
         let config = crate::CompilerConfig::default();
         let mut compiler = crate::Compiler::new(config);
@@ -1776,6 +2487,141 @@ impl CliRunner {
     /// Drawn unless `--no-placement`; the workbench layout next to the model,
     /// when there is one, moves the boxes (a layout that cannot be read is
     /// reported and left out: the drawing is automatic then).
+    fn run_twin_live(&self, input: PathBuf, only: Option<String>, json: bool, for_seconds: Option<u64>) -> Result<(), CliError> {
+        use crate::compiler::simulation::{twin, twin_live};
+        let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(&input).map_err(|e| CliError::Compilation(e.to_string()))?;
+        let live: Vec<_> = result
+            .ast
+            .twins
+            .iter()
+            .filter(|t| only.as_deref().is_none_or(|o| t.id == o || t.name == o))
+            .filter(|t| twin::spec_of(&t.attributes).is_ok_and(|s| s.data.live.is_some()))
+            .collect();
+        let chosen = match live.as_slice() {
+            [one] => *one,
+            [] => return Err(CliError::Compilation(format!("{} has no twin on live data (data: {{ mqtt: \"mqtt://broker:1883\" topics: [...] }}, or opcua:, kafka:, http:)", input.display()))),
+            _ => return Err(CliError::Compilation(format!("{} twins read live data: name one with --twin ({})", live.len(), live.iter().map(|t| t.id.as_str()).collect::<Vec<_>>().join(", ")))),
+        };
+        let config = crate::compiler::simulation::tool::ToolConfig::from_env();
+        let until = for_seconds.map(std::time::Duration::from_secs);
+        // Stopped by a line `stop` on the standard input (VS Code), Ctrl-C or SIGTERM: what was
+        // received since the last record is written before the end.
+        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let on_line = stop.clone();
+        std::thread::spawn(move || {
+            for line in std::io::BufRead::lines(std::io::stdin().lock()).map_while(Result::ok) {
+                if line.trim() == "stop" {
+                    on_line.store(true, std::sync::atomic::Ordering::Relaxed);
+                    return;
+                }
+            }
+        });
+        let on_signal = stop.clone();
+        std::thread::spawn(move || {
+            let Ok(runtime) = tokio::runtime::Builder::new_current_thread().enable_all().build() else { return };
+            runtime.block_on(async {
+                #[cfg(unix)]
+                {
+                    let Ok(mut term) = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) else { return };
+                    tokio::select! { _ = tokio::signal::ctrl_c() => {}, _ = term.recv() => {} }
+                }
+                #[cfg(not(unix))]
+                let _ = tokio::signal::ctrl_c().await;
+            });
+            on_signal.store(true, std::sync::atomic::Ordering::Relaxed);
+        });
+        twin_live::live(
+            &result,
+            &input,
+            chosen,
+            &config,
+            until,
+            &stop,
+            |outcome| {
+                if json {
+                    println!("{}", serde_json::to_string(outcome).unwrap_or_default());
+                } else {
+                    let worst = outcome.comparisons.iter().map(|c| format!("{} within {:.1} %", c.target, c.within * 100.0)).collect::<Vec<_>>().join(", ");
+                    println!("{} twin '{}': {} over {} samples{}{}", chrono::Local::now().format("%H:%M:%S"), outcome.name, outcome.verdict.to_uppercase(), outcome.samples, if worst.is_empty() { String::new() } else { format!("; {worst}") }, if outcome.reason.is_empty() || outcome.verdict == "pass" { String::new() } else { format!("; {}", outcome.reason) });
+                }
+                let _ = std::io::Write::flush(&mut std::io::stdout());
+            },
+            |status| {
+                if json {
+                    println!("{}", serde_json::to_string(status).unwrap_or_default());
+                } else {
+                    eprintln!("{}: {}", status.status, status.detail);
+                }
+                let _ = std::io::Write::flush(&mut std::io::stdout());
+            },
+        )
+        .map_err(CliError::Compilation)
+    }
+
+    fn run_twin(&self, input: PathBuf, only: Option<String>, json: bool, list: bool) -> Result<(), CliError> {
+        use crate::compiler::simulation::twin;
+        let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(&input).map_err(|e| CliError::Compilation(e.to_string()))?;
+        if list {
+            let twins: Vec<serde_json::Value> = result
+                .ast
+                .twins
+                .iter()
+                .map(|t| serde_json::json!({ "id": t.id, "name": t.name, "verifies": t.verifies, "live": twin::spec_of(&t.attributes).is_ok_and(|s| s.data.live.is_some()) }))
+                .collect();
+            println!("{}", serde_json::Value::Array(twins));
+            return Ok(());
+        }
+        let chosen: Vec<_> = result.ast.twins.iter().filter(|t| only.as_deref().is_none_or(|o| t.id == o || t.name == o)).collect();
+        if chosen.is_empty() {
+            return Err(CliError::Compilation(match only {
+                Some(o) => format!("no twin '{o}' in {}", input.display()),
+                None => format!("{} declares no twin (twin \"Name\" {{ simulate: ... data: ... drives: ... }})", input.display()),
+            }));
+        }
+        let config = crate::compiler::simulation::tool::ToolConfig::from_env();
+        let outcomes: Vec<twin::Outcome> = chosen.iter().map(|t| twin::run(&result, &input, t, &config)).collect();
+        for (twin, outcome) in chosen.iter().zip(&outcomes) {
+            if outcome.verdict != "inconclusive" {
+                twin::cache(&result, &input, twin, outcome).map_err(CliError::Compilation)?;
+            }
+        }
+        if json {
+            println!("{}", serde_json::to_string(&outcomes).map_err(|e| CliError::Compilation(e.to_string()))?);
+        } else {
+            for o in &outcomes {
+                println!("twin '{}' ({}): {}", o.name, o.twin, o.verdict.to_uppercase());
+                if !o.data.is_empty() {
+                    println!("  data: {}, {} samples over {:.0} s from {}", o.data, o.samples, o.duration, o.data_start);
+                }
+                for c in &o.comparisons {
+                    let unit = crate::compiler::quantity::lookup_unit(&c.unit);
+                    println!(
+                        "  {} {} ~ {}: max deviation {}, RMS {}, {:.1} % of the samples within {} ({:.1} % required){}",
+                        if c.holds { "ok  " } else { "FAIL" },
+                        c.target,
+                        c.column,
+                        twin::shown(c.max_deviation, unit),
+                        twin::shown(c.rms_deviation, unit),
+                        c.within * 100.0,
+                        c.tolerance,
+                        c.required * 100.0,
+                        c.first_exceedance.map(|t| format!(", first beyond at {t:.0} s")).unwrap_or_default()
+                    );
+                }
+                for v in &o.values {
+                    println!("  {} {}: {}", if v.holds { "ok  " } else { "FAIL" }, v.expect, v.value);
+                }
+                if !o.reason.is_empty() && o.verdict != "pass" {
+                    println!("  {}", o.reason);
+                }
+            }
+        }
+        if outcomes.iter().any(|o| o.verdict != "pass") {
+            return Err(CliError::Compilation(format!("{} of {} twin(s) do not hold", outcomes.iter().filter(|o| o.verdict != "pass").count(), outcomes.len())));
+        }
+        Ok(())
+    }
+
     fn modelica_options(&self, input: &std::path::Path, no_placement: bool) -> crate::compiler::modelica::Options {
         use crate::compiler::diagram::layout_file::{sidecar_path, LayoutFile};
         if no_placement {
@@ -1796,6 +2642,50 @@ impl CliRunner {
             Err(_) => None,
         };
         crate::compiler::modelica::Options { placement: true, layout }
+    }
+
+    /// `export -f simulink-connector`: the Capella model (read, or written from the ArcLang
+    /// one), the chosen elements made a pivot, the pivot a script; `output.mlcore` and
+    /// `output.m` are written.
+    fn run_simulink_connector(
+        &self,
+        input: &std::path::Path,
+        output: &std::path::Path,
+        strategy: &str,
+        elements: &[String],
+        options: &crate::compiler::simulink_connector::m2m::Options,
+    ) -> Result<(), CliError> {
+        use crate::compiler::simulink_connector::{export, m2m};
+        let strategy = m2m::Strategy::parse(strategy).ok_or_else(|| CliError::Config(format!("unknown strategy '{strategy}': expected functions, functional-chains, state-machines or data-pkg")))?;
+        let model = if input.extension().is_some_and(|e| e == "capella") {
+            m2m::model::Model::load(input).map_err(CliError::Compilation)?
+        } else {
+            let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
+            let stem = input.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "model".to_string());
+            let exported = crate::compiler::capella_export::export(&result.ast, &stem);
+            let capella = format!("{stem}.capella");
+            let aird = format!("{stem}.aird");
+            m2m::model::Model::from_strings(&[(capella.as_str(), exported.capella.as_str()), (aird.as_str(), exported.aird.as_str())]).map_err(CliError::Compilation)?
+        };
+        let exported = export::export(&model, strategy, elements, options).map_err(CliError::Compilation)?;
+        let base = match output.extension().and_then(|e| e.to_str()) {
+            Some("m") | Some("mlcore") => output.with_extension(""),
+            _ => output.to_path_buf(),
+        };
+        if let Some(parent) = base.parent().filter(|p| !p.as_os_str().is_empty()) {
+            std::fs::create_dir_all(parent).map_err(CliError::Io)?;
+        }
+        let pivot = base.with_extension("mlcore");
+        let script = base.with_extension("m");
+        std::fs::write(&pivot, &exported.pivot).map_err(CliError::Io)?;
+        std::fs::write(&script, &exported.script).map_err(CliError::Io)?;
+        for note in &exported.notes {
+            eprintln!("note: {note}");
+        }
+        println!("✓ Export successful");
+        println!("  Pivot: {}", pivot.display());
+        println!("  MATLAB script: {}", script.display());
+        Ok(())
     }
 
     fn run_export(
@@ -1825,6 +2715,7 @@ impl CliRunner {
             ExportFormat::SysML => "json".to_string(),
             ExportFormat::SysMLJson => "json".to_string(),
             ExportFormat::Simulink => "json".to_string(),
+            ExportFormat::SimulinkConnector => "json".to_string(),
             ExportFormat::FMI => "json".to_string(),
             ExportFormat::ReqIF => "json".to_string(),
             ExportFormat::CHeaders => "json".to_string(),
@@ -1832,6 +2723,10 @@ impl CliRunner {
             ExportFormat::GeoJSON => "json".to_string(),
             ExportFormat::Step => "json".to_string(),
             ExportFormat::Modelica => "json".to_string(),
+            ExportFormat::C => "json".to_string(),
+            ExportFormat::Fmu => "json".to_string(),
+            ExportFormat::Zephyr => "json".to_string(),
+            ExportFormat::Vhdl => "json".to_string(),
         };
         
         let mut compiler = crate::Compiler::new(config);
@@ -1979,6 +2874,67 @@ impl CliRunner {
                         }
                         println!("  Output: {}", path.display());
                         println!("  The physics goes in a package of its own extending these models (see docs/modelica.md).");
+                        return Ok(());
+                    }
+                    ExportFormat::Vhdl => {
+                        let (files, notes) = crate::compiler::embedded::hdl::export(&result.ast).map_err(CliError::Compilation)?;
+                        for (name, text) in &files {
+                            let path = output.join(name);
+                            if let Some(dir) = path.parent() {
+                                std::fs::create_dir_all(dir).map_err(CliError::Io)?;
+                            }
+                            std::fs::write(&path, text).map_err(CliError::Io)?;
+                        }
+                        for note in &notes {
+                            println!("  note: {note}");
+                        }
+                        println!("✓ Export successful — {} file(s): VHDL-2008, register map, driver, fixed-point C reference", files.len());
+                        for (name, _) in &files {
+                            println!("  {}", output.join(name).display());
+                        }
+                        println!("  Simulate and synthesise with `arclang hdl`; see docs/embedded-fpga.md.");
+                        return Ok(());
+                    }
+                    ExportFormat::C => {
+                        let (files, notes) = crate::compiler::embedded::export(&result.ast).map_err(CliError::Compilation)?;
+                        for (name, text) in &files {
+                            let path = output.join(name);
+                            if let Some(dir) = path.parent() {
+                                std::fs::create_dir_all(dir).map_err(CliError::Io)?;
+                            }
+                            std::fs::write(&path, text).map_err(CliError::Io)?;
+                        }
+                        for note in &notes {
+                            println!("  note: {note}");
+                        }
+                        println!("✓ Export successful — {} file(s) of portable C99", files.len());
+                        for (name, _) in &files {
+                            println!("  {}", output.join(name).display());
+                        }
+                        println!("  Compile with -std=c99; see docs/embedded-c.md for the API and the I/O layer.");
+                        return Ok(());
+                    }
+                    ExportFormat::Fmu => {
+                        let compiler = std::env::var("CC").ok().filter(|c| !c.trim().is_empty()).unwrap_or_else(|| "cc".to_string());
+                        let compiler = crate::compiler::embedded::sil::compiler_version(&compiler).map(|_| compiler);
+                        std::fs::create_dir_all(&output).map_err(CliError::Io)?;
+                        let work = std::env::temp_dir().join(format!("arclang-fmu-{}", std::process::id()));
+                        let built = crate::compiler::embedded::export_fmu(&result.ast, compiler.as_deref(), &work);
+                        let _ = std::fs::remove_dir_all(&work);
+                        let (name, archive, cases, notes) = built.map_err(CliError::Compilation)?;
+                        std::fs::write(output.join(&name), &archive).map_err(CliError::Io)?;
+                        for (file, text) in &cases {
+                            let path = output.join(file);
+                            if let Some(dir) = path.parent() {
+                                std::fs::create_dir_all(dir).map_err(CliError::Io)?;
+                            }
+                            std::fs::write(&path, text).map_err(CliError::Io)?;
+                        }
+                        for note in &notes {
+                            println!("  note: {note}");
+                        }
+                        println!("✓ Export successful — FMI 2.0 co-simulation FMU {}", output.join(&name).display());
+                        println!("  {} case file(s) in {} (inputs, and the model-level reference at the end of each step)", cases.len(), output.join("cases").display());
                         return Ok(());
                     }
                     ExportFormat::FMI => {
@@ -2849,4 +3805,27 @@ pub enum CliError {
 
 fn count_nodes(nodes: &[crate::compiler::diagram::Node]) -> usize {
     nodes.iter().map(|node| 1 + count_nodes(&node.children)).sum()
+}
+
+/// The plants of the model's cases, beside the model.
+fn plants_of(input: &std::path::Path) -> crate::compiler::embedded::plant::Plants {
+    crate::compiler::embedded::plant::Plants::at(&crate::compiler::simulation::cache::model_dir(input))
+}
+
+/// Build the FMU of every plant of the cases chosen, here, where
+/// OpenModelica is: a stage that then runs in a Docker image steps it.
+fn prebuild_plants(input: &std::path::Path, only: Option<&str>) -> Result<(), CliError> {
+    use crate::compiler::embedded::{binding, plan};
+    let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
+    let has_plant = result.ast.test_cases.iter().filter(|t| only.is_none_or(|o| t.id == o || t.name == o)).any(|t| matches!(t.attributes.get("execute"), Some(crate::compiler::ast::AttributeValue::Map(m)) if m.contains_key("plant")));
+    if !has_plant {
+        return Ok(());
+    }
+    let p = plan::plan(&result.ast).map_err(CliError::Compilation)?;
+    let bindings = binding::resolve_all(&result.ast, &p).map_err(CliError::Compilation)?;
+    let built = plants_of(input).prepare_all(&result.ast, &p, &bindings, only).map_err(CliError::Compilation)?;
+    for path in built {
+        eprintln!("plant: {}", path.display());
+    }
+    Ok(())
 }

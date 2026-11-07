@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import type * as vscode from 'vscode';
 
 export interface Captured {
-  /** null when the program was killed (cancelled). */
+  /** null when the program was killed (canceled). */
   code: number | null;
   output: string;
   /** The program does not exist. */

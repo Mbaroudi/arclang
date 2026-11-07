@@ -1,6 +1,6 @@
 // The keyboard of the canvas: the keys VS Code resolves and sends back as
 // commands, the page's own keys, and what tells VS Code that a field of
-// the page has the keyboard. Split from main.ts, behaviour unchanged.
+// the page has the keyboard. Split from main.ts, behavior unchanged.
 import type { CanvasCommand, EditRequest, ElementRecord, Snapshot } from '../src/pure/workbench';
 import type { Editing } from './editing';
 import { removalOf } from '../src/pure/editing';

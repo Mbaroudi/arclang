@@ -143,7 +143,7 @@ fn a_state_fragment_with_a_body_round_trips_through_sysml() {
 }
 
 fn rail_example() -> String {
-    std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/rail/level_crossing_protection.arc")).unwrap()
+    std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/rail/level-crossing/level_crossing_protection.arc")).unwrap()
 }
 
 /// The rail example with its hazards classified by SIL instead of S/E/C.

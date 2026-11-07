@@ -1,0 +1,79 @@
+/* The digital twins: one card per twin, its verdict in the semantic color
+   (holds green, departs red, error amber), each comparison with its numbers
+   and its curves: the measurement solid, the model dashed in the accent,
+   the tolerance a soft band around the measurement. */
+:root {
+  --tw-bg: var(--vscode-editor-background, #ffffff);
+  --tw-fg: var(--vscode-editor-foreground, #1f1f1f);
+  --tw-muted: var(--vscode-descriptionForeground, #6b6b6b);
+  --tw-line: color-mix(in srgb, var(--tw-fg) 13%, transparent);
+  --tw-panel: color-mix(in srgb, var(--tw-fg) 4%, var(--tw-bg));
+  --tw-accent: var(--vscode-charts-blue, #3a6ea5);
+  --tw-measured: var(--tw-fg);
+  --tw-ok: var(--vscode-testing-iconPassed, #1d7a4b);
+  --tw-off: var(--vscode-testing-iconFailed, #b3261e);
+  --tw-warn: var(--vscode-editorWarning-foreground, #a35a00);
+  --tw-focus: var(--vscode-focusBorder, #005fb8);
+  --tw-mono: var(--vscode-editor-font-family, "SF Mono", Menlo, monospace);
+  color-scheme: light dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--tw-bg); color: var(--tw-fg); font: 13px/1.5 var(--vscode-font-family, system-ui, sans-serif); }
+.bar { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: var(--tw-bg); border-bottom: 1px solid var(--tw-line); }
+.bar h1 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: 0.01em; }
+.spacer { flex: 1; }
+button { font: inherit; color: inherit; background: transparent; border: 1px solid var(--tw-line); border-radius: 4px; padding: 3px 10px; cursor: pointer; transition: background-color 120ms ease-out; }
+button:hover { background: color-mix(in srgb, var(--tw-fg) 8%, transparent); }
+button:focus-visible { outline: 1px solid var(--tw-focus); outline-offset: 1px; }
+button.primary { background: var(--vscode-button-background, #005fb8); color: var(--vscode-button-foreground, #fff); border-color: transparent; }
+button.link { border: 0; padding: 0; color: var(--vscode-textLink-foreground, #005fb8); text-decoration: underline; text-underline-offset: 2px; }
+.live { display: flex; align-items: center; gap: 8px; margin: 0; padding: 6px 16px; border-bottom: 1px solid var(--tw-line); color: var(--tw-muted); }
+.live[hidden] { display: none; }
+.live .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--tw-muted); }
+.live.running .dot, .live.connected .dot, .live.ready .dot { background: var(--tw-ok); animation: pulse 1.6s ease-in-out infinite; }
+.live.unreachable .dot, .live.disconnected .dot, .live.refused .dot, .live.model .dot { background: var(--tw-off); }
+.live.connecting .dot, .live.waiting .dot, .live.building .dot { background: var(--tw-warn); }
+@keyframes pulse { 50% { opacity: 0.35; } }
+main { padding: 16px; display: grid; gap: 18px; max-width: 980px; }
+.twin { border: 1px solid var(--tw-line); border-left-width: 4px; border-radius: 6px; padding: 14px 16px 10px; background: var(--tw-panel); }
+.twin.pass { border-left-color: var(--tw-ok); }
+.twin.fail { border-left-color: var(--tw-off); }
+.twin.error, .twin.inconclusive { border-left-color: var(--tw-warn); }
+.twin-head { display: flex; align-items: baseline; gap: 10px; }
+.twin-head h2 { margin: 0; font-size: 17px; font-weight: 600; }
+.badge { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; padding: 1px 7px; border-radius: 10px; color: #fff; }
+.badge.pass { background: var(--tw-ok); }
+.badge.fail { background: var(--tw-off); }
+.badge.error, .badge.inconclusive { background: var(--tw-warn); }
+.meta { margin: 4px 0 10px; color: var(--tw-muted); }
+.reason { margin: 0 0 10px; padding: 6px 10px; border-radius: 4px; background: color-mix(in srgb, var(--tw-off) 10%, transparent); }
+.reason.error, .reason.inconclusive { background: color-mix(in srgb, var(--tw-warn) 12%, transparent); }
+.comparison { margin: 12px 0 6px; padding-top: 10px; border-top: 1px solid var(--tw-line); }
+.comparison h3, .twin > h3 { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
+code { font-family: var(--tw-mono); font-size: 12px; }
+.numbers { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 0 0 8px; }
+.numbers .pair { min-width: 0; }
+.numbers dt { color: var(--tw-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+.numbers dd { margin: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.numbers dd.strong { color: var(--tw-off); font-weight: 600; }
+.chart { margin: 0; }
+.chart svg { width: 100%; height: auto; display: block; }
+.chart .grid { stroke: var(--tw-line); stroke-width: 1; }
+.chart .tick { fill: var(--tw-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.chart .band { fill: color-mix(in srgb, var(--tw-accent) 14%, transparent); stroke: none; }
+.chart .measured { fill: none; stroke: var(--tw-measured); stroke-width: 1.4; }
+.chart .simulated { fill: none; stroke: var(--tw-accent); stroke-width: 2; stroke-dasharray: 6 3; }
+.chart .exceed { stroke: var(--tw-off); stroke-width: 1.2; stroke-dasharray: 3 3; }
+.chart .exceed-label { fill: var(--tw-off); font-size: 11px; }
+.legend { display: flex; gap: 16px; color: var(--tw-muted); font-size: 12px; margin-top: 2px; }
+.key::before { content: ""; display: inline-block; width: 18px; height: 0; vertical-align: middle; margin-right: 6px; border-top: 2px solid var(--tw-measured); }
+.key.simulated::before { border-top: 2px dashed var(--tw-accent); }
+.key.band::before { height: 8px; border: 0; background: color-mix(in srgb, var(--tw-accent) 22%, transparent); }
+.expects { list-style: none; margin: 0 0 6px; padding: 0; }
+.expects li { padding: 2px 0; }
+.expects .mark { display: inline-block; width: 18px; font-weight: 700; }
+.expects li.ok .mark { color: var(--tw-ok); }
+.expects li.off .mark { color: var(--tw-off); }
+.status { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); margin: 0; padding: 6px 12px; border-radius: 4px; background: var(--tw-panel); border: 1px solid var(--tw-line); }
+.status[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { button { transition: none; } .live .dot { animation: none; } }

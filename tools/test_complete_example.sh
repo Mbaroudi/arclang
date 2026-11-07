@@ -11,7 +11,7 @@ echo "  COMPLETE MBSE EXAMPLE TEST - Adaptive Cruise Control"
 echo "========================================================================="
 echo ""
 
-INPUT_FILE="examples/automotive/acc_minimal.arc"
+INPUT_FILE="examples/01-getting-started/acc-minimal/acc_minimal.arc"
 OUTPUT_DIR="test-output/complete_example"
 
 # Create output directory

@@ -27,6 +27,10 @@
 # The built-in diagram themes (include_str!) and the fixtures of their validator.
 !src/compiler/diagram/viewer/themes/*.json
 !tests/fixtures/themes/*.json
+# The built-in embedded target packages (include_str!).
+!src/compiler/embedded/targets/**/target.json
+# ArcLang Studio as a dev container.
+!.devcontainer/devcontainer.json
 *.xml
 !examples/**/*.xml
 

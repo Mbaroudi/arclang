@@ -1,0 +1,11 @@
+# The context of tools/studio/Dockerfile: the sources, not what builds leave.
+.git
+target
+**/target
+**/node_modules
+wasm/pkg
+site
+**/.arclang
+**/*.vsix
+editors/vscode/out
+editors/vscode/dist

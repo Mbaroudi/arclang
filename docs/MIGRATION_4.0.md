@@ -44,7 +44,7 @@ Fix, one of:
 **Identity changes once.** Element UUIDs are derived from the identifier
 (`docs/VERSIONING.md`). An element without an explicit `id` therefore gets
 a new UUID in 4.0, and so do the artifacts keyed on it: Capella
-synchronisation, ReqIF identifiers, FMI GUIDs. To keep the UUID an element
+synchronization, ReqIF identifiers, FMI GUIDs. To keep the UUID an element
 had in 3.0, give it its old truncated identifier explicitly
 (`id: "OA-Mon"`): an explicit identifier is used as written. This is only
 possible when that truncated identifier was not shared by two elements.

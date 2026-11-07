@@ -139,7 +139,7 @@
     }
     if (onResize) stage.append(...grips);
 
-    // --- motion: one animation at a time, cancelled by any new gesture ---
+    // --- motion: one animation at a time, canceled by any new gesture ---
     let motion = null;
     const stopMotion = () => {
       if (motion) cancelAnimationFrame(motion);
