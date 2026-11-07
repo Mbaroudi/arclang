@@ -12,3 +12,4 @@ package-lock.json
 .gitignore
 webview/**
 scripts/**
+COMPARISON.md

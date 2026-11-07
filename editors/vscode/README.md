@@ -61,8 +61,6 @@ the selection follows; Undo, Redo and Save are the editor's own.
   wraps the selected message of a scenario in a loop, opt, alt, par or
   critical fragment; Shift+click selects several elements, to delete, hide
   or set one attribute on all of them.
-  See [COMPARISON.md](COMPARISON.md) for where this stands against Capella
-  and SysML v2 tools.
 - **Properties**, Capella style: General, Description, Resources and All
   tabs, the set attributes first and the others added on demand, the name
   edited in place (the identity never changes).

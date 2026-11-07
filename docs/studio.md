@@ -19,7 +19,7 @@ loop or synthesised gives the same verdicts in all three places. It is
 published at each release for amd64 and arm64:
 
 ```text
-ghcr.io/mbaroudi/arclang-studio:4.11.0      (and :latest)
+ghcr.io/mbaroudi/arclang-studio:4.12.0      (and :latest)
 ```
 
 It is large, several GB, because the hardware toolchains are. It is
@@ -30,7 +30,7 @@ pulled once.
 **1. VS Code in the browser, on your computer.**
 
 ```sh
-docker run --rm -p 127.0.0.1:3000:3000 -v "$PWD":/home/arclang/workspace ghcr.io/mbaroudi/arclang-studio:4.11.0
+docker run --rm -p 127.0.0.1:3000:3000 -v "$PWD":/home/arclang/workspace ghcr.io/mbaroudi/arclang-studio:4.12.0
 ```
 
 The container prints the address to open, with a connection token. It
