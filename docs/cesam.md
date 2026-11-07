@@ -11,6 +11,8 @@ you write, and the CESAM grid the compiler computes from them.
 This page is the reference. To learn by doing, follow the
 [CESAM tutorial](cesam-tutorial.md): nine exercises, each checked by the compiler.
 
+![The CESAM grid of the smart lock example, computed by the compiler: three visions by six aspects, each cell with its count of elements, their Arcadia levels and its maturity, every row ok and the gate passed](images/cesam-hero.webp)
+
 ## The grid
 
 CESAM studies any system under three visions, each seen through six aspects:
@@ -33,6 +35,8 @@ that draws it), **pending** when the production gate flags one of its elements,
 **ok** otherwise. Each cell also counts its elements per Arcadia level, so the
 grid shows how deep each perspective goes. In VS Code the table view offers the
 kind *CESAM grid*; in a generated document, `{{table cesam_grid}}`.
+
+![The same grid as the compiler's HTML table: each cell names its elements, counts them per Arcadia level and carries its ok badge](images/cesam-grid.webp)
 
 ### Where each element goes
 
@@ -98,6 +102,8 @@ scenario "Resident comes home" { capability: "UC-1" participants: ["SA-RES", "SA
   compiler infers.
 - `capability:` on a scenario names the use case it illustrates.
 
+![The three state machines of the smart lock drawn by the viewer: the lifecycle of the operational vision, the functional modes, the technical configurations, each realizing a state of the vision above](images/cesam-states.webp)
+
 ## The method's rules
 
 `arclang check model.arc --lint --method cesam` reports what CESAM expects and
@@ -118,6 +124,8 @@ gate (`methodology.cesam`). `arclang rules` documents each:
 | `cesam.requirement-vision` | a vision for every requirement |
 | `cesam.role` | relations between states of the right roles |
 
+![arclang check on the tutorial's starter: nine CESAM advisories, each naming the rule, the element and what to write](images/cesam-check.webp)
+
 ## Diagrams
 
 `arclang diagram model.arc -o views.html -f html --view cesam` draws the
@@ -135,6 +143,8 @@ webinar (2023):
 | Constructional interactions | LAB, PAB | `lab`, `pab` |
 | Product breakdown | LCBD, PCBD, EPBS | `pbs` |
 | Interfaces | CDB | `cdb` |
+
+![The CESAM diagram set of the smart lock: the stakeholders and use cases of the operational vision, the functional environment of the functional vision, the constructional interactions of the constructional vision](images/cesam-visions.webp)
 
 ## Starting a model
 
