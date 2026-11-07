@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Timeline: a merge of a branch into a branch that had not moved is a notch of its own (it was hidden behind the branch's last commit), with the snapshot taken on it; commits made within the same second come in order. The API places such a snapshot on the merge too, and lists commits after their parents.
 - The compiler: `arclang cosim` runs the executed cases as a standard FMI co-simulation in OMSimulator, OpenModelica's FMI and SSP master. The behavior's FMU, the plant's FMU (OpenModelica's, or the one the case gives) and the case's inputs are connected in an SSP package (`--keep` keeps `cosim.ssp`), and the run is judged as `sil` judges the C. With a plant, OMSimulator gives the plant the controller's outputs a period late, and the run is compared with the model's loop held the same way. ArcLang Studio now holds OMSimulator, and the command runs there when this computer has none. See docs/cosimulation.md.
 - Fixed in `export -f fmu`: an `in` variable read from another machine (`from "M".y`) was an FMU input, set from outside and reported as set; it is now an output, the value the FMU computes. A model with a data-flow block no longer fails to compile as an FMU under `-Werror` (unused `first`).
 
