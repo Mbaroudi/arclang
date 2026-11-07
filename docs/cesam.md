@@ -8,6 +8,9 @@ perspectives**; a CESAM vision is **one perspective covering several
 levels**. ArcLang keeps one model and shows it both ways: the Arcadia layers
 you write, and the CESAM grid the compiler computes from them.
 
+This page is the reference. To learn by doing, follow the
+[CESAM tutorial](cesam-tutorial.md): nine exercises, each checked by the compiler.
+
 ## The grid
 
 CESAM studies any system under three visions, each seen through six aspects:
@@ -34,7 +37,7 @@ kind *CESAM grid*; in a generated document, `{{table cesam_grid}}`.
 ### Where each element goes
 
 Every kind of the metamodel names its cell (the `CESAM:` line of
-[spec/METAMODEL.md](../spec/METAMODEL.md)). A few kinds are placed by what the
+[spec/METAMODEL.md](https://github.com/Mbaroudi/arclang/blob/main/spec/METAMODEL.md)). A few kinds are placed by what the
 element is about:
 
 - **Requirements**: by `vision:`, else by their block: `requirements
@@ -138,7 +141,9 @@ webinar (2023):
 `arclang new door --template cesam` writes `door.arc`: a model following CESAM
 with one section per vision, each element a placeholder to rename, which
 compiles and passes `check --lint`. The complete example is
-[examples/cesam/smart-lock/smart_lock.arc](../examples/cesam/smart-lock/smart_lock.arc).
+[examples/cesam/smart-lock/smart_lock.arc](https://github.com/Mbaroudi/arclang/blob/main/examples/cesam/smart-lock/smart_lock.arc).
+The [CESAM tutorial](cesam-tutorial.md) takes a model with holes and fills it,
+exercise by exercise, with screenshots of every step.
 
 ## Agents
 

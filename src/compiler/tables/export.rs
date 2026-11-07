@@ -10,14 +10,26 @@ pub fn cell_text(cell: &Cell) -> String {
     if cell.links.is_empty() {
         return cell.text.clone();
     }
-    cell.links
+    let names = cell
+        .links
         .iter()
         .map(|l| match &l.verdict {
             Some(verdict) => format!("{} ({verdict})", l.name),
             None => l.name.clone(),
         })
         .collect::<Vec<_>>()
-        .join(", ")
+        .join(", ");
+    match cell_note(cell) {
+        Some(note) => format!("{note}: {names}"),
+        None => names,
+    }
+}
+
+/// What a cell of links says beyond their names (`6 (SA 2, LA 2)` in the
+/// CESAM grid): its text when the table gave it one of its own.
+pub fn cell_note(cell: &Cell) -> Option<&str> {
+    let default = cell.links.iter().map(|l| l.name.as_str()).collect::<Vec<_>>().join(", ");
+    (!cell.links.is_empty() && !cell.text.is_empty() && cell.text != default).then_some(cell.text.as_str())
 }
 
 /// The table as a grid of texts: header row first.
@@ -123,6 +135,7 @@ tr.gap td:first-child, tr.fail td:first-child { box-shadow: inset 3px 0 0 var(--
 .badge { display: inline-block; padding: 0 7px; border-radius: 9px; font-size: 11px; font-weight: 600; }
 .ok { color: var(--ok); background: var(--ok-bg); } .warn { color: var(--warn); background: var(--warn-bg); } .gap, .fail { color: var(--gap); background: var(--gap-bg); }
 a { color: var(--link); text-decoration: none; } a:hover { text-decoration: underline; }
+.note { color: var(--muted); font-size: 12px; }
 td.cell-x { text-align: center; } th.rot { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; }
 "#;
 
@@ -175,7 +188,9 @@ fn html_table(table: &Table) -> String {
         for column in &table.columns {
             let cell = row.cells.get(&column.key).cloned().unwrap_or_default();
             let inner = if !cell.links.is_empty() {
-                cell.links.iter().map(link_html).collect::<Vec<_>>().join(", ")
+                let badge = cell.status.as_ref().map(|s| format!("<span class=\"badge {0}\">{0}</span> ", html_escape(s))).unwrap_or_default();
+                let note = cell_note(&cell).map(|n| format!("<span class=\"note\">{}</span> ", html_escape(n))).unwrap_or_default();
+                format!("{badge}{note}{}", cell.links.iter().map(link_html).collect::<Vec<_>>().join(", "))
             } else if let Some(status) = &cell.status {
                 format!("<span class=\"badge {}\">{}</span>", html_escape(status), html_escape(if cell.text.is_empty() { "none" } else { &cell.text }))
             } else {
