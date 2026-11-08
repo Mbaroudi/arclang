@@ -137,5 +137,13 @@ export function isQuestion(asked: string): boolean {
 
 /** An explanation without the AI talking about the exchange ("Il s'agit d'une question : voici les étapes."): the answer starts with the answer. */
 export function withoutMetaTalk(text: string): string {
-  return text.replace(/^\s*(?:(?:c'est|il s'agit d')\s*une question|this is a question|that is a question|you asked a question|vous posez une question)[^.:\n]*[.:]\s*(?:(?:voici|here are|here is)[^.:\n]*[.:]\s*)?/i, '');
+  const START = /^\s*(?:(?:c'est|il s'agit d')\s*une question|this is a question|that is a question|you asked a question|vous posez une question)[^.:\n]*[.:]\s*(?:(?:voici|here are|here is)[^.:\n]*[.:]\s*)?/i;
+  // Anywhere in the answer: a sentence about the kind of question ("This is a "can I" question, so…") or saying that nothing is changed.
+  const ANNOUNCES = [
+    /(?:this|that|it) is (?:a|an) [^.!?\n]{0,24}question\b[^.!?\n]*[.!?:]\s*/gi,
+    /(?:c'est|il s'agit d')\s*une question\b[^.!?\n]*[.!?:]\s*/gi,
+    /(?:^|(?<=[.!?]\s))(?:so,?\s*)?(?:I'?m|I am|I will|I'll|I won'?t)\s+(?:not\s+)?(?:change|changing|modify|modifying|touch|touching)\s+(?:the|your)\s+model[^.!?\n]*[.!?]\s*/gim,
+    /(?:^|(?<=[.!?]\s))(?:donc,?\s*)?je ne (?:modifie|change|touche) (?:pas|rien)[^.!?\n]*[.!?]\s*/gim,
+  ];
+  return ANNOUNCES.reduce((rest, pattern) => rest.replace(pattern, ''), text.replace(START, '')).replace(/^\s+/, '');
 }

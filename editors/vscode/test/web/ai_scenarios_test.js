@@ -496,6 +496,174 @@ const SCENARIOS = {
     check('guide', 'co-simulation: arclang cosim', /cosim/.test(cosim.text) && !/^Non\b/.test(cosim.text.trim()), cosim.text.replace(/\n/g, ' ').slice(0, 300));
     await context.close();
   },
+  // ---- The demo exercise: the same words, in the same order, as the guide given to the presenter. ----
+
+  // Part A: requirement → model → simulation → verdict → report → traceability → ReqIF.
+  async exercise_a(browser) {
+    const S = 'exercise_a';
+    const { context, page, chat } = await open(browser);
+    const journey = [];
+    await command(page, 'View: Close All Editors');
+    const how = await step(page, chat, journey, 'I work in simulation process and data management. How does ArcLang tie a simulation result to a requirement?');
+    check(S, 'A1 explained (test_case, simulate:, expects:, verdict), nothing written', /simulate:/.test(how.text) && /expects/.test(how.text) && /verdict/i.test(how.text) && !(await chat.$('.chat-turn.ai:last-child .chat-proposal.written')), how.text.slice(0, 120).replace(/\n/g, ' '));
+    const make = await step(page, chat, journey, 'Build a small model of a battery pack with liquid cooling: requirements on the maximum cell temperature, the components, and a test case that will verify the temperature by simulation.');
+    check(S, 'A2 a whole model that compiles', /✓ compiles/.test(make.text), make.text.slice(0, 100).replace(/\n/g, ' '));
+    const file = await createModel(page, chat);
+    check(S, 'A2 Create model: open, no error', /\.arc$/.test(file) && (await statusErrors(page)) === 0, `${file}, errors: ${await statusErrors(page)}`);
+    await command(page, 'ArcLang: Open the workbench beside the source');
+    await page.waitForTimeout(6000);
+    await shot(page, 'exercise-a3-diagram');
+    check(S, 'A3 the diagram is drawn beside the source', (await drawnWorkbenches(page)) >= 1 && (await blankWorkbenches(page)) === 0, `drawn ${await drawnWorkbenches(page)}, blank ${await blankWorkbenches(page)}`);
+    const sim = await step(page, chat, journey, 'Now add the simulation so that the requirement gets a verdict.');
+    const files = await writtenFiles(chat);
+    const kept = await keep(page, chat);
+    check(S, 'A4 simulation written with its Modelica package, kept', kept && files.some((f) => /\.mo$/.test(f)), (files.join(', ') || sim.text.slice(0, 160)).replace(/\n/g, ' '));
+    check(S, 'A4 no error', (await statusErrors(page)) === 0, `errors: ${await statusErrors(page)}`);
+    let simulateButton = false;
+    for (const f of page.frames()) if (await f.$('button:has-text("Simulate")').catch(() => null)) simulateButton = true;
+    check(S, 'A5 the Simulate button is under the diagram', simulateButton);
+    if (process.env.SIM_IMAGE && files.length) await simulate(page, chat, files, S);
+    const results = await step(page, chat, journey, 'Where are the simulation results kept, and can I export a report of the verdicts?');
+    check(S, 'A6 names the report export', /Export the (simulation )?report/i.test(results.text), results.text.slice(0, 200).replace(/\n/g, ' '));
+    const trace = await step(page, chat, journey, 'How do I see the traceability from requirements to components and tests?');
+    check(S, 'A7 a real view, nothing written', /coverage table|Requirements|traceab|matrix/i.test(trace.text) && !(await chat.$('.chat-turn.ai:last-child .chat-proposal.written')), trace.text.slice(0, 200).replace(/\n/g, ' '));
+    await command(page, 'ArcLang: Requirement coverage table');
+    await page.waitForTimeout(5000);
+    await shot(page, 'exercise-a7-coverage');
+    let table = false;
+    for (const f of page.frames()) if (await f.evaluate(() => /REQ|BAT|TC-/.test(document.querySelector('table')?.innerText ?? '')).catch(() => false)) table = true;
+    check(S, 'A7 the coverage table opens with the requirements', table);
+    const reqif = await step(page, chat, journey, 'Can I bring my requirements from DOORS or a ReqIF file, and send them back?');
+    check(S, 'A8 ReqIF: yes, import and export', /ReqIF/i.test(reqif.text) && /import/i.test(reqif.text) && /export|save/i.test(reqif.text) && !/^No\b/.test(reqif.text.replace(/^.*?claude-[\w-]+\s*/s, '').trim()), reqif.text.slice(0, 200).replace(/\n/g, ' '));
+    const errors = await errorToasts(page);
+    check(S, 'no error notification', errors.length === 0, errors.join(' | '));
+    if (SHOTS) fs.writeFileSync(path.join(SHOTS, `${S}-journey.json`), JSON.stringify(journey, null, 2));
+    await context.close();
+  },
+
+  // Part B: requirements given as a Word file, then as a CSV export.
+  async exercise_b(browser) {
+    const S = 'exercise_b';
+    const { context, page, chat } = await open(browser);
+    const journey = [];
+    await command(page, 'View: Close All Editors');
+    await chat.setInputFiles('input[type=file]', path.join(__dirname, '..', 'fixtures', 'chat', 'requirements.docx'));
+    await page.waitForTimeout(3000);
+    check(S, 'B1 the Word file is attached', (await chat.$$eval('.chat-attachment', (l) => l.map((x) => x.textContent))).some((t) => /requirements\.docx/.test(t)));
+    const word = await step(page, chat, journey, 'Build the model of the system described by the attached requirements. Keep their ids.');
+    check(S, 'B1 the model keeps REQ-1 and REQ-2 and compiles', /REQ-1/.test(word.text) && /REQ-2/.test(word.text) && /✓ compiles/.test(word.text), word.text.slice(0, 100).replace(/\n/g, ' '));
+    const radio = await createModel(page, chat);
+    check(S, 'B1 created, no error', /\.arc$/.test(radio) && (await statusErrors(page)) === 0, `${radio}, errors: ${await statusErrors(page)}`);
+    const plus = await chat.$('button[title*="New conversation"], .chat-new');
+    if (plus) await plus.click();
+    await page.waitForTimeout(1500);
+    await chat.setInputFiles('input[type=file]', path.join(__dirname, '..', 'fixtures', 'chat', 'drone-requirements.csv'));
+    await page.waitForTimeout(3000);
+    check(S, 'B2 the CSV is attached', (await chat.$$eval('.chat-attachment', (l) => l.map((x) => x.textContent))).some((t) => /drone-requirements\.csv/.test(t)));
+    const csv = await step(page, chat, journey, 'Build the architecture of the drone described by the attached requirements. Keep their ids.');
+    check(S, 'B2 the model keeps DR-001 to DR-004 and compiles', ['DR-001', 'DR-002', 'DR-003', 'DR-004'].every((id) => csv.text.includes(id)) && /✓ compiles/.test(csv.text), csv.text.slice(0, 100).replace(/\n/g, ' '));
+    const drone = await createModel(page, chat);
+    check(S, 'B2 created, no error', /\.arc$/.test(drone) && (await statusErrors(page)) === 0, `${drone}, errors: ${await statusErrors(page)}`);
+    const gaps = await step(page, chat, journey, 'Which requirements are not yet verified by a test, and what would you add?');
+    check(S, 'B3 the gaps named by id, nothing written', /DR-00\d/.test(gaps.text) && !(await chat.$('.chat-turn.ai:last-child .chat-proposal.written')), gaps.text.slice(0, 160).replace(/\n/g, ' '));
+    const add = await step(page, chat, journey, 'Add them.');
+    check(S, 'B4 the tests written with Keep / Undo, kept', await keep(page, chat), add.text.slice(0, 120).replace(/\n/g, ' '));
+    check(S, 'B4 no error', (await statusErrors(page)) === 0, `errors: ${await statusErrors(page)}`);
+    const errors = await errorToasts(page);
+    check(S, 'no error notification', errors.length === 0, errors.join(' | '));
+    if (SHOTS) fs.writeFileSync(path.join(SHOTS, `${S}-journey.json`), JSON.stringify(journey, null, 2));
+    await context.close();
+  },
+
+  // Part C: the example open at start: a change undone, explained, reviewed, fixed, CESAM applied.
+  async exercise_c(browser) {
+    const S = 'exercise_c';
+    const { context, page, chat } = await open(browser);
+    const journey = [];
+    const before = await fileText(page, 'starter.arc');
+    await step(page, chat, journey, 'Add a requirement REQ-003: the brake controller responds in less than 50 ms, and trace it to the Brake Controller.');
+    check(S, 'C1 written in the file', !!(await chat.$('.chat-turn.ai:last-child .chat-proposal.written')) && /REQ-003/.test(await fileText(page, 'starter.arc')));
+    check(S, 'C1 Keep / Undo above the change in the editor', (await page.$$eval('.codelens-decoration', (l) => l.map((x) => x.textContent).join(' '))).includes('Keep'));
+    await shot(page, 'exercise-c1-keep-undo');
+    const undo = await chat.$('.chat-turn.ai:last-child button:has-text("Undo")');
+    if (undo) await undo.click();
+    await page.waitForTimeout(2500);
+    check(S, 'C2 Undo puts the file back as it was', (await fileText(page, 'starter.arc')) === before);
+    const manager = await step(page, chat, journey, 'Explain this model to my manager in five lines, no jargon.');
+    check(S, 'C3 short and plain, nothing written', manager.text.length < 2200 && !(await chat.$('.chat-turn.ai:last-child .chat-proposal.written')), `${manager.text.length} chars`);
+    const weak = await step(page, chat, journey, 'What are the weak points of this architecture?');
+    check(S, 'C4 weak points on the real elements, nothing written', /LC-|REQ-|Brake|TC-/i.test(weak.text) && !(await chat.$('.chat-turn.ai:last-child .chat-proposal.written')), weak.text.slice(0, 160).replace(/\n/g, ' '));
+    const fix = await step(page, chat, journey, 'Fix the most important one.');
+    check(S, 'C5 the fix written, kept', await keep(page, chat), fix.text.slice(0, 120).replace(/\n/g, ' '));
+    check(S, 'C5 no error', (await statusErrors(page)) === 0, `errors: ${await statusErrors(page)}`);
+    const cesam = await step(page, chat, journey, 'Apply the CESAM method to my model.');
+    const kept = await keep(page, chat);
+    check(S, 'C6 CESAM written into the model, kept', kept && /method:\s*"cesam"|stakeholder/.test(await fileText(page, 'starter.arc')), cesam.text.slice(0, 140).replace(/\n/g, ' '));
+    check(S, 'C6 no error', (await statusErrors(page)) === 0, `errors: ${await statusErrors(page)}`);
+    const errors = await errorToasts(page);
+    check(S, 'no error notification', errors.length === 0, errors.join(' | '));
+    if (SHOTS) fs.writeFileSync(path.join(SHOTS, `${S}-journey.json`), JSON.stringify(journey, null, 2));
+    await context.close();
+  },
+
+  // Part D: from nothing, three systems: a one-pedal car (with its simulation), a calculator in French, a phone.
+  async exercise_d(browser) {
+    const S = 'exercise_d';
+    const { context, page, chat } = await open(browser);
+    const journey = [];
+    await command(page, 'View: Close All Editors');
+    const car = await step(page, chat, journey, 'Model a one-pedal electric car, as a new model.');
+    check(S, 'D1 a whole model that compiles', /✓ compiles/.test(car.text), car.text.slice(0, 100).replace(/\n/g, ' '));
+    const carFile = await createModel(page, chat);
+    check(S, 'D1 created, no error', /\.arc$/.test(carFile) && (await statusErrors(page)) === 0, `${carFile}, errors: ${await statusErrors(page)}`);
+    const more = await step(page, chat, journey, 'Add the one-pedal driving modes (accelerate, regenerate, stop), the safety analysis and the simulation of everything.');
+    const files = await writtenFiles(chat);
+    const kept = await keep(page, chat);
+    const text = await fileText(page, carFile);
+    check(S, 'D2 written and kept', kept, more.text.slice(0, 120).replace(/\n/g, ' '));
+    check(S, 'D2 modes, hazards and the Modelica package', /state_machine/.test(text) && /safety_analysis[\s\S]*hazard/.test(text) && files.some((f) => /\.mo$/.test(f)), files.join(', '));
+    check(S, 'D2 no error', (await statusErrors(page)) === 0, `errors: ${await statusErrors(page)}`);
+    if (process.env.SIM_IMAGE && files.length) await simulate(page, chat, files, S);
+    const plus = await chat.$('button[title*="New conversation"], .chat-new');
+    if (plus) await plus.click();
+    await page.waitForTimeout(1500);
+    const calc = await step(page, chat, journey, 'modélise une calculatrice scientifique');
+    check(S, 'D3 in French, a model that compiles', french(calc.text) && /✓ compiles/.test(calc.text), calc.text.slice(0, 100).replace(/\n/g, ' '));
+    const calcFile = await createModel(page, chat);
+    check(S, 'D3 created, no error', /\.arc$/.test(calcFile) && (await statusErrors(page)) === 0, `${calcFile}, errors: ${await statusErrors(page)}`);
+    const calcSim = await step(page, chat, journey, 'rajoute la simulation openmodelica');
+    const calcFiles = await writtenFiles(chat);
+    check(S, 'D4 the simulation written, kept', (await keep(page, chat)) && calcFiles.some((f) => /\.mo$/.test(f)), (calcFiles.join(', ') || calcSim.text.slice(0, 120)).replace(/\n/g, ' '));
+    check(S, 'D4 no error', (await statusErrors(page)) === 0, `errors: ${await statusErrors(page)}`);
+    if (process.env.SIM_IMAGE && calcFiles.length) await simulate(page, chat, calcFiles, `${S}_calc`);
+    const openBefore = await fileText(page, calcFile);
+    const phone = await step(page, chat, journey, 'Model a phone like the Nokia 3310');
+    check(S, 'D5 another system is a new model that compiles', /✓ compiles/.test(phone.text) && !!(await chat.$('.chat-turn.ai:last-child button:has-text("Create model")')), phone.text.slice(0, 100).replace(/\n/g, ' '));
+    check(S, 'D5 the open model is not changed', (await fileText(page, calcFile)) === openBefore);
+    const errors = await errorToasts(page);
+    check(S, 'no error notification', errors.length === 0, errors.join(' | '));
+    if (SHOTS) fs.writeFileSync(path.join(SHOTS, `${S}-journey.json`), JSON.stringify(journey, null, 2));
+    await context.close();
+  },
+
+  // Part E: questions on the tooling: guided answers with the real commands, never "no".
+  async exercise_e(browser) {
+    const S = 'exercise_e';
+    const { context, page, chat } = await open(browser);
+    const journey = [];
+    const embedded = await step(page, chat, journey, 'How do I generate embedded C code from my model and test it?');
+    check(S, 'E1 embedded C: the export and SIL', /export/i.test(embedded.text) && /\bsil\b/i.test(embedded.text), embedded.text.slice(0, 120).replace(/\n/g, ' '));
+    const cosim = await step(page, chat, journey, 'Can I run a co-simulation with OMSimulator?');
+    check(S, 'E2 co-simulation: arclang cosim', /cosim/.test(cosim.text) && !/^No\b/.test(cosim.text.replace(/^.*?claude-[\w-]+\s*/s, '').trim()), cosim.text.slice(0, 160).replace(/\n/g, ' '));
+    const ci = await step(page, chat, journey, 'Can I run the checks and the simulations in my CI pipeline?');
+    check(S, 'E3 CI: yes, with how', /\bCI\b|pipeline|GitHub|GitLab/i.test(ci.text) && /arclang (check|verify|ci)/i.test(ci.text), ci.text.slice(0, 160).replace(/\n/g, ' '));
+    const cesam = await step(page, chat, journey, 'What is the CESAM method and how do I use it here?');
+    check(S, 'E4 CESAM: explained, nothing written', /cesam/i.test(cesam.text) && /stakeholder/i.test(cesam.text) && !(await chat.$('.chat-turn.ai:last-child .chat-proposal.written')), cesam.text.slice(0, 160).replace(/\n/g, ' '));
+    const errors = await errorToasts(page);
+    check(S, 'no error notification', errors.length === 0, errors.join(' | '));
+    if (SHOTS) fs.writeFileSync(path.join(SHOTS, `${S}-journey.json`), JSON.stringify(journey, null, 2));
+    await context.close();
+  },
 };
 
 /** The model and the files the AI wrote, simulated by OpenModelica in the image the server runs. */
