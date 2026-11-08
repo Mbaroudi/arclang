@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **A simulation the AI writes ends in a verdict, not an error**: each new `expects:` must read a variable the simulated Modelica declares, by its path from the simulated model (`plant.water.T`), with a bound in the variable's unit; otherwise it goes back to the AI before you see it. The guide's example now teaches that form. (Before, most AI-written simulations ran but ended in "'x' is not a variable of the simulation result".)
+- A question is answered, never with edits ("which requirements are not verified?" lists them; "add them" does it); a request with a question mark is still a request ("ajoute un capteur ?"); "est-ce que tu peux…", "would you…" are requests. Answers no longer open with "Il s'agit d'une question".
+- The chat while waiting says how long it has been and that a whole model or a simulation takes up to a minute; a long model shows its first lines with "Show all N lines", and **Create model** again under it.
+- `test/web/monkey_test.js`: hundreds of seeded random actions on the playground (clicks, typing, undo, odd and hostile messages to the AI, Stop, Keep, Undo, Retry); the page must stay alive, with no uncaught error, no dialog, no error notification, and the chat must still answer. The scenario suite gains a CSV-requirements journey, CESAM applied on request and the review of an example, and now requires each simulated case to end in a verdict.
 - **A beginner is guided from a blank page to a simulation, without getting stuck**: online, the AI sends a visitor to the **Simulate** button of the diagram (and to sign in first when needed), never to a command the browser does not have; a test keeps the guide honest. "Can you…" / "peux-tu…" is a request and is done; a question gets the answer, without saying it is one. The explanation never mentions refused attempts and names concepts in plain words for a beginner.
 - The chat is quieter: no "No change proposed" under an answer; the list of edits is folded under the compiler's line.
 - Fixed: opening the workbench when it is already open beside the source moved it over the source and left a blank pane; it now stays where it is.

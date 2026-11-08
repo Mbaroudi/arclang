@@ -132,3 +132,6 @@ button:disabled { opacity: .5; cursor: default; }
 @media (prefers-reduced-motion: reduce) { .chat-dots::after { animation: none; width: auto; } }
 .chat-files li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 4px; }
 .chat-files .chat-link { overflow-wrap: anywhere; text-align: left; }
+.chat-code.is-long:not(.is-open) pre { max-height: 22em; overflow-y: auto; }
+.chat-code-foot { display: flex; gap: 6px; align-items: center; justify-content: flex-end; padding: 4px 6px; background: var(--c-code); border-top: 1px solid var(--c-line); }
+.chat-code-foot .chat-code-all { margin-right: auto; font-size: 11px; }

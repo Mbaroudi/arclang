@@ -11,6 +11,10 @@ import { prose } from './markdown';
 const vscode = acquireVsCodeApi() as unknown as { postMessage: (m: FromChatPage) => void };
 const post = (message: FromChatPage) => vscode.postMessage(message);
 const openLink = (url: string) => post({ type: 'chat-open-link', url });
+/** A model block longer than this shows its first lines in a bounded box. */
+const LONG_BLOCK = 24;
+/** Seconds of "Thinking" before the chat says how long it may take. */
+const WAIT_HINT = 8;
 
 type State = Extract<ToChatPage, { type: 'chat-state' }>;
 let state: State | null = null;
@@ -203,10 +207,24 @@ function renderText(host: HTMLElement, text: string, withCodeActions: boolean, c
     bar.append(copy);
     if (createsModels && /^(arc|arclang)$/i.test(lang) && /^\s*(?:\/\/[^\n]*\n\s*)*model\b/.test(code)) {
       if (compiled !== undefined) bar.append(el('span', { class: `chat-compiled ${compiled ? 'ok' : 'ko'}`, text: compiled ? '✓ compiles' : '⚠ does not compile yet', title: compiled ? 'Checked by the arclang compiler' : 'The compiler still finds errors: create it and press "Fix the findings", or ask again' }));
-      const create = el('button', { type: 'button', class: 'primary', text: 'Create model' });
-      create.title = 'Name the .arc file, open it beside its diagrams; the compiler checks it';
-      create.addEventListener('click', () => post({ type: 'chat-create-model', code }));
-      bar.append(create);
+      const createButton = () => {
+        const create = el('button', { type: 'button', class: 'primary', text: 'Create model' });
+        create.title = 'Name the .arc file, open it beside its diagrams; the compiler checks it';
+        create.addEventListener('click', () => post({ type: 'chat-create-model', code }));
+        return create;
+      };
+      bar.append(createButton());
+      // A whole model is long: shown in a bounded box, and Create model again under it, where the reader arrives.
+      const lines = code.split('\n').length;
+      if (lines > LONG_BLOCK) {
+        block.classList.add('is-long');
+        const all = el('button', { type: 'button', class: 'chat-code-all', text: `Show all ${lines} lines` });
+        all.addEventListener('click', () => {
+          const open = block.classList.toggle('is-open');
+          all.textContent = open ? 'Show less' : `Show all ${lines} lines`;
+        });
+        block.append(el('div', { class: 'chat-code-foot' }, [all, createButton()]));
+      }
     }
     if (withCodeActions && /^(modelica|mo)$/i.test(lang)) {
       for (const [label, where] of [['Replace selection', 'selection'], ['Insert at cursor', 'cursor'], ['Replace file', 'file']] as const) {
@@ -225,6 +243,19 @@ function addTurn(id: string, who: 'you' | 'ai', meta: string): { body: HTMLEleme
   transcript.append(node);
   scroll();
   return { body, node };
+}
+
+/** "Thinking", then the seconds and what takes long: a whole model or a simulation is written in about a minute, with nothing to show before. */
+function waiting(): HTMLElement {
+  const label = el('span', { text: 'Thinking' });
+  const node = el('p', { class: 'chat-wait' }, [label, el('span', { class: 'chat-dots', 'aria-hidden': 'true' })]);
+  const started = Date.now();
+  const timer = setInterval(() => {
+    if (!node.isConnected) return clearInterval(timer);
+    const seconds = Math.round((Date.now() - started) / 1000);
+    if (seconds >= WAIT_HINT) label.textContent = `Working · ${seconds} s (a whole model or a simulation takes up to a minute; the compiler checks it before you see it)`;
+  }, 1000);
+  return node;
 }
 
 function setBusy(value: boolean): void {
@@ -411,7 +442,7 @@ window.addEventListener('message', (event: MessageEvent<ToChatPage>) => {
       transcript.querySelector('.chat-welcome')?.remove();
       const meta = `${message.label}${message.file ? ` · ${message.file}` : ''}`;
       const turn = addTurn(message.id, 'ai', meta);
-      turn.body.append(el('p', { class: 'chat-wait' }, ['Thinking', el('span', { class: 'chat-dots', 'aria-hidden': 'true' })]));
+      turn.body.append(waiting());
       turns.set(message.id, { ...turn, text: '' });
       questionOf.set(message.id, lastQuestion);
       setBusy(true);

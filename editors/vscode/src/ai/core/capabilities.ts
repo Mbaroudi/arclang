@@ -76,10 +76,11 @@ export const TOPICS: Topic[] = [
   {
     what: 'Simulation with OpenModelica: verdicts on requirements',
     docs: ['simulation', 'docs/modelica.md'],
-    how: `1. Give the port types a physics: type "Power" { physics: electrical } (the physics are signal, electrical, thermal, mechanical_translational, mechanical_rotational; fluid is not exported yet). 2. Nodes of physical_architecture carry their parameters as quantities (energy: 75 kWh, mass: 420 kg). 3. The behaviour is a Modelica package next to the model (physics/X.mo) extending the structure the compiler generates ("ArcLang: Export Modelica", arclang export -f modelica). 4. A test_case says what to run and what must hold:
+    how: `1. Give the port types a physics: type "Power" { physics: electrical } (the physics are signal, electrical, thermal, mechanical_translational, mechanical_rotational; fluid is not exported yet). 2. Nodes of physical_architecture carry their parameters as quantities (energy: 75 kWh, mass: 420 kg). 3. The behaviour is a self-contained Modelica package next to the model (physics/X.mo, written with write_file): one model per case (X.Charge) holding instances (pack) of models whose Real variables carry their unit (Real T(unit = "K")); the compiler also generates the structure of the architecture ("ArcLang: Export Modelica", arclang export -f modelica) for packages that extend it. 4. A test_case says what to run and what must hold:
    test_case "Fast charge" { id: "TC-1" verifies: ["REQ-1"] method: "analysis"
      simulate: { model: "X.Charge" stop_time: 90 min sources: ["physics/X.mo"] }
-     expects: ["REQ-1: max(\\"PN-CELLS\\".core.T) <= 55 °C"] }
+     expects: ["REQ-1: max(pack.cell.T) <= 55 °C"] }
+   (an expects: reads a variable of the simulated model by its path from it, pack.cell.T, as the result names it; the bound has a unit of the same kind as the variable's unit, °C converting from K; a variable without unit compares with a plain number.)
    (sweep: [...] varies parameters.) 5. "ArcLang: Run simulations" (the Simulate button of the status bar; arclang verify): each case is simulated, its expects judged, the verdict goes to the requirement, the gate and the tables. Then "ArcLang: Replay a simulation on the diagram", "ArcLang: Open the Modelica drawing", "ArcLang: Export the simulation report (PDF or PowerPoint)…"; OMEdit opens the exported package.`,
     where: {
       desktop: 'with OpenModelica on this computer ("ArcLang: Set up OpenModelica" installs or finds it; else ArcLang Studio in Docker)',
@@ -96,7 +97,7 @@ export const TOPICS: Topic[] = [
   {
     what: 'Modelica code',
     docs: ['simulation', 'docs/modelica.md'],
-    how: 'Write the Modelica package next to the model with write_file (models extending the generated structure, equations balanced); it is checked when the simulation runs it.',
+    how: 'Write the Modelica package next to the model with write_file (self-contained: one model per case, Real variables with their unit, equations balanced); each expects: reads a variable of the simulated model by its path (plant.water.T). It is checked when the simulation runs it.',
   },
   {
     what: 'Running state machines, scenarios and functional chains step by step',

@@ -128,7 +128,14 @@ export const EDIT_REQUEST_SCHEMA = {
  * politely.
  */
 export function isQuestion(asked: string): boolean {
-  const polite = /^\s*(?:please\s+)?(?:can|could|would|will)\s+you\b|^\s*(?:peux|pourrais|pouvez|pourriez)[- ](?:tu|vous)\b|^\s*tu peux\b/i.test(asked);
+  const polite = /^\s*(?:please\s+)?(?:can|could|would|will)\s+you\b|^\s*(?:peux|pourrais|pouvez|pourriez)[- ](?:tu|vous)\b|^\s*(?:tu|vous) (?:peux|pouvez)\b|^\s*est[- ]ce que (?:tu|vous) (?:peux|pouvez|pourrais|pourriez)\b/i.test(asked);
   if (polite) return false;
-  return /\?\s*$/.test(asked.trim()) || /^\s*(comment|peut[- ]on|est[- ]ce|pourquoi|quel|quelle|can|could|how|what|why|is it|does)\b/i.test(asked);
+  // An action verb first is a request, even with a question mark ("ajoute un capteur ?", "fait moi un modèle ?").
+  if (/^\s*(?:(?:s'il te pla[iî]t|stp|please)[, ]+)?(?:ajoute|rajoute|fais|fait|cr[ée]e|mod[ée]lise|g[ée]n[èe]re|simule|corrige|supprime|enl[èe]ve|mets|met|[ée]cris|construis|applique|relie|renomme|add|make|create|build|write|generate|simulate|fix|remove|delete|put|apply|connect|rename|model)\b/i.test(asked)) return false;
+  return /\?\s*$/.test(asked.trim()) || /^\s*(comment|peut[- ]on|est[- ]ce|pourquoi|quel|quelle|quels|quelles|o[uù]|can|could|how|what|which|why|where|is it|does|do i|are)\b/i.test(asked);
+}
+
+/** An explanation without the AI talking about the exchange ("Il s'agit d'une question : voici les étapes."): the answer starts with the answer. */
+export function withoutMetaTalk(text: string): string {
+  return text.replace(/^\s*(?:(?:c'est|il s'agit d')\s*une question|this is a question|that is a question|you asked a question|vous posez une question)[^.:\n]*[.:]\s*(?:(?:voici|here are|here is)[^.:\n]*[.:]\s*)?/i, '');
 }

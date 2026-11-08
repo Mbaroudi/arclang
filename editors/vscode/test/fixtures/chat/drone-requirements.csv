@@ -1,0 +1,5 @@
+id,title,text,priority
+DR-001,Flight time,The drone shall fly at least 25 minutes with a 500 g payload,High
+DR-002,Return home,The drone shall return to its take-off point when the battery falls below 20 %,Critical
+DR-003,Geofence,The drone shall not leave a configured 2 km radius,Critical
+DR-004,Video link,The drone shall stream video to the operator with less than 200 ms latency,Medium

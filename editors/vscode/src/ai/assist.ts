@@ -21,7 +21,8 @@ import { sampleModel } from './context';
 import { currentWorkspace } from './workspace';
 import type { ProposalView, QuickAction } from './core/protocol';
 import { QUICK_ACTIONS } from './core/protocol';
-import { describeEdit, isQuestion } from './core/requests';
+import { describeEdit, isQuestion, withoutMetaTalk } from './core/requests';
+import { unreadableExpects } from '../pure/sim-expects';
 import { arcText, checkRequests, checkSource, impactOf, snapshotOfText } from './compiler';
 import { forgetPreview, showDiff } from './preview';
 import type { ChatMessage, ToolCall } from './providers';
@@ -224,7 +225,8 @@ export async function runAsk(
           onText(text, chars);
         },
       });
-      const answer = parseAssistAnswer(result.text, result.calls);
+      const parsed = parseAssistAnswer(result.text, result.calls);
+      const answer = { ...parsed, explanation: withoutMetaTalk(parsed.explanation) };
       messages.push({ role: 'assistant', content: result.text, toolCalls: result.calls.length ? result.calls : undefined });
       for (const call of result.calls) messages.push({ role: 'tool', content: 'Received: it is being compiled.', toolCallId: call.id, toolName: call.name });
       if (answer.newModel) {
@@ -238,6 +240,14 @@ export async function runAsk(
         live.newModel = { source: answer.newModel, explanation: answer.explanation, compiled: checked.ok };
         live.proposal = null;
         return { ok: true, session: live };
+      }
+      // A question is answered, never with edits: "which requirements are not verified?" gets the list, then "add them" does it.
+      const askedNow = 'refine' in request ? request.refine : request.prompt;
+      if (isQuestion(askedNow) && (answer.requests.length || answer.source) && attempt < repairAttempts()) {
+        logLine(`ask ${sessionId}: a question was answered with edits; sent back to the AI`);
+        messages.push({ role: 'user', content: 'The engineer asked a question, not for a change: nothing was applied. Answer it in the explanation of propose_edits with an empty requests list: the answer itself, and what you would change and why. End by offering to do it.' });
+        onText('\n(a question: answering it without changing the model)\n', chars);
+        continue;
       }
       let refusal: string | null = answer.problem;
       let proposed: string | null = null;
@@ -282,8 +292,16 @@ export async function runAsk(
       }
       if (missing.length && attempt < repairAttempts()) {
         logLine(`ask ${sessionId}: the proposal names ${missing.join(', ')}, which is not written; sent back to the AI`);
-        messages.push({ role: 'user', content: `The test case's simulate: names ${missing.map((m) => `"${m}"`).join(', ')} in sources:, but no such file is next to the model and you did not write it. Write it now with write_file (the whole Modelica package: models extending the classes \`arclang export -f modelica\` generates for the elements, equations balanced, the variables the expects: read), then send the complete propose_edits again.` });
+        messages.push({ role: 'user', content: `The test case's simulate: names ${missing.map((m) => `"${m}"`).join(', ')} in sources:, but no such file is next to the model and you did not write it. Write it now with write_file (the whole Modelica package, self-contained: one model per case, Real variables with their unit, equations balanced, the variables the expects: read by their path from the simulated model), then send the complete propose_edits again.` });
         onText(`\n(the simulation names ${missing.join(', ')}, which is not written yet; asking for it)\n`, chars);
+        continue;
+      }
+      // Each new expects: must read a variable the simulated Modelica declares, in its unit: else the run ends in an error, not a verdict.
+      const unreadable = proposed ? unreadableExpects(source.text, proposed, await modelicaOf(document, proposed, files)) : [];
+      if (unreadable.length && attempt < repairAttempts()) {
+        logLine(`ask ${sessionId}: ${unreadable.length} expectation(s) cannot be judged against the Modelica; sent back to the AI`);
+        messages.push({ role: 'user', content: `The simulation would end in an error, not a verdict:\n${unreadable.slice(0, 10).map((p) => `- ${p}`).join('\n')}\nThe result of a run holds the variables of the simulated Modelica model by their path from it (for model Heating with an instance plant of a model that has water.T: plant.water.T). Write each expects: on such a path, e.g. "REQ-1: max(plant.water.T) <= 96 °C", with the variable declared with unit = "K" (or "degC", "m/s2", "V"...) and the bound in a unit of the same kind (°C converts from K). Fix the Modelica (write_file again) or the expects:, then send the complete propose_edits again.` });
+        onText(`\n(the simulation would not give a verdict: ${unreadable[0].slice(0, 110)}…; asking for a correction)\n`, chars);
         continue;
       }
       const written = [...files].map(([path, content]) => ({ path, content }));
@@ -365,6 +383,19 @@ async function missingSources(document: vscode.TextDocument, current: string, pr
     if (!hasPackage) missing.push('the Modelica package (physics/<Name>Physics.mo, named in sources:)');
   }
   return missing;
+}
+
+/** The Modelica a proposal simulates: the packages written with it, and the sources it names that are next to the model. */
+async function modelicaOf(document: vscode.TextDocument, proposed: string, files: Map<string, string>): Promise<string> {
+  const texts = [...files].filter(([path]) => /\.mo$/i.test(path)).map(([, text]) => text);
+  const folder = vscode.Uri.joinPath(document.uri, '..');
+  const named = new Set([...proposed.matchAll(/sources:\s*\[([^\]]*)\]/g)].flatMap((m) => [...m[1].matchAll(/"([^"]+)"/g)].map((q) => q[1].replace(/^\.\//, ''))));
+  for (const path of named) {
+    if (files.has(path)) continue;
+    const bytes = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(folder, ...path.split('/'))).then((b) => b, () => null);
+    if (bytes) texts.push(new TextDecoder().decode(bytes));
+  }
+  return texts.join('\n');
 }
 
 /** Files written with a proposal, as they were before (removed when they did not exist). */
