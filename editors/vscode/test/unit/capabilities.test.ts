@@ -5,7 +5,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { capabilitiesGuide } from '../../src/ai/core/capabilities';
+import { readdirSync } from 'node:fs';
+import { capabilitiesGuide, TOPICS } from '../../src/ai/core/capabilities';
 import { SYSTEM_RULES, systemRulesFor } from '../../src/ai/core/prompts';
 
 const pkg = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf8'));
@@ -32,8 +33,8 @@ test('what runs where: the desktop, arclang.fr signed in, arclang.fr anonymous',
   assert.match(capabilitiesGuide('desktop'), /OpenModelica on this computer/);
   assert.match(capabilitiesGuide('desktop'), /ArcLang Studio/);
   const online = capabilitiesGuide('online');
-  assert.match(online, /runs on the server \(OpenModelica/);
-  assert.match(online, /compiling and running the code \(sil, pil, hdl, soc, cosim\) needs the desktop/);
+  assert.match(online, /Here: on the server \(OpenModelica/);
+  assert.match(online, /compiling and running it \(sil\) needs the desktop/);
   assert.doesNotMatch(online, /sign in/i);
   const anonymous = capabilitiesGuide('online-anonymous');
   assert.match(anonymous, /needs the visitor to sign in on arclang\.fr/);
@@ -52,4 +53,45 @@ test('the system rules keep their rules and gain the guide', () => {
   assert.ok(rules.startsWith(SYSTEM_RULES));
   assert.match(rules, /# What ArcLang can do, and how/);
   assert.match(SYSTEM_RULES, /numbered steps/);
+});
+
+// The pages of arclang.fr/docs/ (arclang-web's docs-src and the repository's
+// pages it publishes). A page added to the site is added here, and the guide
+// must then say what it is about.
+const SITE_PAGES = ['', 'api', 'arcadia', 'capella', 'cesam', 'cesam-tutorial', 'ci-cd', 'cli', 'cosimulation', 'diagrams',
+  'embedded-c', 'embedded-fpga', 'embedded-system', 'embedded-targets', 'exchange-formats', 'getting-started', 'grammar',
+  'language', 'mbse', 'metamodel', 'migration-4.0', 'platform', 'production-gate', 'realization', 'review-and-change', 'rules',
+  'semantic-git', 'simulation', 'studio', 'sysml-v2', 'sysml-v2-modeling', 'tutorial', 'types-and-constraints', 'versioning', 'vscode'];
+
+test('every page of the documentation is a topic of the guide', () => {
+  const linked = new Set(TOPICS.flatMap((t) => t.docs));
+  for (const page of SITE_PAGES.filter(Boolean)) assert.ok(linked.has(page), `arclang.fr/docs/${page}/ is in no topic`);
+  for (const page of linked) assert.ok(page.startsWith('docs/') || SITE_PAGES.includes(page), `${page} is no page of arclang.fr/docs/`);
+});
+
+test('every document of the repository is a topic of the guide, by its page or its file', () => {
+  const linked = new Set(TOPICS.flatMap((t) => t.docs));
+  const docs = join(__dirname, '../../../../docs');
+  for (const file of readdirSync(docs).filter((f) => f.endsWith('.md') && f !== 'README.md')) {
+    const slug = file.replace(/\.md$/, '').toLowerCase().replace(/_/g, '-');
+    assert.ok(linked.has(slug) || linked.has(`docs/${file}`), `docs/${file} is in no topic`);
+  }
+  for (const page of linked) if (page.startsWith('docs/')) assert.ok(readdirSync(docs).includes(page.slice(5)), `${page} does not exist`);
+});
+
+// arclang --help, the commands a user runs (not the internal ones: build, sync, plugin, explorer, repl, clean, info, review).
+const CLI = ['check', 'transition', 'rules', 'format', 'new', 'trace', 'gate', 'diff', 'history', 'merge', 'restore', 'baseline', 'ci',
+  'report', 'sarif', 'impact', 'debug', 'verify', 'cosim', 'sil', 'pil', 'hdl', 'soc', 'partition', 'schedule', 'realize', 'twin',
+  'document', 'export', 'import', 'safety', 'serve', 'lsp', 'set', 'rename', 'workbench', 'edit', 'table', 'metamodel', 'diagram'];
+
+test('every command of the command line is in the guide', () => {
+  const guide = capabilitiesGuide('desktop');
+  for (const command of CLI) assert.match(guide, new RegExp(`\\barclang ${command}\\b|arclang [a-z, /]*\\b${command}\\b`), `arclang ${command} is not in the guide`);
+});
+
+test('CESAM, co-simulation, embedded C, FPGA, SoC and twins say what runs online and what needs the desktop', () => {
+  const online = capabilitiesGuide('online');
+  for (const what of ['Co-simulation (cosim) needs the desktop', 'Processor in the loop (pil) needs the desktop', 'The SoC (soc) needs the desktop', 'the export of the VHDL runs on the server', 'the export of the C runs on the server', 'live sources need the desktop', 'CESAM ships with release 4.13']) {
+    assert.ok(online.includes(what), `missing: ${what}`);
+  }
 });
