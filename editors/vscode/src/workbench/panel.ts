@@ -93,7 +93,8 @@ export class WorkbenchPanel {
   static async open(document: vscode.TextDocument): Promise<void> {
     const existing = WorkbenchPanel.for(document.uri);
     if (existing) {
-      existing.panel.reveal(undefined, true);
+      // In its own column: reveal() with none moves it into the active group, over the source, and leaves its place blank.
+      existing.panel.reveal(existing.panel.viewColumn, true);
       return;
     }
     await vscode.commands.executeCommand('vscode.openWith', document.uri, VIEW_TYPE, { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true });
@@ -259,7 +260,7 @@ export class WorkbenchPanel {
   /** Show one diagram of the model (a graph id of the snapshot). */
   show(view: string, selectId?: string): void {
     this.post({ type: 'show', view, select: selectId ?? null });
-    this.panel.reveal(undefined, true);
+    this.panel.reveal(this.panel.viewColumn, true);
   }
 
   private lastFileState = '';
@@ -328,7 +329,7 @@ export class WorkbenchPanel {
 
   /** A diagram command (copy as image, PowerPoint, theme), run by the page. */
   diagramAction(action: DiagramAction, args?: ExportArgs): void {
-    this.panel.reveal(undefined, false);
+    this.panel.reveal(this.panel.viewColumn, false);
     this.exports.run(action, args);
   }
 
@@ -433,7 +434,7 @@ export class WorkbenchPanel {
         // without side bars, panel or status bar. And gives it all back.
         if (message.on !== this.maximized) {
           this.maximized = message.on;
-          this.panel.reveal(undefined, false);
+          this.panel.reveal(this.panel.viewColumn, false);
           await setFullScreen(message.on);
         }
         return;

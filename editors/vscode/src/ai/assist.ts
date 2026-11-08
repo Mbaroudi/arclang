@@ -21,7 +21,7 @@ import { sampleModel } from './context';
 import { currentWorkspace } from './workspace';
 import type { ProposalView, QuickAction } from './core/protocol';
 import { QUICK_ACTIONS } from './core/protocol';
-import { describeEdit } from './core/requests';
+import { describeEdit, isQuestion } from './core/requests';
 import { arcText, checkRequests, checkSource, impactOf, snapshotOfText } from './compiler';
 import { forgetPreview, showDiff } from './preview';
 import type { ChatMessage, ToolCall } from './providers';
@@ -273,7 +273,7 @@ export async function runAsk(
       const asked = 'refine' in request ? request.refine : request.prompt;
       const simulates = (text: string) => (text.match(/simulate:\s*\{/g) ?? []).length;
       // Only a request to do it ("rajoute la simulation"), not a question about it ("peut-on faire une co-simulation ?").
-      const question = /\?\s*$/.test(asked.trim()) || /^\s*(comment|peut[- ]on|est[- ]ce|pourquoi|quel|quelle|can|could|how|what|why|is it|does)\b/i.test(asked);
+      const question = isQuestion(asked);
       if (!question && /simul|openmodelica|modelica/i.test(asked) && simulates(proposed ?? source.text) <= simulates(source.text) && ![...files.keys()].some((p) => /\.mo$/i.test(p)) && attempt < repairAttempts()) {
         logLine(`ask ${sessionId}: a simulation was asked and the proposal has none; sent back to the AI`);
         messages.push({ role: 'user', content: 'The engineer asked for the simulation too, and your proposal has none. Add it now, in this answer: write the Modelica package with write_file (physics/<Name>Physics.mo), give the port types their physics if needed, and add a test_case with simulate: { model: ... stop_time: ... sources: [...] } and expects: on a requirement; keep everything else of your proposal. Send the complete propose_edits again.' });

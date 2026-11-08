@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { changeMarks } from '../../src/ai/core/diff';
 import { attachmentsBlock, CREATE_MODEL, MAX_ATTACHED, NO_FILE_RULES, SYSTEM_RULES, WRITE_FILE, writablePath } from '../../src/ai/core/prompts';
 import { parseAssistAnswer } from '../../src/ai/core/answer';
-import { validateRequests } from '../../src/ai/core/requests';
+import { isQuestion, validateRequests } from '../../src/ai/core/requests';
 import { converse } from '../../src/ai/core/conversation';
 import { parseFromChatPage } from '../../src/ai/chat/protocol';
 import { markupText, unzip, decode } from '../../webview/chat/markup';
@@ -148,4 +148,10 @@ test('an answer cut at the token limit is not run: the AI is asked again for a s
   assert.equal(round, 2);
   assert.match(seen[1], /cut at the token limit/);
   assert.equal((result.calls[0].input as { explanation: string }).explanation, 'part 1. Next: the rest');
+});
+
+test('a polite request is a request; a question is a question', () => {
+  for (const asked of ['Can you simulate the battery range?', 'could you add the simulation', 'peux-tu ajouter la simulation ?', 'Pouvez-vous simuler la chauffe ?', 'tu peux simuler ça']) assert.equal(isQuestion(asked), false, asked);
+  for (const asked of ['peut-on faire une co-simulation dans OMSimulator ?', 'How do I run it?', 'comment je lance la simulation', 'Can I bring my requirements from DOORS?', 'est ce que mon modèle est bon ?']) assert.equal(isQuestion(asked), true, asked);
+  assert.equal(isQuestion('rajoute la simulation openmodelica'), false);
 });

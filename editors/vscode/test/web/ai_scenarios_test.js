@@ -103,6 +103,62 @@ async function shot(page, name) {
   if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
 }
 
+/** Workbenches on screen that draw a diagram, and those left blank. */
+async function drawnWorkbenches(page) {
+  let n = 0;
+  for (const f of page.frames()) if (await f.evaluate(() => !!document.querySelector('.wb-problems-head') && document.querySelectorAll('svg g').length > 5).catch(() => false)) n++;
+  return n;
+}
+async function blankWorkbenches(page) {
+  let n = 0;
+  for (const f of page.frames()) if (await f.evaluate(() => !!document.querySelector('.wb-problems-head') && document.querySelectorAll('svg g').length === 0).catch(() => false)) n++;
+  return n;
+}
+
+/** Answers in French: a beginner who writes French reads French. */
+const french = (text) => (text.match(/\b(le|la|les|vous|votre|est|une|des|pour|dans)\b/gi) ?? []).length >= 5;
+
+/** The error notifications on screen (what stops a visitor). */
+async function errorToasts(page) {
+  return page.$$eval('.notification-toast', (l) => l.filter((t) => t.querySelector('.codicon-error')).map((t) => t.innerText.replace(/\s+/g, ' ').slice(0, 160))).catch(() => []);
+}
+
+/** Asks and times it; the step is logged for the review of the journey. */
+async function step(page, chat, journey, question) {
+  const started = Date.now();
+  const answer = await ask(page, chat, question);
+  const seconds = Math.round((Date.now() - started) / 1000);
+  journey.push({ question, seconds, text: answer.text });
+  console.log(`  · ${seconds}s  « ${question} »`);
+  return { ...answer, seconds };
+}
+
+/** Answers in English: a visitor who writes English reads English. */
+const english = (text) => (text.match(/\b(the|and|is|you|your|to|of|with|this)\b/gi) ?? []).length >= 6 && !french(text.replace(/model \w+ \{[\s\S]*$/, ''));
+
+/** Creates the model of the last answer in one click; the file it opened. */
+async function createModel(page, chat) {
+  const create = await chat.$('.chat-turn.ai:last-child button:has-text("Create model")');
+  if (!create) return '';
+  await create.click();
+  await page.waitForTimeout(2000);
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(9000);
+  return chatFile(chat);
+}
+
+/** Keeps the change of the last answer when it was written; whether it was. */
+async function keep(page, chat) {
+  const written = await chat.$('.chat-turn.ai:last-child .chat-proposal.written');
+  if (!written) return false;
+  await (await chat.$('.chat-turn.ai:last-child button:has-text("Keep")')).click();
+  await page.waitForTimeout(2500);
+  return true;
+}
+
+/** The files the last answer wrote next to the model. */
+const writtenFiles = (chat) => chat.$$eval('.chat-turn.ai:last-child .chat-files .chat-link', (l) => l.map((x) => x.textContent)).catch(() => []);
+
 const SCENARIOS = {
   // No file open: a new model, compiled before it is shown, created in one click.
   async calc(browser) {
@@ -217,6 +273,161 @@ const SCENARIOS = {
     await page.waitForTimeout(2500);
     check('onepedal', 'the model has no error', (await statusErrors(page)) === 0, `errors: ${await statusErrors(page)}`);
     if (process.env.SIM_IMAGE && allFiles.length) await simulate(page, chat, allFiles, 'onepedal');
+    await context.close();
+  },
+
+  // A beginner on a blank page, no account, plain questions: guided from A to Z, never blocked.
+  async novice(browser) {
+    const { context, page, chat } = await open(browser);
+    const journey = [];
+    const slow = [];
+    const timed = (a) => { if (a.seconds > 120) slow.push(`${a.seconds}s`); return a; };
+    await command(page, 'View: Close All Editors');
+    check('novice', 'the welcome offers where to start', !!(await chat.$('.chat-starters, .chat-welcome')));
+
+    const hello = timed(await step(page, chat, journey, "bonjour, je n'y connais rien en modélisation système, je veux juste tester l'outil. je fais quoi ?"));
+    await shot(page, 'novice-1-hello');
+    check('novice', 'hello: an answer in French', french(hello.text), hello.text.slice(0, 120).replace(/\n/g, ' '));
+    check('novice', 'hello: a first step to take, not a lecture', /machine|exemple|décri|propos|modèle de|par exemple|essay/i.test(hello.text) && hello.text.length < 2500, `${hello.text.length} chars`);
+    check('novice', 'hello: nothing written yet', !(await chat.$('.chat-turn.ai:last-child .chat-proposal.written')));
+
+    const make = timed(await step(page, chat, journey, "ok fais moi un modèle d'une machine à café"));
+    await shot(page, 'novice-2-model');
+    check('novice', 'model: a whole model that compiles', /✓ compiles/.test(make.text), make.text.slice(0, 100).replace(/\n/g, ' '));
+    const create = await chat.$('.chat-turn.ai:last-child button:has-text("Create model")');
+    check('novice', 'model: Create model in one click', !!create);
+    if (create) {
+      await create.click();
+      await page.waitForTimeout(2000);
+      await page.keyboard.press('Enter');
+      await page.waitForTimeout(9000);
+    }
+    const file = await chatFile(chat);
+    check('novice', 'model: the file is open and has no error', /\.arc$/.test(file) && (await statusErrors(page)) === 0, `${file}, errors: ${await statusErrors(page)}`);
+    const created = Object.entries(await storedFiles(page)).find(([k]) => k.endsWith(`/${file}`));
+
+    const explain = timed(await step(page, chat, journey, "j'ai rien compris, explique moi simplement ce que tu as fait"));
+    await shot(page, 'novice-3-explain');
+    check('novice', 'explain: in French and plain', french(explain.text) && explain.text.length < 3000, `${explain.text.length} chars`);
+    check('novice', 'explain: the model is not changed', created ? (await fileText(page, file)) === created[1] : true);
+
+    const see = timed(await step(page, chat, journey, 'comment je vois le schéma ?'));
+    check('novice', 'diagram: names the real command', /Open the workbench beside the source|Open a diagram/i.test(see.text), see.text.slice(0, 160).replace(/\n/g, ' '));
+    // What the answer says to do, done as a visitor does it.
+    await command(page, 'ArcLang: Open the workbench beside the source');
+    await page.waitForTimeout(6000);
+    await shot(page, 'novice-4-diagram');
+    check('novice', 'diagram: drawn (one workbench, not a blank one)', (await drawnWorkbenches(page)) >= 1 && (await blankWorkbenches(page)) === 0, `drawn ${await drawnWorkbenches(page)}, blank ${await blankWorkbenches(page)}`);
+
+    const add = timed(await step(page, chat, journey, 'ajoute un bouton pour faire un cappuccino'));
+    await shot(page, 'novice-5-add');
+    const written = await chat.$('.chat-turn.ai:last-child .chat-proposal.written');
+    check('novice', 'add: written in the file with Keep / Undo', !!written, add.text.slice(0, 120).replace(/\n/g, ' '));
+    if (written) {
+      await (await chat.$('.chat-turn.ai:last-child button:has-text("Keep")')).click();
+      await page.waitForTimeout(2500);
+    }
+    check('novice', 'add: still no error', (await statusErrors(page)) === 0, `errors: ${await statusErrors(page)}`);
+    check('novice', 'add: the cappuccino is in the model', /cappuccino/i.test(await fileText(page, file)));
+
+    const good = timed(await step(page, chat, journey, 'est ce que mon modèle est bon ?'));
+    check('novice', 'review: an answer in French', french(good.text), good.text.slice(0, 160).replace(/\n/g, ' '));
+
+    const sim = timed(await step(page, chat, journey, "simule la chauffe de l'eau"));
+    await shot(page, 'novice-6-sim');
+    const simWritten = await chat.$('.chat-turn.ai:last-child .chat-proposal.written');
+    const simFiles = await chat.$$eval('.chat-turn.ai:last-child .chat-files .chat-link', (l) => l.map((x) => x.textContent)).catch(() => []);
+    check('novice', 'simulation: written, with its Modelica package', !!simWritten && simFiles.some((f) => /\.mo$/.test(f)), (simFiles.join(', ') || sim.text.slice(0, 120)).replace(/\n/g, ' '));
+    if (simWritten) {
+      await (await chat.$('.chat-turn.ai:last-child button:has-text("Keep")')).click();
+      await page.waitForTimeout(2500);
+    }
+    check('novice', 'simulation: still no error', (await statusErrors(page)) === 0, `errors: ${await statusErrors(page)}`);
+    check('novice', 'the diagram is still drawn after the AI\'s changes', (await drawnWorkbenches(page)) >= 1 && (await blankWorkbenches(page)) === 0, `drawn ${await drawnWorkbenches(page)}, blank ${await blankWorkbenches(page)}`);
+    if (process.env.SIM_IMAGE && simFiles.length) await simulate(page, chat, simFiles, 'novice');
+
+    const run = timed(await step(page, chat, journey, 'comment je lance la simulation ?'));
+    check('novice', 'run: the Simulate button of the diagram, and a free account', /Simulate/.test(run.text) && /compte|connect|sign/i.test(run.text) && !/(« ArcLang: Run simulations »|"ArcLang: Run simulations")(?![^.]*(pas disponible|not available|desktop|poste|ordinateur))/.test(run.text), run.text.slice(0, 200).replace(/\n/g, ' '));
+    // The button the answer names, clicked without an account.
+    let clicked = false;
+    for (const f of page.frames()) {
+      const button = await f.$('button:has-text("Simulate")').catch(() => null);
+      if (button && !clicked) clicked = !!(await button.click({ force: true }).then(() => true).catch(() => false));
+    }
+    await page.waitForTimeout(5000);
+    await shot(page, 'novice-7-run');
+    const notes = await page.$$eval('.notification-toast', (l) => l.map((t) => t.innerText.replace(/\s+/g, ' '))).catch(() => []);
+    check('novice', 'run: without an account, a clear sign-in message (no cryptic error)', notes.some((n) => /sign in/i.test(n)) && !notes.some((n) => /undefined|exception|stack|Null Extension/i.test(n)), notes.join(' | ').slice(0, 200));
+
+    const vague = timed(await step(page, chat, journey, 'sa marche pa'));
+    check('novice', 'vague: a helpful answer, not an error', french(vague.text) && !/error|erreur interne|failed/i.test(vague.text.slice(0, 80)), vague.text.slice(0, 160).replace(/\n/g, ' '));
+
+    const errors = await errorToasts(page);
+    check('novice', 'no error notification during the journey', errors.length === 0, errors.join(' | '));
+    check('novice', 'every answer within 2 minutes', slow.length === 0, slow.join(', '));
+    if (SHOTS) fs.writeFileSync(path.join(SHOTS, 'novice-journey.json'), JSON.stringify(journey, null, 2));
+    await context.close();
+  },
+
+  // The same beginner in English, another product: a visitor from abroad.
+  async beginner_en(browser) {
+    const { context, page, chat } = await open(browser);
+    const journey = [];
+    const S = 'beginner_en';
+    await command(page, 'View: Close All Editors');
+    const hello = await step(page, chat, journey, "Hi, I have never done systems engineering. I just want to try this tool. Where do I start?");
+    check(S, 'hello: an answer in English with a first step', english(hello.text) && hello.text.length < 2500, hello.text.slice(0, 120).replace(/\n/g, ' '));
+    const make = await step(page, chat, journey, 'Make me a model of an electric scooter');
+    await shot(page, 'beginner_en-model');
+    check(S, 'model: a whole model that compiles', /✓ compiles/.test(make.text), make.text.slice(0, 100).replace(/\n/g, ' '));
+    const file = await createModel(page, chat);
+    check(S, 'model: created, open, no error', /\.arc$/.test(file) && (await statusErrors(page)) === 0, `${file}, errors: ${await statusErrors(page)}`);
+    const explain = await step(page, chat, journey, "I don't understand any of this. Explain what you did in simple words.");
+    check(S, 'explain: plain English, nothing changed', english(explain.text) && !(await chat.$('.chat-turn.ai:last-child .chat-proposal.written')), `${explain.text.length} chars`);
+    const add = await step(page, chat, journey, 'Add a headlight that turns on automatically when it gets dark');
+    check(S, 'add: written with Keep / Undo', await keep(page, chat), add.text.slice(0, 120).replace(/\n/g, ' '));
+    check(S, 'add: still no error', (await statusErrors(page)) === 0, `errors: ${await statusErrors(page)}`);
+    const sim = await step(page, chat, journey, 'Can you simulate the battery range?');
+    const files = await writtenFiles(chat);
+    const simKept = await keep(page, chat);
+    check(S, 'simulate: written, with its Modelica package', simKept && files.some((f) => /\.mo$/.test(f)), (files.join(', ') || sim.text.slice(0, 120)).replace(/\n/g, ' '));
+    check(S, 'simulate: still no error', (await statusErrors(page)) === 0, `errors: ${await statusErrors(page)}`);
+    if (process.env.SIM_IMAGE && files.length) await simulate(page, chat, files, S);
+    const run = await step(page, chat, journey, 'How do I run it?');
+    check(S, 'run: the Simulate button, and a free account', /Simulate/.test(run.text) && /sign in|account/i.test(run.text) && !/"ArcLang: Run simulations"(?![^.]*(not available|desktop|computer))/.test(run.text), run.text.slice(0, 200).replace(/\n/g, ' '));
+    const errors = await errorToasts(page);
+    check(S, 'no error notification', errors.length === 0, errors.join(' | '));
+    if (SHOTS) fs.writeFileSync(path.join(SHOTS, `${S}-journey.json`), JSON.stringify(journey, null, 2));
+    await context.close();
+  },
+
+  // Simulation process and data management: requirement → simulation → verdict, results, reports, traceability.
+  async spdm(browser) {
+    const { context, page, chat } = await open(browser);
+    const journey = [];
+    const S = 'spdm';
+    await command(page, 'View: Close All Editors');
+    const how = await step(page, chat, journey, 'I work in simulation process and data management. How does ArcLang tie a simulation result to a requirement?');
+    check(S, 'how: test_case, simulate:, expects: and the verdict on the requirement, nothing written', /simulate:/.test(how.text) && /expects/.test(how.text) && /verdict/i.test(how.text) && !(await chat.$('.chat-turn.ai:last-child .chat-proposal.written')), how.text.slice(0, 160).replace(/\n/g, ' '));
+    const make = await step(page, chat, journey, 'Build a small model of a battery pack with liquid cooling: requirements on the maximum cell temperature, the components, and a test case that will verify the temperature by simulation.');
+    check(S, 'model: compiles', /✓ compiles/.test(make.text), make.text.slice(0, 100).replace(/\n/g, ' '));
+    const file = await createModel(page, chat);
+    check(S, 'model: created, no error', /\.arc$/.test(file) && (await statusErrors(page)) === 0, `${file}, errors: ${await statusErrors(page)}`);
+    const sim = await step(page, chat, journey, 'Now add the simulation so that the requirement gets a verdict.');
+    const files = await writtenFiles(chat);
+    const kept = await keep(page, chat);
+    check(S, 'simulation: written with its Modelica package', kept && files.some((f) => /\.mo$/.test(f)), (files.join(', ') || sim.text.slice(0, 160)).replace(/\n/g, ' '));
+    check(S, 'simulation: no error', (await statusErrors(page)) === 0, `errors: ${await statusErrors(page)}`);
+    if (process.env.SIM_IMAGE && files.length) await simulate(page, chat, files, S);
+    const results = await step(page, chat, journey, 'Where are the simulation results kept, and can I export a report of the verdicts?');
+    check(S, 'results: names the report export, in English', english(results.text) && /Export the simulation report/.test(results.text), results.text.slice(0, 200).replace(/\n/g, ' '));
+    const trace = await step(page, chat, journey, 'How do I see the traceability from requirements to components and tests?');
+    check(S, 'traceability: a real view or command, nothing written', /Requirements|traceab|matrix|table/i.test(trace.text) && !(await chat.$('.chat-turn.ai:last-child .chat-proposal.written')), trace.text.slice(0, 200).replace(/\n/g, ' '));
+    const reqif = await step(page, chat, journey, 'Can I bring my requirements from DOORS or a ReqIF file?');
+    check(S, 'ReqIF: yes, with how', /ReqIF/i.test(reqif.text) && !/^No\b/.test(reqif.text.replace(/^.*?claude-[\w-]+\s*/s, '').trim()), reqif.text.slice(0, 200).replace(/\n/g, ' '));
+    const errors = await errorToasts(page);
+    check(S, 'no error notification', errors.length === 0, errors.join(' | '));
+    if (SHOTS) fs.writeFileSync(path.join(SHOTS, `${S}-journey.json`), JSON.stringify(journey, null, 2));
     await context.close();
   },
 

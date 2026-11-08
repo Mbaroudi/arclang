@@ -243,10 +243,13 @@ function proposalCard(id: string, session: string, proposal: ProposalView, provi
   if (!proposal.ok) {
     card.append(el('div', { class: 'chat-refused', role: 'alert' }, [el('strong', { text: 'The compiler refused the change. ' }), proposal.error ?? '']));
   } else if (proposal.explainOnly) {
-    card.append(el('div', { class: 'chat-note', text: 'No change proposed: an explanation only.' }));
+    // An answer: its text says it all (no notice that nothing changed).
   } else {
-    card.append(el('div', { class: 'chat-checked', text: `Checked by the compiler on a copy: ${proposal.edits.length} edit${proposal.edits.length === 1 ? '' : 's'}, +${proposal.added} -${proposal.removed} lines${proposal.newFindings.length ? `, ${proposal.newFindings.length} new finding${proposal.newFindings.length > 1 ? 's' : ''}` : ''}.` }));
-    if (proposal.edits.length) card.append(el('ul', { class: 'chat-edits' }, proposal.edits.map((edit) => el('li', { text: edit }))));
+    // The edits one by one are for who wants them: folded under the compiler's line.
+    const checked = `Checked by the compiler on a copy: ${proposal.edits.length} edit${proposal.edits.length === 1 ? '' : 's'}, +${proposal.added} -${proposal.removed} lines${proposal.newFindings.length ? `, ${proposal.newFindings.length} new finding${proposal.newFindings.length > 1 ? 's' : ''}` : ''}.`;
+    card.append(proposal.edits.length
+      ? el('details', { class: 'chat-fold chat-checked' }, [el('summary', { text: checked }), el('ul', { class: 'chat-edits' }, proposal.edits.map((edit) => el('li', { text: edit })))])
+      : el('div', { class: 'chat-checked', text: checked }));
     if (proposal.files?.length) {
       const list = el('ul', { class: 'chat-files' });
       for (const file of proposal.files) {

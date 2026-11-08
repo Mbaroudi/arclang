@@ -25,6 +25,8 @@ export interface Topic {
 const SIGN_IN = 'needs the visitor to sign in on arclang.fr (free), then it runs on the server';
 const SERVER = { online: 'on the server', anonymous: SIGN_IN };
 const DESKTOP = 'VS Code with the ArcLang extension and the compiler, or ArcLang Studio (one Docker image with everything)';
+/** Online, simulations start from the Simulate button of the diagram: the palette's simulation commands are the desktop's. */
+const SIMULATE_ONLINE = 'click Simulate at the bottom of the diagram (the workbench beside the source: "ArcLang: Open the workbench beside the source")';
 const DESKTOP_ONLY = (what: string) => ({ online: `${what} needs the desktop: ${DESKTOP}`, anonymous: `${what} needs the desktop: ${DESKTOP}` });
 
 export const TOPICS: Topic[] = [
@@ -81,15 +83,15 @@ export const TOPICS: Topic[] = [
    (sweep: [...] varies parameters.) 5. "ArcLang: Run simulations" (the Simulate button of the status bar; arclang verify): each case is simulated, its expects judged, the verdict goes to the requirement, the gate and the tables. Then "ArcLang: Replay a simulation on the diagram", "ArcLang: Open the Modelica drawing", "ArcLang: Export the simulation report (PDF or PowerPoint)…"; OMEdit opens the exported package.`,
     where: {
       desktop: 'with OpenModelica on this computer ("ArcLang: Set up OpenModelica" installs or finds it; else ArcLang Studio in Docker)',
-      online: 'on the server (OpenModelica, the Modelica Standard Library and the libraries OpenModelica fully supports), counted in the visitor\'s quota',
-      anonymous: SIGN_IN,
+      online: `${SIMULATE_ONLINE}: it runs on the server (OpenModelica, the Modelica Standard Library and the libraries OpenModelica fully supports), counted in the visitor's quota. "Run simulations", "Export Modelica" and "Open the Modelica drawing" are desktop commands, not in the palette here`,
+      anonymous: `sign in first (free, a link by e-mail: "Sign in to keep your work" in the status bar), then ${SIMULATE_ONLINE}: it runs on the server. "Run simulations", "Export Modelica" and "Open the Modelica drawing" are desktop commands, not in the palette here`,
     },
   },
   {
     what: 'Monte Carlo and statistics: probabilistic verdicts, sensitivity',
     docs: ['simulation'],
     how: 'A simulated case draws its parameters from laws and gives a verdict with a confidence (Clopper-Pearson), quantiles and sensitivity; "ArcLang: Show Monte Carlo results"; R or Python statistics (arclang verify --statistics r|python).',
-    where: { desktop: 'with OpenModelica on this computer', online: 'on the server, R and Python included', anonymous: SIGN_IN },
+    where: { desktop: 'with OpenModelica on this computer', online: `${SIMULATE_ONLINE}: on the server, R and Python included; the "Show Monte Carlo results" page needs the desktop`, anonymous: `${SIGN_IN}, with Simulate at the bottom of the diagram; the "Show Monte Carlo results" page needs the desktop` },
   },
   {
     what: 'Modelica code',
@@ -178,7 +180,7 @@ export const TOPICS: Topic[] = [
     what: 'CI/CD: the gate and the simulations in a pipeline',
     docs: ['ci-cd'],
     how: '"ArcLang: Configure CI" (arclang ci init) writes the pipeline for GitHub Actions, GitLab CI, Azure DevOps or Jenkins: every model compiled, the gate, the simulations, SARIF for code scanning (arclang sarif), a pull-request report; "ArcLang: Show the CI pipeline status".',
-    where: { online: 'the pipeline runs in the team\'s own CI', anonymous: 'the pipeline runs in the team\'s own CI' },
+    where: { online: '"Configure CI" and "Show the CI pipeline status" are desktop commands; the pipeline runs in the team\'s own CI', anonymous: '"Configure CI" and "Show the CI pipeline status" are desktop commands; the pipeline runs in the team\'s own CI' },
   },
   // ---- Safety, tables, documents ----
   {
@@ -208,7 +210,7 @@ export const TOPICS: Topic[] = [
   {
     what: 'Capella: import a native model, edit it as text, write it back byte-identically',
     docs: ['capella'],
-    how: '"ArcLang: Import a Capella model…", "ArcLang: Import Capella project"; "ArcLang: Save the model as… (SysML v2, Capella, ReqIF, ArcLang copy)" writes the .capella back.',
+    how: '"ArcLang: Import a Capella model…"; "ArcLang: Save the model as… (SysML v2, Capella, ReqIF, ArcLang copy)" writes the .capella back.',
     where: SERVER,
   },
   {
