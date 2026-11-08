@@ -33,7 +33,7 @@ test('what runs where: the desktop, arclang.fr signed in, arclang.fr anonymous',
   assert.match(capabilitiesGuide('desktop'), /OpenModelica on this computer/);
   assert.match(capabilitiesGuide('desktop'), /ArcLang Studio/);
   const online = capabilitiesGuide('online');
-  assert.match(online, /Here: on the server \(OpenModelica/);
+  assert.match(online, /Here: click Simulate at the bottom of the diagram[^\n]*it runs on the server \(OpenModelica/);
   assert.match(online, /compiling and running it \(sil\) needs the desktop/);
   assert.doesNotMatch(online, /sign in/i);
   const anonymous = capabilitiesGuide('online-anonymous');
@@ -94,4 +94,22 @@ test('CESAM, co-simulation, embedded C, FPGA, SoC and twins say what runs online
   for (const what of ['Co-simulation (cosim) needs the desktop', 'Processor in the loop (pil) needs the desktop', 'The SoC (soc) needs the desktop', 'the export of the VHDL runs on the server', 'the export of the C runs on the server', 'live sources need the desktop', 'CESAM ships with release 4.13']) {
     assert.ok(online.includes(what), `missing: ${what}`);
   }
+});
+
+test('online, the guide never sends a visitor to a command the palette hides there', () => {
+  const when = new Map<string, string>((pkg.contributes.menus.commandPalette ?? []).map((m: { command: string; when?: string }) => [m.command, m.when ?? '']));
+  const title = (c: { title: string; category?: string }) => `${c.category ? `${c.category}: ` : ''}${c.title}`;
+  const commands = pkg.contributes.commands as { command: string; title: string; category?: string }[];
+  const never = commands.filter((c) => when.get(c.command) === 'false').map(title);
+  const desktop = commands.filter((c) => /!isWeb/.test(when.get(c.command) ?? '')).map(title);
+  for (const workspace of ['online', 'online-anonymous'] as const) {
+    const guide = capabilitiesGuide(workspace);
+    for (const t of never) assert.ok(!guide.includes(`"${t}"`), `"${t}" is hidden everywhere`);
+    // Each topic that names a desktop-only command says so where the visitor reads it.
+    for (const topic of guide.split('\n- ')) {
+      const cited = desktop.filter((t) => topic.includes(`"${t}"`));
+      if (cited.length) assert.match(topic, /desktop/, `${topic.slice(0, 60)}… names ${cited.join(', ')} without saying it is the desktop's`);
+    }
+  }
+  assert.match(capabilitiesGuide('online-anonymous'), /sign in first[^\n]*Simulate at the bottom of the diagram/);
 });

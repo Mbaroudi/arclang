@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **A beginner is guided from a blank page to a simulation, without getting stuck**: online, the AI sends a visitor to the **Simulate** button of the diagram (and to sign in first when needed), never to a command the browser does not have; a test keeps the guide honest. "Can you…" / "peux-tu…" is a request and is done; a question gets the answer, without saying it is one. The explanation never mentions refused attempts and names concepts in plain words for a beginner.
+- The chat is quieter: no "No change proposed" under an answer; the list of edits is folded under the compiler's line.
+- Fixed: opening the workbench when it is already open beside the source moved it over the source and left a blank pane; it now stays where it is.
+- `test/web/ai_scenarios_test.js` plays three whole journeys from a blank page: a French beginner (coffee machine: model, explanation, diagram, a new button, review, simulation, how to run it, a vague message), an English beginner (electric scooter) and a simulation-data journey (requirement → simulation → verdict, results, report, traceability, ReqIF); each simulation the AI writes is run in OpenModelica.
 - The hosted assistant (arclang.fr, ArcLang hosted) uses **Claude Sonnet 5.5** by default; Haiku 5.5 stays available with **ArcLang: Choose the AI model**.
 - An AI answer cut at the token limit is no longer dropped ("No change proposed"): the AI is asked again for a smaller part, ending with Next:. A layer the AI adds (operational_analysis, epbs…) goes at the top level instead of being refused. A question ("comment…", "peut-on…") gets the answer, not edits.
 - **The AI goes to the end**: with nothing selected it gets the whole model and all its findings (it no longer asks for ids the model holds); one conversation memory across files until New conversation ("yes, a new one" keeps its subject); a broad request is done in parts with **Continue →**; asked to add a simulation, a proposal without one goes back to the AI (a question about simulation does not).

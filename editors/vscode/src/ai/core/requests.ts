@@ -121,3 +121,14 @@ export const EDIT_REQUEST_SCHEMA = {
   },
   required: ['op'],
 };
+
+/**
+ * Whether the engineer asks a question (answered, nothing written) rather
+ * than for a change. "Can you simulate…?" and "peux-tu…" are requests, said
+ * politely.
+ */
+export function isQuestion(asked: string): boolean {
+  const polite = /^\s*(?:please\s+)?(?:can|could|would|will)\s+you\b|^\s*(?:peux|pourrais|pouvez|pourriez)[- ](?:tu|vous)\b|^\s*tu peux\b/i.test(asked);
+  if (polite) return false;
+  return /\?\s*$/.test(asked.trim()) || /^\s*(comment|peut[- ]on|est[- ]ce|pourquoi|quel|quelle|can|could|how|what|why|is it|does)\b/i.test(asked);
+}

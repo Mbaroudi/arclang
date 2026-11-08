@@ -44,7 +44,7 @@ test('the not-verified label says the chat runs no Modelica, and where it is che
 test('a Modelica question from a workspace carries the guide of what runs there', () => {
   const online = modelicaMessages({ fileName: 'b.mo', text: 'model B end B;', question: 'Can I simulate it?' }, [], 'online');
   assert.match(online[0].content, /# What ArcLang can do/);
-  assert.match(online[0].content, /Here: on the server \(OpenModelica/);
+  assert.match(online[0].content, /Here: click Simulate at the bottom of the diagram[^\n]*it runs on the server \(OpenModelica/);
   assert.doesNotMatch(modelicaMessages({ fileName: 'b.mo', text: '', question: 'q' })[0].content, /# What ArcLang can do/);
 });
 
