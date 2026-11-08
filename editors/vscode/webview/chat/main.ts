@@ -98,7 +98,7 @@ function scroll(): void {
 }
 
 /** Text with ``` fences: prose paragraphs and code blocks, built node by node. */
-function renderText(host: HTMLElement, text: string, withCodeActions: boolean): void {
+function renderText(host: HTMLElement, text: string, withCodeActions: boolean, createsModels = false): void {
   host.textContent = '';
   const parts = text.split(/```/);
   parts.forEach((part, index) => {
@@ -120,6 +120,12 @@ function renderText(host: HTMLElement, text: string, withCodeActions: boolean): 
     const copy = el('button', { type: 'button', text: 'Copy' });
     copy.addEventListener('click', () => post({ type: 'chat-copy', code }));
     bar.append(copy);
+    if (createsModels && /^(arc|arclang)$/i.test(lang) && /^\s*(?:\/\/[^\n]*\n\s*)*model\b/.test(code)) {
+      const create = el('button', { type: 'button', class: 'primary', text: 'Create model' });
+      create.title = 'Name the .arc file, open it beside its diagrams; the compiler checks it';
+      create.addEventListener('click', () => post({ type: 'chat-create-model', code }));
+      bar.append(create);
+    }
     if (withCodeActions && /^(modelica|mo)$/i.test(lang)) {
       for (const [label, where] of [['Replace selection', 'selection'], ['Insert at cursor', 'cursor'], ['Replace file', 'file']] as const) {
         const b = el('button', { type: 'button', text: label });
@@ -272,7 +278,7 @@ window.addEventListener('message', (event: MessageEvent<ToChatPage>) => {
       const turn = turns.get(message.id);
       if (!turn) return;
       turn.body.textContent = '';
-      renderText(turn.body, message.text, message.kind === 'modelica');
+      renderText(turn.body, message.text, message.kind === 'modelica', message.kind === 'plain');
       if (message.notVerified) {
         turn.node.classList.add('unverified');
         turn.body.prepend(el('div', { class: 'chat-unverified', role: 'note' }, [el('strong', { text: message.notVerified.label }), ' ', message.notVerified.where]));

@@ -40,7 +40,8 @@ export type FromChatPage =
   | { type: 'chat-refine'; session: string; text: string }
   | { type: 'chat-undo' }
   | { type: 'chat-insert'; code: string; where: 'selection' | 'cursor' | 'file' }
-  | { type: 'chat-copy'; code: string };
+  | { type: 'chat-copy'; code: string }
+  | { type: 'chat-create-model'; code: string };
 
 /** Host → page. */
 export type ToChatPage =
@@ -82,6 +83,8 @@ export function parseFromChatPage(message: unknown): FromChatPage | null {
       return isText(m.code) && (m.where === 'selection' || m.where === 'cursor' || m.where === 'file') ? { type: 'chat-insert', code: m.code, where: m.where } : null;
     case 'chat-copy':
       return isText(m.code) ? { type: 'chat-copy', code: m.code } : null;
+    case 'chat-create-model':
+      return isText(m.code) && /^\s*(?:\/\/[^\n]*\n\s*)*model\b/.test(m.code) ? { type: 'chat-create-model', code: m.code } : null;
     default:
       return null;
   }
