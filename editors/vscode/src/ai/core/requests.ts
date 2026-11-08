@@ -3,6 +3,8 @@
 import type { EditRequest } from '../../pure/workbench';
 
 const STRING = 'string';
+/** The blocks of a model that only sit at its top level: the method's levels. */
+const TOP_LEVEL_KINDS = new Set(['operational_analysis', 'system_analysis', 'logical_architecture', 'physical_architecture', 'epbs']);
 type Field = [name: string, required: boolean];
 
 const SHAPES: Record<string, Field[]> = {
@@ -49,7 +51,10 @@ export function validateRequests(value: unknown): { ok: true; requests: EditRequ
       if (pairs.length) clean.attributes = pairs;
     }
     // An element added with no container and no layer goes at the top level: what the AI meant, said or not.
-    if ((request.op === 'add' || request.op === 'add_raw') && (request.top_level === true || request.top_level === 'true' || (!clean.container && !clean.layer))) clean.top_level = true;
+    // A layer itself (operational_analysis "…" "in operational_analysis") is always top level: it holds, it is not held.
+    const isLayer = request.op === 'add' && TOP_LEVEL_KINDS.has(String(clean.keyword));
+    if (isLayer) { delete clean.container; delete clean.layer; delete clean.layer_name; }
+    if ((request.op === 'add' || request.op === 'add_raw') && (isLayer || request.top_level === true || request.top_level === 'true' || (!clean.container && !clean.layer))) clean.top_level = true;
     if (request.op === 'wrap_fragment' && Array.isArray(request.operands)) {
       clean.operands = (request.operands as unknown[]).filter((p): p is [unknown, unknown] => Array.isArray(p) && p.length === 2).map(([a, b]) => [String(a), String(b)]);
     }
