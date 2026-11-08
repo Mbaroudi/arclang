@@ -105,3 +105,6 @@ button:disabled { opacity: .5; cursor: default; }
 
 /* The AI's change written in the file, waiting for Keep or Undo. */
 .chat-proposal.written { border-left: 2px solid var(--c-ok, #3fb950); padding-left: 8px; }
+.chat-compiled { font-size: 11px; padding: 0 6px; border-radius: 8px; }
+.chat-compiled.ok { color: var(--c-ok, #3fb950); border: 1px solid color-mix(in srgb, var(--c-ok, #3fb950) 50%, transparent); }
+.chat-compiled.ko { color: var(--c-warn); border: 1px solid color-mix(in srgb, var(--c-warn) 50%, transparent); }

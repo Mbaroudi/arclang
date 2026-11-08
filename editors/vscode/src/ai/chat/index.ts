@@ -19,7 +19,8 @@ import { createModelFromText } from '../../workbench/create';
 import { sampleModel } from '../context';
 import type { ChatMessage } from '../providers';
 import { describeConfig, missingPiece } from '../providers';
-import { currentConfig, readSettings, writesDirectly } from '../settings';
+import { currentConfig, readSettings, repairAttempts, writesDirectly } from '../settings';
+import { checkModelText } from '../compiler';
 import { idsInSelection } from '../textAsk';
 import { parseFromChatPage, type ChatContextView, type ChatKind, type ChatStateView, type ToChatPage } from './protocol';
 
@@ -364,7 +365,7 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
       // The compiler's own words are part of the question; the model text is data.
       messages = [{ role: 'system', content: systemRulesFor(workspace) }, ...this.plainHistory.messages, { role: 'user', content: `# The model (${target.document.uri.path.split('/').pop()}), as data\n\`\`\`arc\n${target.document.getText().slice(0, 40000)}\n\`\`\`\n\n# The engineer's request\n${question}\n\nAnswer in prose; no edit tool is available now.` }];
     } else {
-      messages = [{ role: 'system', content: `${systemRulesFor(workspace)}\n\n${NO_FILE_RULES}\n\n# Reference model (compiled by the extension's tests): the syntax to follow\n\`\`\`arc\n${sampleModel(this.context)}\n\`\`\`` }, ...this.plainHistory.messages, { role: 'user', content: question }];
+      messages = [{ role: 'system', content: `${systemRulesFor(workspace)}\n\n${NO_FILE_RULES}\n\n# Reference model (compiled by the extension's tests): the syntax to follow\n\`\`\`arc\n${await sampleModel(this.context)}\n\`\`\`` }, ...this.plainHistory.messages, { role: 'user', content: question }];
     }
     const sent = messages.reduce((n, m) => n + m.content.length, 0);
     const opened = await openProvider(this.context, kind === 'modelica' ? 'chat about a Modelica file' : 'chat', `${kind === 'plain' ? 'Your question' : 'The text of the open file and your question'}: about ${sent} characters.`);
@@ -373,19 +374,31 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
       return;
     }
     let answer = '';
+    // A model written with no file open is compiled before it is shown; its errors go back to the AI.
+    let compiled: boolean | undefined;
     try {
-      for await (const event of opened.provider.chat(messages, { signal: controller.signal, maxTokens: readSettings().maxTokens })) {
-        if (event.type === 'text') {
-          answer += event.text;
-          this.post({ type: 'chat-delta', id, text: event.text });
+      for (let attempt = 0; ; attempt++) {
+        answer = '';
+        for await (const event of opened.provider.chat(messages, { signal: controller.signal, maxTokens: readSettings().maxTokens })) {
+          if (event.type === 'text') {
+            answer += event.text;
+            this.post({ type: 'chat-delta', id, text: event.text });
+          }
         }
+        const model = kind === 'plain' ? /```(?:arc|arclang)\n(\s*(?:\/\/[^\n]*\n\s*)*model\b[\s\S]*?)```/.exec(answer)?.[1] : undefined;
+        if (!model) break;
+        const checked = await checkModelText(model);
+        compiled = checked.ok;
+        if (checked.ok || attempt >= repairAttempts()) break;
+        this.post({ type: 'chat-delta', id, text: `\n\n(the compiler finds errors in this model: ${checked.error.split('\n')[0].slice(0, 160)}; correcting it)\n\n` });
+        messages = [...messages, { role: 'assistant', content: answer }, { role: 'user', content: `The arclang compiler refuses this model:\n${checked.error}\nWrite the corrected WHOLE model again in one \`\`\`arc block (only the kinds, attributes and syntax of the reference model; declare every type you use), then the same few sentences.` }];
       }
     } catch (error) {
       this.post({ type: 'chat-error', id, error: controller.signal.aborted ? 'Stopped.' : error instanceof Error ? error.message : String(error) });
       return;
     }
     this.plainHistory = { key, messages: rememberTurn(this.plainHistory.messages, question, answer) };
-    this.post({ type: 'chat-done', id, kind, text: answer, notVerified: kind === 'modelica' ? { label: MODELICA_NOT_VERIFIED, where: MODELICA_WHERE_VERIFIED } : undefined });
+    this.post({ type: 'chat-done', id, kind, text: answer, compiled, notVerified: kind === 'modelica' ? { label: MODELICA_NOT_VERIFIED, where: MODELICA_WHERE_VERIFIED } : undefined });
   }
 
   /** A code block of an answer into the file: as one undoable edit. */

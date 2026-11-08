@@ -39,6 +39,17 @@ export async function checkSource(document: vscode.TextDocument, text: string): 
   });
 }
 
+/** A whole model text the AI wrote with no file open: does it compile? */
+export async function checkModelText(text: string): Promise<Checked> {
+  return withTempFile(text, 'model.arc', async (file, dir) => {
+    const result = await run(['check', '--json', file], { cwd: dir });
+    const parsed = parseCheckReport(result.stdout);
+    if (result.code === 127 || !parsed) return { ok: false, error: failureText(result), at: 0 };
+    if (parsed.errors.length) return { ok: false, error: parsed.errors.slice(0, 8).join('\n'), at: 0 };
+    return { ok: true, text };
+  });
+}
+
 /** The snapshot of a model text that is not in an editor. */
 export async function snapshotOfText(document: vscode.TextDocument, text: string): Promise<Snapshot> {
   const standard = vscode.workspace.getConfiguration('arclang').get<string>('gate.standard', 'iso26262');

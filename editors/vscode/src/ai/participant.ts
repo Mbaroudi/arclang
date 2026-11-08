@@ -215,7 +215,7 @@ function handler(context: vscode.ExtensionContext): vscode.ChatRequestHandler {
     const target = await targetDocument(request);
     const messages: vscode.LanguageModelChatMessage[] = [];
     const reference = await metamodelReference();
-    const sample = sampleModel(context);
+    const sample = await sampleModel(context);
     messages.push(User(`${HOUSE_RULES}\n\n# ArcLang reference\n${reference}${sample ? `\n# A sample model that compiles\n\`\`\`arc\n${sample}\`\`\`` : ''}`));
     messages.push(...historyMessages(chatContext));
     if (target) {

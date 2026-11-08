@@ -58,7 +58,7 @@ export type ToChatPage =
   | { type: 'chat-proposal'; id: string; session: string; provider: string; proposal: ProposalView; written?: boolean }
   | { type: 'chat-settled'; session: string; kept: boolean; error?: string }
   | { type: 'chat-extract'; name: string; data: string }
-  | { type: 'chat-done'; id: string; kind: ChatKind; text: string; notVerified?: { label: string; where: string } }
+  | { type: 'chat-done'; compiled?: boolean; id: string; kind: ChatKind; text: string; notVerified?: { label: string; where: string } }
   | { type: 'chat-error'; id: string; error: string; fix?: 'key' | 'configure' }
   | { type: 'chat-applied'; session: string; ok: boolean; error?: string }
   | { type: 'chat-note'; text: string };

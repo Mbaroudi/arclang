@@ -183,7 +183,7 @@ function scroll(): void {
 }
 
 /** Text with ``` fences: prose paragraphs and code blocks, built node by node. */
-function renderText(host: HTMLElement, text: string, withCodeActions: boolean, createsModels = false): void {
+function renderText(host: HTMLElement, text: string, withCodeActions: boolean, createsModels = false, compiled?: boolean): void {
   host.textContent = '';
   const parts = text.split(/```/);
   parts.forEach((part, index) => {
@@ -206,6 +206,7 @@ function renderText(host: HTMLElement, text: string, withCodeActions: boolean, c
     copy.addEventListener('click', () => post({ type: 'chat-copy', code }));
     bar.append(copy);
     if (createsModels && /^(arc|arclang)$/i.test(lang) && /^\s*(?:\/\/[^\n]*\n\s*)*model\b/.test(code)) {
+      if (compiled !== undefined) bar.append(el('span', { class: `chat-compiled ${compiled ? 'ok' : 'ko'}`, text: compiled ? '✓ compiles' : '⚠ does not compile yet', title: compiled ? 'Checked by the arclang compiler' : 'The compiler still finds errors: create it and press "Fix the findings", or ask again' }));
       const create = el('button', { type: 'button', class: 'primary', text: 'Create model' });
       create.title = 'Name the .arc file, open it beside its diagrams; the compiler checks it';
       create.addEventListener('click', () => post({ type: 'chat-create-model', code }));
@@ -389,7 +390,7 @@ window.addEventListener('message', (event: MessageEvent<ToChatPage>) => {
       const turn = turns.get(message.id);
       if (!turn) return;
       turn.body.textContent = '';
-      renderText(turn.body, message.text, message.kind === 'modelica', message.kind === 'plain');
+      renderText(turn.body, message.text, message.kind === 'modelica', message.kind === 'plain', message.compiled);
       if (message.notVerified) {
         turn.node.classList.add('unverified');
         turn.body.prepend(el('div', { class: 'chat-unverified', role: 'note' }, [el('strong', { text: message.notVerified.label }), ' ', message.notVerified.where]));
