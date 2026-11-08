@@ -15,7 +15,9 @@ import { buildSelectionContext, ContextScope } from './core/context';
 import { converse } from './core/conversation';
 import { lineDiff } from './core/diff';
 import { consequencesOf, diffSnapshots } from './core/impact';
-import { askPrompt, IMPACT, PROPOSE_EDITS, READ_ELEMENTS, systemRulesFor } from './core/prompts';
+import { askPrompt, CREATE_MODEL, IMPACT, PROPOSE_EDITS, READ_ELEMENTS, systemRulesFor } from './core/prompts';
+import { checkModelText } from './compiler';
+import { sampleModel } from './context';
 import { currentWorkspace } from './workspace';
 import type { ProposalView, QuickAction } from './core/protocol';
 import { QUICK_ACTIONS } from './core/protocol';
@@ -55,6 +57,8 @@ export interface AskSession {
   provider: string;
   proposal: Proposal | null;
   controller: AbortController;
+  /** A new model for another system (create_model), compiled: for a new file, never the open one. */
+  newModel?: { source: string; explanation: string; compiled: boolean };
 }
 
 const sessions = new Map<string, AskSession>();
@@ -171,7 +175,7 @@ export async function runAsk(
     ids = request.ids;
     const built = buildSelectionContext({ snapshot, metamodel, text: source.text, fileName: document.uri.path.split('/').pop() ?? 'model.arc', ids, scope: request.scope ?? contextScope(), selectedText: request.selectedText });
     messages = [
-      { role: 'system', content: systemRulesFor(await currentWorkspace()) },
+      { role: 'system', content: `${systemRulesFor(await currentWorkspace())}\n\n# Reference model (compiled by the extension's tests): the syntax for a new model\n\`\`\`arc\n${await sampleModel(context)}\n\`\`\`` },
       { role: 'user', content: askPrompt(promptFor(request.prompt, request.action), request.attachments ? `${built.text}\n\n${request.attachments}` : built.text) },
     ];
     current?.controller.abort();
@@ -188,8 +192,8 @@ export async function runAsk(
   try {
     for (let attempt = 0; ; attempt++) {
       const result = await converse(opened.provider, messages, {
-        tools: [PROPOSE_EDITS, READ_ELEMENTS, IMPACT],
-        final: ['propose_edits'],
+        tools: [PROPOSE_EDITS, CREATE_MODEL, READ_ELEMENTS, IMPACT],
+        final: ['propose_edits', 'create_model'],
         run,
         signal: controller.signal,
         maxTokens: settings.maxTokens,
@@ -201,6 +205,18 @@ export async function runAsk(
       const answer = parseAssistAnswer(result.text, result.calls);
       messages.push({ role: 'assistant', content: result.text, toolCalls: result.calls.length ? result.calls : undefined });
       for (const call of result.calls) messages.push({ role: 'tool', content: 'Received: it is being compiled.', toolCallId: call.id, toolName: call.name });
+      if (answer.newModel) {
+        const checked = await checkModelText(answer.newModel);
+        if (!checked.ok && attempt < repairAttempts()) {
+          logLine(`ask ${sessionId}: the new model does not compile; sent back to the AI`);
+          messages.push({ role: 'user', content: `The arclang compiler refuses the new model:\n${checked.error}\nCall create_model again with the corrected WHOLE model (declare every type you use).` });
+          onText(`\n(the compiler finds errors in the new model: ${checked.error.split('\n')[0].slice(0, 140)}; correcting it)\n`, chars);
+          continue;
+        }
+        live.newModel = { source: answer.newModel, explanation: answer.explanation, compiled: checked.ok };
+        live.proposal = null;
+        return { ok: true, session: live };
+      }
       let refusal: string | null = answer.problem;
       let proposed: string | null = null;
       if (!refusal && answer.requests.length) {

@@ -269,6 +269,11 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
       this.post({ type: 'chat-error', id, error: outcome.error, fix: outcome.fix });
       return;
     }
+    const created = outcome.session.newModel;
+    if (created) {
+      this.post({ type: 'chat-done', id, kind: 'plain', text: `${created.explanation}\n\n\`\`\`arc\n${created.source}\n\`\`\`\n\nThis is a new model: ${file} is not changed. Create model opens it in a new file beside its diagrams.`, compiled: created.compiled });
+      return;
+    }
     const proposal = outcome.session.proposal;
     if (!proposal) {
       this.post({ type: 'chat-error', id, error: 'The AI did not answer.' });
