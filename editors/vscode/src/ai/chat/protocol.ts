@@ -24,6 +24,8 @@ export interface ChatStateView {
   context: ChatContextView;
   /** Running in a browser: no Copilot, keys go to the browser's secret storage. */
   web: boolean;
+  /** The files attached to the conversation (requirements, specifications, models): sent with every question. */
+  attachments: { name: string; chars: number; truncated: boolean }[];
 }
 
 /** Page → host. */
@@ -40,20 +42,30 @@ export type FromChatPage =
   | { type: 'chat-refine'; session: string; text: string }
   | { type: 'chat-undo' }
   | { type: 'chat-insert'; code: string; where: 'selection' | 'cursor' | 'file' }
-  | { type: 'chat-copy'; code: string };
+  | { type: 'chat-copy'; code: string }
+  | { type: 'chat-create-model'; code: string }
+  | { type: 'chat-keep'; session: string }
+  | { type: 'chat-undo-change'; session: string }
+  | { type: 'chat-attach'; name: string; text: string }
+  | { type: 'chat-detach'; name: string }
+  | { type: 'chat-pick-workspace' };
 
 /** Host → page. */
 export type ToChatPage =
   | ({ type: 'chat-state' } & ChatStateView)
   | { type: 'chat-start'; id: string; kind: ChatKind; file: string | null; label: string }
   | { type: 'chat-delta'; id: string; text: string }
-  | { type: 'chat-proposal'; id: string; session: string; provider: string; proposal: ProposalView }
+  | { type: 'chat-proposal'; id: string; session: string; provider: string; proposal: ProposalView; written?: boolean }
+  | { type: 'chat-settled'; session: string; kept: boolean; error?: string }
+  | { type: 'chat-extract'; name: string; data: string }
   | { type: 'chat-done'; id: string; kind: ChatKind; text: string; notVerified?: { label: string; where: string } }
   | { type: 'chat-error'; id: string; error: string; fix?: 'key' | 'configure' }
   | { type: 'chat-applied'; session: string; ok: boolean; error?: string }
   | { type: 'chat-note'; text: string };
 
 const MAX_TEXT = 40000;
+/** The text of one attached file, as the page read it (cut to MAX_ATTACHED by the host). */
+const MAX_FILE_TEXT = 2_000_000;
 const MAX_SESSION = 300;
 const isText = (v: unknown, max = MAX_TEXT): v is string => typeof v === 'string' && v.length <= max;
 const isSession = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length <= MAX_SESSION;
@@ -63,6 +75,12 @@ export function parseFromChatPage(message: unknown): FromChatPage | null {
   if (!message || typeof message !== 'object') return null;
   const m = message as Record<string, unknown>;
   switch (m.type) {
+    case 'chat-attach':
+      return isText(m.name, 300) && m.name.length > 0 && isText(m.text, MAX_FILE_TEXT) ? { type: 'chat-attach', name: m.name, text: m.text } : null;
+    case 'chat-detach':
+      return isText(m.name, 300) ? { type: 'chat-detach', name: m.name } : null;
+    case 'chat-pick-workspace':
+      return { type: 'chat-pick-workspace' };
     case 'chat-hello':
     case 'chat-cancel':
     case 'chat-new':
@@ -82,6 +100,12 @@ export function parseFromChatPage(message: unknown): FromChatPage | null {
       return isText(m.code) && (m.where === 'selection' || m.where === 'cursor' || m.where === 'file') ? { type: 'chat-insert', code: m.code, where: m.where } : null;
     case 'chat-copy':
       return isText(m.code) ? { type: 'chat-copy', code: m.code } : null;
+    case 'chat-keep':
+      return isSession(m.session) ? { type: 'chat-keep', session: m.session } : null;
+    case 'chat-undo-change':
+      return isSession(m.session) ? { type: 'chat-undo-change', session: m.session } : null;
+    case 'chat-create-model':
+      return isText(m.code) && /^\s*(?:\/\/[^\n]*\n\s*)*model\b/.test(m.code) ? { type: 'chat-create-model', code: m.code } : null;
     default:
       return null;
   }

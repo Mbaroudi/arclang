@@ -76,6 +76,22 @@ export async function createModel(context: vscode.ExtensionContext, tree: ModelT
   await WorkbenchPanel.open(document);
 }
 
+/** A whole model the AI wrote: named and placed by the engineer, written, opened beside its workbench; the compiler checks it there. */
+export async function createModelFromText(text: string): Promise<void> {
+  const declared = /^\s*model\s+(?:"([^"]+)"|([A-Za-z_][\w-]*))/m.exec(text);
+  const base = (declared?.[1] ?? declared?.[2] ?? 'model').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'model';
+  const folder = vscode.workspace.workspaceFolders?.[0]?.uri ?? vscode.Uri.file(os.homedir());
+  const target = await vscode.window.showSaveDialog({ defaultUri: vscode.Uri.joinPath(folder, `${base}.arc`), filters: { ArcLang: ['arc'] }, saveLabel: 'Create model', title: 'ArcLang: name and place of the model the AI wrote' });
+  if (!target) return;
+  const file = target.fsPath.toLowerCase().endsWith('.arc') ? target : vscode.Uri.file(arcFileName(target.fsPath));
+  if (await exists(file)) await vscode.workspace.fs.delete(file); // the save dialog already asked to overwrite
+  await vscode.workspace.fs.writeFile(file, Buffer.from(text.endsWith('\n') ? text : `${text}\n`, 'utf8'));
+  const document = await vscode.workspace.openTextDocument(file);
+  await vscode.window.showTextDocument(document, { preview: false });
+  forgetSnapshot(document.uri);
+  await WorkbenchPanel.open(document);
+}
+
 /** Submit edit requests through the open workbench (one step of its history) or straight to the text. */
 async function submit(document: vscode.TextDocument, request: Parameters<typeof applyRequests>[1], label: string): Promise<boolean> {
   const page = WorkbenchPanel.for(document.uri);

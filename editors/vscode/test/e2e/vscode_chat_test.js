@@ -68,7 +68,7 @@ const until = async (win, test, ms = 20000) => { const end = Date.now() + ms; wh
     await shot('chat-3a-before-modelica');
     await chat.locator('.chat-send').click();
     await chat.locator('.chat-unverified').waitFor({ timeout: 40000 });
-    report('the Modelica answer is labeled not verified', /Not verified: there is no Modelica compiler in the browser/.test(await chat.locator('.chat-unverified').innerText()));
+    report('the Modelica answer is labeled not verified', /Not verified: the chat does not run Modelica/.test(await chat.locator('.chat-unverified').innerText()));
     await shot('chat-3-modelica');
   } catch (error) {
     report('no error', false, String(error).slice(0, 300));

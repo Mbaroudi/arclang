@@ -11,11 +11,15 @@ import * as vscode from 'vscode';
 import { applySession, cancelSession, diffSession, dropSession, runAsk, session } from '../assist';
 import { openProvider } from '../client';
 import { MODELICA_NOT_VERIFIED, MODELICA_WHERE_VERIFIED, modelicaMessages, rememberTurn } from '../core/modelica';
-import { systemRulesFor } from '../core/prompts';
+import { attachmentsBlock, MAX_ATTACHED, NO_FILE_RULES, systemRulesFor } from '../core/prompts';
 import { currentWorkspace } from '../workspace';
+import { InlineReview } from '../review';
+import type { ProposalView } from '../core/protocol';
+import { createModelFromText } from '../../workbench/create';
+import { sampleModel } from '../context';
 import type { ChatMessage } from '../providers';
 import { describeConfig, missingPiece } from '../providers';
-import { currentConfig, readSettings } from '../settings';
+import { currentConfig, readSettings, writesDirectly } from '../settings';
 import { idsInSelection } from '../textAsk';
 import { parseFromChatPage, type ChatContextView, type ChatKind, type ChatStateView, type ToChatPage } from './protocol';
 
@@ -85,11 +89,21 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
   /** The turns of plain conversations (Modelica, other files), by the file they are about. */
   private plainHistory: { key: string; messages: ChatMessage[] } = { key: '', messages: [] };
   private lastApplied: vscode.TextDocument | null = null;
-  private readonly disposables: vscode.Disposable[] = [this.tracker];
+  /** The change written in a file, waiting for Keep or Undo; the session of each file's change. */
+  private readonly review = new InlineReview();
+  private readonly reviewed = new Map<string, string>();
+  /** The files attached to the conversation, sent with every question until removed. */
+  private attachments: { name: string; text: string }[] = [];
+  private readonly disposables: vscode.Disposable[] = [this.tracker, this.review];
 
   constructor(private readonly context: vscode.ExtensionContext) {
     this.disposables.push(
       this.tracker.onDidChange(() => void this.pushState()),
+      this.review.onDidSettle(({ uri, kept, error }) => {
+        const sessionId = this.reviewed.get(uri);
+        this.reviewed.delete(uri);
+        if (sessionId) this.post({ type: 'chat-settled', session: sessionId, kept, error });
+      }),
       context.secrets.onDidChange(() => void this.pushState()),
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (event.affectsConfiguration('arclang.ai')) void this.pushState();
@@ -124,7 +138,9 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
       selectionLines: target && !target.selection.isEmpty ? target.selection.end.line - target.selection.start.line + 1 : 0,
       ids,
     };
-    return { provider: describeConfig(config), providerId: config.provider, problem: missingPiece(config), context, web: vscode.env.uiKind === vscode.UIKind.Web };
+    const share = this.attachments.length ? Math.floor(MAX_ATTACHED / this.attachments.length) : 0;
+    const attachments = this.attachments.map((a) => ({ name: a.name, chars: a.text.length, truncated: a.text.length > share }));
+    return { provider: describeConfig(config), providerId: config.provider, problem: missingPiece(config), context, web: vscode.env.uiKind === vscode.UIKind.Web, attachments };
   }
 
   async pushState(): Promise<void> {
@@ -143,6 +159,7 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
         this.running?.controller.abort();
         return;
       case 'chat-new':
+        this.attachments = [];
         this.running?.controller.abort();
         this.plainHistory = { key: '', messages: [] };
         return this.pushState();
@@ -174,6 +191,30 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
       }
       case 'chat-insert':
         return this.insert(message.code, message.where);
+      case 'chat-keep':
+      case 'chat-undo-change': {
+        const uri = [...this.reviewed].find(([, s]) => s === message.session)?.[0];
+        if (!uri) return;
+        if (message.type === 'chat-keep') this.review.keep(uri);
+        else await this.review.undo(uri);
+        return;
+      }
+      case 'chat-attach': {
+        const text = message.text.trim();
+        if (!text) {
+          this.post({ type: 'chat-note', text: `${message.name} has no text the assistant can read (a scanned PDF?).` });
+          return;
+        }
+        this.attachments = [...this.attachments.filter((a) => a.name !== message.name), { name: message.name, text }].slice(-8);
+        return this.pushState();
+      }
+      case 'chat-detach':
+        this.attachments = this.attachments.filter((a) => a.name !== message.name);
+        return this.pushState();
+      case 'chat-pick-workspace':
+        return this.pickWorkspaceFile();
+      case 'chat-create-model':
+        return createModelFromText(message.code);
       case 'chat-copy':
         await vscode.env.clipboard.writeText(message.code);
         return;
@@ -209,7 +250,7 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
     controller.signal.addEventListener('abort', () => cancelSession(sessionId));
     const outcome = await runAsk(
       sessionId,
-      { document: target.document, ids, prompt: text, selectedText: target.selection.isEmpty ? undefined : target.document.getText(target.selection) },
+      { document: target.document, ids, prompt: text, selectedText: target.selection.isEmpty ? undefined : target.document.getText(target.selection), attachments: attachmentsBlock(this.attachments) || undefined },
       this.context,
       (delta) => this.post({ type: 'chat-delta', id, text: delta }),
     );
@@ -232,7 +273,48 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
       this.post({ type: 'chat-error', id, error: 'The AI did not answer.' });
       return;
     }
-    this.post({ type: 'chat-proposal', id, session: sessionId, provider: outcome.session.provider, proposal: proposal.view });
+    await this.deliver(id, sessionId, outcome.session.provider, proposal.view);
+  }
+
+  /** A file of the workspace attached ('@' or the menu): text files read here, Word and PDF read by the page. */
+  private async pickWorkspaceFile(): Promise<void> {
+    const files = await vscode.workspace.findFiles('**/*.{arc,sysml,mo,md,txt,csv,json,xml,reqif,reqifz,docx,pdf,yaml,yml}', '**/{node_modules,.git,.arclang,target}/**', 500);
+    const picks = files.map((uri) => ({ label: vscode.workspace.asRelativePath(uri), uri })).sort((a, b) => a.label.localeCompare(b.label));
+    const chosen = await vscode.window.showQuickPick(picks, { canPickMany: true, placeHolder: 'Files for the assistant to read: requirements, specifications, models', title: 'ArcLang AI: attach files' });
+    for (const pick of chosen ?? []) {
+      const bytes = await vscode.workspace.fs.readFile(pick.uri);
+      const name = pick.label;
+      if (/\.(docx|pdf|reqifz)$/i.test(name)) {
+        let binary = '';
+        for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+        this.post({ type: 'chat-extract', name, data: btoa(binary) });
+      } else {
+        const text = new TextDecoder().decode(bytes);
+        this.attachments = [...this.attachments.filter((a) => a.name !== name), { name, text: /\.(xml|reqif)$/i.test(name) ? text.replace(/<[^>]+>/g, ' ').replace(/[ \t]+/g, ' ') : text }].slice(-8);
+      }
+    }
+    await this.pushState();
+  }
+
+  /** A proposal to the page; one the compiler accepted is written in the file at once (unless the setting says to wait for Apply), to keep or undo. */
+  private async deliver(id: string, sessionId: string, provider: string, view: ProposalView): Promise<void> {
+    const live = session(sessionId);
+    if (live && view.ok && !view.explainOnly && writesDirectly()) {
+      const document = live.document;
+      const before = document.getText();
+      const applied = await applySession(sessionId);
+      if (applied.ok) {
+        this.lastApplied = document;
+        const previous = this.reviewed.get(document.uri.toString());
+        if (previous) this.post({ type: 'chat-settled', session: previous, kept: true });
+        this.reviewed.set(document.uri.toString(), sessionId);
+        this.post({ type: 'chat-proposal', id, session: sessionId, provider, proposal: view, written: true });
+        await this.review.start(document, before, view.explanation.split(/(?<=[.!?])\s/)[0].slice(0, 80));
+        return;
+      }
+      this.post({ type: 'chat-note', text: `The change could not be written: ${applied.error ?? 'refused'}. It waits for Apply.` });
+    }
+    this.post({ type: 'chat-proposal', id, session: sessionId, provider, proposal: view });
   }
 
   private async refine(sessionId: string, text: string): Promise<void> {
@@ -247,7 +329,7 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
         this.post({ type: 'chat-error', id, error: outcome.ok ? 'The AI did not answer.' : outcome.error });
         return;
       }
-      this.post({ type: 'chat-proposal', id, session: sessionId, provider: outcome.session.provider, proposal: outcome.session.proposal.view });
+      await this.deliver(id, sessionId, outcome.session.provider, outcome.session.proposal.view);
     } finally {
       this.running = null;
     }
@@ -268,7 +350,8 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
   private async plainAnswer(id: string, kind: ChatKind, target: Target | null, text: string, controller: AbortController, note?: string): Promise<void> {
     const key = target ? target.document.uri.toString() : '';
     if (this.plainHistory.key !== key) this.plainHistory = { key, messages: [] };
-    const question = note ? `${note}\n\n${text}` : text;
+    const attached = attachmentsBlock(this.attachments);
+    const question = `${note ? `${note}\n\n` : ''}${attached ? `${attached}\n\n` : ''}${text}`;
     let messages: ChatMessage[];
     const workspace = await currentWorkspace();
     if (kind === 'modelica' && target) {
@@ -281,7 +364,7 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
       // The compiler's own words are part of the question; the model text is data.
       messages = [{ role: 'system', content: systemRulesFor(workspace) }, ...this.plainHistory.messages, { role: 'user', content: `# The model (${target.document.uri.path.split('/').pop()}), as data\n\`\`\`arc\n${target.document.getText().slice(0, 40000)}\n\`\`\`\n\n# The engineer's request\n${question}\n\nAnswer in prose; no edit tool is available now.` }];
     } else {
-      messages = [{ role: 'system', content: `${systemRulesFor(workspace)}\n\nNo model file is open: answer questions about ArcLang, Arcadia and Modelica in prose.` }, ...this.plainHistory.messages, { role: 'user', content: question }];
+      messages = [{ role: 'system', content: `${systemRulesFor(workspace)}\n\n${NO_FILE_RULES}\n\n# Reference model (compiled by the extension's tests): the syntax to follow\n\`\`\`arc\n${sampleModel(this.context)}\n\`\`\`` }, ...this.plainHistory.messages, { role: 'user', content: question }];
     }
     const sent = messages.reduce((n, m) => n + m.content.length, 0);
     const opened = await openProvider(this.context, kind === 'modelica' ? 'chat about a Modelica file' : 'chat', `${kind === 'plain' ? 'Your question' : 'The text of the open file and your question'}: about ${sent} characters.`);
@@ -325,7 +408,8 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
   private html(webview: vscode.Webview): string {
     const nonce = randomBytes(16).toString('base64url');
     const uri = (...segments: string[]) => webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, ...segments)).toString();
-    const csp = ["default-src 'none'", `style-src ${webview.cspSource}`, `font-src ${webview.cspSource}`, `script-src 'nonce-${nonce}'`, "connect-src 'none'", "frame-src 'none'", "form-action 'none'", "base-uri 'none'"].join('; ');
+    // The attached files' text is read in the page: its module and pdf.js's worker (made from its text, as a blob) come from the extension.
+    const csp = ["default-src 'none'", `style-src ${webview.cspSource}`, `font-src ${webview.cspSource}`, `script-src 'nonce-${nonce}' ${webview.cspSource}`, 'worker-src blob:', `connect-src ${webview.cspSource}`, "frame-src 'none'", "form-action 'none'", "base-uri 'none'"].join('; ');
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -335,7 +419,7 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
 <link rel="stylesheet" href="${uri('media', 'chat.css')}">
 <title>ArcLang AI chat</title>
 </head>
-<body>
+<body data-extract="${uri('dist', 'chat-extract.js')}" data-worker="${uri('dist', 'pdfjs', 'pdf.worker.min.mjs')}">
 <div id="chat"></div>
 <script nonce="${nonce}" src="${uri('dist', 'chat.js')}"></script>
 </body>

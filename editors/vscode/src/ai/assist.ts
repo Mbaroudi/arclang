@@ -32,6 +32,8 @@ export interface AskRequest {
   action?: QuickAction;
   selectedText?: string;
   scope?: ContextScope;
+  /** The files attached in the chat, as one block of data (attachmentsBlock). */
+  attachments?: string;
 }
 
 export interface Proposal {
@@ -106,14 +108,18 @@ function ownerId(before: Snapshot, after: Snapshot, uuid: string): string | null
 }
 
 /** The preview of a proposal: the diff, the marked elements, the findings it adds. */
-export async function proposalView(document: vscode.TextDocument, before: Snapshot, current: string, explanation: string, requests: EditRequest[], proposed: string | null): Promise<Omit<Proposal, 'requests' | 'source'>> {
+export async function proposalView(document: vscode.TextDocument, before: Snapshot, current: string, explanation: string, requests: EditRequest[], proposed: string | null): Promise<Omit<Proposal, 'requests' | 'source'> & { newErrors: string[] }> {
   if (proposed === null || proposed === current) {
-    return { view: { explanation, edits: requests.map(describeEdit), diff: [], added: 0, removed: 0, changed: [], created: [], removedIds: [], newFindings: [], ok: true, explainOnly: requests.length === 0 }, proposedText: null };
+    return { view: { explanation, edits: requests.map(describeEdit), diff: [], added: 0, removed: 0, changed: [], created: [], removedIds: [], newFindings: [], ok: true, explainOnly: requests.length === 0 }, proposedText: null, newErrors: [] };
   }
   const diff = lineDiff(current, proposed);
   const after = await snapshotOfText(document, proposed);
   const change = diffSnapshots(before, after);
   const findings = consequencesOf(before, after, change).filter((c) => c.kind === 'new-finding' || c.kind === 'gate').map((c) => c.message);
+  // The errors the change brings (a model that compiles can still be wrong: a trace the wrong way...): sent back to the AI.
+  const key = (f: { rule: string; element?: string | null; message: string }) => `${f.rule}|${f.element ?? ''}|${f.message}`;
+  const had = new Set(before.findings.map(key));
+  const newErrors = after.findings.filter((f) => f.severity === 'error' && !had.has(key(f))).map((f) => `[${f.rule}]${f.element ? ` ${f.element}:` : ''} ${f.message}${f.fix ? ` (fix: ${f.fix})` : ''}`);
   return {
     view: {
       explanation,
@@ -130,6 +136,7 @@ export async function proposalView(document: vscode.TextDocument, before: Snapsh
       explainOnly: false,
     },
     proposedText: proposed,
+    newErrors,
   };
 }
 
@@ -165,7 +172,7 @@ export async function runAsk(
     const built = buildSelectionContext({ snapshot, metamodel, text: source.text, fileName: document.uri.path.split('/').pop() ?? 'model.arc', ids, scope: request.scope ?? contextScope(), selectedText: request.selectedText });
     messages = [
       { role: 'system', content: systemRulesFor(await currentWorkspace()) },
-      { role: 'user', content: askPrompt(promptFor(request.prompt, request.action), built.text) },
+      { role: 'user', content: askPrompt(promptFor(request.prompt, request.action), request.attachments ? `${built.text}\n\n${request.attachments}` : built.text) },
     ];
     current?.controller.abort();
   }
@@ -215,7 +222,13 @@ export async function runAsk(
         live.proposal = { view: { explanation: answer.explanation, edits: answer.requests.map(describeEdit), diff: [], added: 0, removed: 0, changed: [], created: [], removedIds: [], newFindings: [], ok: false, error: refusal, explainOnly: false }, requests: [], source: null, proposedText: null };
         return { ok: true, session: live };
       }
-      const view = await proposalView(document, snapshot, source.text, answer.explanation, answer.requests, proposed);
+      const { newErrors, ...view } = await proposalView(document, snapshot, source.text, answer.explanation, answer.requests, proposed);
+      if (newErrors.length && attempt < repairAttempts()) {
+        logLine(`ask ${sessionId}: the proposal compiles but adds ${newErrors.length} error(s); sent back to the AI`);
+        messages.push({ role: 'user', content: `Your requests compile, but the compiler finds ${newErrors.length} new error(s) in the result:\n${newErrors.slice(0, 20).map((e) => `- ${e}`).join('\n')}\nNothing was applied. Send the corrected, complete list of requests with propose_edits, so that these errors are gone.` });
+        onText(`\n(the compiler finds ${newErrors.length} error${newErrors.length > 1 ? 's' : ''} in the result: ${newErrors[0].slice(0, 120)}…; asking for a correction)\n`, chars);
+        continue;
+      }
       live.proposal = { ...view, requests: answer.requests, source: answer.source && !answer.requests.length ? proposed : null, version };
       logLine(`ask ${sessionId}: ${answer.requests.length} request(s) accepted by the compiler on a copy; +${view.view.added} -${view.view.removed} lines; waiting for Apply`);
       return { ok: true, session: live };

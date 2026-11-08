@@ -161,6 +161,15 @@ const chat = await esbuild.context({
   target: 'es2022',
   outfile: 'dist/chat.js',
 });
+// The text of the files attached to the chat (Word, PDF...): a module the chat loads when a file is attached.
+const chatExtract = await esbuild.context({
+  ...common,
+  entryPoints: ['webview/chat/extract.ts'],
+  format: 'esm',
+  platform: 'browser',
+  target: 'es2022',
+  outfile: 'dist/chat-extract.js',
+});
 
 // impact hook: the impact analysis view's page.
 const impact = await esbuild.context({
@@ -223,10 +232,10 @@ const twinPage = await esbuild.context({
 
 if (watch) {
   copyPdfjs();
-  await Promise.all([host.watch(), web.watch(), chat.watch(), page.watch(), tables.watch(), impact.watch(), realization.watch(), pdf.watch(), modelicaPage.watch(), twinPage.watch()]);
+  await Promise.all([host.watch(), web.watch(), chat.watch(), chatExtract.watch(), page.watch(), tables.watch(), impact.watch(), realization.watch(), pdf.watch(), modelicaPage.watch(), twinPage.watch()]);
 } else {
-  await Promise.all([host.rebuild(), web.rebuild(), chat.rebuild(), page.rebuild(), tables.rebuild(), impact.rebuild(), realization.rebuild(), pdf.rebuild(), modelicaPage.rebuild(), twinPage.rebuild()]);
+  await Promise.all([host.rebuild(), web.rebuild(), chat.rebuild(), chatExtract.rebuild(), page.rebuild(), tables.rebuild(), impact.rebuild(), realization.rebuild(), pdf.rebuild(), modelicaPage.rebuild(), twinPage.rebuild()]);
   copyWasm();
   copyPdfjs();
-  await Promise.all([host.dispose(), web.dispose(), chat.dispose(), page.dispose(), tables.dispose(), impact.dispose(), realization.dispose(), pdf.dispose(), modelicaPage.dispose(), twinPage.dispose()]);
+  await Promise.all([host.dispose(), web.dispose(), chat.dispose(), chatExtract.dispose(), page.dispose(), tables.dispose(), impact.dispose(), realization.dispose(), pdf.dispose(), modelicaPage.dispose(), twinPage.dispose()]);
 }
