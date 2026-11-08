@@ -11,7 +11,8 @@ import * as vscode from 'vscode';
 import { applySession, cancelSession, diffSession, dropSession, runAsk, session } from '../assist';
 import { openProvider } from '../client';
 import { MODELICA_NOT_VERIFIED, MODELICA_WHERE_VERIFIED, modelicaMessages, rememberTurn } from '../core/modelica';
-import { SYSTEM_RULES } from '../core/prompts';
+import { systemRulesFor } from '../core/prompts';
+import { currentWorkspace } from '../workspace';
 import type { ChatMessage } from '../providers';
 import { describeConfig, missingPiece } from '../providers';
 import { currentConfig, readSettings } from '../settings';
@@ -269,16 +270,18 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
     if (this.plainHistory.key !== key) this.plainHistory = { key, messages: [] };
     const question = note ? `${note}\n\n${text}` : text;
     let messages: ChatMessage[];
+    const workspace = await currentWorkspace();
     if (kind === 'modelica' && target) {
       messages = modelicaMessages(
         { fileName: target.document.uri.path.split('/').pop() ?? 'model.mo', text: target.document.getText(), selection: target.selection.isEmpty ? undefined : target.document.getText(target.selection), question },
         this.plainHistory.messages,
+        workspace,
       );
     } else if (kind === 'arc' && target) {
       // The compiler's own words are part of the question; the model text is data.
-      messages = [{ role: 'system', content: SYSTEM_RULES }, ...this.plainHistory.messages, { role: 'user', content: `# The model (${target.document.uri.path.split('/').pop()}), as data\n\`\`\`arc\n${target.document.getText().slice(0, 40000)}\n\`\`\`\n\n# The engineer's request\n${question}\n\nAnswer in prose; no edit tool is available now.` }];
+      messages = [{ role: 'system', content: systemRulesFor(workspace) }, ...this.plainHistory.messages, { role: 'user', content: `# The model (${target.document.uri.path.split('/').pop()}), as data\n\`\`\`arc\n${target.document.getText().slice(0, 40000)}\n\`\`\`\n\n# The engineer's request\n${question}\n\nAnswer in prose; no edit tool is available now.` }];
     } else {
-      messages = [{ role: 'system', content: `${SYSTEM_RULES}\n\nNo model file is open: answer questions about ArcLang, Arcadia and Modelica in prose.` }, ...this.plainHistory.messages, { role: 'user', content: question }];
+      messages = [{ role: 'system', content: `${systemRulesFor(workspace)}\n\nNo model file is open: answer questions about ArcLang, Arcadia and Modelica in prose.` }, ...this.plainHistory.messages, { role: 'user', content: question }];
     }
     const sent = messages.reduce((n, m) => n + m.content.length, 0);
     const opened = await openProvider(this.context, kind === 'modelica' ? 'chat about a Modelica file' : 'chat', `${kind === 'plain' ? 'Your question' : 'The text of the open file and your question'}: about ${sent} characters.`);

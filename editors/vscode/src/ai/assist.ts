@@ -15,7 +15,8 @@ import { buildSelectionContext, ContextScope } from './core/context';
 import { converse } from './core/conversation';
 import { lineDiff } from './core/diff';
 import { consequencesOf, diffSnapshots } from './core/impact';
-import { askPrompt, IMPACT, PROPOSE_EDITS, READ_ELEMENTS, SYSTEM_RULES } from './core/prompts';
+import { askPrompt, IMPACT, PROPOSE_EDITS, READ_ELEMENTS, systemRulesFor } from './core/prompts';
+import { currentWorkspace } from './workspace';
 import type { ProposalView, QuickAction } from './core/protocol';
 import { QUICK_ACTIONS } from './core/protocol';
 import { describeEdit } from './core/requests';
@@ -163,7 +164,7 @@ export async function runAsk(
     ids = request.ids;
     const built = buildSelectionContext({ snapshot, metamodel, text: source.text, fileName: document.uri.path.split('/').pop() ?? 'model.arc', ids, scope: request.scope ?? contextScope(), selectedText: request.selectedText });
     messages = [
-      { role: 'system', content: SYSTEM_RULES },
+      { role: 'system', content: systemRulesFor(await currentWorkspace()) },
       { role: 'user', content: askPrompt(promptFor(request.prompt, request.action), built.text) },
     ];
     current?.controller.abort();
