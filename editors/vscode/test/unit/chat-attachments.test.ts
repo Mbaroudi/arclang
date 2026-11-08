@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { changeMarks } from '../../src/ai/core/diff';
 import { attachmentsBlock, CREATE_MODEL, MAX_ATTACHED, NO_FILE_RULES, SYSTEM_RULES, WRITE_FILE, writablePath } from '../../src/ai/core/prompts';
 import { parseAssistAnswer } from '../../src/ai/core/answer';
-import { isQuestion, validateRequests } from '../../src/ai/core/requests';
+import { isQuestion, validateRequests, withoutMetaTalk } from '../../src/ai/core/requests';
 import { converse } from '../../src/ai/core/conversation';
 import { parseFromChatPage } from '../../src/ai/chat/protocol';
 import { markupText, unzip, decode } from '../../webview/chat/markup';
@@ -154,4 +154,18 @@ test('a polite request is a request; a question is a question', () => {
   for (const asked of ['Can you simulate the battery range?', 'could you add the simulation', 'peux-tu ajouter la simulation ?', 'Pouvez-vous simuler la chauffe ?', 'tu peux simuler ça']) assert.equal(isQuestion(asked), false, asked);
   for (const asked of ['peut-on faire une co-simulation dans OMSimulator ?', 'How do I run it?', 'comment je lance la simulation', 'Can I bring my requirements from DOORS?', 'est ce que mon modèle est bon ?']) assert.equal(isQuestion(asked), true, asked);
   assert.equal(isQuestion('rajoute la simulation openmodelica'), false);
+});
+
+test('polite requests in French and English; the answer starts with the answer', () => {
+  for (const asked of ['est-ce que tu peux ajouter un test ?', 'Would you add the tests?', 'vous pouvez simuler ça ?']) assert.equal(isQuestion(asked), false, asked);
+  assert.equal(isQuestion('Which requirements are not yet verified by a test, and what would you add?'), true);
+  assert.equal(withoutMetaTalk("Il s'agit d'une question : voici les étapes. Le gate indique…"), 'Le gate indique…');
+  assert.equal(withoutMetaTalk("C'est une question : voici comment faire, sans rien modifier.\n\nLa Gate est en FAIL"), 'La Gate est en FAIL');
+  assert.equal(withoutMetaTalk('This is a question, so here is the answer: run Simulate.'), 'run Simulate.');
+  assert.equal(withoutMetaTalk('Le modèle compile.'), 'Le modèle compile.');
+});
+
+test('a request with a question mark is still a request', () => {
+  for (const asked of ["fait moi une modelisation d'une voiture one-pedale ?", 'ajoute un capteur de pluie ?', 'Add a headlight?', 'stp corrige les erreurs ?', 'Model a drone?']) assert.equal(isQuestion(asked), false, asked);
+  for (const asked of ['où sont les résultats ?', 'Where are the simulation results kept?', 'quels tests manquent ?']) assert.equal(isQuestion(asked), true, asked);
 });

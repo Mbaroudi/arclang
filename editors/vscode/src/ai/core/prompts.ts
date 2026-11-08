@@ -69,7 +69,7 @@ export const CREATE_MODEL: ToolSpec = {
 
 export const WRITE_FILE: ToolSpec = {
   name: 'write_file',
-  description: 'Write a file next to the model, with the edits: the Modelica package of a simulation (physics/X.mo: a package extending the classes `arclang export -f modelica` generates, equations balanced), measured data (.csv), notes (.md). The path is relative to the model\'s folder. Call it before propose_edits; the file is written when the engineer keeps the change, and removed again if they undo it.',
+  description: 'Write a file next to the model, with the edits: the Modelica package of a simulation (physics/X.mo: self-contained, one model per case, Real variables with their unit, equations balanced; the expects: read its variables by their path, plant.water.T), measured data (.csv), notes (.md). The path is relative to the model\'s folder. Call it before propose_edits; the file is written when the engineer keeps the change, and removed again if they undo it.',
   parameters: {
     type: 'object',
     properties: {

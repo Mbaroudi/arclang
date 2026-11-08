@@ -347,7 +347,7 @@ const SCENARIOS = {
     if (process.env.SIM_IMAGE && simFiles.length) await simulate(page, chat, simFiles, 'novice');
 
     const run = timed(await step(page, chat, journey, 'comment je lance la simulation ?'));
-    check('novice', 'run: the Simulate button of the diagram, and a free account', /Simulate/.test(run.text) && /compte|connect|sign/i.test(run.text) && !/(« ArcLang: Run simulations »|"ArcLang: Run simulations")(?![^.]*(pas disponible|not available|desktop|poste|ordinateur))/.test(run.text), run.text.slice(0, 200).replace(/\n/g, ' '));
+    check('novice', 'run: the Simulate button of the diagram, and a free account', /Simulate/.test(run.text) && /compte|connect|sign/i.test(run.text) && (!/ArcLang: Run simulations/.test(run.text) || /pas disponible|not available|desktop|poste|ordinateur|VS Code/i.test(run.text)), run.text.slice(0, 200).replace(/\n/g, ' '));
     // The button the answer names, clicked without an account.
     let clicked = false;
     for (const f of page.frames()) {
@@ -394,7 +394,7 @@ const SCENARIOS = {
     check(S, 'simulate: still no error', (await statusErrors(page)) === 0, `errors: ${await statusErrors(page)}`);
     if (process.env.SIM_IMAGE && files.length) await simulate(page, chat, files, S);
     const run = await step(page, chat, journey, 'How do I run it?');
-    check(S, 'run: the Simulate button, and a free account', /Simulate/.test(run.text) && /sign in|account/i.test(run.text) && !/"ArcLang: Run simulations"(?![^.]*(not available|desktop|computer))/.test(run.text), run.text.slice(0, 200).replace(/\n/g, ' '));
+    check(S, 'run: the Simulate button, and a free account', /Simulate/.test(run.text) && /sign in|account/i.test(run.text) && (!/ArcLang: Run simulations/.test(run.text) || /not available|desktop|computer|VS Code/i.test(run.text)), run.text.slice(0, 200).replace(/\n/g, ' '));
     const errors = await errorToasts(page);
     check(S, 'no error notification', errors.length === 0, errors.join(' | '));
     if (SHOTS) fs.writeFileSync(path.join(SHOTS, `${S}-journey.json`), JSON.stringify(journey, null, 2));
@@ -427,6 +427,60 @@ const SCENARIOS = {
     check(S, 'ReqIF: yes, with how', /ReqIF/i.test(reqif.text) && !/^No\b/.test(reqif.text.replace(/^.*?claude-[\w-]+\s*/s, '').trim()), reqif.text.slice(0, 200).replace(/\n/g, ' '));
     const errors = await errorToasts(page);
     check(S, 'no error notification', errors.length === 0, errors.join(' | '));
+    if (SHOTS) fs.writeFileSync(path.join(SHOTS, `${S}-journey.json`), JSON.stringify(journey, null, 2));
+    await context.close();
+  },
+
+  // Requirements from a spreadsheet export (CSV), in English: the model keeps their ids, then a review.
+  async requirements_csv(browser) {
+    const S = 'requirements_csv';
+    const fixture = path.join(__dirname, '..', 'fixtures', 'chat', 'drone-requirements.csv');
+    const { context, page, chat } = await open(browser);
+    const journey = [];
+    await command(page, 'View: Close All Editors');
+    await chat.setInputFiles('input[type=file]', fixture);
+    await page.waitForTimeout(3000);
+    check(S, 'the CSV is attached', (await chat.$$eval('.chat-attachment', (l) => l.map((x) => x.textContent))).some((t) => /drone-requirements\.csv/.test(t)));
+    const answer = await step(page, chat, journey, 'Build the architecture of the drone described by the attached requirements. Keep their ids.');
+    check(S, 'the model keeps the four ids', ['DR-001', 'DR-002', 'DR-003', 'DR-004'].every((id) => answer.text.includes(id)), answer.text.slice(0, 100).replace(/\n/g, ' '));
+    check(S, 'the model compiles', /✓ compiles/.test(answer.text));
+    const file = await createModel(page, chat);
+    check(S, 'created, no error', /\.arc$/.test(file) && (await statusErrors(page)) === 0, `${file}, errors: ${await statusErrors(page)}`);
+    const gaps = await step(page, chat, journey, 'Which requirements are not yet verified by a test, and what would you add?');
+    check(S, 'the gaps: named by id, in English, nothing written', /DR-00\d/.test(gaps.text) && english(gaps.text) && !(await chat.$('.chat-turn.ai:last-child .chat-proposal.written')), gaps.text.slice(0, 160).replace(/\n/g, ' '));
+    const add = await step(page, chat, journey, 'Add them.');
+    check(S, 'the tests are written with Keep / Undo', await keep(page, chat), add.text.slice(0, 120).replace(/\n/g, ' '));
+    check(S, 'still no error', (await statusErrors(page)) === 0, `errors: ${await statusErrors(page)}`);
+    if (SHOTS) fs.writeFileSync(path.join(SHOTS, `${S}-journey.json`), JSON.stringify(journey, null, 2));
+    await context.close();
+  },
+
+  // An asked method is applied, not explained: CESAM on the open model.
+  async cesam_do(browser) {
+    const S = 'cesam_do';
+    const { context, page, chat } = await open(browser);
+    const journey = [];
+    const before = (await chatFile(chat)) || 'starter.arc';
+    const apply = await step(page, chat, journey, 'Apply the CESAM method to my model.');
+    const kept = await keep(page, chat);
+    check(S, 'CESAM is written into the model', kept && /method:\s*"cesam"|stakeholder/.test(await fileText(page, before)), apply.text.slice(0, 140).replace(/\n/g, ' '));
+    check(S, 'still no error', (await statusErrors(page)) === 0, `errors: ${await statusErrors(page)}`);
+    if (SHOTS) fs.writeFileSync(path.join(SHOTS, `${S}-journey.json`), JSON.stringify(journey, null, 2));
+    await context.close();
+  },
+
+  // An example opened as a visitor finds it: explained to a manager, then its weak points.
+  async example_review(browser) {
+    const S = 'example_review';
+    const { context, page, chat } = await open(browser);
+    const journey = [];
+    const manager = await step(page, chat, journey, 'Explain this model to my manager in five lines, no jargon.');
+    check(S, 'a short plain answer, nothing written', manager.text.length < 2200 && !(await chat.$('.chat-turn.ai:last-child .chat-proposal.written')), `${manager.text.length} chars`);
+    const weak = await step(page, chat, journey, 'What are the weak points of this architecture?');
+    check(S, 'weak points named on the real elements', /LC-|REQ-|Threat|Brake/i.test(weak.text) && !(await chat.$('.chat-turn.ai:last-child .chat-proposal.written')), weak.text.slice(0, 160).replace(/\n/g, ' '));
+    const fix = await step(page, chat, journey, 'Fix the most important one.');
+    check(S, 'the fix is written with Keep / Undo', await keep(page, chat), fix.text.slice(0, 120).replace(/\n/g, ' '));
+    check(S, 'still no error', (await statusErrors(page)) === 0, `errors: ${await statusErrors(page)}`);
     if (SHOTS) fs.writeFileSync(path.join(SHOTS, `${S}-journey.json`), JSON.stringify(journey, null, 2));
     await context.close();
   },
@@ -468,6 +522,11 @@ async function simulate(page, chat, files, scenario = 'calc') {
   }
   const ran = /Simulated in/.test(out);
   check(scenario, 'OpenModelica runs the simulation the AI wrote', ran, ran ? (out.match(/\d+ verdict\(s\)[^\n]*/) ?? [''])[0] : out.split('\n').filter((l) => /error|Error/.test(l)).slice(0, 2).join(' | ').slice(0, 200));
+  // A run is not enough: each case must end in a verdict (pass or fail), not in an error of the expects.
+  const cacheDir = path.join(dir, '.arclang', 'sim-cache');
+  const verdicts = fs.existsSync(cacheDir) ? fs.readdirSync(cacheDir).filter((f) => f.endsWith('.json')).map((f) => JSON.parse(fs.readFileSync(path.join(cacheDir, f), 'utf8'))) : [];
+  const errors = verdicts.filter((v) => v.verdict === 'error');
+  if (ran) check(scenario, 'every simulated case ends in a verdict, not an error', verdicts.length > 0 && errors.length === 0, verdicts.map((v) => `${v.test_case}: ${v.verdict}${v.reason ? ` (${v.reason.slice(0, 90)})` : ''}`).join('; '));
   if (SHOTS) fs.cpSync(dir, path.join(SHOTS, `${scenario}-files`), { recursive: true });
 }
 
