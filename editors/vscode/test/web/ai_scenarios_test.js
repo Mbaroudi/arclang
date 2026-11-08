@@ -76,6 +76,13 @@ async function editorText(page, nth = 0) {
   if (!editor) return '';
   await (await editor.$('.view-lines')).click({ position: { x: 60, y: 8 }, force: true, timeout: 10000 });
   await page.keyboard.press('Meta+ArrowUp');
+  // Read from the top: wait until the editor draws line 1 (a slow page scrolls late).
+  for (let i = 0; i < 30; i++) {
+    const top = await editor.evaluate((root) => [...root.querySelectorAll('.margin-view-overlays .line-numbers')].some((n) => n.textContent.trim() === '1'));
+    if (top) break;
+    await page.keyboard.press('Meta+ArrowUp');
+    await page.waitForTimeout(200);
+  }
   const lines = new Map();
   for (let round = 0; round < 400; round++) {
     await page.waitForTimeout(120);
