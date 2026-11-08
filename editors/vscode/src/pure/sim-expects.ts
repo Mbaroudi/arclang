@@ -13,6 +13,9 @@ interface Expectation {
   unit: string;
 }
 
+/** The reserved words of Modelica 3.6: never a name. */
+const MODELICA_KEYWORDS = new Set('algorithm and annotation block break class connect connector constant constrainedby der discrete each else elseif elsewhen encapsulated end enumeration equation expandable extends external false final flow for function if import impure in initial inner input loop model not operator or outer output package parameter partial protected public pure record redeclare replaceable return stream then true type when while within'.split(' '));
+
 const COMPARISON = /(<=|>=|==|!=|<|>)/;
 
 /** The expects: strings of a model text, unescaped. */
@@ -54,6 +57,9 @@ export function unreadableExpects(current: string, proposed: string, modelica: s
   if (!modelica.trim()) return [];
   const before = new Set(expectsOf(current));
   const declared = declarations(modelica);
+  // A Modelica keyword as a name ("Coolant loop;") and the package does not even load.
+  const keywords = [...declared.keys()].filter((name) => MODELICA_KEYWORDS.has(name));
+  if (keywords.length) return [`the Modelica package names ${keywords.map((k) => `"${k}"`).join(', ')}, a Modelica keyword: OpenModelica cannot load it. Rename ${keywords.length > 1 ? 'them' : 'it'} (coolingLoop rather than loop).`];
   const extendsGenerated = /\bextends\s+(?!Modelica\.)\w/.test(modelica);
   const problems: string[] = [];
   for (const text of expectsOf(proposed)) {

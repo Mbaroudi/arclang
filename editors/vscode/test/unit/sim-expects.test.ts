@@ -48,3 +48,10 @@ test('a package that extends the generated structure may read elements of the mo
   assert.deepEqual(unreadableExpects('', tc(['REQ-1: max("PN-HYD".core.T) <= 96 °C']), `model Heating\n  extends Coffee.Architecture;\nend Heating;`), []);
   assert.equal(unreadableExpects('', tc(['REQ-1: max("PN-HYD".core.T) <= 96 °C']), `model Heating\n  extends Modelica.Icons.Example;\n  Real T(unit = "K");\nend Heating;`).length, 1);
 });
+
+test('a Modelica keyword as a name is sent back: the package would not load', () => {
+  const mo = `package B\n  model Coolant\n    Real T(unit = "K");\n  end Coolant;\n  model Charge\n    Coolant loop;\n  end Charge;\nend B;`;
+  const problems = unreadableExpects('', tc(['REQ-1: max(loop.T) <= 40 °C']), mo);
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /"loop", a Modelica keyword/);
+});

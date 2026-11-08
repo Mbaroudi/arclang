@@ -226,7 +226,7 @@ export async function runAsk(
         },
       });
       const parsed = parseAssistAnswer(result.text, result.calls);
-      const answer = { ...parsed, explanation: withoutMetaTalk(parsed.explanation) };
+      let answer = { ...parsed, explanation: withoutMetaTalk(parsed.explanation) };
       messages.push({ role: 'assistant', content: result.text, toolCalls: result.calls.length ? result.calls : undefined });
       for (const call of result.calls) messages.push({ role: 'tool', content: 'Received: it is being compiled.', toolCallId: call.id, toolName: call.name });
       if (answer.newModel) {
@@ -249,6 +249,8 @@ export async function runAsk(
         onText('\n(a question: answering it without changing the model)\n', chars);
         continue;
       }
+      // Out of attempts, a question still gets its answer only: the edits are dropped, never applied.
+      if (isQuestion(askedNow) && (answer.requests.length || answer.source)) answer = { ...answer, requests: [], source: null };
       let refusal: string | null = answer.problem;
       let proposed: string | null = null;
       if (!refusal && answer.requests.length) {
