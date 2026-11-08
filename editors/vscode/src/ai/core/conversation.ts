@@ -22,12 +22,16 @@ export interface ConversationOptions {
   maxTokens?: number;
 }
 
+const CUT = new Set(['max_tokens', 'length']);
+const CUT_AGAIN = 'Your answer was cut at the token limit, so none of it was applied. Send it again in a smaller part: at most about 15 edits and one file, then end the explanation with "Next:" and what remains (the engineer presses Continue).';
+
 export async function converse(provider: ChatProvider, messages: ChatMessage[], options: ConversationOptions): Promise<ConversationResult> {
   const history = [...messages];
   let text = '';
   const maxRounds = options.maxRounds ?? 5;
   for (let round = 1; round <= maxRounds; round++) {
     let roundText = '';
+    let stopReason: string | undefined;
     const calls: ToolCall[] = [];
     for await (const event of provider.chat(history, { tools: options.tools, signal: options.signal, maxTokens: options.maxTokens })) {
       if (event.type === 'text') {
@@ -35,9 +39,17 @@ export async function converse(provider: ChatProvider, messages: ChatMessage[], 
         options.onText?.(event.text);
       } else if (event.type === 'tool_call') {
         calls.push(event.call);
+      } else if (event.type === 'done') {
+        stopReason = event.stopReason;
       }
     }
     text += roundText;
+    // An answer cut at the token limit holds a tool call cut in the middle: nothing of it is run; the AI is asked for a smaller part.
+    if (CUT.has(stopReason ?? '') && round < maxRounds) {
+      history.push({ role: 'assistant', content: roundText.trim() || '(answer cut at the token limit)' });
+      history.push({ role: 'user', content: CUT_AGAIN });
+      continue;
+    }
     const final = calls.filter((c) => options.final.includes(c.name));
     if (final.length) {
       // The other calls of the same answer still run (write_file next to propose_edits): their effect is part of the answer.

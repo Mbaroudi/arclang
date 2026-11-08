@@ -70,7 +70,7 @@ after(async () => {
 
 test('the hosted provider needs no key, sends none, and goes to the gateway address', async () => {
   const config = resolveConfig({ provider: 'arclang-hosted', model: '', endpoint: 'https://ignored.example', azureDeployment: '', apiVersion: '', hostedEndpoint: server.url, maxTokens: 512, temperature: null, timeoutSeconds: 10 });
-  assert.equal(config.model, 'claude-haiku-5-5');
+  assert.equal(config.model, 'claude-sonnet-5-5');
   assert.equal(config.endpoint, server.url);
   assert.equal(missingPiece(config), null);
   assert.equal(needsConsent(config), false, 'a gateway on localhost is not asked about; the real one is');

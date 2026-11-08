@@ -196,7 +196,7 @@ proxies `/api/ai` to it, unbuffered (SSE).
 
 | Guardrail | How |
 |---|---|
-| fixed models | `claude-haiku-5-5` (default) and `claude-sonnet-5-5`; the first playground's `claude-sonnet-5` is an alias; anything else is a 400 |
+| fixed models | `claude-sonnet-5-5` (default) and `claude-haiku-5-5`; the first playground's `claude-sonnet-5` is an alias; anything else is a 400 |
 | caps | `max_tokens` at most 4096 (2048 if absent); body at most 200 kB (nginx 256 kB); at most 8 tools; only `model`, `max_tokens`, `messages`, `stream`, `system`, `tools`, `tool_choice`, `temperature`, `stop_sequences` go upstream |
 | topic | the request must mention ArcLang, Arcadia, Modelica, `.arc`, `.mo` or have their shapes (equations, `parameter Real`, `end X;`, `component "..."`); the chat's own system prompts always do; else 422 |
 | rate | nginx `limit_req` 10 requests a minute, burst 5, per client (`Fly-Client-IP`), and the same token bucket in the gateway; a friendly JSON 429 |

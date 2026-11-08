@@ -79,6 +79,17 @@ test('asked to add something, the AI does it, files next to the model included',
   for (const bad of ['../x.mo', '/etc/x.mo', 'physics/../../x.mo', '.git/config.json', 'model.arc', 'run.sh', '', 42]) assert.equal(writablePath(bad), null, String(bad));
 });
 
+test('a layer added "in" itself goes at the top level, without the layer it named', () => {
+  const r = validateRequests([{ op: 'add', keyword: 'operational_analysis', name: 'Operational Analysis', layer: 'operational_analysis' }, { op: 'add', keyword: 'epbs', name: 'EPBS', container: 'OnePedalCar' }]);
+  assert.ok(r.ok);
+  if (!r.ok) return;
+  for (const q of r.requests as { top_level?: boolean; layer?: string; container?: string }[]) {
+    assert.equal(q.top_level, true);
+    assert.equal(q.layer, undefined);
+    assert.equal(q.container, undefined);
+  }
+});
+
 test('an element added with no container and no layer goes at the top level', () => {
   const r = validateRequests([{ op: 'add', keyword: 'test_case', name: 'TC-1' }, { op: 'add', keyword: 'component', name: 'C', layer: 'logical_architecture' }, { op: 'add_raw', declaration: 'trace "A" satisfies "B" {}', top_level: 'true' }]);
   assert.ok(r.ok);
@@ -111,4 +122,30 @@ test('a file written in the same answer as the edits is written too', async () =
   });
   assert.deepEqual(ran, ['write_file']);
   assert.deepEqual(result.calls.map((c: { name: string }) => c.name), ['propose_edits']);
+});
+
+test('an answer cut at the token limit is not run: the AI is asked again for a smaller part', async () => {
+  const seen: string[] = [];
+  let round = 0;
+  const provider = {
+    async *chat(messages: { role: string; content: string }[]) {
+      round += 1;
+      seen.push(messages[messages.length - 1].content);
+      if (round === 1) {
+        yield { type: 'tool_call' as const, call: { id: 'a', name: 'propose_edits', input: {} } };
+        yield { type: 'done' as const, stopReason: 'max_tokens' };
+        return;
+      }
+      yield { type: 'tool_call' as const, call: { id: 'b', name: 'propose_edits', input: { explanation: 'part 1. Next: the rest', requests: [] } } };
+      yield { type: 'done' as const, stopReason: 'tool_use' };
+    },
+  };
+  const result = await converse(provider as never, [{ role: 'user', content: 'everything' }], {
+    tools: [{ name: 'propose_edits', description: '', parameters: {} }],
+    final: ['propose_edits'],
+    run: async () => 'ok',
+  });
+  assert.equal(round, 2);
+  assert.match(seen[1], /cut at the token limit/);
+  assert.equal((result.calls[0].input as { explanation: string }).explanation, 'part 1. Next: the rest');
 });
