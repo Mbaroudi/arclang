@@ -12,6 +12,8 @@ export interface ParsedAnswer {
   source: string | null;
   /** Why the edits of the answer were not taken, when they were not. */
   problem: string | null;
+  /** A new model for another system, for a new file (create_model): never applied to the open one. */
+  newModel?: string;
 }
 
 /** The first ```lang fence of the text (```json, ```arc). */
@@ -46,6 +48,11 @@ export function prose(text: string): string {
 
 /** The explanation and the requests of an answer (a propose_edits call wins over the text). */
 export function parseAssistAnswer(text: string, calls: ToolCall[]): ParsedAnswer {
+  const created = calls.find((c) => c.name === 'create_model');
+  if (created && typeof created.input?.source === 'string' && created.input.source.trim()) {
+    const explanation = typeof created.input.explanation === 'string' ? created.input.explanation.trim() : prose(text);
+    return { explanation, requests: [], source: null, problem: null, newModel: created.input.source.trim() };
+  }
   const call = calls.find((c) => c.name === 'propose_edits');
   const object = call ? call.input : jsonObjectOf(text);
   const explanationOf = (value: unknown) => (typeof value === 'string' ? value.trim() : '');

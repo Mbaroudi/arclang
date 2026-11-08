@@ -56,3 +56,14 @@ test('the page may attach, detach, keep and undo, within bounds', () => {
   assert.equal(parseFromChatPage({ type: 'chat-create-model', code: 'not a model' }), null);
   assert.deepEqual(parseFromChatPage({ type: 'chat-create-model', code: '// m\nmodel X {}' }), { type: 'chat-create-model', code: '// m\nmodel X {}' });
 });
+
+test('another system than the open model is a new model, never mixed into it', async () => {
+  const { parseAssistAnswer } = await import('../../src/ai/core/answer');
+  const { SYSTEM_RULES, CREATE_MODEL } = await import('../../src/ai/core/prompts');
+  const answer = parseAssistAnswer('', [{ id: 't', name: 'create_model', input: { explanation: 'A phone.', source: 'model Phone { }' } }]);
+  assert.equal(answer.newModel, 'model Phone { }');
+  assert.deepEqual(answer.requests, []);
+  assert.match(SYSTEM_RULES, /never put it into the open model: call create_model/);
+  assert.match(SYSTEM_RULES, /ask them in one sentence/);
+  assert.deepEqual(CREATE_MODEL.parameters.required, ['explanation', 'source']);
+});
