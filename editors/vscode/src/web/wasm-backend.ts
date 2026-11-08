@@ -7,10 +7,14 @@ import type { Backend, RunOptions, RunResult } from '../cli';
 import * as vfs from './vfs';
 import type { Wasm } from './wasm';
 
+/** A command the server runs for signed-in visitors. */
+export const NEEDS_SIGN_IN = (what: string): string =>
+  `${what} runs online for signed-in visitors: sign in (free, a link by e-mail, no password) with "Sign in to keep your work" in the status bar, or use the desktop extension.`;
+
 export const NOT_AVAILABLE = (what: string): string =>
   `${what} is not available in the browser yet: the web playground runs the compiler in WebAssembly, which carries the model, edits, checks, SysML v2 and the viewer for now. Use the desktop extension for this command.`;
 
-import { runRemote, runsRemotely } from './remote';
+import { probeRemote, runRemote, runsOnlineSignedIn, runsRemotely } from './remote';
 
 const done = (stdout: string, code = 0): RunResult => ({ code, stdout, stderr: '' });
 const failed = (stderr: string, code = 1): RunResult => ({ code, stdout: '', stderr });
@@ -66,6 +70,7 @@ export function createWasmBackend(wasm: Wasm): Backend {
     const [command, ...rest] = args;
     // Online (arclang.fr, signed in), the server runs what this build does not.
     if (runsRemotely(command) && !local(args)) return null;
+    if (runsOnlineSignedIn(command) && !local(args)) return NEEDS_SIGN_IN(`'arclang ${command}'`);
     if (command === 'export' || command === 'import') {
       const format = option(rest, '-f', '--format');
       const known = command === 'export' ? format === 'sys-ml' || format === 'sysml' : format === 'sysml';
@@ -88,6 +93,7 @@ export function createWasmBackend(wasm: Wasm): Backend {
 
   async function run(args: string[], options: RunOptions): Promise<RunResult> {
     const [command, ...rest] = args;
+    if (!local(args)) await probeRemote();
     if (!local(args) && runsRemotely(command)) return runRemote(args, options);
     try {
       switch (command) {

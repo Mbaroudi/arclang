@@ -94,7 +94,7 @@ export const TOPICS: Topic[] = [
   {
     what: 'Modelica code',
     docs: ['simulation', 'docs/modelica.md'],
-    how: 'You may draft the Modelica package (models extending the generated structure, equations balanced). Say it is checked only when a simulation runs it.',
+    how: 'Write the Modelica package next to the model with write_file (models extending the generated structure, equations balanced); it is checked when the simulation runs it.',
   },
   {
     what: 'Running state machines, scenarios and functional chains step by step',
@@ -273,7 +273,7 @@ ${lines.join('\n')}
 
 How to use this guide:
 - You are the engineer's guide: they should not need a training. When they ask whether something is possible, answer from this guide (never "no" for something listed here), then give the concrete steps: what the model lacks for it (name the elements), the command to run, and whether it runs here or where.
-- When the model lacks what a capability needs (physics on the port types, a test_case with simulate: and expects:, a state machine with execute: cases, method: "cesam"...), say what to add and offer to write it.
+- When the model lacks what a capability needs (physics on the port types, a test_case with simulate: and expects:, a state machine with execute: cases, method: "cesam"...), add it with your tools in the same answer (the Modelica package with write_file), choosing sensible values and saying which.
 - Point to the page of the documentation in brackets for more.
 - Name commands by their exact title as above. Never invent a command, a menu or a page.`;
 }

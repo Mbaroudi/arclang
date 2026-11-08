@@ -41,7 +41,7 @@ export function contextScope(): ContextScope {
 }
 
 export function repairAttempts(): number {
-  return Math.max(0, Math.min(5, vscode.workspace.getConfiguration(SECTION).get<number>('repairAttempts', 2)));
+  return Math.max(0, Math.min(5, vscode.workspace.getConfiguration(SECTION).get<number>('repairAttempts', 3)));
 }
 
 const keyName = (provider: ProviderId) => `arclang.ai.apiKey.${provider}`;

@@ -6,9 +6,11 @@ import type { FromChatPage, ToChatPage } from '../../src/ai/chat/protocol';
 import type { ProposalView } from '../../src/ai/core/protocol';
 import { QUICK_ACTIONS } from '../../src/ai/core/protocol';
 import { el } from '../dom';
+import { prose } from './markdown';
 
 const vscode = acquireVsCodeApi() as unknown as { postMessage: (m: FromChatPage) => void };
 const post = (message: FromChatPage) => vscode.postMessage(message);
+const openLink = (url: string) => post({ type: 'chat-open-link', url });
 
 type State = Extract<ToChatPage, { type: 'chat-state' }>;
 let state: State | null = null;
@@ -188,13 +190,7 @@ function renderText(host: HTMLElement, text: string, withCodeActions: boolean, c
   const parts = text.split(/```/);
   parts.forEach((part, index) => {
     if (index % 2 === 0) {
-      for (const paragraph of part.split(/\n{2,}/)) {
-        const trimmed = paragraph.trim();
-        if (!trimmed) continue;
-        const p = el('p');
-        trimmed.split(/(`[^`\n]+`)/).forEach((piece) => p.append(piece.startsWith('`') && piece.endsWith('`') && piece.length > 2 ? el('code', { text: piece.slice(1, -1) }) : piece));
-        host.append(p);
-      }
+      prose(host, part, openLink);
       return;
     }
     const newline = part.indexOf('\n');
@@ -251,11 +247,26 @@ function proposalCard(id: string, session: string, proposal: ProposalView, provi
   } else {
     card.append(el('div', { class: 'chat-checked', text: `Checked by the compiler on a copy: ${proposal.edits.length} edit${proposal.edits.length === 1 ? '' : 's'}, +${proposal.added} -${proposal.removed} lines${proposal.newFindings.length ? `, ${proposal.newFindings.length} new finding${proposal.newFindings.length > 1 ? 's' : ''}` : ''}.` }));
     if (proposal.edits.length) card.append(el('ul', { class: 'chat-edits' }, proposal.edits.map((edit) => el('li', { text: edit }))));
-    if (proposal.newFindings.length) card.append(el('ul', { class: 'chat-findings' }, proposal.newFindings.slice(0, 6).map((f) => el('li', { text: f }))));
+    if (proposal.files?.length) {
+      const list = el('ul', { class: 'chat-files' });
+      for (const file of proposal.files) {
+        const open = el('button', { type: 'button', class: 'chat-link', text: file.path, title: `Open ${file.path}` });
+        open.addEventListener('click', () => post({ type: 'chat-open-file', session, path: file.path }));
+        list.append(el('li', {}, ['📄 ', open, ` · ${file.lines} lines, written next to the model`]));
+      }
+      card.append(list);
+    }
+    if (proposal.newFindings.length) {
+      const fold = el('details', { class: 'chat-fold' }, [el('summary', { text: `${proposal.newFindings.length} thing${proposal.newFindings.length > 1 ? 's' : ''} the compiler asks for next (warnings, gate)` }), el('ul', { class: 'chat-findings' }, proposal.newFindings.slice(0, 20).map((f) => el('li', { text: f })))]);
+      card.append(fold);
+    }
     if (proposal.diff.length) {
       const diff = el('pre', { class: 'chat-diff', 'aria-label': 'Diff of the model source' });
       for (const line of proposal.diff.slice(0, 160)) diff.append(el('span', { class: line.startsWith('+') ? 'add' : line.startsWith('-') ? 'del' : line.startsWith('@@') ? 'hunk' : 'ctx', text: `${line}\n` }));
-      card.append(diff);
+      // Written in the file, the change is in the editor: the diff stays folded.
+      const fold = el('details', { class: 'chat-fold' }, [el('summary', { text: `The change in the source: +${proposal.added} −${proposal.removed} lines` }), diff]);
+      if (!written) (fold as HTMLDetailsElement).open = true;
+      card.append(fold);
     }
   }
   if (proposal.ok && !proposal.explainOnly && written) {
@@ -316,11 +327,35 @@ function proposalCard(id: string, session: string, proposal: ProposalView, provi
 }
 
 let pendingRefine: string | null = null;
+/** The question each answer answers, for Retry. */
+let lastQuestion = '';
+const questionOf = new Map<string, string>();
+
+/** Copy and Retry under a finished answer. */
+function turnActions(id: string, text: () => string): HTMLElement {
+  const bar = el('div', { class: 'chat-turn-actions' });
+  const copy = el('button', { type: 'button', class: 'chat-mini', text: 'Copy', title: 'Copy the answer' });
+  copy.addEventListener('click', () => post({ type: 'chat-copy', code: text() }));
+  bar.append(copy);
+  const question = questionOf.get(id);
+  if (question) {
+    const retry = el('button', { type: 'button', class: 'chat-mini', text: 'Retry', title: 'Ask the same question again' });
+    retry.addEventListener('click', () => {
+      if (busy) return;
+      input.value = question;
+      send();
+    });
+    bar.append(retry);
+  }
+  return bar;
+}
 
 function send(): void {
   const text = input.value.trim();
   if (!text || busy) return;
   input.value = '';
+  input.style.height = '';
+  lastQuestion = text;
   const turn = addTurn(`u${Date.now()}`, 'you', 'You');
   renderText(turn.body, text, false);
   if (pendingRefine) {
@@ -336,6 +371,8 @@ function send(): void {
 sendButton.addEventListener('click', send);
 stopButton.addEventListener('click', () => post({ type: 'chat-cancel' }));
 input.addEventListener('input', () => {
+  input.style.height = 'auto';
+  input.style.height = `${Math.min(input.scrollHeight + 2, window.innerHeight * 0.4)}px`;
   const at = input.selectionStart ?? 0;
   if (input.value[at - 1] === '@' && (at === 1 || /\s/.test(input.value[at - 2]))) {
     input.value = input.value.slice(0, at - 1) + input.value.slice(at);
@@ -364,8 +401,9 @@ window.addEventListener('message', (event: MessageEvent<ToChatPage>) => {
       transcript.querySelector('.chat-welcome')?.remove();
       const meta = `${message.label}${message.file ? ` · ${message.file}` : ''}`;
       const turn = addTurn(message.id, 'ai', meta);
-      turn.body.append(el('p', { class: 'chat-wait', text: 'Thinking…' }));
+      turn.body.append(el('p', { class: 'chat-wait' }, ['Thinking', el('span', { class: 'chat-dots', 'aria-hidden': 'true' })]));
       turns.set(message.id, { ...turn, text: '' });
+      questionOf.set(message.id, lastQuestion);
       setBusy(true);
       return;
     }
@@ -382,6 +420,7 @@ window.addEventListener('message', (event: MessageEvent<ToChatPage>) => {
       if (!turn) return;
       turn.body.textContent = '';
       turn.body.append(proposalCard(message.id, message.session, message.proposal, message.provider, message.written));
+      turn.body.append(turnActions(message.id, () => message.proposal.explanation));
       setBusy(false);
       scroll();
       return;
@@ -395,6 +434,7 @@ window.addEventListener('message', (event: MessageEvent<ToChatPage>) => {
         turn.node.classList.add('unverified');
         turn.body.prepend(el('div', { class: 'chat-unverified', role: 'note' }, [el('strong', { text: message.notVerified.label }), ' ', message.notVerified.where]));
       }
+      turn.body.append(turnActions(message.id, () => message.text));
       setBusy(false);
       scroll();
       return;

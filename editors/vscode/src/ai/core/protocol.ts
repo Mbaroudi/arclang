@@ -31,6 +31,8 @@ export interface ProposalView {
   error?: string;
   /** Nothing to apply: the answer only explains. */
   explainOnly: boolean;
+  /** Files written next to the model with the edits (write_file): the Modelica package of a simulation... */
+  files?: { path: string; lines: number }[];
 }
 
 export interface SuggestionView {
