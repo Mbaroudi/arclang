@@ -64,32 +64,32 @@ async function ask(page, chat, question) {
   return { text: last && turns.length > before ? await last.innerText() : '', node: last };
 }
 
-/**
- * The text of a text editor (the first one is the .arc; the diagrams are
- * beside it): read page by page from what the editor draws, each line by its
- * number, from the top to the bottom.
- */
-async function editorText(page, nth = 0) {
-  await page.keyboard.press('Escape');
-  const editors = await page.$$('.part.editor .monaco-editor');
-  const editor = editors[nth < 0 ? editors.length + nth : nth];
-  if (!editor) return '';
-  await (await editor.$('.view-lines')).click({ position: { x: 60, y: 8 }, force: true, timeout: 10000 });
-  await page.keyboard.press('Meta+ArrowUp');
-  const lines = new Map();
-  for (let round = 0; round < 400; round++) {
-    await page.waitForTimeout(120);
-    const seen = await editor.evaluate((root) => {
-      const numbers = new Map([...root.querySelectorAll('.margin-view-overlays .line-numbers')].map((n) => [n.parentElement.style.top, Number(n.textContent.trim())]));
-      return [...root.querySelectorAll('.view-lines .view-line')].map((l) => [numbers.get(l.style.top), l.textContent.replace(/ /g, ' ')]).filter(([n]) => Number.isFinite(n));
-    });
-    const before = lines.size;
-    for (const [n, text] of seen) lines.set(n, text);
-    if (lines.size === before && round > 0) break;
-    await page.keyboard.press('PageDown');
-  }
-  await page.keyboard.press('Meta+ArrowUp');
-  return [...lines.entries()].sort((a, b) => a[0] - b[0]).map(([, text]) => text).join('\n');
+/** The workspace's files as the playground keeps them (IndexedDB, saved on every change): path → text. */
+async function storedFiles(page) {
+  await page.waitForTimeout(1500);
+  return page.evaluate(() => new Promise((resolve) => {
+    const open = indexedDB.open('arclang-playground', 1);
+    open.onerror = () => resolve({});
+    open.onsuccess = () => {
+      const store = open.result.transaction('files').objectStore('files');
+      const keys = store.getAllKeys();
+      const values = store.getAll();
+      values.onsuccess = () => resolve(Object.fromEntries(keys.result.map((k, i) => [k, new TextDecoder().decode(values.result[i])])));
+      values.onerror = () => resolve({});
+    };
+  }));
+}
+
+/** The text of a file of the workspace, by its name or the end of its path. */
+async function fileText(page, name) {
+  const files = await storedFiles(page);
+  const key = Object.keys(files).find((k) => k === name || k.endsWith(`/${name}`));
+  return key ? files[key] : '';
+}
+
+/** The file the chat is about (its context line). */
+async function chatFile(chat) {
+  return (await chat.$eval('.chat-context .chat-file', (n) => n.textContent.trim()).catch(() => '')) || '';
 }
 
 async function statusErrors(page) {
@@ -140,30 +140,30 @@ const SCENARIOS = {
   // A model open, another system asked: a new model, the open one untouched.
   async phone(browser) {
     const { context, page, chat } = await open(browser);
-    const before = await editorText(page);
+    const before = await fileText(page, 'starter.arc');
     const answer = await ask(page, chat, 'modélise moi un téléphone like Nokia 3310');
     await shot(page, 'phone');
     check('phone', 'another system is a new model', !!(await chat.$('.chat-turn.ai:last-child button:has-text("Create model")')), answer.text.slice(0, 80).replace(/\n/g, ' '));
     check('phone', 'the new model compiles', /✓ compiles/.test(answer.text));
-    check('phone', 'the open model is not changed', (await editorText(page)) === before);
+    check('phone', 'the open model is not changed', (await fileText(page, 'starter.arc')) === before);
     await context.close();
   },
 
   // A change to the open model: written in the file, Keep/Undo, Undo puts it back.
   async edit(browser) {
     const { context, page, chat } = await open(browser);
-    const before = await editorText(page);
+    const before = await fileText(page, 'starter.arc');
     await ask(page, chat, 'Ajoute une exigence REQ-003 : le contrôleur de freinage répond en moins de 50 ms, et trace-la vers le Brake Controller.');
     await shot(page, 'edit');
     check('edit', 'the change is written in the file', !!(await chat.$('.chat-turn.ai:last-child .chat-proposal.written')));
-    const after = await editorText(page);
+    const after = await fileText(page, 'starter.arc');
     check('edit', 'the file holds REQ-003', /REQ-003/.test(after));
     check('edit', 'Keep / Undo above the change', (await page.$$eval('.codelens-decoration', (l) => l.map((x) => x.textContent).join(' '))).includes('Keep'));
     const undo = await chat.$('.chat-turn.ai:last-child button:has-text("Undo")');
     if (undo) {
       await undo.click();
       await page.waitForTimeout(2000);
-      check('edit', 'Undo puts the file back as it was', (await editorText(page)) === before);
+      check('edit', 'Undo puts the file back as it was', (await fileText(page, 'starter.arc')) === before);
     }
     await context.close();
   },
@@ -182,6 +182,44 @@ const SCENARIOS = {
     await context.close();
   },
 
+  // Malek's conversation: a one-pedal car, a follow-up that needs the memory, then modes, safety and simulation in one go, then Continue.
+  async onepedal(browser) {
+    const { context, page, chat } = await open(browser);
+    await command(page, 'View: Close All Editors');
+    const first = await ask(page, chat, "fait moi une modelisation d'une voiture one-pedale ?");
+    check('onepedal', 'a whole model that compiles', /✓ compiles/.test(first.text), first.text.slice(0, 70).replace(/\n/g, ' '));
+    const follow = await ask(page, chat, 'oui c un nouveau model');
+    check('onepedal', 'the follow-up keeps the subject (no "which system?")', !/quel système|which system/i.test(follow.text), follow.text.slice(0, 90).replace(/\n/g, ' '));
+    const create = await chat.$('.chat-turn.ai:last-child button:has-text("Create model")') ?? (await chat.$$('button:has-text("Create model")')).pop();
+    if (!create) return void check('onepedal', 'Create model is offered', false);
+    await create.click();
+    await page.waitForTimeout(2000);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(9000);
+    const more = await ask(page, chat, "je veux les modes de conduite à une pédale (accélération, récupération, arrêt), l'analyse de sécurité et la simulation de tout");
+    await shot(page, 'onepedal-more');
+    check('onepedal', 'written in the file, not asked back', !!(await chat.$('.chat-turn.ai:last-child .chat-proposal.written')), more.text.slice(0, 90).replace(/\n/g, ' '));
+    const text = await fileText(page, await chatFile(chat));
+    check('onepedal', 'the driving modes as a state machine', /state_machine/.test(text));
+    check('onepedal', 'a safety analysis with hazards', /safety_analysis[\s\S]*hazard/.test(text));
+    const files = await chat.$$eval('.chat-turn.ai:last-child .chat-files .chat-link', (l) => l.map((x) => x.textContent));
+    const continued = files.length ? null : await (async () => {
+      const button = await chat.$('.chat-turn.ai:last-child button:has-text("Continue")');
+      if (!button) return null;
+      await button.click();
+      await page.waitForTimeout(3000);
+      return ask(page, chat, '');
+    })();
+    const allFiles = files.length ? files : await chat.$$eval('.chat-files .chat-link', (l) => l.map((x) => x.textContent));
+    check('onepedal', 'the simulation: its Modelica package written', allFiles.some((f) => /\.mo$/.test(f)), (allFiles.join(', ') || (continued?.text ?? '').slice(0, 80)).replace(/\n/g, ' '));
+    const keep = await chat.$('.chat-turn.ai:last-child button:has-text("Keep")');
+    if (keep) await keep.click();
+    await page.waitForTimeout(2500);
+    check('onepedal', 'the model has no error', (await statusErrors(page)) === 0, `errors: ${await statusErrors(page)}`);
+    if (process.env.SIM_IMAGE && allFiles.length) await simulate(page, chat, allFiles, 'onepedal');
+    await context.close();
+  },
+
   // Questions: guided answers, with the real commands, never "no".
   async guide(browser) {
     const { context, page, chat } = await open(browser);
@@ -190,25 +228,26 @@ const SCENARIOS = {
     const cesam = await ask(page, chat, 'comment appliquer la méthode CESAM sur mon modèle ?');
     check('guide', 'CESAM: method "cesam", stakeholders, the grid', /cesam/.test(cesam.text) && /stakeholder/.test(cesam.text));
     const cosim = await ask(page, chat, 'peut-on faire une co-simulation dans OMSimulator ?');
-    check('guide', 'co-simulation: arclang cosim', /cosim/.test(cosim.text) && !/^Non\b/.test(cosim.text.trim()));
+    check('guide', 'co-simulation: arclang cosim', /cosim/.test(cosim.text) && !/^Non\b/.test(cosim.text.trim()), cosim.text.replace(/\n/g, ' ').slice(0, 300));
     await context.close();
   },
 };
 
 /** The model and the files the AI wrote, simulated by OpenModelica in the image the server runs. */
-async function simulate(page, chat, files) {
+async function simulate(page, chat, files, scenario = 'calc') {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arclang-ai-sim-'));
-  // The model is the editor's text; the files are opened from the chat card one by one.
-  fs.writeFileSync(path.join(dir, 'model.arc'), await editorText(page, 0));
+  // The model and the files the AI wrote, as the playground keeps them.
+  const stored = await storedFiles(page);
+  const model = await chatFile(chat);
+  const modelKey = Object.keys(stored).find((k) => k.endsWith(`/${model}`));
+  if (!modelKey) return void check(scenario, 'OpenModelica runs the simulation the AI wrote', false, `no ${model} in the workspace`);
+  const folder = modelKey.slice(0, modelKey.lastIndexOf('/'));
+  fs.writeFileSync(path.join(dir, 'model.arc'), stored[modelKey]);
   for (const file of files) {
-    const link = await chat.$(`.chat-files .chat-link:has-text("${file}")`);
-    if (!link) continue;
-    await link.scrollIntoViewIfNeeded().catch(() => {});
-    await link.click({ force: true, timeout: 10000 });
-    await page.waitForTimeout(2500);
+    const text = stored[`${folder}/${file}`];
+    if (text === undefined) continue;
     fs.mkdirSync(path.join(dir, path.dirname(file)), { recursive: true });
-    // The file opens beside: the last text editor.
-    fs.writeFileSync(path.join(dir, file), await editorText(page, -1));
+    fs.writeFileSync(path.join(dir, file), text);
   }
   let out = '';
   try {
@@ -217,8 +256,8 @@ async function simulate(page, chat, files) {
     out = `${error.stdout ?? ''}${error.stderr ?? ''}`;
   }
   const ran = /Simulated in/.test(out);
-  check('calc', 'OpenModelica runs the simulation the AI wrote', ran, ran ? (out.match(/\d+ verdict\(s\)[^\n]*/) ?? [''])[0] : out.split('\n').filter((l) => /error|Error/.test(l)).slice(0, 2).join(' | ').slice(0, 200));
-  if (SHOTS) fs.cpSync(dir, path.join(SHOTS, 'calc-files'), { recursive: true });
+  check(scenario, 'OpenModelica runs the simulation the AI wrote', ran, ran ? (out.match(/\d+ verdict\(s\)[^\n]*/) ?? [''])[0] : out.split('\n').filter((l) => /error|Error/.test(l)).slice(0, 2).join(' | ').slice(0, 200));
+  if (SHOTS) fs.cpSync(dir, path.join(SHOTS, `${scenario}-files`), { recursive: true });
 }
 
 (async () => {

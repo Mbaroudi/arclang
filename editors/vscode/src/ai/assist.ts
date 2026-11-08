@@ -36,6 +36,8 @@ export interface AskRequest {
   scope?: ContextScope;
   /** The files attached in the chat, as one block of data (attachmentsBlock). */
   attachments?: string;
+  /** The conversation so far (questions and answers in words), so a follow-up ("yes, a new one") keeps its meaning. */
+  history?: ChatMessage[];
 }
 
 export interface Proposal {
@@ -184,6 +186,7 @@ export async function runAsk(
     const built = buildSelectionContext({ snapshot, metamodel, text: source.text, fileName: document.uri.path.split('/').pop() ?? 'model.arc', ids, scope: request.scope ?? contextScope(), selectedText: request.selectedText });
     messages = [
       { role: 'system', content: `${systemRulesFor(await currentWorkspace())}\n\n# Reference model (compiled by the extension's tests): the syntax for a new model\n\`\`\`arc\n${await sampleModel(context)}\n\`\`\`` },
+      ...(request.history ?? []),
       { role: 'user', content: askPrompt(promptFor(request.prompt, request.action), request.attachments ? `${built.text}\n\n${request.attachments}` : built.text) },
     ];
     current?.controller.abort();
@@ -266,6 +269,17 @@ export async function runAsk(
       }
       // A simulation needs its Modelica: a source the proposal names that is neither next to the model nor written now goes back to the AI.
       const missing = await missingSources(document, source.text, proposed, files);
+      // Asked for a simulation, the answer brings one: a test case that simulates, with its Modelica.
+      const asked = 'refine' in request ? request.refine : request.prompt;
+      const simulates = (text: string) => (text.match(/simulate:\s*\{/g) ?? []).length;
+      // Only a request to do it ("rajoute la simulation"), not a question about it ("peut-on faire une co-simulation ?").
+      const question = /\?\s*$/.test(asked.trim()) || /^\s*(comment|peut[- ]on|est[- ]ce|pourquoi|quel|quelle|can|could|how|what|why|is it|does)\b/i.test(asked);
+      if (!question && /simul|openmodelica|modelica/i.test(asked) && simulates(proposed ?? source.text) <= simulates(source.text) && ![...files.keys()].some((p) => /\.mo$/i.test(p)) && attempt < repairAttempts()) {
+        logLine(`ask ${sessionId}: a simulation was asked and the proposal has none; sent back to the AI`);
+        messages.push({ role: 'user', content: 'The engineer asked for the simulation too, and your proposal has none. Add it now, in this answer: write the Modelica package with write_file (physics/<Name>Physics.mo), give the port types their physics if needed, and add a test_case with simulate: { model: ... stop_time: ... sources: [...] } and expects: on a requirement; keep everything else of your proposal. Send the complete propose_edits again.' });
+        onText('\n(the simulation was asked too; asking for it now)\n', chars);
+        continue;
+      }
       if (missing.length && attempt < repairAttempts()) {
         logLine(`ask ${sessionId}: the proposal names ${missing.join(', ')}, which is not written; sent back to the AI`);
         messages.push({ role: 'user', content: `The test case's simulate: names ${missing.map((m) => `"${m}"`).join(', ')} in sources:, but no such file is next to the model and you did not write it. Write it now with write_file (the whole Modelica package: models extending the classes \`arclang export -f modelica\` generates for the elements, equations balanced, the variables the expects: read), then send the complete propose_edits again.` });

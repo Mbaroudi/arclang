@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **The AI goes to the end**: with nothing selected it gets the whole model and all its findings (it no longer asks for ids the model holds); one conversation memory across files until New conversation ("yes, a new one" keeps its subject); a broad request is done in parts with **Continue →**; asked to add a simulation, a proposal without one goes back to the AI (a question about simulation does not).
 - **The AI does what it is asked, instead of explaining it**: asked to add a simulation, it adds the physics, the requirement, the test case with `simulate:` and `expects:`, and writes the Modelica package next to the model (`write_file`), all kept or undone together (Undo also removes the files). A simulation whose Modelica package is not written goes back to the AI. Fixed: a file written in the same answer as the edits was dropped. An element added with no place goes at the top level; three repair attempts.
 - **The chat reads well**: answers with lists (also "1. … 2. …" written in one line), bold, headings and documentation links; the compiler's findings and the diff folded when the change is already highlighted in the file; the assistant's own work as short status lines; Copy and Retry under each answer; the input grows with the text.
 - Online, a visitor who is not signed in no longer gets "This command runs online for signed-in users" after each AI edit: background commands are not sent, and a command they run says to sign in.

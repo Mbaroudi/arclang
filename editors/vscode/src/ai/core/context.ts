@@ -331,18 +331,20 @@ export function buildSelectionContext(input: ContextInput): BuiltContext {
     sections.push(`## Neighbors (ids only)\n${[...new Set(relationships.flatMap((r) => [r.source, r.target]).filter((u) => !uuids.has(u)).map((u) => byUuid.get(u)).filter((e): e is ElementRecord => !!e).map((e) => `- ${e.kind} ${label(e)}`))].join('\n')}`);
   }
 
-  const findings = snapshot.findings.filter((f) => f.element && ids.has(f.element));
-  sections.push(`## Findings on the selection (${findings.length} of ${snapshot.findings.length} in the model)\n${findings.map((f) => `- [${f.rule}] ${f.severity}: ${f.message}`).join('\n') || 'none'}`);
+  // Nothing selected: the question is about the whole model, so the AI gets all of it (its ids, its layers) and all its findings.
+  const wholeModel = scope === 'wholeModel' || (elements.length === 0 && !input.selectedText);
+  const findings = wholeModel ? snapshot.findings : snapshot.findings.filter((f) => f.element && ids.has(f.element));
+  sections.push(`## Findings ${wholeModel ? 'of the model' : 'on the selection'} (${findings.length} of ${snapshot.findings.length} in the model)\n${findings.slice(0, 40).map((f) => `- [${f.rule}] ${f.severity}${f.element ? ` ${f.element}` : ''}: ${f.message}`).join('\n') || 'none'}`);
   if (snapshot.gate) {
     const blockers = snapshot.gate.findings.slice(0, 12).map((f) => `- ${f.check} (${f.severity}): ${f.message}`).join('\n');
     sections.push(`## Production gate: ${snapshot.gate.passed ? 'PASS' : 'FAIL'}, ${snapshot.gate.requirements_verified}/${snapshot.gate.requirements_total} requirements verified\n${blockers}`);
   }
-  const kinds = [...new Set([...elements, ...neighbors].map((e) => e.kind))];
+  const kinds = wholeModel ? [...new Set(records.map((e) => e.kind))].slice(0, 30) : [...new Set([...elements, ...neighbors].map((e) => e.kind))];
   const excerpt = kinds.map((k) => kindExcerpt(input.metamodel, k)).filter((l): l is string => !!l);
   if (excerpt.length) sections.push(`## Metamodel of these kinds (from \`arclang metamodel\`)\n${excerpt.join('\n')}`);
   const blocks = topBlocks(text);
   if (blocks.length) sections.push(`## Top-level blocks of the model (the \`layer\` of an add is the first word)\n${blocks.slice(0, 40).map((l) => `- ${l}`).join('\n')}`);
-  if (scope === 'wholeModel') sections.push(`## The whole model\n\`\`\`arc\n${clipText(text, Math.floor(max * 0.6))}\n\`\`\``);
+  if (wholeModel) sections.push(`## The whole model (nothing is selected: the request is about all of it; use its ids)\n\`\`\`arc\n${clipText(text, Math.floor(max * 0.7))}\n\`\`\``);
   return { text: clipText(sections.join('\n\n'), max), elements, neighbors };
 }
 
