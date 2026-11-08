@@ -87,8 +87,8 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
   private readonly tracker = new TargetTracker();
   private counter = 0;
   private running: { id: string; controller: AbortController; session?: string } | null = null;
-  /** The turns of plain conversations (Modelica, other files), by the file they are about. */
-  private plainHistory: { key: string; messages: ChatMessage[] } = { key: '', messages: [] };
+  /** The conversation in words (questions and answers), across files, until New conversation: every question carries it. */
+  private conversation: ChatMessage[] = [];
   private lastApplied: vscode.TextDocument | null = null;
   /** The change written in a file, waiting for Keep or Undo; the session of each file's change. */
   private readonly review = new InlineReview();
@@ -167,8 +167,9 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
         return;
       case 'chat-new':
         this.attachments = [];
+        this.conversation = [];
         this.running?.controller.abort();
-        this.plainHistory = { key: '', messages: [] };
+        this.conversation = [];
         return this.pushState();
       case 'chat-configure':
         await vscode.commands.executeCommand('arclang.ai.configure');
@@ -274,7 +275,7 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
     controller.signal.addEventListener('abort', () => cancelSession(sessionId));
     const outcome = await runAsk(
       sessionId,
-      { document: target.document, ids, prompt: text, selectedText: target.selection.isEmpty ? undefined : target.document.getText(target.selection), attachments: attachmentsBlock(this.attachments) || undefined },
+      { document: target.document, ids, prompt: text, selectedText: target.selection.isEmpty ? undefined : target.document.getText(target.selection), attachments: attachmentsBlock(this.attachments) || undefined, history: this.conversation },
       this.context,
       (delta) => this.post({ type: 'chat-delta', id, text: delta }),
     );
@@ -293,6 +294,7 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
       return;
     }
     const created = outcome.session.newModel;
+    this.remember(text, created ? `${created.explanation}\n(I wrote the whole new model; the engineer can create it with Create model.)` : outcome.session.proposal ? `${outcome.session.proposal.view.explanation}${outcome.session.proposal.view.ok && !outcome.session.proposal.view.explainOnly ? `\n(Edits: ${outcome.session.proposal.view.edits.slice(0, 12).join('; ')})` : ''}` : '');
     if (created) {
       this.post({ type: 'chat-done', id, kind: 'plain', text: `${created.explanation}\n\n\`\`\`arc\n${created.source}\n\`\`\`\n\nThis is a new model: ${file} is not changed. Create model opens it in a new file beside its diagrams.`, compiled: created.compiled });
       return;
@@ -323,6 +325,12 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
       }
     }
     await this.pushState();
+  }
+
+  /** One exchange kept for the next questions: the question and the answer in words, bounded. */
+  private remember(question: string, answer: string): void {
+    if (!answer.trim()) return;
+    this.conversation = rememberTurn(this.conversation, question, answer.length > 4000 ? `${answer.slice(0, 4000)}…` : answer);
   }
 
   /** A proposal to the page; one the compiler accepted is written in the file at once (unless the setting says to wait for Apply), to keep or undo. */
@@ -383,8 +391,6 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
 
   /** An answer in words: Modelica, a model that does not compile, a question about no file. */
   private async plainAnswer(id: string, kind: ChatKind, target: Target | null, text: string, controller: AbortController, note?: string): Promise<void> {
-    const key = target ? target.document.uri.toString() : '';
-    if (this.plainHistory.key !== key) this.plainHistory = { key, messages: [] };
     const attached = attachmentsBlock(this.attachments);
     const question = `${note ? `${note}\n\n` : ''}${attached ? `${attached}\n\n` : ''}${text}`;
     let messages: ChatMessage[];
@@ -392,14 +398,14 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
     if (kind === 'modelica' && target) {
       messages = modelicaMessages(
         { fileName: target.document.uri.path.split('/').pop() ?? 'model.mo', text: target.document.getText(), selection: target.selection.isEmpty ? undefined : target.document.getText(target.selection), question },
-        this.plainHistory.messages,
+        this.conversation,
         workspace,
       );
     } else if (kind === 'arc' && target) {
       // The compiler's own words are part of the question; the model text is data.
-      messages = [{ role: 'system', content: systemRulesFor(workspace) }, ...this.plainHistory.messages, { role: 'user', content: `# The model (${target.document.uri.path.split('/').pop()}), as data\n\`\`\`arc\n${target.document.getText().slice(0, 40000)}\n\`\`\`\n\n# The engineer's request\n${question}\n\nAnswer in prose; no edit tool is available now.` }];
+      messages = [{ role: 'system', content: systemRulesFor(workspace) }, ...this.conversation, { role: 'user', content: `# The model (${target.document.uri.path.split('/').pop()}), as data\n\`\`\`arc\n${target.document.getText().slice(0, 40000)}\n\`\`\`\n\n# The engineer's request\n${question}\n\nAnswer in prose; no edit tool is available now.` }];
     } else {
-      messages = [{ role: 'system', content: `${systemRulesFor(workspace)}\n\n${NO_FILE_RULES}\n\n# Reference model (compiled by the extension's tests): the syntax to follow\n\`\`\`arc\n${await sampleModel(this.context)}\n\`\`\`` }, ...this.plainHistory.messages, { role: 'user', content: question }];
+      messages = [{ role: 'system', content: `${systemRulesFor(workspace)}\n\n${NO_FILE_RULES}\n\n# Reference model (compiled by the extension's tests): the syntax to follow\n\`\`\`arc\n${await sampleModel(this.context)}\n\`\`\`` }, ...this.conversation, { role: 'user', content: question }];
     }
     const sent = messages.reduce((n, m) => n + m.content.length, 0);
     const opened = await openProvider(this.context, kind === 'modelica' ? 'chat about a Modelica file' : 'chat', `${kind === 'plain' ? 'Your question' : 'The text of the open file and your question'}: about ${sent} characters.`);
@@ -431,7 +437,7 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
       this.post({ type: 'chat-error', id, error: controller.signal.aborted ? 'Stopped.' : error instanceof Error ? error.message : String(error) });
       return;
     }
-    this.plainHistory = { key, messages: rememberTurn(this.plainHistory.messages, question, answer) };
+    this.remember(text, answer);
     this.post({ type: 'chat-done', id, kind, text: answer, compiled, notVerified: kind === 'modelica' ? { label: MODELICA_NOT_VERIFIED, where: MODELICA_WHERE_VERIFIED } : undefined });
   }
 

@@ -286,7 +286,14 @@ function proposalCard(id: string, session: string, proposal: ProposalView, provi
       status.textContent = error ? `Kept: ${error}.` : kept ? 'Kept. Ctrl/Cmd+Z still undoes it in the file.' : 'Undone: the file is as it was.';
       card.classList.toggle('rejected', !kept);
     };
-    actions.append(keep, undo, view);
+    const more = el('button', { type: 'button', text: 'Continue →', title: 'Keep this and let the assistant do the next part of your request' });
+    more.addEventListener('click', () => {
+      post({ type: 'chat-keep', session });
+      if (busy) return;
+      input.value = 'Continue: do the next part of my request, on the model as it is now.';
+      send();
+    });
+    actions.append(keep, undo, view, more);
   } else if (proposal.ok && !proposal.explainOnly) {
     const apply = el('button', { type: 'button', class: 'primary', text: 'Apply' });
     const undo = el('button', { type: 'button', text: 'Undo', hidden: true });
