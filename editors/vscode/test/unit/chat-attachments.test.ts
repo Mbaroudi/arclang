@@ -163,6 +163,11 @@ test('polite requests in French and English; the answer starts with the answer',
   assert.equal(withoutMetaTalk("C'est une question : voici comment faire, sans rien modifier.\n\nLa Gate est en FAIL"), 'La Gate est en FAIL');
   assert.equal(withoutMetaTalk('This is a question, so here is the answer: run Simulate.'), 'run Simulate.');
   assert.equal(withoutMetaTalk('Le modèle compile.'), 'Le modèle compile.');
+  assert.equal(withoutMetaTalk('Yes, in both directions. This is a "can I" question, so I\'m not changing the model. ReqIF is the format.'), 'Yes, in both directions. ReqIF is the format.');
+  assert.equal(withoutMetaTalk('This is a "how do I" question, so here are the steps. I\'m not changing the model.\n\nTable. Run the coverage table.'), 'Table. Run the coverage table.');
+  assert.equal(withoutMetaTalk('Oui. Je ne modifie pas le modèle. Lancez Simulate.'), 'Oui. Lancez Simulate.');
+  assert.equal(withoutMetaTalk('The question of cooling is open: add a pump.'), 'The question of cooling is open: add a pump.');
+  assert.equal(withoutMetaTalk('I changed the model: REQ-3 added.'), 'I changed the model: REQ-3 added.');
 });
 
 test('a request with a question mark is still a request', () => {
