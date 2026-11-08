@@ -66,7 +66,7 @@ rand = { version = "0.8", optional = true }
 # Monte Carlo verification: laws, quantiles, Clopper-Pearson; seeded samples.
 statrs = { version = "0.18", default-features = false }
 rand_chacha = "0.3"
-config = { version = "0.13", optional = true }
+config = { version = "0.15", optional = true }
 indicatif = { version = "0.17", optional = true }
 # Digital twins: measurements in Parquet. Live MQTT is our own client (twin_mqtt.rs).
 parquet = { version = "60", default-features = false, features = ["snap", "zstd", "lz4"], optional = true }
