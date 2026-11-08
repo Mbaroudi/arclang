@@ -1,7 +1,5 @@
 // What the language model is told: the compiler's metamodel, a sample model
 // that compiles, and the rules of the house.
-import * as fs from 'node:fs';
-import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { run } from '../cli';
 import { clip, condenseMetamodel } from '../pure/arc';
@@ -27,10 +25,10 @@ export async function metamodelReference(): Promise<string> {
   return text;
 }
 
-/** The sample model shipped with the extension (compiled by its tests). */
-export function sampleModel(context: vscode.ExtensionContext): string {
+/** The sample model shipped with the extension (compiled by its tests); read through VS Code, so the browser build has it too. */
+export async function sampleModel(context: vscode.ExtensionContext): Promise<string> {
   try {
-    return fs.readFileSync(path.join(context.extensionPath, 'media', 'reference.arc'), 'utf8');
+    return new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(context.extensionUri, 'media', 'reference.arc')));
   } catch {
     return '';
   }
