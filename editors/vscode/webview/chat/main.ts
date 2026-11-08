@@ -49,7 +49,7 @@ function renderContext(): void {
   context.append(el('span', { class: `chip kind-${c.kind}`, text: kindLabel }));
   if (c.file) context.append(el('span', { class: 'chat-file', text: c.file }));
   if (c.selectionLines > 0) context.append(el('span', { class: 'chip', text: `${c.selectionLines} line${c.selectionLines > 1 ? 's' : ''} selected${c.ids.length ? `: ${c.ids.slice(0, 3).join(', ')}${c.ids.length > 3 ? '…' : ''}` : ''}` }));
-  if (c.kind === 'modelica') context.append(el('span', { class: 'chip warn', title: 'There is no Modelica compiler in the browser: answers are not checked.', text: 'answers not verified' }));
+  if (c.kind === 'modelica') context.append(el('span', { class: 'chip warn', title: 'The chat runs no Modelica: OpenModelica checks the code when a test case simulates it (ArcLang: Run simulations).', text: 'answers not verified' }));
   if (c.kind === 'arc') context.append(el('span', { class: 'chip ok', title: 'The compiler checks every edit on a copy before you see it.', text: 'edits compiler-checked' }));
 }
 
@@ -88,7 +88,7 @@ function welcome(): void {
   const note = el('div', { class: 'chat-welcome' }, [
     el('h2', { text: 'Ask about your model' }),
     el('p', { text: 'Select part of an .arc file and ask: edits come back checked by the compiler, as a diff you apply in one click and undo with Ctrl/Cmd+Z.' }),
-    el('p', { text: 'On a .mo file the AI explains, writes and fixes Modelica. Those answers are not verified: there is no Modelica compiler in the browser.' }),
+    el('p', { text: 'On a .mo file the AI explains, writes and fixes Modelica; OpenModelica checks it when a test case simulates it. Ask how to simulate, generate embedded code, apply CESAM…: the AI guides you through every step.' }),
   ]);
   transcript.append(note);
 }

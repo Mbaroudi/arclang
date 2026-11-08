@@ -112,7 +112,7 @@ async function frameWith(page, selector, timeout = 30000) {
   await chat.locator('.chat-send').click();
   await chat.locator('.chat-unverified').waitFor({ timeout: 40000 });
   const label = await chat.locator('.chat-unverified').innerText();
-  report('the Modelica answer is labeled not verified', /Not verified: there is no Modelica compiler in the browser/.test(label), label.slice(0, 120));
+  report('the Modelica answer is labeled not verified', /Not verified: the chat does not run Modelica/.test(label), label.slice(0, 120));
   report('the label says where verification would run', /full workspace tier/.test(label));
   report('the answer offers its code to the editor', (await chat.locator('.chat-code button', { hasText: 'Insert at cursor' }).count()) === 1);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/web-ai-3-modelica.png` });
