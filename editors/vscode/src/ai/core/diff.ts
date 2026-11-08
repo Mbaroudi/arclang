@@ -83,3 +83,36 @@ export function lineDiff(before: string, after: string, context = 2): LineDiff {
   }
   return { lines, added, removed };
 }
+
+/** Where a change shows in the new text: the lines added (0-based, in `after`) and, at each place lines were removed, the line of `after` they were before and their text. */
+export interface ChangeMarks {
+  added: number[];
+  removed: { at: number; lines: string[] }[];
+}
+
+export function changeMarks(before: string, after: string): ChangeMarks {
+  const a = before.split('\n');
+  const b = after.split('\n');
+  let head = 0;
+  while (head < a.length && head < b.length && a[head] === b[head]) head++;
+  let tail = 0;
+  while (tail < a.length - head && tail < b.length - head && a[a.length - 1 - tail] === b[b.length - 1 - tail]) tail++;
+  const middle = operations(a.slice(head, a.length - tail), b.slice(head, b.length - tail));
+  const marks: ChangeMarks = { added: [], removed: [] };
+  let ai = head;
+  let bi = head;
+  for (const op of middle) {
+    if (op === '=') {
+      ai++;
+      bi++;
+    } else if (op === '+') {
+      marks.added.push(bi++);
+    } else {
+      const last = marks.removed[marks.removed.length - 1];
+      if (last && last.at === bi) last.lines.push(a[ai]);
+      else marks.removed.push({ at: bi, lines: [a[ai]] });
+      ai++;
+    }
+  }
+  return marks;
+}

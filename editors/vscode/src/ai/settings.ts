@@ -18,11 +18,16 @@ export function readSettings(): AiSettings & { vscodeModel: string } {
     azureDeployment: config.get<string>('azureDeployment', ''),
     apiVersion: config.get<string>('apiVersion', ''),
     hostedEndpoint: config.get<string>('hostedEndpoint', ''),
-    maxTokens: config.get<number>('maxTokens', 4096),
+    maxTokens: config.get<number>('maxTokens', 8192),
     temperature: config.get<number | null>('temperature', null),
     timeoutSeconds: config.get<number>('timeoutSeconds', 90),
     vscodeModel: config.get<string>('vscodeModel', ''),
   };
+}
+
+/** Whether a change the compiler accepted is written in the file at once, to keep or undo (else it waits for Apply). */
+export function writesDirectly(): boolean {
+  return vscode.workspace.getConfiguration(SECTION).get<boolean>('applyDirectly', true);
 }
 
 export function suggestMode(): SuggestMode {

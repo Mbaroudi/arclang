@@ -1902,7 +1902,7 @@
         },
         "arclang.ai.maxTokens": {
           "type": "integer",
-          "default": 4096,
+          "default": 8192,
           "minimum": 256,
           "maximum": 200000,
           "description": "The longest answer, in tokens."
@@ -2018,6 +2018,11 @@
           "default": 900,
           "minimum": 10,
           "markdownDescription": "Seconds a simulation may take before it is stopped (`ARCLANG_OMC_TIMEOUT`). The first run installs the Modelica library and can take several minutes."
+        },
+        "arclang.ai.applyDirectly": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Write a change the compiler accepted straight into the `.arc` file, with the changed lines highlighted and **Keep** / **Undo** above them and in the chat. Off: the chat shows the diff and waits for **Apply**."
         }
       }
     },
@@ -2141,11 +2146,21 @@
             },
             "up_to": {
               "type": "string",
-              "enum": ["simulation", "sil", "pil", "hdl", "soc", "board", "twin"],
+              "enum": [
+                "simulation",
+                "sil",
+                "pil",
+                "hdl",
+                "soc",
+                "board",
+                "twin"
+              ],
               "description": "Plan up to this stage only."
             }
           },
-          "required": ["path"]
+          "required": [
+            "path"
+          ]
         }
       },
       {
