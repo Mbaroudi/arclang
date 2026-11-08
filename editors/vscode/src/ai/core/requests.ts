@@ -48,7 +48,8 @@ export function validateRequests(value: unknown): { ok: true; requests: EditRequ
       const pairs = (request.attributes as unknown[]).filter((p): p is [unknown, unknown] => Array.isArray(p) && p.length === 2).map(([k, v]) => [String(k), String(v)] as [string, string]);
       if (pairs.length) clean.attributes = pairs;
     }
-    if ((request.op === 'add' || request.op === 'add_raw') && request.top_level === true) clean.top_level = true;
+    // An element added with no container and no layer goes at the top level: what the AI meant, said or not.
+    if ((request.op === 'add' || request.op === 'add_raw') && (request.top_level === true || request.top_level === 'true' || (!clean.container && !clean.layer))) clean.top_level = true;
     if (request.op === 'wrap_fragment' && Array.isArray(request.operands)) {
       clean.operands = (request.operands as unknown[]).filter((p): p is [unknown, unknown] => Array.isArray(p) && p.length === 2).map(([a, b]) => [String(a), String(b)]);
     }

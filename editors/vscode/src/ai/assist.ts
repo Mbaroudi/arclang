@@ -15,7 +15,7 @@ import { buildSelectionContext, ContextScope } from './core/context';
 import { converse } from './core/conversation';
 import { lineDiff } from './core/diff';
 import { consequencesOf, diffSnapshots } from './core/impact';
-import { askPrompt, CREATE_MODEL, IMPACT, PROPOSE_EDITS, READ_ELEMENTS, systemRulesFor } from './core/prompts';
+import { askPrompt, CREATE_MODEL, IMPACT, PROPOSE_EDITS, READ_ELEMENTS, systemRulesFor, WRITE_FILE, writablePath } from './core/prompts';
 import { checkModelText } from './compiler';
 import { sampleModel } from './context';
 import { currentWorkspace } from './workspace';
@@ -47,6 +47,14 @@ export interface Proposal {
   proposedText: string | null;
   /** The version of the document the proposal was computed on. */
   version?: number;
+  /** Files to write next to the model with the edits (write_file), by path relative to its folder. */
+  files?: { path: string; content: string }[];
+}
+
+/** A file written with a proposal, and what it held before (null: it did not exist), for Undo. */
+export interface WrittenFile {
+  uri: vscode.Uri;
+  previous: Uint8Array | null;
 }
 
 export interface AskSession {
@@ -188,11 +196,22 @@ export async function runAsk(
   sessions.set(sessionId, live);
   logLine(`ask ${sessionId} on ${document.uri.path.split('/').pop()}: ${ids.join(', ') || '(text)'}; ${sentChars} characters of context`);
   let chars = 0;
-  const run = toolRunner(document, source.text, snapshot, metamodel);
+  const answerTools = toolRunner(document, source.text, snapshot, metamodel);
+  // write_file keeps the file for the proposal: written only when the engineer keeps the change.
+  const files = new Map<string, string>(('refine' in request ? current?.proposal?.files : undefined)?.map((f) => [f.path, f.content]) ?? []);
+  const run = async (call: ToolCall): Promise<string> => {
+    if (call.name !== 'write_file') return answerTools(call);
+    const path = writablePath(call.input.path);
+    const content = typeof call.input.content === 'string' ? call.input.content : '';
+    if (!path) return 'Refused: the path must be relative to the model\'s folder, without "..", ending in .mo, .mos, .csv, .md, .txt or .json.';
+    if (!content.trim() || content.length > 200_000) return 'Refused: the content is empty or larger than 200 000 characters.';
+    files.set(path, content);
+    return `Received: ${path} (${content.split('\n').length} lines) is written next to the model when the engineer keeps the change. Now send the .arc edits with propose_edits (the test case's simulate: names this file in sources:).`;
+  };
   try {
     for (let attempt = 0; ; attempt++) {
       const result = await converse(opened.provider, messages, {
-        tools: [PROPOSE_EDITS, CREATE_MODEL, READ_ELEMENTS, IMPACT],
+        tools: [WRITE_FILE, PROPOSE_EDITS, CREATE_MODEL, READ_ELEMENTS, IMPACT],
         final: ['propose_edits', 'create_model'],
         run,
         signal: controller.signal,
@@ -245,7 +264,20 @@ export async function runAsk(
         onText(`\n(the compiler finds ${newErrors.length} error${newErrors.length > 1 ? 's' : ''} in the result: ${newErrors[0].slice(0, 120)}…; asking for a correction)\n`, chars);
         continue;
       }
-      live.proposal = { ...view, requests: answer.requests, source: answer.source && !answer.requests.length ? proposed : null, version };
+      // A simulation needs its Modelica: a source the proposal names that is neither next to the model nor written now goes back to the AI.
+      const missing = await missingSources(document, source.text, proposed, files);
+      if (missing.length && attempt < repairAttempts()) {
+        logLine(`ask ${sessionId}: the proposal names ${missing.join(', ')}, which is not written; sent back to the AI`);
+        messages.push({ role: 'user', content: `The test case's simulate: names ${missing.map((m) => `"${m}"`).join(', ')} in sources:, but no such file is next to the model and you did not write it. Write it now with write_file (the whole Modelica package: models extending the classes \`arclang export -f modelica\` generates for the elements, equations balanced, the variables the expects: read), then send the complete propose_edits again.` });
+        onText(`\n(the simulation names ${missing.join(', ')}, which is not written yet; asking for it)\n`, chars);
+        continue;
+      }
+      const written = [...files].map(([path, content]) => ({ path, content }));
+      if (written.length) {
+        view.view.files = written.map((f) => ({ path: f.path, lines: f.content.split('\n').length }));
+        view.view.explainOnly = false;
+      }
+      live.proposal = { ...view, requests: answer.requests, source: answer.source && !answer.requests.length ? proposed : null, version, files: written };
       logLine(`ask ${sessionId}: ${answer.requests.length} request(s) accepted by the compiler on a copy; +${view.view.added} -${view.view.removed} lines; waiting for Apply`);
       return { ok: true, session: live };
     }
@@ -256,13 +288,30 @@ export async function runAsk(
 }
 
 /** Apply the session's proposal to the document: one undoable edit, checked again on the text as it is now. */
-export async function applySession(sessionId: string): Promise<{ ok: boolean; error?: string }> {
+export async function applySession(sessionId: string): Promise<{ ok: boolean; error?: string; files?: WrittenFile[] }> {
   const live = sessions.get(sessionId);
   const proposal = live?.proposal;
   if (!live || !proposal || !proposal.view.ok) return { ok: false, error: 'nothing to apply' };
+  const written: WrittenFile[] = [];
+  const folder = vscode.Uri.joinPath(live.document.uri, '..');
+  for (const file of proposal.files ?? []) {
+    const uri = vscode.Uri.joinPath(folder, ...file.path.split('/'));
+    const previous = await vscode.workspace.fs.readFile(uri).then((b) => b, () => null);
+    await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(uri, '..'));
+    await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(file.content.endsWith('\n') ? file.content : `${file.content}\n`));
+    written.push({ uri, previous });
+  }
+  if (!proposal.requests.length && !proposal.source && written.length) {
+    logLine(`ask ${sessionId}: ${written.length} file(s) written by the user`);
+    live.proposal = null;
+    return { ok: true, files: written };
+  }
   if (proposal.requests.length) {
     const outcome = await applyRequests(live.document, proposal.requests);
-    if (!outcome.ok) return { ok: false, error: outcome.error };
+    if (!outcome.ok) {
+      await restoreFiles(written);
+      return { ok: false, error: outcome.error };
+    }
   } else if (proposal.source) {
     // A whole text replaces the document: only on the text it was computed on.
     if (proposal.version !== undefined && live.document.version !== proposal.version) {
@@ -277,7 +326,39 @@ export async function applySession(sessionId: string): Promise<{ ok: boolean; er
   logLine(`ask ${sessionId}: applied by the user`);
   live.proposal = null;
   forgetPreview(sessionId);
-  return { ok: true };
+  return { ok: true, files: written };
+}
+
+/** The sources a proposal's simulations name (new to it) that are neither next to the model nor among the files written with it. */
+async function missingSources(document: vscode.TextDocument, current: string, proposed: string | null, files: Map<string, string>): Promise<string[]> {
+  if (!proposed) return [];
+  const named = (text: string) => new Set([...text.matchAll(/sources:\s*\[([^\]]*)\]/g)].flatMap((m) => [...m[1].matchAll(/"([^"]+)"/g)].map((q) => q[1].replace(/^\.\//, ''))));
+  const before = named(current);
+  const folder = vscode.Uri.joinPath(document.uri, '..');
+  const missing: string[] = [];
+  for (const path of named(proposed)) {
+    if (before.has(path) || files.has(path)) continue;
+    const exists = await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder, ...path.split('/'))).then(() => true, () => false);
+    if (!exists) missing.push(path);
+  }
+  // A new simulate: with no sources and no Modelica written: the model it names exists nowhere the run can read.
+  const simulations = (text: string) => [...text.matchAll(/simulate:\s*\{[^}]*\}/g)].map((m) => m[0]);
+  const old = new Set(simulations(current));
+  const fresh = simulations(proposed).filter((block) => !old.has(block));
+  const writesModelica = [...files.keys()].some((p) => /\.mo$/i.test(p));
+  if (fresh.some((block) => !/sources:/.test(block)) && !writesModelica) {
+    const hasPackage = await vscode.workspace.findFiles(new vscode.RelativePattern(folder, '**/*.mo'), undefined, 1).then((f) => f.length > 0, () => false);
+    if (!hasPackage) missing.push('the Modelica package (physics/<Name>Physics.mo, named in sources:)');
+  }
+  return missing;
+}
+
+/** Files written with a proposal, as they were before (removed when they did not exist). */
+export async function restoreFiles(files: WrittenFile[]): Promise<void> {
+  for (const file of files) {
+    if (file.previous) await vscode.workspace.fs.writeFile(file.uri, file.previous);
+    else await vscode.workspace.fs.delete(file.uri).then(undefined, () => undefined);
+  }
 }
 
 export async function diffSession(sessionId: string): Promise<void> {

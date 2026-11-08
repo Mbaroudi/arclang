@@ -8,7 +8,7 @@
 // Modelica compiler here.
 import { randomBytes } from 'node:crypto';
 import * as vscode from 'vscode';
-import { applySession, cancelSession, diffSession, dropSession, runAsk, session } from '../assist';
+import { applySession, cancelSession, diffSession, dropSession, restoreFiles, runAsk, session, type WrittenFile } from '../assist';
 import { openProvider } from '../client';
 import { MODELICA_NOT_VERIFIED, MODELICA_WHERE_VERIFIED, modelicaMessages, rememberTurn } from '../core/modelica';
 import { attachmentsBlock, MAX_ATTACHED, NO_FILE_RULES, systemRulesFor } from '../core/prompts';
@@ -93,6 +93,8 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
   /** The change written in a file, waiting for Keep or Undo; the session of each file's change. */
   private readonly review = new InlineReview();
   private readonly reviewed = new Map<string, string>();
+  /** The files each kept-or-undone change wrote next to the model (write_file), for Undo. */
+  private readonly writtenFiles = new Map<string, WrittenFile[]>();
   /** The files attached to the conversation, sent with every question until removed. */
   private attachments: { name: string; text: string }[] = [];
   private readonly disposables: vscode.Disposable[] = [this.tracker, this.review];
@@ -100,10 +102,14 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
   constructor(private readonly context: vscode.ExtensionContext) {
     this.disposables.push(
       this.tracker.onDidChange(() => void this.pushState()),
-      this.review.onDidSettle(({ uri, kept, error }) => {
+      this.review.onDidSettle(async ({ uri, kept, error }) => {
         const sessionId = this.reviewed.get(uri);
         this.reviewed.delete(uri);
-        if (sessionId) this.post({ type: 'chat-settled', session: sessionId, kept, error });
+        if (!sessionId) return;
+        const files = this.writtenFiles.get(sessionId) ?? [];
+        this.writtenFiles.delete(sessionId);
+        if (!kept) await restoreFiles(files);
+        this.post({ type: 'chat-settled', session: sessionId, kept, error });
       }),
       context.secrets.onDidChange(() => void this.pushState()),
       vscode.workspace.onDidChangeConfiguration((event) => {
@@ -195,9 +201,26 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
       case 'chat-keep':
       case 'chat-undo-change': {
         const uri = [...this.reviewed].find(([, s]) => s === message.session)?.[0];
-        if (!uri) return;
-        if (message.type === 'chat-keep') this.review.keep(uri);
-        else await this.review.undo(uri);
+        // A change with the .arc marked in the editor settles there (and the files with it).
+        if (uri) {
+          if (message.type === 'chat-keep') this.review.keep(uri);
+          else await this.review.undo(uri);
+          return;
+        }
+        const files = this.writtenFiles.get(message.session);
+        if (!files) return;
+        this.writtenFiles.delete(message.session);
+        if (message.type === 'chat-undo-change') await restoreFiles(files);
+        this.post({ type: 'chat-settled', session: message.session, kept: message.type === 'chat-keep' });
+        return;
+      }
+      case 'chat-open-link':
+        await vscode.env.openExternal(vscode.Uri.parse(message.url));
+        return;
+      case 'chat-open-file': {
+        const live = session(message.session);
+        const folder = live ? vscode.Uri.joinPath(live.document.uri, '..') : vscode.workspace.workspaceFolders?.[0]?.uri;
+        if (folder) await vscode.window.showTextDocument(vscode.Uri.joinPath(folder, ...message.path.split('/')), { preview: false, viewColumn: vscode.ViewColumn.Beside });
         return;
       }
       case 'chat-attach': {
@@ -312,10 +335,16 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
       if (applied.ok) {
         this.lastApplied = document;
         const previous = this.reviewed.get(document.uri.toString());
-        if (previous) this.post({ type: 'chat-settled', session: previous, kept: true });
-        this.reviewed.set(document.uri.toString(), sessionId);
+        if (previous) {
+          this.writtenFiles.delete(previous);
+          this.post({ type: 'chat-settled', session: previous, kept: true });
+        }
+        this.writtenFiles.set(sessionId, applied.files ?? []);
         this.post({ type: 'chat-proposal', id, session: sessionId, provider, proposal: view, written: true });
-        await this.review.start(document, before, view.explanation.split(/(?<=[.!?])\s/)[0].slice(0, 80));
+        if (document.getText() !== before) {
+          this.reviewed.set(document.uri.toString(), sessionId);
+          await this.review.start(document, before, view.explanation.split(/(?<=[.!?])\s/)[0].slice(0, 80));
+        }
         return;
       }
       this.post({ type: 'chat-note', text: `The change could not be written: ${applied.error ?? 'refused'}. It waits for Apply.` });

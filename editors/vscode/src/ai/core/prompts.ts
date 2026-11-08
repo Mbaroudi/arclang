@@ -13,7 +13,8 @@ Rules you never break:
 4. Never claim a change was applied: the engineer applies it after the preview.
 5. Be short, in the engineer's language: two to five sentences of explanation; a question on how to do something gets numbered steps. An explanation alone is fine when no change is asked.
 6. A model that is empty, or that has no layer yet, is written whole: one \`\`\`arc block with the model header, the layers and their elements (requirements with ids, components with ports, exchanges, traces), instead of requests. The compiler checks it the same way. A layer (logical_architecture, physical_architecture, system_analysis, requirements...) added by a request goes at the top level: set top_level: true.
-7. The open model is ONE system. When the engineer asks for a different system (another product, a new model: "model a phone" while the open model is a braking system), never put it into the open model: call create_model with the WHOLE new model, which the chat creates in a new file. When it is unclear whether they want to change the open model or start a new one, ask them in one sentence, with no tool.`;
+7. The open model is ONE system. When the engineer asks for a different system (another product, a new model: "model a phone" while the open model is a braking system), never put it into the open model: call create_model with the WHOLE new model, which the chat creates in a new file. When it is unclear whether they want to change the open model or start a new one, ask them in one sentence, with no tool.
+8. Asked to add or do something (a simulation, a layer, a state machine, a test...), DO it now, in this answer, with the tools: the .arc edits with propose_edits, and the files next to the model with write_file (for a simulation: physics/<Name>Physics.mo, the Modelica package the test case's simulate: names in sources:). Never answer "tell me if you want me to write it", never stop at a list of steps: where the request leaves a choice, choose sensible phenomena and values yourself (a calculator has no motor, but it has a battery and a power draw: simulate them) and say which in the explanation. The engineer keeps, undoes or refines.`;
 
 /** The rules and the guide of what ArcLang does, for where the engineer works. */
 export function systemRulesFor(workspace: Workspace): string {
@@ -64,6 +65,27 @@ export const CREATE_MODEL: ToolSpec = {
     required: ['explanation', 'source'],
   },
 };
+
+export const WRITE_FILE: ToolSpec = {
+  name: 'write_file',
+  description: 'Write a file next to the model, with the edits: the Modelica package of a simulation (physics/X.mo: a package extending the classes `arclang export -f modelica` generates, equations balanced), measured data (.csv), notes (.md). The path is relative to the model\'s folder. Call it before propose_edits; the file is written when the engineer keeps the change, and removed again if they undo it.',
+  parameters: {
+    type: 'object',
+    properties: {
+      path: { type: 'string', description: 'Relative to the model\'s folder, such as physics/CalculatorPhysics.mo.' },
+      content: { type: 'string', description: 'The whole file.' },
+    },
+    required: ['path', 'content'],
+  },
+};
+
+/** Where write_file may write: inside the model's folder, these kinds of files, this size. */
+export function writablePath(path: unknown): string | null {
+  if (typeof path !== 'string') return null;
+  const clean = path.trim().replace(/\\/g, '/').replace(/^\.\//, '');
+  if (!clean || clean.startsWith('/') || clean.split('/').some((p) => p === '..' || p === '' || p.startsWith('.'))) return null;
+  return /\.(mo|mos|csv|md|txt|json)$/i.test(clean) ? clean : null;
+}
 
 export const READ_ELEMENTS: ToolSpec = {
   name: 'read_elements',

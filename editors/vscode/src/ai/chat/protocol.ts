@@ -48,7 +48,9 @@ export type FromChatPage =
   | { type: 'chat-undo-change'; session: string }
   | { type: 'chat-attach'; name: string; text: string }
   | { type: 'chat-detach'; name: string }
-  | { type: 'chat-pick-workspace' };
+  | { type: 'chat-pick-workspace' }
+  | { type: 'chat-open-file'; session: string; path: string }
+  | { type: 'chat-open-link'; url: string };
 
 /** Host → page. */
 export type ToChatPage =
@@ -81,6 +83,10 @@ export function parseFromChatPage(message: unknown): FromChatPage | null {
       return isText(m.name, 300) ? { type: 'chat-detach', name: m.name } : null;
     case 'chat-pick-workspace':
       return { type: 'chat-pick-workspace' };
+    case 'chat-open-link':
+      return isText(m.url, 2000) && /^https:\/\/[\w.-]+\//.test(m.url) ? { type: 'chat-open-link', url: m.url } : null;
+    case 'chat-open-file':
+      return isSession(m.session) && isText(m.path, 300) && !/(^|\/)\.\.(\/|$)/.test(m.path) && !m.path.startsWith('/') ? { type: 'chat-open-file', session: m.session, path: m.path } : null;
     case 'chat-hello':
     case 'chat-cancel':
     case 'chat-new':

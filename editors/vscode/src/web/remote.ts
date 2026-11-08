@@ -33,16 +33,27 @@ const SEGMENT = /^[A-Za-z0-9_][A-Za-z0-9._ -]{0,99}$/;
 const LIMITS = { files: 400, bytes: 8_000_000 };
 
 let available = false;
+/** Whether the visitor is signed in (the page says so); a page that does not say is taken as signed in, as before. */
+let signedIn = true;
 
-/** Asks whether the page offers the compiler online (again until it does: it registers after the account is known). */
+/** Asks whether the page offers the compiler online (again until it does: it registers after the account is known), and whether the visitor is signed in. */
 export async function probeRemote(): Promise<boolean> {
-  available ||= (await vscode.commands.getCommands(true)).includes(HOST_COMMAND);
+  const commands = await vscode.commands.getCommands(true);
+  available ||= commands.includes(HOST_COMMAND);
+  if (commands.includes('arclangWeb.account.signedIn')) {
+    signedIn = await Promise.resolve(vscode.commands.executeCommand<boolean>('arclangWeb.account.signedIn')).then((v) => v === true, () => false);
+  }
   return available;
 }
 
-/** Whether a subcommand can run online here. */
+/** Whether a subcommand can run online here: offered by the page, and the visitor signed in (else nothing is sent, and no notice pops up for a command run in the background). */
 export function runsRemotely(command: string | undefined): boolean {
-  return available && !!command && REMOTE.has(command);
+  return available && signedIn && !!command && REMOTE.has(command);
+}
+
+/** Whether a subcommand would run online for a signed-in visitor (what to tell one who is not). */
+export function runsOnlineSignedIn(command: string | undefined): boolean {
+  return available && !signedIn && !!command && REMOTE.has(command);
 }
 
 const toBase64 = (bytes: Uint8Array): string => {

@@ -1824,7 +1824,7 @@
         },
         "arclang.ai.repairAttempts": {
           "type": "integer",
-          "default": 2,
+          "default": 3,
           "minimum": 0,
           "maximum": 5,
           "markdownDescription": "When what an AI wrote does not compile (a model of `@arclang`, the edits of **Ask AI**), how many times the compiler's errors are sent back to it before the answer is shown as refused."

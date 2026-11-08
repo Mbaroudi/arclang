@@ -39,7 +39,15 @@ export async function converse(provider: ChatProvider, messages: ChatMessage[], 
     }
     text += roundText;
     const final = calls.filter((c) => options.final.includes(c.name));
-    if (final.length || calls.length === 0) return { text, calls: final, rounds: round };
+    if (final.length) {
+      // The other calls of the same answer still run (write_file next to propose_edits): their effect is part of the answer.
+      for (const call of calls) {
+        if (options.final.includes(call.name) || !options.tools.some((t) => t.name === call.name)) continue;
+        await Promise.resolve(options.run(call)).catch(() => undefined);
+      }
+      return { text, calls: final, rounds: round };
+    }
+    if (calls.length === 0) return { text, calls: final, rounds: round };
     history.push({ role: 'assistant', content: roundText, toolCalls: calls });
     for (const call of calls) {
       const known = options.tools.some((t) => t.name === call.name);

@@ -108,3 +108,27 @@ button:disabled { opacity: .5; cursor: default; }
 .chat-compiled { font-size: 11px; padding: 0 6px; border-radius: 8px; }
 .chat-compiled.ok { color: var(--c-ok, #3fb950); border: 1px solid color-mix(in srgb, var(--c-ok, #3fb950) 50%, transparent); }
 .chat-compiled.ko { color: var(--c-warn); border: 1px solid color-mix(in srgb, var(--c-warn) 50%, transparent); }
+.chat-files { margin: 4px 0; padding-left: 4px; list-style: none; font-size: 12px; }
+.chat-link { padding: 0; border: 0; background: none; color: var(--vscode-textLink-foreground, var(--c-accent)); font-family: var(--c-mono); cursor: pointer; text-decoration: underline; }
+
+/* Answers read as text: lists, headings, links, the assistant's own work as status lines. */
+.chat-body ol, .chat-body ul { margin: 2px 0 8px; padding-left: 20px; }
+.chat-body li { margin: 2px 0; }
+.chat-body h3, .chat-body h4 { margin: 8px 0 4px; font-size: 1em; font-weight: 600; }
+.chat-body a { color: var(--vscode-textLink-foreground, var(--c-accent)); text-decoration: none; }
+.chat-body a:hover { text-decoration: underline; }
+.chat-body strong { font-weight: 600; }
+.chat-work { font-size: 11.5px; color: var(--c-muted); font-style: italic; margin: 4px 0 !important; }
+.chat-fold { margin: 6px 0; }
+.chat-fold > summary { cursor: pointer; font-size: 12px; color: var(--c-muted); list-style: revert; }
+.chat-fold > summary:hover { color: var(--c-fg); }
+.chat-turn-actions { display: flex; gap: 4px; margin-top: 4px; opacity: .55; transition: opacity .15s; }
+.chat-turn:hover .chat-turn-actions { opacity: 1; }
+.chat-mini { font-size: 11px; padding: 0 7px; background: transparent; color: var(--c-muted); border: 1px solid var(--c-line); border-radius: 9px; }
+.chat-mini:hover { color: var(--c-fg); }
+.chat-input { resize: none; overflow-y: auto; }
+.chat-dots::after { content: '…'; display: inline-block; animation: chat-dots 1.2s steps(4, end) infinite; overflow: hidden; vertical-align: bottom; width: 0; }
+@keyframes chat-dots { to { width: 1.2em; } }
+@media (prefers-reduced-motion: reduce) { .chat-dots::after { animation: none; width: auto; } }
+.chat-files li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 4px; }
+.chat-files .chat-link { overflow-wrap: anywhere; text-align: left; }
