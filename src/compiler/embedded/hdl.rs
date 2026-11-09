@@ -77,6 +77,10 @@ pub struct Outcome {
     pub verdict: String,
     pub model_verdict: String,
     pub hdl_verdict: String,
+    /// Whether the hardware reproduces the model: word for word the
+    /// fixed-point C, the fixed point within its tolerance of the model,
+    /// every expectation judged alike, and no channel departing from it.
+    pub agrees: bool,
     pub reason: String,
     pub expectations: Vec<Judged>,
     /// The VHDL against the fixed-point C, word for word.
@@ -372,6 +376,7 @@ pub(super) fn new_outcome(test: &TestCase, tools: &str) -> Outcome {
         verdict: "error".to_string(),
         model_verdict: "error".to_string(),
         hdl_verdict: "error".to_string(),
+        agrees: false,
         reason: String::new(),
         expectations: texts.iter().map(|t| Judged { expect: t.clone(), model: None, c: None, error: String::new() }).collect(),
         bit_exact: None,
@@ -521,9 +526,10 @@ pub(super) fn conclude(r: &Reference, plan: &Plan, device_raw: &Table, device: &
     }
     outcome.hdl_verdict = sil::verdict_of(&outcome.expectations.iter().map(|j| j.c.clone()).collect::<Vec<_>>());
     let alike = outcome.expectations.iter().all(|j| j.model.as_ref().map(|v| v.holds) == j.c.as_ref().map(|v| v.holds));
+    outcome.agrees = bit_exact.first_mismatch.is_none() && q.first_mismatch.is_none() && alike && outcome.hdl_verdict != "error";
     outcome.verdict = if outcome.hdl_verdict == "error" {
         "error".to_string()
-    } else if bit_exact.first_mismatch.is_some() || q.first_mismatch.is_some() || !alike {
+    } else if !outcome.agrees {
         "fail".to_string()
     } else {
         outcome.hdl_verdict.clone()
@@ -747,6 +753,7 @@ pub(super) fn cache_kind(ast: &Model, model_path: &Path, outcomes: &[Outcome], k
             verdict: o.verdict.clone(),
             reason: if o.verdict == "pass" { String::new() } else { format!("{label}: {}", o.reason) },
             values,
+            agrees: o.agrees,
             key: key(test, &o.tools)?,
             model: format!("state_machine {}", o.machine),
             tool: o.tools.clone(),

@@ -14,8 +14,7 @@ const MARK: &str = "edited by the corpus test";
 
 /// The value to write: another member of the enumeration when the metamodel
 /// types the attribute as one, another element of the referenced kind for a
-/// reference, the other gate of a fault tree, another declared kind for a
-/// threat; else the marker. A value
+/// reference, another declared kind for a threat; else the marker. A value
 /// the model could not hold says nothing about the editor.
 fn value_for(graph: &ElementGraph, element: &ElementRecord, key: &str) -> String {
     let current = element.attributes.get(key).and_then(AttributeValue::as_string).unwrap_or("");
@@ -50,10 +49,6 @@ fn value_for(graph: &ElementGraph, element: &ElementRecord, key: &str) -> String
         if let Some(other) = held_elsewhere {
             return format!("\"{other}\"");
         }
-    }
-    // The gate of a fault tree is `or` or `and`; the metamodel types it as text.
-    if element.kind == "Hazard" && key == "gate" {
-        return if current.eq_ignore_ascii_case("and") { "\"or\"".to_string() } else { "\"and\"".to_string() };
     }
     if element.kind == "Threat" && key == "kind" {
         let kinds: Vec<&str> = graph.elements.iter().filter(|e| e.kind == "Threat").filter_map(|e| e.attributes.get("kind").and_then(AttributeValue::as_string)).collect();

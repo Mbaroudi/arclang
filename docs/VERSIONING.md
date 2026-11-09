@@ -29,6 +29,15 @@ The current language version is the `LANGUAGE_VERSION` constant of
   the production gate, whose verdict is expected to tighten between
   versions (4.0 typed `latency`, `bandwidth`, `safety_level`, `asil`,
   `multiplicity`, ...).
+- Four things are errors although older versions compiled them, because the
+  model said something the compiler could not honour: an attribute written
+  twice in one block (the last value used to win silently); two requirements
+  written with the same `id:` (one test verified both); a case executed on a
+  state machine (`execute:`) whose expectation names a requirement the case
+  does not verify, or that verifies a requirement none of its expectations
+  checks (as for a simulated case); and a `configuration:` on a test case
+  that names no configuration. An attribute spelled almost like one the
+  compiler reads (`verdit:`) is a `metamodel:` warning, not an error.
 
 ## Identity stability guarantee
 

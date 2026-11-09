@@ -154,6 +154,8 @@ pub fn cached_outcome(runs: &[&Outcome], key: String) -> crate::compiler::simula
         verdict: worst.verdict.clone(),
         reason,
         values,
+        // With every compiler: a failure is then one of the expectations alone.
+        agrees: runs.iter().all(|o| o.agrees),
         key,
         model: format!("state_machine {}", first.machine),
         tool: format!("arclang sil ({})", runs.iter().map(|o| o.compiler.as_str()).collect::<Vec<_>>().join(", ")),

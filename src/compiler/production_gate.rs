@@ -286,9 +286,15 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
         .iter()
         .map(|r| r.id.as_str())
         .collect();
+    // A reference names a requirement by its id or by its name: as every
+    // reader of `verifies:` resolves it.
+    let names_a_requirement = |reference: &str| {
+        requirement_keys.contains(reference)
+            || super::verification::resolve_requirement(ast, reference).is_some_and(|id| requirement_keys.contains(id.as_str()))
+    };
     for test_case in &ast.test_cases {
         for reference in &test_case.verifies {
-            if !requirement_keys.contains(reference.as_str()) {
+            if !names_a_requirement(reference) {
                 push(
                     "verification.dangling",
                     Severity::Blocker,
@@ -381,7 +387,7 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
             if let Some(AttributeValue::List(items)) = hazard.attributes.get("mitigated_by") {
                 for item in items {
                     if let Some(reference) = item.as_string() {
-                        if !requirement_keys.contains(reference) {
+                        if !names_a_requirement(reference) {
                             push(
                                 "safety.mitigation",
                                 Severity::Blocker,

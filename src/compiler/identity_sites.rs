@@ -54,19 +54,26 @@ fn listed(places: &[String]) -> String {
 }
 
 /// Two requirements of one identity are an error: a trace, a test case or a
-/// requirements tool could not tell which one it names.
+/// requirements tool could not tell which one it names. A requirement is
+/// named by the text after its keyword and by its `id:`: neither may name
+/// another requirement (one copied with its `id:` left as it was would be
+/// verified by the cases of the first).
 pub fn check_requirements(ast: &Model, files: &[SourceFile]) -> Result<(), String> {
     let mut seen: Vec<&str> = Vec::new();
-    let mut reported: Vec<&str> = Vec::new();
+    let mut first: Option<&str> = None;
     for requirement in ast.system_analysis.iter().flat_map(|sa| sa.requirements.iter()) {
-        let id = requirement.id.as_str();
-        if seen.contains(&id) && !reported.contains(&id) {
-            reported.push(id);
+        let name = requirement.id.as_str();
+        let written = requirement.attributes.get("id").and_then(|v| v.as_string()).filter(|id| *id != name);
+        for identity in std::iter::once(name).chain(written) {
+            if first.is_none() && seen.contains(&identity) {
+                first = Some(identity);
+            }
         }
-        seen.push(id);
+        seen.push(name);
+        seen.extend(written);
     }
-    let Some(first) = reported.first() else { return Ok(()) };
-    let count = seen.iter().filter(|id| *id == first).count();
+    let Some(first) = first else { return Ok(()) };
+    let count = seen.iter().filter(|id| **id == first).count();
     let times = if count == 2 { "twice".to_string() } else { format!("{count} times") };
     Err(format!("requirement '{first}' is declared {times}: {} — give each its own id", listed(&sites(files, first))))
 }

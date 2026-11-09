@@ -1813,7 +1813,9 @@ impl<'g> Mapper<'g> {
         self.line(2, &format!("behavior_component {} {{", string_literal(&name)));
         self.header(3, index, &id);
         self.write_ports(3, index, false);
-        if let Some(realized) = self.allocated_logical(index) {
+        // A dependency named `allocated_component` is written with the header: once is enough.
+        let said = self.node_element_ids(index).iter().filter_map(|id| self.dependency_attrs.get(id)).flatten().any(|(key, target)| key == "allocated_component" && self.intended_id(target).is_some());
+        if let Some(realized) = self.allocated_logical(index).filter(|_| !said) {
             self.line(3, &format!("allocated_component: {}", string_literal(&realized)));
         }
         let children = self.nodes[index].children.clone();

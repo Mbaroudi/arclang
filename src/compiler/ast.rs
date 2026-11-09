@@ -145,34 +145,75 @@ impl Model {
     /// imported fragment only fills keys the root did not set). Identity
     /// collisions across files surface through the semantic analyzer's
     /// duplicate-id warnings, exactly as within a single file.
+    ///
+    /// The imported model is taken apart field by field, with no `..`: a
+    /// field added to `Model` does not compile until this says what an
+    /// import does with it.
     pub fn merge(&mut self, other: Model) {
-        for (key, value) in other.attributes {
+        let Model {
+            // The identity and the imports of a fragment are its own: the
+            // root names the model, and the reader has followed the imports.
+            id: _,
+            imports: _,
+            attributes,
+            operational_analysis,
+            system_analysis,
+            logical_architecture,
+            physical_architecture,
+            epbs,
+            safety_analysis,
+            security_analysis,
+            security_scales,
+            traces,
+            state_machines,
+            scenarios,
+            exchange_items,
+            data_types,
+            classes,
+            associations,
+            test_cases,
+            twins,
+            configurations,
+            notes,
+            rules,
+            constraints,
+            types,
+            diagrams,
+            tables,
+            io_bindings,
+            refinements,
+        } = other;
+        for (key, value) in attributes {
             self.attributes.entry(key).or_insert(value);
         }
-        self.operational_analysis.extend(other.operational_analysis);
-        self.system_analysis.extend(other.system_analysis);
-        self.logical_architecture.extend(other.logical_architecture);
-        self.physical_architecture.extend(other.physical_architecture);
-        self.epbs.extend(other.epbs);
-        self.safety_analysis.extend(other.safety_analysis);
-        self.security_analysis.extend(other.security_analysis);
+        self.operational_analysis.extend(operational_analysis);
+        self.system_analysis.extend(system_analysis);
+        self.logical_architecture.extend(logical_architecture);
+        self.physical_architecture.extend(physical_architecture);
+        self.epbs.extend(epbs);
+        self.safety_analysis.extend(safety_analysis);
+        self.security_analysis.extend(security_analysis);
         if self.security_scales.is_none() {
-            self.security_scales = other.security_scales;
+            self.security_scales = security_scales;
         }
-        self.traces.extend(other.traces);
-        self.state_machines.extend(other.state_machines);
-        self.scenarios.extend(other.scenarios);
-        self.exchange_items.extend(other.exchange_items);
-        self.data_types.extend(other.data_types);
-        self.classes.extend(other.classes);
-        self.test_cases.extend(other.test_cases);
-        self.twins.extend(other.twins);
-        self.configurations.extend(other.configurations);
-        self.constraints.extend(other.constraints);
-        self.types.extend(other.types);
-        self.tables.extend(other.tables); // tables hook
-        self.io_bindings.extend(other.io_bindings);
-        self.refinements.extend(other.refinements);
+        self.traces.extend(traces);
+        self.state_machines.extend(state_machines);
+        self.scenarios.extend(scenarios);
+        self.exchange_items.extend(exchange_items);
+        self.data_types.extend(data_types);
+        self.classes.extend(classes);
+        self.associations.extend(associations);
+        self.test_cases.extend(test_cases);
+        self.twins.extend(twins);
+        self.configurations.extend(configurations);
+        self.notes.extend(notes);
+        self.rules.extend(rules);
+        self.constraints.extend(constraints);
+        self.types.extend(types);
+        self.diagrams.extend(diagrams);
+        self.tables.extend(tables); // tables hook
+        self.io_bindings.extend(io_bindings);
+        self.refinements.extend(refinements);
     }
 
     /// Export the model to JSON string for diagram rendering
