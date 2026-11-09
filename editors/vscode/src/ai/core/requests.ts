@@ -131,8 +131,21 @@ export function isQuestion(asked: string): boolean {
   const polite = /^\s*(?:please\s+)?(?:can|could|would|will)\s+you\b|^\s*(?:peux|pourrais|pouvez|pourriez)[- ](?:tu|vous)\b|^\s*(?:tu|vous) (?:peux|pouvez)\b|^\s*est[- ]ce que (?:tu|vous) (?:peux|pouvez|pourrais|pourriez)\b/i.test(asked);
   if (polite) return false;
   // An action verb first is a request, even with a question mark ("ajoute un capteur ?", "fait moi un modèle ?").
+  if (asksToApply(asked)) return false;
   if (/^\s*(?:(?:s'il te pla[iî]t|stp|please)[, ]+)?(?:ajoute|rajoute|fais|fait|cr[ée]e|mod[ée]lise|g[ée]n[èe]re|simule|corrige|supprime|enl[èe]ve|mets|met|[ée]cris|construis|applique|relie|renomme|add|make|create|build|write|generate|simulate|fix|remove|delete|put|apply|connect|rename|model)\b/i.test(asked)) return false;
   return /\?\s*$/.test(asked.trim()) || /^\s*(comment|peut[- ]on|est[- ]ce|pourquoi|quel|quelle|quels|quelles|o[uù]|can|could|how|what|which|why|where|is it|does|do i|are)\b/i.test(asked);
+}
+
+/**
+ * "How do I use CESAM here?", "comment appliquer la méthode à mon modèle ?",
+ * "how do I make a SysML v2 model?": the engineer wants it done on their
+ * model, not a tutorial. The change is written, with Keep / Undo.
+ */
+export function asksToApply(asked: string): boolean {
+  const onThisModel = /\b(?:here|in (?:my|this|the) model|on (?:my|this|the) model|to (?:my|this|the) model|for (?:my|this|the) model|my model|this model|it here|ici|(?:sur|à|a|dans|pour) (?:mon|ce|le|notre) mod[eè]le|mon mod[eè]le|ce mod[eè]le)\b/i;
+  const useIt = /\bhow (?:do|can|could|should|would) (?:i|we) (?:use|apply|follow|adopt|get|turn|put|set up|switch)\b|\bcomment\b[^?]*\b(?:utiliser|appliquer|j'utilise|j'applique|on utilise|on applique|mettre en (?:œuvre|oeuvre|place)|suivre|adopter|passer)\b/i;
+  const makeOne = /\bhow (?:do|can|could|should) (?:i|we) (?:make|create|build|write|model|start)\b[^?]*\bmodel\b|\bcomment\b[^?]*\b(?:cr[ée]er|faire|construire|[ée]crire|mod[ée]liser|d[ée]marrer)\b[^?]*\bmod[eè]le\b/i;
+  return (useIt.test(asked) && onThisModel.test(asked)) || makeOne.test(asked);
 }
 
 /** An explanation without the AI talking about the exchange ("Il s'agit d'une question : voici les étapes."): the answer starts with the answer. */

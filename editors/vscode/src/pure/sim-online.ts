@@ -61,3 +61,49 @@ export function leftText(left: unknown): string {
   if (typeof left !== 'number' || !Number.isFinite(left)) return '';
   return ` · ${left} online run${left === 1 ? '' : 's'} left today`;
 }
+
+// ---- Co-simulations online: the test cases that execute:, in the same job ----
+
+/** Whether a model has test cases that execute: (co-simulated online with its simulations). */
+export function executes(text: string): boolean {
+  return /\bexecute\s*:\s*\{/.test(text.replace(/\/\/[^\n]*/g, ''));
+}
+
+/** One co-simulated case, as `arclang cosim --json` gives it. */
+export interface CosimCase {
+  test_case: string;
+  name: string;
+  verifies: string[];
+  verdict: string;
+  reason: string;
+}
+
+/** The co-simulated cases of an online answer; [] when it has none. */
+export function cosimCases(value: unknown): CosimCase[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((c): c is Record<string, unknown> => !!c && typeof c === 'object' && typeof (c as { test_case?: unknown }).test_case === 'string')
+    .map((c) => ({
+      test_case: String(c.test_case),
+      name: typeof c.name === 'string' ? c.name : String(c.test_case),
+      verifies: Array.isArray(c.verifies) ? c.verifies.filter((v): v is string => typeof v === 'string') : [],
+      verdict: typeof c.verdict === 'string' ? c.verdict : 'error',
+      reason: typeof c.reason === 'string' ? c.reason : '',
+    }))
+    .filter((c) => c.verdict !== 'skipped');
+}
+
+/** "1 co-simulation (OMSimulator) passes." / "2 co-simulations: 1 pass, 1 fail." */
+export function cosimText(cases: CosimCase[]): string {
+  if (!cases.length) return '';
+  const pass = cases.filter((c) => c.verdict === 'pass').length;
+  const fail = cases.filter((c) => c.verdict === 'fail').length;
+  const other = cases.length - pass - fail;
+  if (pass === cases.length) return `${cases.length === 1 ? '1 co-simulation (OMSimulator) passes' : `All ${cases.length} co-simulations (OMSimulator) pass`}.`;
+  return `${cases.length} co-simulation${cases.length > 1 ? 's' : ''} (OMSimulator): ${[pass && `${pass} pass`, fail && `${fail} fail`, other && `${other} error`].filter(Boolean).join(', ')}.`;
+}
+
+/** The log of the co-simulated cases: one line each, with its reason when it does not pass. */
+export function cosimLog(cases: CosimCase[]): string {
+  return cases.map((c) => `   ${c.verdict.toUpperCase().padEnd(5)} ${c.test_case}  ${c.name}${c.verifies.length ? `  (verifies ${c.verifies.join(', ')})` : ''}${c.verdict !== 'pass' && c.reason ? `\n         ${c.reason}` : ''}`).join('\n');
+}

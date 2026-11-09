@@ -8,6 +8,7 @@
 // Modelica compiler here.
 import { randomBytes } from 'node:crypto';
 import * as vscode from 'vscode';
+import { sysmlText } from '../../workbench/source';
 import { applySession, cancelSession, diffSession, dropSession, restoreFiles, runAsk, session, type WrittenFile } from '../assist';
 import { openProvider } from '../client';
 import { MODELICA_NOT_VERIFIED, MODELICA_WHERE_VERIFIED, modelicaMessages, rememberTurn } from '../core/modelica';
@@ -84,6 +85,8 @@ class TargetTracker implements vscode.Disposable {
 
 class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
   private view: vscode.WebviewView | null = null;
+  /** The last new model was asked in SysML v2: Create model writes its .sysml beside it. */
+  private sysmlAsked = false;
   private readonly tracker = new TargetTracker();
   private counter = 0;
   private running: { id: string; controller: AbortController; session?: string } | null = null;
@@ -239,7 +242,7 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
       case 'chat-pick-workspace':
         return this.pickWorkspaceFile();
       case 'chat-create-model':
-        return createModelFromText(message.code);
+        return createModelFromText(message.code, { sysml: this.sysmlAsked });
       case 'chat-copy':
         await vscode.env.clipboard.writeText(message.code);
         return;
@@ -247,6 +250,8 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
   }
 
   private async send(text: string): Promise<void> {
+    // Asked in SysML v2 ("a SysML v2 model of…"): the new model is shown and created as its SysML v2 text, written by the compiler.
+    this.sysmlAsked = /sys\s*ml/i.test(text);
     if (this.running) {
       this.post({ type: 'chat-note', text: 'The assistant is still answering: wait for it, or press Stop.' });
       return;
@@ -296,7 +301,12 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
     const created = outcome.session.newModel;
     this.remember(text, created ? `${created.explanation}\n(I wrote the whole new model; the engineer can create it with Create model.)` : outcome.session.proposal ? `${outcome.session.proposal.view.explanation}${outcome.session.proposal.view.ok && !outcome.session.proposal.view.explainOnly ? `\n(Edits: ${outcome.session.proposal.view.edits.slice(0, 12).join('; ')})` : ''}` : '');
     if (created) {
-      this.post({ type: 'chat-done', id, kind: 'plain', text: `${created.explanation}\n\n\`\`\`arc\n${created.source}\n\`\`\`\n\nThis is a new model: ${file} is not changed. Create model opens it in a new file beside its diagrams.`, compiled: created.compiled });
+      // Asked in SysML v2: its SysML v2 text, written by the compiler from the checked model; Create model creates the .sysml and draws it.
+      const sysml = this.sysmlAsked && created.compiled ? await sysmlText(created.source) : null;
+      const shown = sysml
+        ? `${created.explanation}\n\n\`\`\`sysml\n${sysml.trimEnd()}\n\`\`\`\n\nThe SysML v2 text above is written by the compiler from this checked model:\n\n\`\`\`arc\n${created.source}\n\`\`\`\n\nThis is a new model: ${file} is not changed. Create model writes it as a .sysml file and opens it beside its diagrams.`
+        : `${created.explanation}\n\n\`\`\`arc\n${created.source}\n\`\`\`\n\nThis is a new model: ${file} is not changed. Create model opens it in a new file beside its diagrams.`;
+      this.post({ type: 'chat-done', id, kind: 'plain', text: shown, compiled: created.compiled });
       return;
     }
     const proposal = outcome.session.proposal;
@@ -438,6 +448,11 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
       return;
     }
     this.remember(text, answer);
+    if (kind === 'plain' && compiled && this.sysmlAsked) {
+      const model = /```(?:arc|arclang)\n(\s*(?:\/\/[^\n]*\n\s*)*model\b[\s\S]*?)```/.exec(answer)?.[1];
+      const sysml = model ? await sysmlText(model) : null;
+      if (sysml) answer = `${answer.trimEnd()}\n\nIts SysML v2 text, written by the compiler from this checked model (Create model writes it as a .sysml file and draws it):\n\n\`\`\`sysml\n${sysml.trimEnd()}\n\`\`\``;
+    }
     this.post({ type: 'chat-done', id, kind, text: answer, compiled, notVerified: kind === 'modelica' ? { label: MODELICA_NOT_VERIFIED, where: MODELICA_WHERE_VERIFIED } : undefined });
   }
 

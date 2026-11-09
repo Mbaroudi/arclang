@@ -49,7 +49,8 @@ export const TOPICS: Topic[] = [
   {
     what: 'The CESAM method: three visions (operational, functional, constructional) × six aspects, on the same Arcadia model',
     docs: ['cesam', 'cesam-tutorial'],
-    how: 'model X { method: "cesam" }; a requirements stakeholder { ... } block holds stakeholder "Resident" { id: "STK-RES" category: "user" interest: "..." }, each of their needs as a concern: concern "Keyless entry" { id: "NEED-1" stakeholders: ["STK-RES"] }, and the requirements that frame them req "STK-REQ-1" "..." { frames: ["NEED-1"] }; state machines with kind: "lifecycle" | "functional_modes" | "technical_configurations" (a state realizes: a state of another, context:, during:); vision: places a requirement, scenario or machine in a vision; capability: "UC-1" on a scenario or functional chain names the use case it illustrates. "arclang new <name> --template cesam" starts a model with every view in place. "ArcLang: Open a table of the model" with the kind cesam_grid shows the grid and each view\'s maturity (arclang table --kind cesam_grid); arclang check --lint --method cesam gives the ten cesam.* rules; arclang diagram --view cesam draws the views; the export to SysML v2 has one view per CESAM view. The CESAM tutorial: nine exercises. CESAM ships with release 4.13: before it, the compiler built from main.',
+    how: 'model X { method: "cesam" }; a requirements stakeholder { ... } block holds stakeholder "Resident" { id: "STK-RES" category: "user" interest: "..." }, each of their needs as a concern: concern "Keyless entry" { id: "NEED-1" stakeholders: ["STK-RES"] }, and the requirements that frame them req "STK-REQ-1" "..." { frames: ["NEED-1"] }; state machines with kind: "lifecycle" | "functional_modes" | "technical_configurations" (a state realizes: a state of another, context:, during:); vision: places a requirement, scenario or machine in a vision; capability: "UC-1" on a scenario or functional chain names the use case it illustrates. "arclang new <name> --template cesam" starts a model with every view in place. "ArcLang: Open a table of the model" with the kind cesam_grid shows the grid and each view\'s maturity (arclang table --kind cesam_grid); arclang check --lint --method cesam gives the ten cesam.* rules; arclang diagram --view cesam draws the views; the export to SysML v2 has one view per CESAM view. The CESAM tutorial: nine exercises.',
+    where: { online: 'here, in the playground: its compiler has CESAM', anonymous: 'here, in the playground: its compiler has CESAM', desktop: 'from release 4.13 of the compiler (before it, the compiler built from main)' },
   },
   // ---- Model ----
   {
@@ -84,7 +85,7 @@ export const TOPICS: Topic[] = [
    (sweep: [...] varies parameters.) 5. "ArcLang: Run simulations" (the Simulate button of the status bar; arclang verify): each case is simulated, its expects judged, the verdict goes to the requirement, the gate and the tables. Then "ArcLang: Replay a simulation on the diagram", "ArcLang: Open the Modelica drawing", "ArcLang: Export the simulation report (PDF or PowerPoint)…"; OMEdit opens the exported package.`,
     where: {
       desktop: 'with OpenModelica on this computer ("ArcLang: Set up OpenModelica" installs or finds it; else ArcLang Studio in Docker)',
-      online: `${SIMULATE_ONLINE}: it runs on the server (OpenModelica, the Modelica Standard Library and the libraries OpenModelica fully supports), counted in the visitor's quota. "Run simulations", "Export Modelica" and "Open the Modelica drawing" are desktop commands, not in the palette here`,
+      online: `${SIMULATE_ONLINE}: it runs on the server (OpenModelica 1.27.1 with the Modelica Standard Library 4.1.0; other libraries are not loaded: their classes go into the model's own package), counted in the visitor's quota. "Run simulations", "Export Modelica" and "Open the Modelica drawing" are desktop commands, not in the palette here`,
       anonymous: `sign in first (free, a link by e-mail: "Sign in to keep your work" in the status bar), then ${SIMULATE_ONLINE}: it runs on the server. "Run simulations", "Export Modelica" and "Open the Modelica drawing" are desktop commands, not in the palette here`,
     },
   },
@@ -133,7 +134,7 @@ export const TOPICS: Topic[] = [
     what: 'Co-simulation in OMSimulator: FMUs and SSP',
     docs: ['cosimulation'],
     how: 'arclang cosim: each case that execute:s runs as a standard FMI co-simulation: the behaviour\'s FMU (arclang export -f fmu), the plant\'s FMU (built by OpenModelica from the Modelica plant the case names in execute: { plant: ... }, or an FMU the case gives) and the inputs in an SSP package OMSimulator runs, judged against the model; --keep keeps cosim.ssp.',
-    where: { desktop: 'with OMSimulator on this computer, else ArcLang Studio (Docker)', ...DESKTOP_ONLY('Co-simulation (cosim)') },
+    where: { desktop: 'with OMSimulator on this computer, else ArcLang Studio (Docker)', online: `${SIMULATE_ONLINE}: the test cases that execute: are co-simulated on the server in OMSimulator, in the same run as the simulations and counted once in the quota; the verdicts show in the notification and in the ArcLang Simulation log`, anonymous: `sign in first (free, a link by e-mail: "Sign in to keep your work" in the status bar), then ${SIMULATE_ONLINE}: the test cases that execute: are co-simulated on the server in OMSimulator` },
   },
   {
     what: 'The realization ladder: each requirement from simulation to SIL, PIL, HDL, SoC, board and twin',

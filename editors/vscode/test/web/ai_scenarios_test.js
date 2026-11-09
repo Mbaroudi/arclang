@@ -664,6 +664,42 @@ const SCENARIOS = {
     if (SHOTS) fs.writeFileSync(path.join(SHOTS, `${S}-journey.json`), JSON.stringify(journey, null, 2));
     await context.close();
   },
+
+  // Asked how to use a method or a notation, the engineer gets it done: CESAM applied, a SysML v2 model written and drawn.
+  async apply_methods(browser) {
+    const S = 'apply_methods';
+    const { context, page, chat } = await open(browser);
+    const journey = [];
+    const cesam = await step(page, chat, journey, 'What is the CESAM method and how do I use it here?');
+    const kept = await keep(page, chat);
+    check(S, 'CESAM: applied to the model with Keep / Undo, not a tutorial', kept && /method:\s*"cesam"/.test(await fileText(page, 'starter.arc')) && cesam.text.length < 2500, `${cesam.text.length} chars: ${cesam.text.replace(/^.*?claude-[\w-]+( · \S+)?\s*/s, '').slice(0, 140).replace(/\n/g, ' ')}`);
+    check(S, 'CESAM: still no error', (await statusErrors(page)) === 0, `errors: ${await statusErrors(page)}`);
+    const get = await step(page, chat, journey, 'How do I get my model in SysML v2?');
+    const files = await writtenFiles(chat);
+    const keptSysml = await keep(page, chat);
+    check(S, 'SysML v2 of the open model: starter.sysml written beside it by the compiler', keptSysml && files.includes('starter.sysml') && /\bpackage\b|\bpart\b/.test(await fileText(page, 'starter.sysml')), (files.join(', ') || get.text.slice(0, 140)).replace(/\n/g, ' '));
+    const plus = await chat.$('button[title*="New conversation"], .chat-new');
+    if (plus) await plus.click();
+    await page.waitForTimeout(1500);
+    await command(page, 'View: Close All Editors');
+    const make = await step(page, chat, journey, 'How do I create a SysML v2 model of a smart thermostat?');
+    const blocks = await chat.$$eval('.chat-turn.ai:last-child pre', (l) => l.map((x) => x.innerText));
+    check(S, 'new SysML v2 model: its SysML v2 text is shown, written by the compiler', /✓ compiles/.test(make.text) && blocks.some((b) => /^\s*(?:\/\/[^\n]*\n\s*)*(package|part|requirement|doc)\b/m.test(b) && !/^\s*model\b/.test(b)), make.text.slice(0, 140).replace(/\n/g, ' '));
+    const create = await chat.$('.chat-turn.ai:last-child button:has-text("Create model")');
+    if (create) {
+      await create.click();
+      await page.waitForTimeout(2000);
+      await page.keyboard.press('Enter');
+      await page.waitForTimeout(10000);
+    }
+    const stored = Object.keys(await storedFiles(page)).filter((k) => k.endsWith('.sysml') && !k.endsWith('starter.sysml'));
+    await shot(page, 'apply-sysml-drawn');
+    check(S, 'Create model writes the .sysml and draws it in the workbench', stored.length > 0 && (await drawnWorkbenches(page)) >= 1 && (await blankWorkbenches(page)) === 0, `${stored.join(', ')}; drawn ${await drawnWorkbenches(page)}, blank ${await blankWorkbenches(page)}`);
+    const errors = await errorToasts(page);
+    check(S, 'no error notification', errors.length === 0, errors.join(' | '));
+    if (SHOTS) fs.writeFileSync(path.join(SHOTS, `${S}-journey.json`), JSON.stringify(journey, null, 2));
+    await context.close();
+  },
 };
 
 /** The model and the files the AI wrote, simulated by OpenModelica in the image the server runs. */

@@ -65,6 +65,15 @@ export async function documentTextFor(document: vscode.TextDocument, arcText: st
   });
 }
 
+/** The SysML v2 text of an ArcLang model text, written by the compiler; null when it cannot be exported. */
+export async function sysmlText(arcText: string): Promise<string | null> {
+  return withTempFile(arcText, 'model.arc', async (file, dir) => {
+    const out = path.join(dir, 'exported.sysml');
+    const result = await run(['export', '-f', 'sys-ml', file, '-o', out], { cwd: dir });
+    return result.code === 0 && fs.existsSync(out) ? fs.readFileSync(out, 'utf8') : null;
+  });
+}
+
 /** Replace the whole document with `text` as one undoable edit; false when VS Code refused. */
 export async function replaceWhole(document: vscode.TextDocument, text: string): Promise<boolean> {
   if (text === document.getText()) return true;
