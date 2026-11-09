@@ -185,7 +185,9 @@ fn every_example_with_physical_nodes_draws_without_overlap() {
                 let Ok(export) = modelica::export_with(&result.ast, &Options { placement: true, layout: None }) else { continue };
                 seen += 1;
                 for line in export.text.lines().filter(|l| l.contains("Placement(") || l.contains("Line(points")) {
-                    assert!(!line.contains("NaN") && !line.contains("inf"), "{}: {line}", path.display());
+                    // The numbers only: a component may be named "Driver information software".
+                    let not_a_number = line.split(|c: char| !c.is_ascii_alphanumeric()).any(|word| word == "NaN" || word == "inf");
+                    assert!(!not_a_number, "{}: {line}", path.display());
                 }
                 for model in export.text.lines().filter_map(|l| l.trim_start().strip_prefix("partial model ")).filter_map(|l| l.split_whitespace().next()) {
                     let placed = boxes(&export.text, model);
