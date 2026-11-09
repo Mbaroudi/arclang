@@ -85,7 +85,7 @@ export const TOPICS: Topic[] = [
    (sweep: [...] varies parameters.) 5. "ArcLang: Run simulations" (the Simulate button of the status bar; arclang verify): each case is simulated, its expects judged, the verdict goes to the requirement, the gate and the tables. Then "ArcLang: Replay a simulation on the diagram", "ArcLang: Open the Modelica drawing", "ArcLang: Export the simulation report (PDF or PowerPoint)…"; OMEdit opens the exported package.`,
     where: {
       desktop: 'with OpenModelica on this computer ("ArcLang: Set up OpenModelica" installs or finds it; else ArcLang Studio in Docker)',
-      online: `${SIMULATE_ONLINE}: it runs on the server (OpenModelica 1.27.1 with the Modelica Standard Library 4.1.0; other libraries are not loaded: their classes go into the model's own package), counted in the visitor's quota. "Run simulations", "Export Modelica" and "Open the Modelica drawing" are desktop commands, not in the palette here`,
+      online: `${SIMULATE_ONLINE}: it runs on the server (OpenModelica 1.27.1, the Modelica Standard Library 4.1.0, and the libraries OpenModelica fully supports, such as Buildings, ThermofluidStream, PlanarMechanics, VehicleInterfaces, PowerGrids, iPSL, PhotoVoltaics: a package loads one by declaring it in annotation(uses(...))), counted in the visitor's quota. "Run simulations", "Export Modelica" and "Open the Modelica drawing" are desktop commands, not in the palette here`,
       anonymous: `sign in first (free, a link by e-mail: "Sign in to keep your work" in the status bar), then ${SIMULATE_ONLINE}: it runs on the server. "Run simulations", "Export Modelica" and "Open the Modelica drawing" are desktop commands, not in the palette here`,
     },
   },
