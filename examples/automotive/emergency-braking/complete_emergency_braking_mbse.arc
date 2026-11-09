@@ -359,10 +359,10 @@ safety_analysis {
     }
 }
 
-test_case "TC-001" { verifies: ["REQ_AEB_001"] method: "test" description: "Detection range on the proving ground" }
-test_case "TC-002" { verifies: ["REQ_AEB_002"] method: "test" description: "Threat to brake pressure latency on the HIL bench" }
-test_case "TC-003" { verifies: ["REQ_AEB_003"] method: "demonstration" description: "Warning precedes the braking" }
-test_case "TC-004" { verifies: ["REQ_AEB_004"] method: "test" description: "Rain, fog and night campaigns on the test track" }
+test_case "TC-001" { verifies: ["REQ_AEB_001"] method: "test" description: "Detection range on the proving ground" verdict: "pass" }
+test_case "TC-002" { verifies: ["REQ_AEB_002"] method: "test" description: "Threat to brake pressure latency on the HIL bench" verdict: "pass" }
+test_case "TC-003" { verifies: ["REQ_AEB_003"] method: "demonstration" description: "Warning precedes the braking" verdict: "pass" }
+test_case "TC-004" { verifies: ["REQ_AEB_004"] method: "test" description: "Rain, fog and night campaigns on the test track" verdict: "pass" }
 
 constraint "Braking chain within budget" { id: "CST-001" assert: sum("FC-001", latency) <= "FC-001".latency_budget }
 

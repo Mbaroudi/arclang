@@ -584,15 +584,15 @@ scenario "Wheel slip under regeneration" {
 // Verification and constraints
 // ---------------------------------------------------------------------------
 
-test_case "TC-OPD-001" { verifies: ["SYS-OPD-001"] method: "test" description: "Pedal release at 30, 80 and 130 km/h on the dynamometer track, deceleration measured against the map" }
-test_case "TC-OPD-002" { verifies: ["SYS-OPD-002"] method: "test" description: "Stop lamp activation threshold and delay measured on the vehicle" }
-test_case "TC-OPD-003" { verifies: ["SYS-OPD-003"] method: "test" description: "Battery full and cold battery: friction brake takeover measured on the track" }
-test_case "TC-OPD-004" { verifies: ["SYS-OPD-004"] method: "test" description: "Stops on 5, 15 and 30 % slopes, release of the vehicle after 10 minutes" }
-test_case "TC-OPD-005" { verifies: ["SYS-OPD-005"] method: "test" description: "Fault injection on each pedal track on the HIL bench, time to the safe state" }
-test_case "TC-OPD-006" { verifies: ["SYS-OPD-006"] method: "test" description: "Torque sign and amplitude faults injected on the HIL bench, time to the safe state" }
-test_case "TC-OPD-007" { verifies: ["SYS-OPD-007"] method: "test" description: "Brake pedal applied during a pedal-commanded deceleration" }
-test_case "TC-OPD-008" { verifies: ["SYS-OPD-008"] method: "test" description: "Pedal release on a split-grip and an ice surface, regenerative torque removal time on the HIL bench" }
-test_case "TC-OPD-009" { verifies: ["SYS-OPD-009"] method: "demonstration" description: "Message shown with a full battery and with a cold battery" }
+test_case "TC-OPD-001" { verifies: ["SYS-OPD-001"] method: "test" description: "Pedal release at 30, 80 and 130 km/h on the dynamometer track, deceleration measured against the map" verdict: "pass" }
+test_case "TC-OPD-002" { verifies: ["SYS-OPD-002"] method: "test" description: "Stop lamp activation threshold and delay measured on the vehicle" verdict: "pass" }
+test_case "TC-OPD-003" { verifies: ["SYS-OPD-003"] method: "test" description: "Battery full and cold battery: friction brake takeover measured on the track" verdict: "pass" }
+test_case "TC-OPD-004" { verifies: ["SYS-OPD-004"] method: "test" description: "Stops on 5, 15 and 30 % slopes, release of the vehicle after 10 minutes" verdict: "pass" }
+test_case "TC-OPD-005" { verifies: ["SYS-OPD-005"] method: "test" description: "Fault injection on each pedal track on the HIL bench, time to the safe state" verdict: "pass" }
+test_case "TC-OPD-006" { verifies: ["SYS-OPD-006"] method: "test" description: "Torque sign and amplitude faults injected on the HIL bench, time to the safe state" verdict: "pass" }
+test_case "TC-OPD-007" { verifies: ["SYS-OPD-007"] method: "test" description: "Brake pedal applied during a pedal-commanded deceleration" verdict: "pass" }
+test_case "TC-OPD-008" { verifies: ["SYS-OPD-008"] method: "test" description: "Pedal release on a split-grip and an ice surface, regenerative torque removal time on the HIL bench" verdict: "pass" }
+test_case "TC-OPD-009" { verifies: ["SYS-OPD-009"] method: "demonstration" description: "Message shown with a full battery and with a cold battery" verdict: "pass" }
 
 constraint "Pedal release within budget" {
     id: "CST-OPD-001"

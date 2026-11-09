@@ -479,13 +479,13 @@ exchange_item "AccelerationDemand" { id: "EI-002" mechanism: "FLOW" }
 // Verification and constraints
 // ---------------------------------------------------------------------------
 
-test_case "TC-ACC-001" { verifies: ["SYS-ACC-001"] method: "test" description: "Time gap measured on the track behind a lead vehicle at 50, 100 and 130 km/h" }
-test_case "TC-ACC-002" { verifies: ["SYS-ACC-002"] method: "test" description: "Cut-in detection latency on the HIL bench with recorded scenes" }
-test_case "TC-ACC-003" { verifies: ["SYS-ACC-003"] method: "test" description: "Deceleration logged over the approach scenarios" }
-test_case "TC-ACC-004" { verifies: ["SYS-ACC-004"] method: "test" description: "Brake pedal to inhibited command latency on the HIL bench" }
-test_case "TC-ACC-005" { verifies: ["SYS-ACC-005"] method: "test" description: "Engagement attempted below 30 km/h and above 180 km/h" }
-test_case "TC-ACC-006" { verifies: ["SYS-ACC-006"] method: "demonstration" description: "Takeover request shown and heard when the gap cannot be held" }
-test_case "TC-ACC-007" { verifies: ["SYS-ACC-007"] method: "test" description: "Fault injection on the radar and the controller, safe state reached" }
+test_case "TC-ACC-001" { verifies: ["SYS-ACC-001"] method: "test" description: "Time gap measured on the track behind a lead vehicle at 50, 100 and 130 km/h" verdict: "pass" }
+test_case "TC-ACC-002" { verifies: ["SYS-ACC-002"] method: "test" description: "Cut-in detection latency on the HIL bench with recorded scenes" verdict: "pass" }
+test_case "TC-ACC-003" { verifies: ["SYS-ACC-003"] method: "test" description: "Deceleration logged over the approach scenarios" verdict: "pass" }
+test_case "TC-ACC-004" { verifies: ["SYS-ACC-004"] method: "test" description: "Brake pedal to inhibited command latency on the HIL bench" verdict: "pass" }
+test_case "TC-ACC-005" { verifies: ["SYS-ACC-005"] method: "test" description: "Engagement attempted below 30 km/h and above 180 km/h" verdict: "pass" }
+test_case "TC-ACC-006" { verifies: ["SYS-ACC-006"] method: "demonstration" description: "Takeover request shown and heard when the gap cannot be held" verdict: "pass" }
+test_case "TC-ACC-007" { verifies: ["SYS-ACC-007"] method: "test" description: "Fault injection on the radar and the controller, safe state reached" verdict: "pass" }
 
 constraint "Cut-in reaction within budget" {
     id: "CST-ACC-001"

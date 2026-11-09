@@ -30,7 +30,7 @@ trace "LC-BATT" satisfies "REQ-R" { rationale: "the pack sets the range" }
 trace "LC-LOG" satisfies "REQ-L" { rationale: "logs the faults" }
 
 test_case "Range test" { id: "TC-R" verifies: ["REQ-R"] method: "test" verdict: "pass" }
-test_case "Log test" { id: "TC-L" verifies: ["REQ-L"] method: "test" }
+test_case "Log test" { id: "TC-L" verifies: ["REQ-L"] method: "test" verdict: "pass" }
 
 safety_analysis {
     hazard "Loss of range" {

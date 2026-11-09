@@ -19,6 +19,11 @@ Blockers already there at the base (not introduced by this change):
 
 Requirements: 2/2 -> 2/2 satisfied, 2/2 -> 2/2 verified
 
+| Simulation | Before | After |
+|---|---|---|
+| `TC-1` | pass | pass (stale: to redo) |
+| `TC-2` | pass | pass (stale: to redo) |
+
 Impact: 5 element(s) reached by the changes, 0 of them blocker(s) of the gate.
 
 <details><summary>Semantic diff: 0 added, 0 removed, 1 modified (0 renamed, 0 moved); 0 relationship(s) added, 0 removed, 0 changed</summary>

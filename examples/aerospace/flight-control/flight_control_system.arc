@@ -302,10 +302,10 @@ scenario "Primary channel failure" {
     message "LC-002" -> "LC-003" "backup surface orders" { timing: 100 ms }
 }
 
-test_case "TC-FCS-001" { verifies: ["SYS-FCS-001"] method: "test" description: "Iron bird: stick step to surface movement latency" }
-test_case "TC-FCS-002" { verifies: ["SYS-FCS-002"] method: "analysis" description: "Common-mode analysis of the two channels" }
-test_case "TC-FCS-003" { verifies: ["SYS-FCS-003"] method: "analysis" description: "Actuator loop accuracy analysis over the flight envelope" }
-test_case "TC-FCS-004" { verifies: ["SYS-FCS-004"] method: "test" description: "Injected primary failure, switchover time measured" }
+test_case "TC-FCS-001" { verifies: ["SYS-FCS-001"] method: "test" description: "Iron bird: stick step to surface movement latency" verdict: "pass" }
+test_case "TC-FCS-002" { verifies: ["SYS-FCS-002"] method: "analysis" description: "Common-mode analysis of the two channels" verdict: "pass" }
+test_case "TC-FCS-003" { verifies: ["SYS-FCS-003"] method: "analysis" description: "Actuator loop accuracy analysis over the flight envelope" verdict: "pass" }
+test_case "TC-FCS-004" { verifies: ["SYS-FCS-004"] method: "test" description: "Injected primary failure, switchover time measured" verdict: "pass" }
 
 constraint "Pilot input chain within budget" {
     id: "CST-FCS-001"

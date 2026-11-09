@@ -1866,6 +1866,7 @@
           "properties": {
             "description": "Verify 150 m obstacle detection on the proving ground",
             "method": "test",
+            "verdict": "pass",
             "verifies": "[REQ-AEB-001]"
           }
         },
@@ -1880,6 +1881,7 @@
           "properties": {
             "description": "Measure the radar and camera fusion latency under full bus load",
             "method": "test",
+            "verdict": "pass",
             "verifies": "[REQ-AEB-002]"
           }
         },
@@ -1894,6 +1896,7 @@
           "properties": {
             "description": "Worst-case execution time analysis of the TTC algorithm",
             "method": "analysis",
+            "verdict": "pass",
             "verifies": "[REQ-AEB-003]"
           }
         },
@@ -1908,6 +1911,7 @@
           "properties": {
             "description": "Full braking force commanded within 100 ms on the target dummy",
             "method": "test",
+            "verdict": "pass",
             "verifies": "[REQ-AEB-004]"
           }
         },
@@ -1922,6 +1926,7 @@
           "properties": {
             "description": "Visual and audio warning precedes the autonomous braking",
             "method": "demonstration",
+            "verdict": "pass",
             "verifies": "[REQ-AEB-005]"
           }
         },
@@ -1936,6 +1941,7 @@
           "properties": {
             "description": "Kick-down during autonomous braking releases the brakes",
             "method": "demonstration",
+            "verdict": "pass",
             "verifies": "[REQ-AEB-006]"
           }
         },
@@ -1950,6 +1956,7 @@
           "properties": {
             "description": "Radar and controller faults injected on the HIL bench, takeover requested within 200 ms",
             "method": "test",
+            "verdict": "pass",
             "verifies": "[REQ-AEB-007]"
           }
         },

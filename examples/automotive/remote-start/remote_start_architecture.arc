@@ -687,17 +687,17 @@ scenario "Remote start from the smartphone" {
 // VERIFICATION
 // ============================================================================
 
-test_case "TC-RS-001" { verifies: ["STK-RS-001", "STK-RS-006", "SYS-RS-006"] method: "demonstration" description: "Remote start from the app on the test track; confirmation time measured" }
-test_case "TC-RS-002" { verifies: ["STK-RS-002", "SYS-RS-002", "SAFE-RS-002"] method: "test" description: "Every interlock violated in turn on the HIL bench: no start, fault code logged" }
-test_case "TC-RS-003" { verifies: ["STK-RS-003", "SYS-RS-005"] method: "test" description: "Start sequence on an ICE, a hybrid and an EV configuration" }
-test_case "TC-RS-004" { verifies: ["STK-RS-004", "SYS-RS-001", "SYS-RS-003", "SEC-RS-001", "SEC-RS-002"] method: "test" description: "Penetration test of the command path: encryption, certificates, authentication latency" }
-test_case "TC-RS-005" { verifies: ["STK-RS-005", "REG-RS-001", "REG-RS-003", "REG-RS-004"] method: "inspection" description: "Compliance file reviewed: FCC Part 15 report, GDPR records, UNECE R100 certificate" }
-test_case "TC-RS-006" { verifies: ["STK-RS-007", "SYS-RS-007", "REG-RS-002"] method: "test" description: "Shutdown timer measured at 10 minutes without a driver" }
-test_case "TC-RS-007" { verifies: ["STK-RS-008", "SYS-RS-008"] method: "test" description: "Cabin temperature reaches the stored preference" }
-test_case "TC-RS-008" { verifies: ["SYS-RS-004"] method: "test" description: "Start refused at 19 percent traction battery and at 10.9 V" }
-test_case "TC-RS-009" { verifies: ["SYS-RS-009"] method: "inspection" description: "Audit log inspected after a campaign of successful and refused starts" }
-test_case "TC-RS-010" { verifies: ["SYS-RS-010", "SEC-RS-003", "SEC-RS-004"] method: "test" description: "Replayed and tampered commands rejected, alert raised, backoff observed" }
-test_case "TC-RS-011" { verifies: ["SAFE-RS-001", "SAFE-RS-003"] method: "test" description: "Controller stalled and ASIL B fault injected: start inhibited by the watchdog" }
+test_case "TC-RS-001" { verifies: ["STK-RS-001", "STK-RS-006", "SYS-RS-006"] method: "demonstration" description: "Remote start from the app on the test track; confirmation time measured" verdict: "pass" }
+test_case "TC-RS-002" { verifies: ["STK-RS-002", "SYS-RS-002", "SAFE-RS-002"] method: "test" description: "Every interlock violated in turn on the HIL bench: no start, fault code logged" verdict: "pass" }
+test_case "TC-RS-003" { verifies: ["STK-RS-003", "SYS-RS-005"] method: "test" description: "Start sequence on an ICE, a hybrid and an EV configuration" verdict: "pass" }
+test_case "TC-RS-004" { verifies: ["STK-RS-004", "SYS-RS-001", "SYS-RS-003", "SEC-RS-001", "SEC-RS-002"] method: "test" description: "Penetration test of the command path: encryption, certificates, authentication latency" verdict: "pass" }
+test_case "TC-RS-005" { verifies: ["STK-RS-005", "REG-RS-001", "REG-RS-003", "REG-RS-004"] method: "inspection" description: "Compliance file reviewed: FCC Part 15 report, GDPR records, UNECE R100 certificate" verdict: "pass" }
+test_case "TC-RS-006" { verifies: ["STK-RS-007", "SYS-RS-007", "REG-RS-002"] method: "test" description: "Shutdown timer measured at 10 minutes without a driver" verdict: "pass" }
+test_case "TC-RS-007" { verifies: ["STK-RS-008", "SYS-RS-008"] method: "test" description: "Cabin temperature reaches the stored preference" verdict: "pass" }
+test_case "TC-RS-008" { verifies: ["SYS-RS-004"] method: "test" description: "Start refused at 19 percent traction battery and at 10.9 V" verdict: "pass" }
+test_case "TC-RS-009" { verifies: ["SYS-RS-009"] method: "inspection" description: "Audit log inspected after a campaign of successful and refused starts" verdict: "pass" }
+test_case "TC-RS-010" { verifies: ["SYS-RS-010", "SEC-RS-003", "SEC-RS-004"] method: "test" description: "Replayed and tampered commands rejected, alert raised, backoff observed" verdict: "pass" }
+test_case "TC-RS-011" { verifies: ["SAFE-RS-001", "SAFE-RS-003"] method: "test" description: "Controller stalled and ASIL B fault injected: start inhibited by the watchdog" verdict: "pass" }
 
 constraint "Request to confirmation within budget" {
     id: "CST-RS-001"

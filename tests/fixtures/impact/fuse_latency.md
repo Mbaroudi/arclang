@@ -58,6 +58,12 @@ Model: <path>
 | Requirement | Name | Before | After | Satisfied by | Verified by |
 | --- | --- | --- | --- | --- | --- |
 
+## Verdicts
+
+| Test | Name | Before | After | Stale | Why |
+| --- | --- | --- | --- | --- | --- |
+| TC-002 | Fusion latency measurement | pass | pass | to run again | SF-FuseData --realized by--> Fuse sensor data --performed by--> LC-SensorFusion --satisfies--> REQ-AEB-002 --verified by--> TC-002 |
+
 ## Changes
 
 | Change | Element | Kind | Detail |

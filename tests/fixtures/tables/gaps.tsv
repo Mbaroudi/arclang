@@ -1,3 +1,4 @@
 Req id	Name	Requirement text	Priority	Satisfied by	Verified by	Verdict	Status
 REQ-2	Brake in time	Brake within 100 ms	High	Controller, Brake	Timing test (fail)	fail	Failing
+REQ-3	Warn the driver	Warn before braking	Medium	Controller	Warning demo (pending)	pending	Verdict pending
 REQ-4	Log faults	Log every fault	Low			none	Not covered

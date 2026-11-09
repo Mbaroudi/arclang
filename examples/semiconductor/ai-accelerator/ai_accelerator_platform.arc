@@ -1226,71 +1226,85 @@ test_case "TC-PERF-001" {
     id: "TC-PERF-001" method: "test" verifies: ["REQ-PERF-001"]
     description: "Allocate 141 GB in one process on each of the 8 devices and touch every page"
     expected: "Allocation succeeds; no page fault; ECC counters unchanged"
+    verdict: "pass"
 }
 test_case "TC-PERF-002" {
     id: "TC-PERF-002" method: "test" verifies: ["REQ-PERF-002"]
     description: "Streaming read benchmark over 128 GB, 10 runs, median reported"
     expected: "Median bandwidth >= 4.8 TB/s"
+    verdict: "pass"
 }
 test_case "TC-PERF-003" {
     id: "TC-PERF-003" method: "test" verifies: ["REQ-PERF-003"]
     description: "Ring all-reduce of a 1 GB BF16 buffer across 8 devices, 1000 iterations, p99 latency"
     expected: "p99 <= 2.5 ms; bus bandwidth >= 850 GB/s"
+    verdict: "pass"
 }
 test_case "TC-PERF-004" {
     id: "TC-PERF-004" method: "test" verifies: ["REQ-PERF-004"]
     description: "Pinned host-to-device copies of 1 GB, 100 runs"
     expected: "Sustained >= 56 GB/s"
+    verdict: "pass"
 }
 test_case "TC-THM-001" {
     id: "TC-THM-001" method: "test" verifies: ["REQ-THM-001", "REQ-OBS-002"]
     description: "Thermal chamber: coolant flow reduced until Tj crosses 363 K; time from the crossing to the clock cap measured on the sensor bus"
     expected: "Cap applied within 100 ms; event timestamped and received by the agent within 1 s"
+    verdict: "pass"
 }
 test_case "TC-THM-002" {
     id: "TC-THM-002" method: "test" verifies: ["REQ-THM-002"]
     description: "Full-load training run of 24 h at 308 K inlet and 1.5 L/min per module"
     expected: "No throttling event; Tj <= 358 K"
+    verdict: "pass"
 }
 test_case "TC-THM-003" {
     id: "TC-THM-003" method: "test" verifies: ["REQ-THM-003"]
     description: "Water injected on the leak rope of slot 3; bus voltage of slot 3 recorded"
     expected: "Slot 3 bus off within 500 ms; other slots unaffected"
+    verdict: "pass"
 }
 test_case "TC-PWR-001" {
     id: "TC-PWR-001" method: "test" verifies: ["REQ-PWR-001", "REQ-PWR-002"]
     description: "Power viruses on all 8 devices; shelf and module power logged at 10 kHz"
     expected: "Module <= 700 W average; excursion above 770 W braked within 1 ms; tray <= 10.2 kW"
+    verdict: "pass"
 }
 test_case "TC-RAS-001" {
     id: "TC-RAS-001" method: "test" verifies: ["REQ-RAS-001"]
     description: "Fault injection of double-bit errors in a tenant page and in a kernel page"
     expected: "Tenant job aborts alone, page retired; kernel page error drives Fault"
+    verdict: "pass"
 }
 test_case "TC-RAS-002" {
     id: "TC-RAS-002" method: "analysis" verifies: ["REQ-RAS-002"]
     description: "Reliability prediction from component failure rates and the HALT campaign at 308 K"
     expected: "MTBF >= 1,000,000 h"
+    verdict: "pass"
 }
 test_case "TC-SEC-001" {
     id: "TC-SEC-001" method: "test" verifies: ["REQ-SEC-001"]
     description: "Boot with a modified thermal firmware stage; SPDM evidence and admission observed"
     expected: "Measurement mismatch reported; device not admitted; bus kept off"
+    verdict: "pass"
 }
 test_case "TC-SEC-002" {
     id: "TC-SEC-002" method: "test" verifies: ["REQ-SEC-002"]
     description: "Two partitions: a prime-and-probe attacker and a victim running matrix kernels on known weights"
     expected: "No statistically significant leak over 10^6 probes"
+    verdict: "pass"
 }
 test_case "TC-SEC-003" {
     id: "TC-SEC-003" method: "inspection" verifies: ["REQ-SEC-003"]
     description: "Inspection of the switch firmware configuration and of the key rotation logs over 7 days"
     expected: "AES-GCM enabled on every scale-out port; rotation interval <= 24 h"
+    verdict: "pass"
 }
 test_case "TC-OBS-001" {
     id: "TC-OBS-001" method: "test" verifies: ["REQ-OBS-001"]
     description: "Telemetry capture on the management bus for 1 h"
     expected: "3600 samples per device, no gap, all fields populated"
+    verdict: "pass"
 }
 
 // ---------------------------------------------------------------------------

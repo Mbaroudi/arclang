@@ -182,11 +182,11 @@ state_machine "Perception modes" {
     transition Degraded -> Nominal { trigger: "LF-002" guard: "sensor recovered" }
 }
 
-test_case "TC-001" { verifies: ["SYS-001"] method: "test" description: "Detection range on the proving ground" }
-test_case "TC-002" { verifies: ["SYS-002"] method: "test" description: "Detection to brake pressure latency on the HIL bench" }
-test_case "TC-004" { verifies: ["SYS-004"] method: "analysis" description: "Fusion design review: three sensor types" }
-test_case "TC-005" { verifies: ["SYS-005"] method: "test" description: "Each sensor disconnected in turn: braking still delivered" }
-test_case "TC-006" { verifies: ["SYS-006"] method: "demonstration" description: "Pedal input during autonomous braking" }
+test_case "TC-001" { verifies: ["SYS-001"] method: "test" description: "Detection range on the proving ground" verdict: "pass" }
+test_case "TC-002" { verifies: ["SYS-002"] method: "test" description: "Detection to brake pressure latency on the HIL bench" verdict: "pass" }
+test_case "TC-004" { verifies: ["SYS-004"] method: "analysis" description: "Fusion design review: three sensor types" verdict: "pass" }
+test_case "TC-005" { verifies: ["SYS-005"] method: "test" description: "Each sensor disconnected in turn: braking still delivered" verdict: "pass" }
+test_case "TC-006" { verifies: ["SYS-006"] method: "demonstration" description: "Pedal input during autonomous braking" verdict: "pass" }
 
 constraint "Detection to braking within budget" { id: "CST-001" assert: sum("FC-001", latency) <= "FC-001".latency_budget }
 

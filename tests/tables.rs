@@ -84,8 +84,11 @@ fn requirements_coverage_shows_satisfaction_verdicts_and_the_gate() {
     assert!(failing.issues.iter().any(|i| i.contains("Timing test fails")), "{:?}", failing.issues);
     assert_eq!(failing.cells["gate"].status.as_deref(), Some("fail"), "the gate blocks on a failing verification");
 
+    // A case that says nothing of its outcome verifies nothing: a gap, as for the gate.
     let pending = row(&table, "REQ-3");
-    assert_eq!((pending.status.as_str(), pending.cells["verdict"].text.as_str()), ("warn", "pending"));
+    assert_eq!((pending.status.as_str(), pending.cells["verdict"].text.as_str()), ("gap", "pending"));
+    assert_eq!((pending.cells["status"].text.as_str(), pending.cells["gate"].text.as_str()), ("Verdict pending", "1 blocker"));
+    assert!(pending.issues.iter().any(|i| i.contains("Warning demo has no verdict")), "{:?}", pending.issues);
 
     let open = row(&table, "REQ-4");
     assert_eq!(open.status, "gap");
@@ -93,9 +96,9 @@ fn requirements_coverage_shows_satisfaction_verdicts_and_the_gate() {
     assert_eq!(open.cells["satisfied_by"].status.as_deref(), Some("gap"));
     assert_eq!(open.cells["gate"].text, "2 blockers");
 
-    assert_eq!((table.summary.ok, table.summary.warn, table.summary.gap, table.summary.fail), (1, 1, 1, 1));
+    assert_eq!((table.summary.ok, table.summary.warn, table.summary.gap, table.summary.fail), (1, 0, 2, 1));
     assert!(!table.summary.gate_passed);
-    assert_eq!(table.summary.gate_blockers, 3);
+    assert_eq!(table.summary.gate_blockers, 4);
 }
 
 #[test]
@@ -230,14 +233,14 @@ fn an_elements_table_picks_its_columns_among_the_attributes() {
 fn the_filter_keeps_the_rows_asked_for() {
     let result = model();
     let open = declared(&result, "Open requirements");
-    assert_eq!(open.rows.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(), ["REQ-2", "REQ-4"]);
+    assert_eq!(open.rows.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(), ["REQ-2", "REQ-3", "REQ-4"]);
     let spec = |filter: &str| TableSpec { kind: "requirements_coverage".into(), filter: Some(filter.into()), ..TableSpec::default() };
     let ids = |filter: &str| tables::compute(&result, &spec(filter), &Options::default()).unwrap().rows.iter().map(|r| r.id.clone()).collect::<Vec<_>>();
     assert_eq!(ids("priority=high"), ["REQ-1", "REQ-2"]);
     assert_eq!(ids("satisfied_by:LC-CTRL -is:fail"), ["REQ-3"]);
     assert_eq!(ids("\"within 100\""), ["REQ-2"]);
     let gaps = TableSpec { kind: "requirements_coverage".into(), gaps_only: true, ..TableSpec::default() };
-    assert_eq!(tables::compute(&result, &gaps, &Options::default()).unwrap().rows.len(), 2, "a pending verdict is no gap");
+    assert_eq!(tables::compute(&result, &gaps, &Options::default()).unwrap().rows.len(), 3, "a pending verdict is a gap: the gate blocks on it");
 }
 
 #[test]

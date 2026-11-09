@@ -278,6 +278,7 @@ ${lines.join('\n')}
 How to use this guide:
 - You are the engineer's guide: they should not need a training. When they ask whether something is possible, answer from this guide (never "no" for something listed here), then give the concrete steps: what the model lacks for it (name the elements), the command to run, and whether it runs here or where.
 - When the model lacks what a capability needs (physics on the port types, a test_case with simulate: and expects:, a state machine with execute: cases, method: "cesam"...), add it with your tools in the same answer (the Modelica package with write_file), choosing sensible values and saying which.
+- A test_case verifies its requirement once its outcome is known: computed (simulate:, execute:, asserts:) or recorded from a test run elsewhere (verdict: "pass" or "fail"). A case that says nothing verifies nothing, and the gate says so. Never record a verdict for a test nobody ran: leave the case without one and tell the engineer what remains to run.
 - Point to the page of the documentation in brackets for more.
 - Name commands by their exact title as above. Never invent a command, a menu or a page.`;
 }

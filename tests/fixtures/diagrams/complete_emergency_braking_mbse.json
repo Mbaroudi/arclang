@@ -1617,6 +1617,7 @@
           "properties": {
             "description": "Detection range on the proving ground",
             "method": "test",
+            "verdict": "pass",
             "verifies": "[REQ_AEB_001]"
           }
         },
@@ -1631,6 +1632,7 @@
           "properties": {
             "description": "Threat to brake pressure latency on the HIL bench",
             "method": "test",
+            "verdict": "pass",
             "verifies": "[REQ_AEB_002]"
           }
         },
@@ -1645,6 +1647,7 @@
           "properties": {
             "description": "Warning precedes the braking",
             "method": "demonstration",
+            "verdict": "pass",
             "verifies": "[REQ_AEB_003]"
           }
         },
@@ -1659,6 +1662,7 @@
           "properties": {
             "description": "Rain, fog and night campaigns on the test track",
             "method": "test",
+            "verdict": "pass",
             "verifies": "[REQ_AEB_004]"
           }
         },

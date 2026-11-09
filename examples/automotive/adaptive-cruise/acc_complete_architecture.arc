@@ -250,13 +250,13 @@ safety_analysis {
     }
 }
 
-test_case "TC-ACC-001" { verifies: ["SYS-ACC-001"] method: "test" description: "Time gap measured on the track" }
-test_case "TC-ACC-002" { verifies: ["SYS-ACC-002"] method: "test" description: "Cut-in detection latency on the HIL bench" }
-test_case "TC-ACC-003" { verifies: ["SYS-ACC-003"] method: "test" description: "Deceleration logged over the approach scenarios" }
-test_case "TC-ACC-004" { verifies: ["SYS-ACC-004"] method: "test" description: "Brake pedal to inhibited command latency" }
-test_case "TC-ACC-005" { verifies: ["SYS-ACC-005"] method: "test" description: "Engagement attempted outside the speed range" }
-test_case "TC-ACC-006" { verifies: ["SYS-ACC-006"] method: "demonstration" description: "Warnings shown and heard" }
-test_case "TC-ACC-007" { verifies: ["SYS-ACC-007"] method: "test" description: "Fault injection on the sensors and the controller" }
+test_case "TC-ACC-001" { verifies: ["SYS-ACC-001"] method: "test" description: "Time gap measured on the track" verdict: "pass" }
+test_case "TC-ACC-002" { verifies: ["SYS-ACC-002"] method: "test" description: "Cut-in detection latency on the HIL bench" verdict: "pass" }
+test_case "TC-ACC-003" { verifies: ["SYS-ACC-003"] method: "test" description: "Deceleration logged over the approach scenarios" verdict: "pass" }
+test_case "TC-ACC-004" { verifies: ["SYS-ACC-004"] method: "test" description: "Brake pedal to inhibited command latency" verdict: "pass" }
+test_case "TC-ACC-005" { verifies: ["SYS-ACC-005"] method: "test" description: "Engagement attempted outside the speed range" verdict: "pass" }
+test_case "TC-ACC-006" { verifies: ["SYS-ACC-006"] method: "demonstration" description: "Warnings shown and heard" verdict: "pass" }
+test_case "TC-ACC-007" { verifies: ["SYS-ACC-007"] method: "test" description: "Fault injection on the sensors and the controller" verdict: "pass" }
 
 // Requirements to components
 trace "LC-001" satisfies "SYS-ACC-002" { rationale: "Radar provides the primary detection of the cut-in vehicles" }

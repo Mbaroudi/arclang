@@ -237,26 +237,31 @@ test_case "TC-LX-001" {
     description: "Detection timing measured on site with a test train"
     verifies: ["REQ-LX-001"]
     method: "test"
+    verdict: "pass"
 }
 test_case "TC-LX-002" {
     description: "Closure sequence timing analysis against the line speed"
     verifies: ["REQ-LX-002"]
     method: "analysis"
+    verdict: "pass"
 }
 test_case "TC-LX-003" {
     description: "Obstacle scenarios demonstrated with vehicles and pedestrians"
     verifies: ["REQ-LX-003"]
     method: "demonstration"
+    verdict: "pass"
 }
 test_case "TC-LX-004" {
     description: "Fault injection campaign on the controller and the field bus"
     verifies: ["REQ-LX-004"]
     method: "test"
+    verdict: "pass"
 }
 test_case "TC-LX-005" {
     description: "Warning time measured from first light to first barrier movement"
     verifies: ["REQ-LX-005"]
     method: "test"
+    verdict: "pass"
 }
 
 constraint "Protection cycle within budget" {

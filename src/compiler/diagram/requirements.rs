@@ -353,43 +353,22 @@ pub fn judge(set: &mut super::DiagramSet, model: &Model, semantic: &SemanticMode
 
 /// The verdicts, and the suspect links, on one requirements view.
 fn judge_one(diagram: &mut Diagram, model: &Model, semantic: &SemanticModel) {
-    use crate::compiler::verification::{verdict, verdict_for, Verdict};
-    let word = |v: &Verdict| match v {
-        Verdict::Pass => "pass",
-        Verdict::Fail(_) => "fail",
-        Verdict::Inconclusive(_) => "inconclusive",
-        Verdict::Pending => "pending",
-    };
+    use crate::compiler::verification::{requirement_status, verdict, verdict_for};
     let case_of = |id: &str| model.test_cases.iter().find(|c| c.id == id || (c.id.is_empty() && c.name == id));
-    let mut by_requirement: HashMap<String, Vec<&'static str>> = HashMap::new();
     for edge in diagram.edges.iter_mut().filter(|e| e.id.starts_with("vfy:")) {
         let Some(case) = case_of(&edge.source) else { continue };
         // The reference as the case writes it: the verdict of an expectation naming its requirement is kept under it.
         let written = case.verifies.iter().find(|r| written_for(model, r) == edge.target).cloned().unwrap_or_else(|| edge.target.clone());
-        let verdict = word(&verdict_for(case, &written, semantic));
-        edge.properties.insert("verdict".to_string(), verdict.to_string());
-        by_requirement.entry(edge.target.clone()).or_default().push(verdict);
+        edge.properties.insert("verdict".to_string(), verdict_for(case, &written, semantic).word().to_string());
     }
     for node in diagram.nodes.iter_mut() {
         let verdict = match node.kind {
             NodeKind::TestCase => match case_of(&node.id) {
-                Some(case) => word(&verdict(case, semantic)),
+                Some(case) => verdict(case, semantic).word(),
                 None => continue,
             },
-            NodeKind::Requirement => {
-                let verdicts = by_requirement.get(&node.id).map(Vec::as_slice).unwrap_or_default();
-                if verdicts.is_empty() {
-                    "unverified"
-                } else if verdicts.contains(&"fail") {
-                    "fail"
-                } else if verdicts.iter().all(|v| *v == "pass") {
-                    "pass"
-                } else if verdicts.contains(&"inconclusive") {
-                    "inconclusive"
-                } else {
-                    "pending"
-                }
-            }
+            // Where it stands for the gate, whatever the view shows of its cases.
+            NodeKind::Requirement => requirement_status(model, semantic, &node.id).standing().word(),
             _ => continue,
         };
         node.properties.insert("verdict".to_string(), verdict.to_string());

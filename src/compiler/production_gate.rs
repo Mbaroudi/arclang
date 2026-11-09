@@ -194,21 +194,18 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
     };
 
     // ---- 1. Requirements: satisfaction and verification coverage ---------
-    let satisfied: HashSet<&str> = semantic
-        .traces
-        .iter()
-        .filter(|t| t.trace_type == "satisfies")
-        .map(|t| t.to.as_str())
-        .collect();
-    // A case that fails verifies nothing: its requirements are only covered.
-    // A case is judged for each requirement on the expectations that check
-    // it, and counts only in the configurations the requirement applies to.
+    // Where each requirement stands is `verification::requirement_status`,
+    // as for the tables, the impact analysis and the requirements view: a
+    // case that fails, whose outcome is not known or that says no verdict
+    // is not hidden by one that passes, and a case counts only in the
+    // configurations the requirement applies to.
     use super::verification::{self, Verdict};
 
     let mut requirements_satisfied = 0;
     let mut requirements_verified = 0;
     for requirement in &semantic.requirements {
-        if satisfied.contains(requirement.id.as_str()) {
+        let status = verification::requirement_status(ast, semantic, &requirement.id);
+        if status.satisfied() {
             requirements_satisfied += 1;
         } else {
             push(
@@ -217,16 +214,7 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
                 format!("requirement '{}' is satisfied by no architecture element (no satisfies trace)", requirement.id),
             );
         }
-        let name = semantic.all_elements.get(requirement.id.as_str()).map(|e| e.name.as_str());
-        let cases: Vec<(&super::ast::TestCase, Verdict)> = ast
-            .test_cases
-            .iter()
-            .filter_map(|tc| {
-                let reference = tc.verifies.iter().find(|r| *r == &requirement.id || Some(r.as_str()) == name)?;
-                Some((tc, verification::verdict_for(tc, reference, semantic)))
-            })
-            .collect();
-        if cases.is_empty() {
+        if status.cases.is_empty() {
             push(
                 "requirements.verification",
                 Severity::Blocker,
@@ -234,9 +222,11 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
             );
             continue;
         }
-        // A case that fails, or whose outcome is not known, is not hidden by
-        // one that passes.
-        let failed: Vec<String> = cases
+        if status.verified() {
+            requirements_verified += 1;
+        }
+        let failed: Vec<String> = status
+            .cases
             .iter()
             .filter_map(|(tc, v)| match (super::simulation::is_simulated(tc), v) {
                 (true, Verdict::Fail(why)) => Some(format!("{}: {why}", tc.name)),
@@ -244,28 +234,36 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
                 _ => None,
             })
             .collect();
-        let unknown: Vec<String> = cases
+        let unknown: Vec<String> = status
+            .cases
             .iter()
             .filter_map(|(tc, v)| match v {
                 Verdict::Inconclusive(why) => Some(format!("{}: {why}", tc.name)),
                 _ => None,
             })
             .collect();
-        // Each configuration it applies to needs a case run in it (or in none).
-        let uncovered: Vec<String> = verification::applies_to(ast, &requirement.id)
-            .unwrap_or_default()
-            .into_iter()
-            .filter(|cfg| !cases.iter().any(|(tc, _)| verification::configuration_of(ast, tc).is_none_or(|c| &c == cfg)))
-            .map(|cfg| ast.configurations.iter().find(|c| c.id == cfg).map(|c| format!("{} ({cfg})", c.name)).unwrap_or(cfg))
+        let pending: Vec<&str> = status.cases.iter().filter(|(_, v)| *v == Verdict::Pending).map(|(tc, _)| tc.name.as_str()).collect();
+        let uncovered: Vec<String> = status
+            .uncovered
+            .iter()
+            .map(|cfg| ast.configurations.iter().find(|c| &c.id == cfg).map(|c| format!("{} ({cfg})", c.name)).unwrap_or_else(|| cfg.clone()))
             .collect();
-        if failed.is_empty() && unknown.is_empty() && uncovered.is_empty() {
-            requirements_verified += 1;
-        }
         if !failed.is_empty() {
             push("requirements.verification", Severity::Blocker, format!("requirement '{}': verification cases fail ({})", requirement.id, failed.join(", ")));
         }
         if !unknown.is_empty() {
             push("requirements.verification", Severity::Blocker, format!("requirement '{}': verification cases are inconclusive ({})", requirement.id, unknown.join(", ")));
+        }
+        if !pending.is_empty() {
+            push(
+                "requirements.verification",
+                Severity::Blocker,
+                format!(
+                    "requirement '{}': verification cases have no verdict ({}): run them (simulate:, execute:), assert constraints (asserts:) or record the outcome of the test (verdict:)",
+                    requirement.id,
+                    pending.join(", ")
+                ),
+            );
         }
         if !uncovered.is_empty() {
             push(
@@ -694,7 +692,7 @@ system_analysis "SA" {
     function "B" { id: "F-B" latency: 50 ms }
     functional_chain "Chain" { id: "FC-1" involves: ["F-A", "F-B"] latency_budget: 100 ms }
 }
-test_case "TC-1" { verifies: ["REQ-1"] method: "test" }
+test_case "TC-1" { verifies: ["REQ-1"] method: "test" verdict: "pass" }
 architecture logical { component "C" { id: "LC-1" } }
 trace "LC-1" satisfies "REQ-1"
 "#,

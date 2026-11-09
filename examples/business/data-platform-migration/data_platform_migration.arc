@@ -701,16 +701,16 @@ scenario "Migration wave" {
 // ACCEPTANCE TESTS
 // ═══════════════════════════════════════════════════════════════════════════
 
-test_case "TC-001" { verifies: ["STK-001", "SYS-MON-003"] method: "analysis" description: "TCO model reviewed against the cost reports of the first two quarters" }
-test_case "TC-002" { verifies: ["STK-002", "SYS-PERF-001", "SYS-PERF-004"] method: "test" description: "Query percentiles and streaming latency measured on the production workload replay" }
-test_case "TC-003" { verifies: ["STK-003", "STK-005", "SYS-MIG-001", "SYS-MIG-003"] method: "test" description: "Dual-run of a wave: availability, reconciliation and conflict resolution observed" }
-test_case "TC-004" { verifies: ["STK-004", "SYS-PERF-003"] method: "demonstration" description: "Engineering, science and analytics workloads of 500 users run on the one platform" }
-test_case "TC-005" { verifies: ["STK-006", "SYS-SCALE-001", "SYS-SCALE-002", "SYS-PERF-002"] method: "test" description: "Load test at 1 PB synthetic data, cluster scaled to 200 nodes" }
-test_case "TC-006" { verifies: ["STK-007", "SYS-GOV-001", "SYS-GOV-002", "SYS-GOV-003"] method: "inspection" description: "Compliance walkthrough: lineage of a dashboard figure, masking, access and audit records" }
-test_case "TC-007" { verifies: ["STK-008", "SYS-MIG-002", "SYS-MIG-005"] method: "demonstration" description: "Quarterly milestone reviews: waves migrated against the plan" }
-test_case "TC-008" { verifies: ["SYS-MIG-004"] method: "test" description: "Rollback of a wave timed under 15 minutes" }
-test_case "TC-009" { verifies: ["SYS-REL-001", "SYS-REL-002"] method: "test" description: "Disaster recovery exercise: RPO and RTO measured" }
-test_case "TC-010" { verifies: ["SYS-MON-001", "SYS-MON-002"] method: "demonstration" description: "Pipeline failure and quality anomaly injected, alerts received" }
+test_case "TC-001" { verifies: ["STK-001", "SYS-MON-003"] method: "analysis" description: "TCO model reviewed against the cost reports of the first two quarters" verdict: "pass" }
+test_case "TC-002" { verifies: ["STK-002", "SYS-PERF-001", "SYS-PERF-004"] method: "test" description: "Query percentiles and streaming latency measured on the production workload replay" verdict: "pass" }
+test_case "TC-003" { verifies: ["STK-003", "STK-005", "SYS-MIG-001", "SYS-MIG-003"] method: "test" description: "Dual-run of a wave: availability, reconciliation and conflict resolution observed" verdict: "pass" }
+test_case "TC-004" { verifies: ["STK-004", "SYS-PERF-003"] method: "demonstration" description: "Engineering, science and analytics workloads of 500 users run on the one platform" verdict: "pass" }
+test_case "TC-005" { verifies: ["STK-006", "SYS-SCALE-001", "SYS-SCALE-002", "SYS-PERF-002"] method: "test" description: "Load test at 1 PB synthetic data, cluster scaled to 200 nodes" verdict: "pass" }
+test_case "TC-006" { verifies: ["STK-007", "SYS-GOV-001", "SYS-GOV-002", "SYS-GOV-003"] method: "inspection" description: "Compliance walkthrough: lineage of a dashboard figure, masking, access and audit records" verdict: "pass" }
+test_case "TC-007" { verifies: ["STK-008", "SYS-MIG-002", "SYS-MIG-005"] method: "demonstration" description: "Quarterly milestone reviews: waves migrated against the plan" verdict: "pass" }
+test_case "TC-008" { verifies: ["SYS-MIG-004"] method: "test" description: "Rollback of a wave timed under 15 minutes" verdict: "pass" }
+test_case "TC-009" { verifies: ["SYS-REL-001", "SYS-REL-002"] method: "test" description: "Disaster recovery exercise: RPO and RTO measured" verdict: "pass" }
+test_case "TC-010" { verifies: ["SYS-MON-001", "SYS-MON-002"] method: "demonstration" description: "Pipeline failure and quality anomaly injected, alerts received" verdict: "pass" }
 
 constraint "Migration wave fits the nightly window" {
     id: "CST-001"

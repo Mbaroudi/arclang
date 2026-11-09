@@ -131,4 +131,4 @@ scenario "Components at work" {
     message "LC-1" -> "LC-2" "result frame"
 }
 
-test_case "TC-1" { verifies: ["STK-REQ-1", "FUN-1", "TEC-1"] method: "test" description: "The main use case, end to end" }
+test_case "TC-1" { verifies: ["STK-REQ-1", "FUN-1", "TEC-1"] method: "test" description: "The main use case, end to end" verdict: "pass" }

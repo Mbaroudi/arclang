@@ -200,7 +200,7 @@ trace "LC-SUP" satisfies "REQ-COR-003"
 trace "PL-VEN-MDI" satisfies "REQ-COR-003"
 trace "PB-VEN-PWR" satisfies "REQ-COR-004"
 
-test_case "TC-COR-001" { id: "TC-COR-001" verifies: ["REQ-COR-001"] method: "analysis" description: "Distances between hubs measured on the GeoJSON export" }
-test_case "TC-COR-002" { id: "TC-COR-002" verifies: ["REQ-COR-002"] method: "test" }
-test_case "TC-COR-003" { id: "TC-COR-003" verifies: ["REQ-COR-003"] method: "analysis" description: "Link lengths and latencies checked by the compiler" }
-test_case "TC-COR-004" { id: "TC-COR-004" verifies: ["REQ-COR-004"] method: "inspection" description: "Cabinet footprint read on the STEP export" }
+test_case "TC-COR-001" { id: "TC-COR-001" verifies: ["REQ-COR-001"] method: "analysis" description: "Distances between hubs measured on the GeoJSON export" verdict: "pass" }
+test_case "TC-COR-002" { id: "TC-COR-002" verifies: ["REQ-COR-002"] method: "test" verdict: "pass" }
+test_case "TC-COR-003" { id: "TC-COR-003" verifies: ["REQ-COR-003"] method: "analysis" description: "Link lengths and latencies checked by the compiler" verdict: "pass" }
+test_case "TC-COR-004" { id: "TC-COR-004" verifies: ["REQ-COR-004"] method: "inspection" description: "Cabinet footprint read on the STEP export" verdict: "pass" }

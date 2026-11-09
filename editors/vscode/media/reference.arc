@@ -186,17 +186,21 @@ exchange_item "LaneModel" {
   mechanism: "FLOW"
 }
 
+// A case verifies once its outcome is known: computed (simulate:, execute:,
+// asserts:) or, as here, recorded from a test run elsewhere (verdict:).
 test_case "TC-LKA-001" {
   id: "TC-LKA-001"
   description: "HIL measurement of departure-to-command latency"
   method: "test"
   verifies: ["REQ-LKA-001"]
+  verdict: "pass"
 }
 test_case "TC-LKA-002" {
   id: "TC-LKA-002"
   description: "Driver override demonstration on the track"
   method: "demonstration"
   verifies: ["REQ-LKA-002"]
+  verdict: "pass"
 }
 
 constraint "Reaction time within budget" {
