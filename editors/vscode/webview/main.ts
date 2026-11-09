@@ -15,7 +15,9 @@ import { createHelp } from './help';
 import { createShell } from './shell';
 import { DiagramContents } from './diagram-contents';
 import { createStatusLine } from './status-line';
-import { changesOf, markFindings as markFindings_, pulse, renderLayers as renderLayers_ } from './marks';
+import { changesOf, markFindings as markFindings_, pulse } from './marks';
+import { installNotation } from './notation';
+import type { Notation } from '../src/pure/workbench';
 import { Alignment, edgeEndIds, modelIdOf, relationshipOfEdge, writtenRef } from '../src/pure/editing';
 import { installAi } from './ask-ai'; // ai-design hook
 import { installKeys } from './keys';
@@ -79,8 +81,13 @@ const state: State = {
   },
 };
 
+/** The notation chosen for each file (Arcadia, SysML v2, CESAM), kept with the layout. */
+let notations: Record<string, Notation> = (vscode.getState() as { notations?: Record<string, Notation> } | undefined)?.notations ?? {};
+/** The file the workbench shows, as the host names it. */
+let shownFile: string | undefined;
+
 function saveLayout(): void {
-  vscode.setState({ layout: state.layout });
+  vscode.setState({ layout: state.layout, notations });
 }
 
 // --- Layout -----------------------------------------------------------------
@@ -88,6 +95,20 @@ function saveLayout(): void {
 const root = document.getElementById('workbench')!;
 const shell = createShell(root, state.layout, { save: saveLayout, palette: (open) => palette.setCompact(!open), minimap: () => toggleMinimap() });
 const { layerBar, tabs, tools, left, sheet, host, modeChip, toast, progress, layoutNotice, bottom, hiddenTree, hiddenFoot, detailsSlot, relatedSlot, propertiesPane, browserPane, showRightTab, setPalette, setDrawer, fitStage } = shell;
+// One model, three readings: Arcadia (Capella), SysML v2, CESAM; each shows only its own views.
+const notationUi = installNotation({
+  layerBar,
+  sheet,
+  snapshot: () => state.snapshot,
+  current: () => state.viewer?.current?.()?.view ?? null,
+  show: (id) => showGraph(id),
+  more: () => vscode.postMessage({ type: 'command', command: 'arclang.pickDiagram' }), // nav hook: Diagrams…
+  saved: () => notations,
+  save: (all) => {
+    notations = all;
+    saveLayout();
+  },
+});
 
 const palette = new Palette(left, {
   selected: () => (state.selected ? { id: state.selected.id, kind: state.selected.kind } : null),
@@ -683,7 +704,7 @@ function markFindings(): void {
 
 
 function renderLayers(): void {
-  renderLayers_(layerBar, state.snapshot?.diagrams?.graphs ?? [], state.viewer?.current?.()?.view ?? null, showGraph, () => vscode.postMessage({ type: 'command', command: 'arclang.pickDiagram' })); // nav hook: Diagrams…
+  notationUi.render(shownFile);
 }
 
 function showGraph(id: string): void {
@@ -773,6 +794,7 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
       const before = state.snapshot;
       state.snapshot = message.snapshot;
       state.metamodel = message.metamodel;
+      shownFile = message.file ?? shownFile;
       index(message.snapshot);
       editing.snapshotArrived();
       if (message.snapshot.success) mount(message.snapshot);

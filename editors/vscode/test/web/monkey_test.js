@@ -165,7 +165,7 @@ async function frameWith(page, selector) {
     },
     // A new conversation.
     async () => {
-      const plus = await chat.$('button[title*="New conversation"], .chat-new').catch(() => null);
+      const plus = await chat.$('.chat-clear, button[title*="New conversation"], .chat-new').catch(() => null);
       if (!plus) return;
       action = 'new conversation';
       await plus.click().catch(() => {});

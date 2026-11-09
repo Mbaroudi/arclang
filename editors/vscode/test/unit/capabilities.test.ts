@@ -91,7 +91,7 @@ test('every command of the command line is in the guide', () => {
 
 test('CESAM, co-simulation, embedded C, FPGA, SoC and twins say what runs online and what needs the desktop', () => {
   const online = capabilitiesGuide('online');
-  for (const what of ['Co-simulation (cosim) needs the desktop', 'Processor in the loop (pil) needs the desktop', 'The SoC (soc) needs the desktop', 'the export of the VHDL runs on the server', 'the export of the C runs on the server', 'live sources need the desktop', 'CESAM ships with release 4.13']) {
+  for (const what of ['co-simulated on the server in OMSimulator', 'Processor in the loop (pil) needs the desktop', 'The SoC (soc) needs the desktop', 'the export of the VHDL runs on the server', 'the export of the C runs on the server', 'live sources need the desktop', 'its compiler has CESAM']) {
     assert.ok(online.includes(what), `missing: ${what}`);
   }
 });

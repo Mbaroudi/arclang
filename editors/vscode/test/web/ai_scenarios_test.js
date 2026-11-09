@@ -554,7 +554,7 @@ const SCENARIOS = {
     check(S, 'B1 the model keeps REQ-1 and REQ-2 and compiles', /REQ-1/.test(word.text) && /REQ-2/.test(word.text) && /✓ compiles/.test(word.text), word.text.slice(0, 100).replace(/\n/g, ' '));
     const radio = await createModel(page, chat);
     check(S, 'B1 created, no error', /\.arc$/.test(radio) && (await statusErrors(page)) === 0, `${radio}, errors: ${await statusErrors(page)}`);
-    const plus = await chat.$('button[title*="New conversation"], .chat-new');
+    const plus = await chat.$('.chat-clear, button[title*="New conversation"], .chat-new');
     if (plus) await plus.click();
     await page.waitForTimeout(1500);
     await chat.setInputFiles('input[type=file]', path.join(__dirname, '..', 'fixtures', 'chat', 'drone-requirements.csv'));
@@ -624,7 +624,7 @@ const SCENARIOS = {
     check(S, 'D2 modes, hazards and the Modelica package', /state_machine/.test(text) && /safety_analysis[\s\S]*hazard/.test(text) && files.some((f) => /\.mo$/.test(f)), files.join(', '));
     check(S, 'D2 no error', (await statusErrors(page)) === 0, `errors: ${await statusErrors(page)}`);
     if (process.env.SIM_IMAGE && files.length) await simulate(page, chat, files, S);
-    const plus = await chat.$('button[title*="New conversation"], .chat-new');
+    const plus = await chat.$('.chat-clear, button[title*="New conversation"], .chat-new');
     if (plus) await plus.click();
     await page.waitForTimeout(1500);
     const calc = await step(page, chat, journey, 'modélise une calculatrice scientifique');
@@ -662,6 +662,78 @@ const SCENARIOS = {
     const errors = await errorToasts(page);
     check(S, 'no error notification', errors.length === 0, errors.join(' | '));
     if (SHOTS) fs.writeFileSync(path.join(SHOTS, `${S}-journey.json`), JSON.stringify(journey, null, 2));
+    await context.close();
+  },
+
+  // Asked how to use a method or a notation, the engineer gets it done: CESAM applied, a SysML v2 model written and drawn.
+  async apply_methods(browser) {
+    const S = 'apply_methods';
+    const { context, page, chat } = await open(browser);
+    const journey = [];
+    const cesam = await step(page, chat, journey, 'What is the CESAM method and how do I use it here?');
+    const kept = await keep(page, chat);
+    check(S, 'CESAM: applied to the model with Keep / Undo, not a tutorial', kept && /method:\s*"cesam"/.test(await fileText(page, 'starter.arc')) && cesam.text.length < 2500, `${cesam.text.length} chars: ${cesam.text.replace(/^.*?claude-[\w-]+( · \S+)?\s*/s, '').slice(0, 140).replace(/\n/g, ' ')}`);
+    check(S, 'CESAM: still no error', (await statusErrors(page)) === 0, `errors: ${await statusErrors(page)}`);
+    const get = await step(page, chat, journey, 'How do I get my model in SysML v2?');
+    const files = await writtenFiles(chat);
+    const keptSysml = await keep(page, chat);
+    check(S, 'SysML v2 of the open model: starter.sysml written beside it by the compiler', keptSysml && files.includes('starter.sysml') && /\bpackage\b|\bpart\b/.test(await fileText(page, 'starter.sysml')), (files.join(', ') || get.text.slice(0, 140)).replace(/\n/g, ' '));
+    const plus = await chat.$('.chat-clear, button[title*="New conversation"], .chat-new');
+    if (plus) await plus.click();
+    await page.waitForTimeout(1500);
+    await command(page, 'View: Close All Editors');
+    const make = await step(page, chat, journey, 'How do I create a SysML v2 model of a smart thermostat?');
+    const blocks = await chat.$$eval('.chat-turn.ai:last-child pre', (l) => l.map((x) => x.innerText));
+    check(S, 'new SysML v2 model: its SysML v2 text is shown, written by the compiler', /✓ compiles/.test(make.text) && blocks.some((b) => /^\s*(?:\/\/[^\n]*\n\s*)*(package|part|requirement|doc)\b/m.test(b) && !/^\s*model\b/.test(b)), make.text.slice(0, 140).replace(/\n/g, ' '));
+    const create = await chat.$('.chat-turn.ai:last-child button:has-text("Create model")');
+    if (create) {
+      await create.click();
+      await page.waitForTimeout(2000);
+      await page.keyboard.press('Enter');
+      await page.waitForTimeout(10000);
+    }
+    const stored = Object.keys(await storedFiles(page)).filter((k) => k.endsWith('.sysml') && !k.endsWith('starter.sysml'));
+    await shot(page, 'apply-sysml-drawn');
+    check(S, 'Create model writes the .sysml and draws it in the workbench', stored.length > 0 && (await drawnWorkbenches(page)) >= 1 && (await blankWorkbenches(page)) === 0, `${stored.join(', ')}; drawn ${await drawnWorkbenches(page)}, blank ${await blankWorkbenches(page)}`);
+    const errors = await errorToasts(page);
+    check(S, 'no error notification', errors.length === 0, errors.join(' | '));
+    if (SHOTS) fs.writeFileSync(path.join(SHOTS, `${S}-journey.json`), JSON.stringify(journey, null, 2));
+    await context.close();
+  },
+
+  // One model, three readings, no AI: Arcadia, SysML v2 and CESAM each show only their own views; CESAM opens on its grid.
+  async notations(browser) {
+    const S = 'notations';
+    const { context, page } = await open(browser);
+    await command(page, 'ArcLang: Open the workbench beside the source');
+    await page.waitForTimeout(7000);
+    let wb = null;
+    for (const f of page.frames()) if (await f.$('.wb-notation').catch(() => null)) wb = f;
+    check(S, 'the workbench has the notation switch', !!wb);
+    if (!wb) return void (await context.close());
+    const tabs = () => wb.$$eval('.wb-layers .wb-layer .wb-layer-name', (l) => l.map((x) => x.textContent.trim()));
+    let t = await tabs();
+    check(S, 'Arcadia: no SysML view among its tabs', !t.some((x) => /General View|Interconnection|Action Flow/.test(x)), t.join(' | '));
+    await wb.click('.wb-notation-item:has-text("SysML v2")');
+    await page.waitForTimeout(2500);
+    t = await tabs();
+    check(S, 'SysML v2: its views only', t.includes('General View') && !t.some((x) => /^(Operational|System|Logical|Physical)$/.test(x)), t.join(' | '));
+    await wb.click('.wb-notation-item:has-text("CESAM")');
+    await page.waitForTimeout(2500);
+    const cells = await wb.$$eval('.wb-cesam:not([hidden]) .wb-cesam-cell', (l) => l.length);
+    t = await tabs();
+    await shot(page, 'notations-cesam-grid');
+    check(S, 'CESAM: the grid (3 × 6) and the vision tabs only', cells === 18 && t[0] === 'Grid' && !t.some((x) => /^(System|Logical|General View)$/.test(x)), `${cells} cells; ${t.join(' | ')}`);
+    const cell = await wb.$('.wb-cesam-open');
+    if (cell) await cell.click();
+    await page.waitForTimeout(2500);
+    const caption = await wb.$eval('.wb-cesam-caption:not([hidden])', (x) => x.textContent).catch(() => '');
+    check(S, 'CESAM: a cell opens its diagram, captioned with its view', !!cell && caption.length > 0 && (await drawnWorkbenches(page)) >= 1, caption);
+    await wb.click('.wb-notation-item:has-text("Arcadia")');
+    await page.waitForTimeout(2000);
+    check(S, 'back to Arcadia: no grid, no caption', await wb.evaluate(() => document.querySelector('.wb-cesam').hidden && document.querySelector('.wb-cesam-caption').hidden));
+    const errors = await errorToasts(page);
+    check(S, 'no error notification', errors.length === 0, errors.join(' | '));
     await context.close();
   },
 };

@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { changeMarks } from '../../src/ai/core/diff';
 import { attachmentsBlock, CREATE_MODEL, MAX_ATTACHED, NO_FILE_RULES, SYSTEM_RULES, WRITE_FILE, writablePath } from '../../src/ai/core/prompts';
 import { parseAssistAnswer } from '../../src/ai/core/answer';
-import { isQuestion, validateRequests, withoutMetaTalk } from '../../src/ai/core/requests';
+import { asksToApply, isQuestion, validateRequests, withoutMetaTalk } from '../../src/ai/core/requests';
 import { converse } from '../../src/ai/core/conversation';
 import { parseFromChatPage } from '../../src/ai/chat/protocol';
 import { markupText, unzip, decode } from '../../webview/chat/markup';
@@ -173,4 +173,15 @@ test('polite requests in French and English; the answer starts with the answer',
 test('a request with a question mark is still a request', () => {
   for (const asked of ["fait moi une modelisation d'une voiture one-pedale ?", 'ajoute un capteur de pluie ?', 'Add a headlight?', 'stp corrige les erreurs ?', 'Model a drone?']) assert.equal(isQuestion(asked), false, asked);
   for (const asked of ['où sont les résultats ?', 'Where are the simulation results kept?', 'quels tests manquent ?']) assert.equal(isQuestion(asked), true, asked);
+});
+
+test('asked how to use a method or a notation on the model, or how to make a model, it is done, not explained', () => {
+  for (const asked of ['What is the CESAM method and how do I use it here?', 'comment appliquer la méthode CESAM sur mon modèle ?', 'How do I get my model in SysML v2?', 'How do I create a SysML v2 model?', 'comment créer un modèle SysML v2 ?', 'how can we apply CESAM to this model?']) {
+    assert.equal(asksToApply(asked), true, asked);
+    assert.equal(isQuestion(asked), false, asked);
+  }
+  for (const asked of ['comment je vois le schéma ?', 'How do I run it?', 'How do I see the traceability from requirements to components and tests?', 'How do I generate embedded C code from my model and test it?', 'Where are the simulation results kept?', 'Can I run a co-simulation with OMSimulator?']) {
+    assert.equal(asksToApply(asked), false, asked);
+    assert.equal(isQuestion(asked), true, asked);
+  }
 });

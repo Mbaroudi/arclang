@@ -22,6 +22,7 @@ import { currentWorkspace } from './workspace';
 import type { ProposalView, QuickAction } from './core/protocol';
 import { QUICK_ACTIONS } from './core/protocol';
 import { describeEdit, isQuestion, withoutMetaTalk } from './core/requests';
+import { sysmlText } from '../workbench/source';
 import { unreadableExpects } from '../pure/sim-expects';
 import { arcText, checkRequests, checkSource, impactOf, snapshotOfText } from './compiler';
 import { forgetPreview, showDiff } from './preview';
@@ -305,6 +306,12 @@ export async function runAsk(
         messages.push({ role: 'user', content: `The simulation would end in an error, not a verdict:\n${unreadable.slice(0, 10).map((p) => `- ${p}`).join('\n')}\nThe result of a run holds the variables of the simulated Modelica model by their path from it (for model Heating with an instance plant of a model that has water.T: plant.water.T). Write each expects: on such a path, e.g. "REQ-1: max(plant.water.T) <= 96 °C", with the variable declared with unit = "K" (or "degC", "m/s2", "V"...) and the bound in a unit of the same kind (°C converts from K). Fix the Modelica (write_file again) or the expects:, then send the complete propose_edits again.` });
         onText(`\n(the simulation would not give a verdict: ${unreadable[0].slice(0, 110)}…; asking for a correction)\n`, chars);
         continue;
+      }
+      // Asked about SysML v2: the model's SysML v2 text is written beside it, by the compiler (not by the AI), with the change.
+      const fileName = document.uri.path.split('/').pop() ?? 'model.arc';
+      if (/sys\s*ml/i.test(asked) && /\.arc$/i.test(fileName)) {
+        const sysml = await sysmlText(proposed ?? source.text);
+        if (sysml) files.set(fileName.replace(/\.arc$/i, '.sysml'), sysml);
       }
       const written = [...files].map(([path, content]) => ({ path, content }));
       if (written.length) {

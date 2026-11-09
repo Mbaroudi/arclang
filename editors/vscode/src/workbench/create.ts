@@ -11,7 +11,7 @@ import { applyRequests, refusalMessage } from './edits';
 import { WorkbenchPanel } from './panel';
 import { openDiagramTab } from './panes-host';
 import { forgetSnapshot, snapshotOf } from './snapshot';
-import { arcTextOf, isModelDocument } from './source';
+import { arcTextOf, isModelDocument, sysmlText } from './source';
 import { graphsDrawing, ModelTreeProvider } from './tree';
 
 /** The views a new diagram may be cut from. */
@@ -77,15 +77,19 @@ export async function createModel(context: vscode.ExtensionContext, tree: ModelT
 }
 
 /** A whole model the AI wrote: named and placed by the engineer, written, opened beside its workbench; the compiler checks it there. */
-export async function createModelFromText(text: string): Promise<void> {
+export async function createModelFromText(text: string, options: { sysml?: boolean } = {}): Promise<void> {
   const declared = /^\s*model\s+(?:"([^"]+)"|([A-Za-z_][\w-]*))/m.exec(text);
   const base = (declared?.[1] ?? declared?.[2] ?? 'model').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'model';
   const folder = vscode.workspace.workspaceFolders?.[0]?.uri ?? vscode.Uri.file(os.homedir());
-  const target = await vscode.window.showSaveDialog({ defaultUri: vscode.Uri.joinPath(folder, `${base}.arc`), filters: { ArcLang: ['arc'] }, saveLabel: 'Create model', title: 'ArcLang: name and place of the model the AI wrote' });
+  // Asked in SysML v2: the model is created as its SysML v2 text, written by the compiler from the checked model, and drawn like any model.
+  const sysml = options.sysml ? await sysmlText(text) : null;
+  const extension = sysml ? 'sysml' : 'arc';
+  const target = await vscode.window.showSaveDialog({ defaultUri: vscode.Uri.joinPath(folder, `${base}.${extension}`), filters: sysml ? { 'SysML v2': ['sysml'] } : { ArcLang: ['arc'] }, saveLabel: 'Create model', title: 'ArcLang: name and place of the model the AI wrote' });
   if (!target) return;
-  const file = target.fsPath.toLowerCase().endsWith('.arc') ? target : vscode.Uri.file(arcFileName(target.fsPath));
+  const file = sysml ? (target.fsPath.toLowerCase().endsWith('.sysml') ? target : vscode.Uri.file(`${target.fsPath.replace(/\.[^./\\]*$/, '')}.sysml`)) : target.fsPath.toLowerCase().endsWith('.arc') ? target : vscode.Uri.file(arcFileName(target.fsPath));
+  const content = sysml ?? text;
   if (await exists(file)) await vscode.workspace.fs.delete(file); // the save dialog already asked to overwrite
-  await vscode.workspace.fs.writeFile(file, Buffer.from(text.endsWith('\n') ? text : `${text}\n`, 'utf8'));
+  await vscode.workspace.fs.writeFile(file, Buffer.from(content.endsWith('\n') ? content : `${content}\n`, 'utf8'));
   const document = await vscode.workspace.openTextDocument(file);
   await vscode.window.showTextDocument(document, { preview: false });
   forgetSnapshot(document.uri);
