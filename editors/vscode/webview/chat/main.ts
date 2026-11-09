@@ -101,7 +101,8 @@ function renderHeader(): void {
   header.textContent = '';
   const provider = el('button', { type: 'button', class: 'chat-provider', title: 'Choose the AI provider and model', text: state ? state.provider : 'AI' });
   provider.addEventListener('click', () => post({ type: 'chat-configure' }));
-  const fresh = el('button', { type: 'button', class: 'chat-icon', title: 'New conversation', 'aria-label': 'New conversation', text: '+' });
+  // Clearing is a new conversation: the history of questions and answers goes, the model stays as it is.
+  const fresh = el('button', { type: 'button', class: 'chat-clear', title: 'Clear the chat history and start a new conversation (your model is not changed)', 'aria-label': 'Clear the chat history (New conversation)', text: 'Clear' });
   fresh.addEventListener('click', () => {
     transcript.textContent = '';
     turns.clear();

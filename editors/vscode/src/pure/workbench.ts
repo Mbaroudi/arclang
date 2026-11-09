@@ -87,6 +87,8 @@ export interface Snapshot {
   elements: { elements: ElementRecord[]; relationships: RelationshipRecord[] } | null;
   findings: Finding[];
   gate: GateReport | null;
+  /** The CESAM grid and the CESAM view each diagram draws (the workbench's CESAM notation); absent from older compilers. */
+  cesam?: CesamSnapshot;
   /** The realization ladder of each requirement (docs/realization.md); absent from older compilers. */
   realization?: import('./realization').Ladder[];
 }
@@ -306,7 +308,14 @@ export function parseSnapshot(text: string): Snapshot {
     findings: Array.isArray(value.findings) ? (value.findings as Finding[]) : [],
     gate: (value.gate as GateReport | null) ?? null,
     realization: Array.isArray(value.realization) ? (value.realization as Snapshot['realization']) : [],
+    cesam: isCesam(value.cesam) ? value.cesam : undefined,
   };
+}
+
+/** A CESAM grid as the compiler gives it: three rows and the view of each diagram. */
+function isCesam(value: unknown): value is CesamSnapshot {
+  const v = value as CesamSnapshot | null | undefined;
+  return !!v && typeof v === 'object' && Array.isArray(v.table?.rows) && Array.isArray(v.diagrams);
 }
 
 /** `arclang edit` output: the edited text, or why it was refused. */
@@ -916,4 +925,60 @@ export function isLayoutFile(value: unknown): value is { arclang_layout: string 
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const version = (value as { arclang_layout?: unknown }).arclang_layout;
   return typeof version === 'string' || typeof version === 'number';
+}
+
+// ---- Notations: the same model read as Arcadia (Capella), as SysML v2, or through CESAM ----
+
+/** One cell of the CESAM grid, as the compiler computes it. */
+export interface CesamCell {
+  /** "8 (SA 8)": how many elements, and at which Arcadia levels; "—" when the view is empty. */
+  text: string;
+  links?: { id?: string; name: string }[];
+  /** ok, warn (gate blockers on its elements) or gap (nothing modelled yet). */
+  status?: string;
+}
+
+export interface CesamSnapshot {
+  /** The model declares method: "cesam". */
+  declared: boolean;
+  table: { columns: { key: string; label: string }[]; rows: { id: string; name: string; status: string; issues?: string[]; cells: Record<string, CesamCell> }[] };
+  /** The CESAM view each diagram draws. */
+  diagrams: { id: string; vision: string; aspect: string; view: string }[];
+}
+
+export type Notation = 'arcadia' | 'sysml' | 'cesam';
+
+export const NOTATIONS: { id: Notation; label: string; title: string }[] = [
+  { id: 'arcadia', label: 'Arcadia · Capella', title: 'The Arcadia viewpoints, as Capella draws them: operational, system, logical, physical, EPBS' },
+  { id: 'sysml', label: 'SysML v2', title: 'The SysML v2 views: general, interconnection, action flow, parametric, states, requirements' },
+  { id: 'cesam', label: 'CESAM', title: 'The CESAM grid: three visions by six aspects, and the diagrams of each vision' },
+];
+
+/** The views each notation shows; CESAM shows the diagrams its grid names. */
+export const NOTATION_VIEWS: Record<Exclude<Notation, 'cesam'>, string[]> = {
+  arcadia: ['oab', 'sab', 'lab', 'pab', 'pbs', 'cap', 'cdb', 'msm', 'es', 'req'],
+  sysml: ['gv', 'iv', 'afv', 'par', 'msm', 'req'],
+};
+
+export const CESAM_VISIONS: { id: string; label: string; short: string; question: string }[] = [
+  { id: 'operational', label: 'Operational vision', short: 'Operational', question: 'Why? For whom, and for what?' },
+  { id: 'functional', label: 'Functional vision', short: 'Functional', question: 'What does it do?' },
+  { id: 'constructional', label: 'Constructional vision', short: 'Constructional', question: 'What is it made of?' },
+];
+
+/** The notation a model opens in: CESAM when it declares the method, SysML v2 for a .sysml file, else Arcadia. */
+export function defaultNotation(snapshot: Pick<Snapshot, 'cesam'> | null, file: string | undefined): Notation {
+  if (snapshot?.cesam?.declared) return 'cesam';
+  if (file && /\.sysml$/i.test(file)) return 'sysml';
+  return 'arcadia';
+}
+
+/** The diagrams a notation shows, in the order of its views (CESAM: the order of its grid). */
+export function graphsOfNotation(notation: Notation, graphs: ViewerGraph[], cesam: CesamSnapshot | undefined): ViewerGraph[] {
+  if (notation === 'cesam') {
+    const order = (cesam?.diagrams ?? []).map((d) => d.id);
+    return order.map((id) => graphs.find((g) => g.id === id)).filter((g): g is ViewerGraph => !!g);
+  }
+  const views = NOTATION_VIEWS[notation];
+  return graphs.filter((g) => views.includes(g.arc.view)).sort((a, b) => views.indexOf(a.arc.view) - views.indexOf(b.arc.view));
 }

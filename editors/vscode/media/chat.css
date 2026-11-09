@@ -135,3 +135,7 @@ button:disabled { opacity: .5; cursor: default; }
 .chat-code.is-long:not(.is-open) pre { max-height: 22em; overflow-y: auto; }
 .chat-code-foot { display: flex; gap: 6px; align-items: center; justify-content: flex-end; padding: 4px 6px; background: var(--c-code); border-top: 1px solid var(--c-line); }
 .chat-code-foot .chat-code-all { margin-right: auto; font-size: 11px; }
+
+/* Clear: the history goes, the model stays. Visible as a word, not a glyph. */
+.chat-clear { padding: 2px 10px; font-size: 12px; line-height: 18px; background: transparent; color: var(--c-muted); border: 1px solid var(--c-line); border-radius: 4px; cursor: pointer; }
+.chat-clear:hover, .chat-clear:focus-visible { color: var(--c-fg); border-color: var(--c-fg); outline: none; }

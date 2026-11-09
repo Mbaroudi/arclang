@@ -36,6 +36,13 @@ that draws it), **pending** when the production gate flags one of its elements,
 grid shows how deep each perspective goes. In VS Code the table view offers the
 kind *CESAM grid*; in a generated document, `{{table cesam_grid}}`.
 
+In the workbench (VS Code and the playground), the switch above the views reads
+the same model as **Arcadia · Capella**, **SysML v2** or **CESAM**, and shows
+only that notation's views. **CESAM** opens on this grid, drawn: each cell opens
+the diagrams that draw its view, captioned with the CESAM view's name, and the
+tabs are the grid and the three visions. A model with `method: "cesam"` opens
+in CESAM, a `.sysml` file in SysML v2, any other in Arcadia.
+
 ![The same grid as the compiler's HTML table: each cell names its elements, counts them per Arcadia level and carries its ok badge](images/cesam-grid.webp)
 
 ### Where each element goes

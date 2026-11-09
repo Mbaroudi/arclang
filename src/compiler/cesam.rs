@@ -518,6 +518,15 @@ pub fn diagram_view(id: &str, machine_vision: impl Fn(&str) -> Option<Vision>, s
     Some(view(vision, aspect))
 }
 
+/// The CESAM view each diagram of a set draws, in the set's order: what
+/// the workbench's CESAM grid opens from each of its cells.
+pub fn diagram_cells(set: &super::diagram::DiagramSet, ast: &Model, graph: &ElementGraph) -> Vec<(String, View)> {
+    let classifier = Classifier::new(graph, ast);
+    let machine = |name: &str| ast.state_machines.iter().find(|m| m.name == name).map(|m| machine_vision(&m.attributes, &m.name));
+    let scenario = |name: &str| graph.elements.iter().find(|e| e.kind == "Scenario" && e.name == name).and_then(|e| classifier.element(e)).map(|p| p.vision);
+    set.diagrams.iter().filter_map(|d| diagram_view(&d.id, machine, scenario).map(|view| (d.id.clone(), view))).collect()
+}
+
 /// Keep the diagrams of a set that draw a CESAM view, in the order of the
 /// grid, titled `<view> — <diagram>`; their diagnostics follow them.
 pub fn arrange_diagrams(set: &mut super::diagram::DiagramSet, ast: &Model, graph: &ElementGraph) {

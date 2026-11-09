@@ -104,6 +104,11 @@ pub struct Snapshot {
     pub sysmlv2: Option<String>,
     /// OMG ReqIF 1.0 (requirements exchange).
     pub reqif: Option<String>,
+    /// The CESAM grid of the model (three visions by six aspects, the
+    /// elements of each view, their Arcadia levels and the view's maturity),
+    /// with the CESAM view each diagram draws: the workbench's CESAM tab.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cesam: Option<serde_json::Value>,
     /// C99 interface contracts.
     pub c_headers: Option<String>,
     /// Protobuf (proto3) interface contracts.
@@ -142,6 +147,7 @@ fn snapshot_of(compiled: Result<crate::CompilationResult, crate::CompilerError>,
             findings: Vec::new(),
             gate: None,
             realization: Vec::new(),
+            cesam: None,
             sysmlv2: None,
             reqif: None,
             c_headers: None,
@@ -176,6 +182,7 @@ fn snapshot_of(compiled: Result<crate::CompilationResult, crate::CompilerError>,
             let realization = crate::compiler::realization::ladders(&result, model_path);
             let mut diagrams = crate::compiler::diagram::build_diagrams(&result.ast);
             crate::compiler::diagram::judge_requirements(&mut diagrams, &result.ast, model);
+            let cesam = cesam_view(&result, &diagrams, options.gate_standard);
             let diagrams = crate::compiler::diagram::html::viewer_payload(&diagrams, &title);
             let gate_report = crate::compiler::production_gate::run_gate(
                 &result.ast,
@@ -208,6 +215,7 @@ fn snapshot_of(compiled: Result<crate::CompilationResult, crate::CompilerError>,
                 findings,
                 gate: Some(gate),
                 realization,
+                cesam,
                 sysmlv2: options.exports.then(|| crate::compiler::sysmlv2_generator::generate_sysmlv2(model, &result.ast)),
                 reqif: options.exports.then(|| crate::compiler::reqif::generate_reqif(model, &result.ast)),
                 c_headers: options.exports.then(|| crate::compiler::c_header_generator::generate_c_headers(model, &result.ast)),
@@ -215,6 +223,19 @@ fn snapshot_of(compiled: Result<crate::CompilationResult, crate::CompilerError>,
             }
         }
     }
+}
+
+/// The CESAM grid of a compiled model and the view each of its diagrams draws.
+fn cesam_view(result: &crate::CompilationResult, diagrams: &crate::compiler::diagram::DiagramSet, gate_standard: &str) -> Option<serde_json::Value> {
+    use crate::compiler::tables;
+    let spec = tables::TableSpec { kind: "cesam_grid".to_string(), ..Default::default() };
+    let table = tables::compute(result, &spec, &tables::Options { gate_standard: gate_standard.to_string() }).ok()?;
+    let graph = elements::build(&result.ast, &result.semantic_model);
+    let cells: Vec<serde_json::Value> = crate::compiler::cesam::diagram_cells(diagrams, &result.ast, &graph)
+        .into_iter()
+        .map(|(id, view)| serde_json::json!({ "id": id, "vision": view.vision, "aspect": view.aspect, "view": view.name }))
+        .collect();
+    Some(serde_json::json!({ "declared": crate::compiler::cesam_rules::declared(&result.ast), "table": table, "diagrams": cells }))
 }
 
 /// Rename an element the way a modeling workbench does: the element keeps
@@ -894,6 +915,37 @@ requirements system {
         let unknown = parse(edit(MODEL, r#"{"op":"remove","element":"Nobody"}"#));
         assert_eq!(unknown["success"], false);
         assert!(unknown["error"].as_str().unwrap().contains("Nobody"));
+    }
+}
+
+#[cfg(test)]
+mod cesam_tests {
+    use super::*;
+
+    #[test]
+    fn the_snapshot_carries_the_cesam_grid_and_the_view_each_diagram_draws() {
+        let template = include_str!("../cli/templates/cesam.arc").replace("{{NAME}}", "Lock").replace("{{FILE}}", "lock.arc");
+        let snapshot = snapshot(&template, &SnapshotOptions::default());
+        assert!(snapshot.success, "{:?}", snapshot.errors);
+        let cesam = snapshot.cesam.expect("a CESAM grid");
+        assert_eq!(cesam["declared"], true);
+        let rows = cesam["table"]["rows"].as_array().expect("rows");
+        assert_eq!(rows.iter().map(|r| r["id"].as_str().unwrap()).collect::<Vec<_>>(), ["operational", "functional", "constructional"]);
+        let diagrams = cesam["diagrams"].as_array().expect("diagrams");
+        assert!(!diagrams.is_empty());
+        // Every diagram named by the grid is one the viewer draws.
+        let drawn: Vec<&str> = snapshot.diagrams.as_ref().unwrap()["graphs"].as_array().unwrap().iter().map(|g| g["id"].as_str().unwrap()).collect();
+        for d in diagrams {
+            assert!(drawn.contains(&d["id"].as_str().unwrap()), "{d}");
+            assert!(d["view"].as_str().is_some_and(|v| !v.is_empty()));
+        }
+        // A model that does not declare the method is read through the grid all the same.
+        let plain = snapshot_of_text("model M {}\nlogical_architecture \"LA\" {\n  component \"C\" { id: \"LC-1\" }\n}\n");
+        assert_eq!(plain["declared"], false);
+    }
+
+    fn snapshot_of_text(text: &str) -> serde_json::Value {
+        snapshot(text, &SnapshotOptions::default()).cesam.expect("a grid")
     }
 }
 
