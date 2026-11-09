@@ -4,6 +4,7 @@
 
 use super::context::{shown, Context};
 use super::{label_of, Cell, Column, Link, Row, TableSpec};
+use crate::compiler::verification::{self, Standing, Verdict};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const DEFAULT_COLUMNS: [&str; 8] = ["id", "name", "text", "priority", "satisfied_by", "verified_by", "verdict", "status"];
@@ -81,30 +82,26 @@ fn traced_to(context: &Context, target: &str, kind: &str) -> Vec<usize> {
 fn row(context: &Context, index: usize, keys: &[String]) -> Row {
     let element = context.element(index);
     let uuid = element.uuid.clone();
-    let satisfied = traced_to(context, &uuid, "satisfies");
-    let mut tests: Vec<usize> = context.relationships("Verification").filter(|v| v.target == uuid).filter_map(|v| context.index_of_uuid(&v.source)).collect();
-    tests.extend(traced_to(context, &uuid, "verifies"));
-    let mut seen = BTreeSet::new();
-    tests.retain(|t| seen.insert(*t));
+    // What satisfies it, what verifies it and where it stands: as the gate reads it.
+    let status = verification::requirement_status(&context.result.ast, &context.result.semantic_model, &element.id);
+    let standing = status.standing();
+    let satisfied: Vec<usize> = status.satisfied_by.iter().filter_map(|s| context.resolve(s)).collect();
+    let tests: Vec<(usize, &Verdict)> = status.cases.iter().filter_map(|(case, verdict)| context.resolve(&case.id).map(|index| (index, verdict))).collect();
     let test_links: Vec<Link> = tests
         .iter()
-        .map(|&t| {
-            let mut link = context.link(t);
-            link.verdict = Some(context.verdict_for(&link.id, element).0);
+        .map(|&(index, verdict)| {
+            let mut link = context.link(index);
+            link.verdict = Some(verdict.word().to_string());
             link
         })
         .collect();
-    let verdicts: Vec<&str> = test_links.iter().filter_map(|l| l.verdict.as_deref()).collect();
-    let (verdict_text, verdict_status) = if verdicts.is_empty() {
-        ("none", "gap")
-    } else if verdicts.contains(&"fail") {
-        ("fail", "fail")
-    } else if verdicts.contains(&"inconclusive") {
-        ("inconclusive", "warn")
-    } else if verdicts.iter().all(|v| *v == "pass") {
-        ("pass", "ok")
-    } else {
-        ("pending", "warn")
+    let (verdict_text, verdict_status) = match standing {
+        Standing::Unverified if tests.is_empty() => ("none", "gap"),
+        Standing::Unverified => ("unverified", "gap"),
+        Standing::Fail => ("fail", "fail"),
+        Standing::Inconclusive => ("inconclusive", "warn"),
+        Standing::Pending => ("pending", "warn"),
+        Standing::Pass => ("pass", "ok"),
     };
     let blockers = context.blockers_of(index);
 
@@ -115,25 +112,27 @@ fn row(context: &Context, index: usize, keys: &[String]) -> Row {
     if tests.is_empty() {
         issues.push("verified by no test case".to_string());
     }
-    for link in test_links.iter().filter(|l| l.verdict.as_deref() == Some("fail")) {
-        let why = context.verdict_for(&link.id, element).1.map(|w| format!(": {w}")).unwrap_or_default();
-        issues.push(format!("{} fails{why}", link.name));
+    for (link, (_, verdict)) in test_links.iter().zip(&tests) {
+        let why = verdict.why().map(|w| format!(": {w}")).unwrap_or_default();
+        match verdict {
+            Verdict::Fail(_) => issues.push(format!("{} fails{why}", link.name)),
+            Verdict::Inconclusive(_) => issues.push(format!("{} is inconclusive{why}", link.name)),
+            Verdict::Pending => issues.push(format!("{} has no verdict", link.name)),
+            Verdict::Pass => {}
+        }
     }
-    for link in test_links.iter().filter(|l| l.verdict.as_deref() == Some("inconclusive")) {
-        let why = context.verdict_for(&link.id, element).1.map(|w| format!(": {w}")).unwrap_or_default();
-        issues.push(format!("{} is inconclusive{why}", link.name));
-    }
+    // The gate's blockers that say something more than the lines above.
+    const RESTATED: [&str; 5] = ["satisfied by no", "no verification case", "cases fail", "cases are inconclusive", "cases have no verdict"];
     for blocker in &blockers {
-        if !issues.iter().any(|i| blocker.contains(i.as_str())) && !blocker.contains("satisfied by no") && !blocker.contains("no verification case") && !blocker.contains("cases fail") && !blocker.contains("cases are inconclusive") {
+        if !issues.iter().any(|i| blocker.contains(i.as_str())) && !RESTATED.iter().any(|said| blocker.contains(said)) {
             issues.push(blocker.clone());
         }
     }
-    let status = if verdict_status == "fail" {
+    // A row is covered exactly when the gate has nothing to say of it: `is:gap` lists what it still blocks on.
+    let status = if standing == Standing::Fail {
         "fail"
-    } else if satisfied.is_empty() || tests.is_empty() || !blockers.is_empty() {
+    } else if satisfied.is_empty() || standing != Standing::Pass || !blockers.is_empty() {
         "gap"
-    } else if verdict_status == "warn" {
-        "warn"
     } else {
         "ok"
     };
@@ -142,8 +141,9 @@ fn row(context: &Context, index: usize, keys: &[String]) -> Row {
         "gap" if satisfied.is_empty() && tests.is_empty() => "Not covered",
         "gap" if satisfied.is_empty() => "Not satisfied",
         "gap" if tests.is_empty() => "Not verified",
+        "gap" if standing == Standing::Inconclusive => "Verdict inconclusive",
+        "gap" if standing == Standing::Pending => "Verdict pending",
         "gap" => "Gate blocked",
-        "warn" => "Verdict pending",
         _ => "Covered",
     };
 

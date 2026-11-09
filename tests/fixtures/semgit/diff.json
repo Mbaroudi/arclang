@@ -7,11 +7,13 @@
         "after": {
           "satisfied_by": [],
           "status": "absent",
+          "verified": false,
           "verified_by": []
         },
         "before": {
           "satisfied_by": [],
           "status": "unsatisfied",
+          "verified": false,
           "verified_by": []
         },
         "name": "REQ-002",

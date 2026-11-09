@@ -666,6 +666,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
     }
     verification <'TC-001'> 'Radar range verification' {
         doc /* Verify 150 m obstacle detection on the proving ground */
+        attribute verdict : String = "pass";
         attribute method : String = "test";
         objective {
             verify 'Safety Requirements'::'REQ-AEB-001';
@@ -673,6 +674,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
     }
     verification <'TC-002'> 'Fusion latency measurement' {
         doc /* Measure the radar and camera fusion latency under full bus load */
+        attribute verdict : String = "pass";
         attribute method : String = "test";
         objective {
             verify 'Safety Requirements'::'REQ-AEB-002';
@@ -680,6 +682,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
     }
     verification <'TC-003'> 'TTC computation analysis' {
         doc /* Worst-case execution time analysis of the TTC algorithm */
+        attribute verdict : String = "pass";
         attribute method : String = "analysis";
         objective {
             verify 'Safety Requirements'::'REQ-AEB-003';
@@ -687,6 +690,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
     }
     verification <'TC-004'> 'Emergency braking activation test' {
         doc /* Full braking force commanded within 100 ms on the target dummy */
+        attribute verdict : String = "pass";
         attribute method : String = "test";
         objective {
             verify 'Safety Requirements'::'REQ-AEB-004';
@@ -694,6 +698,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
     }
     verification <'TC-005'> 'Driver warning demonstration' {
         doc /* Visual and audio warning precedes the autonomous braking */
+        attribute verdict : String = "pass";
         attribute method : String = "demonstration";
         objective {
             verify 'Safety Requirements'::'REQ-AEB-005';
@@ -701,6 +706,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
     }
     verification <'TC-006'> 'Driver override demonstration' {
         doc /* Kick-down during autonomous braking releases the brakes */
+        attribute verdict : String = "pass";
         attribute method : String = "demonstration";
         objective {
             verify 'Safety Requirements'::'REQ-AEB-006';
@@ -708,6 +714,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
     }
     verification <'TC-007'> 'Fault injection campaign' {
         doc /* Radar and controller faults injected on the HIL bench, takeover requested within 200 ms */
+        attribute verdict : String = "pass";
         attribute method : String = "test";
         objective {
             verify 'Safety Requirements'::'REQ-AEB-007';

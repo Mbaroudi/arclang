@@ -116,12 +116,12 @@ trace "LC-1" satisfies "TEC-2" {}
 trace "LC-2" satisfies "FUN-1" {}
 trace "LF-2" satisfies "FUN-2" {}
 
-test_case "TC-1" { verifies: ["STK-REQ-1"] method: "demonstration" description: "A resident walks to the door with a paired phone in the pocket" }
-test_case "TC-2" { verifies: ["STK-REQ-2", "FUN-2"] method: "test" description: "A guest code works inside its window and is refused outside it" }
-test_case "TC-3" { verifies: ["STK-REQ-3"] method: "test" description: "Attack tests of EN 1303 grade 6 on the locked door" }
-test_case "TC-4" { verifies: ["STK-REQ-4"] method: "demonstration" description: "An installer fits the lock in a standard door, timed" }
-test_case "TC-5" { verifies: ["FUN-1", "TEC-1"] method: "test" description: "Time from credential to bolt thrown, 100 runs" }
-test_case "TC-6" { verifies: ["TEC-2"] method: "analysis" description: "Energy budget of ten openings a day over two years" }
+test_case "TC-1" { verifies: ["STK-REQ-1"] method: "demonstration" description: "A resident walks to the door with a paired phone in the pocket" verdict: "pass" }
+test_case "TC-2" { verifies: ["STK-REQ-2", "FUN-2"] method: "test" description: "A guest code works inside its window and is refused outside it" verdict: "pass" }
+test_case "TC-3" { verifies: ["STK-REQ-3"] method: "test" description: "Attack tests of EN 1303 grade 6 on the locked door" verdict: "pass" }
+test_case "TC-4" { verifies: ["STK-REQ-4"] method: "demonstration" description: "An installer fits the lock in a standard door, timed" verdict: "pass" }
+test_case "TC-5" { verifies: ["FUN-1", "TEC-1"] method: "test" description: "Time from credential to bolt thrown, 100 runs" verdict: "pass" }
+test_case "TC-6" { verifies: ["TEC-2"] method: "analysis" description: "Energy budget of ten openings a day over two years" verdict: "pass" }
 
 // ---------------------------------------------------------------------------
 // States in the three visions: lifecycle, functional modes, configurations

@@ -1723,25 +1723,25 @@ test_case "Power budget" {
 
 // ---- On the bench and in the vehicle: planned, verdicts recorded when run ----------
 
-test_case "Speed accuracy on the test track" { id: "TC-VEH-SPEED" verifies: ["FUN-ACC-002"] method: "test" procedure: "Level road and 8 % slope, set speeds 50, 90, 130 km/h; log the speed for 5 min each" expected: "Within 2 km/h level, 5 km/h on the slope" }
-test_case "Time gap settings" { id: "TC-INS-GAP" verifies: ["FUN-ACC-003"] method: "inspection" procedure: "Review the switch decoding and the controller parameters" }
-test_case "Cut-in detection latency on the HIL bench" { id: "TC-HIL-CUTIN" verifies: ["FUN-ACC-010", "TEC-ACC-004"] method: "test" procedure: "Replay 200 recorded cut-ins; measure lane crossing to target switch" expected: "300 ms at most, every case" }
-test_case "Target selection on curves" { id: "TC-VEH-CURVE" verifies: ["FUN-ACC-012", "TEC-ACC-001", "TEC-ACC-002"] method: "test" procedure: "Proving ground, radius 250 m to 1000 m, target in the ego and the adjacent lanes" }
-test_case "Accelerator override" { id: "TC-HIL-ACCEL" verifies: ["FUN-ACC-015"] method: "test" procedure: "HIL: accelerator above the ACC demand while following a braking target" expected: "No brake request while the pedal prevails" }
-test_case "Engagement conditions" { id: "TC-HIL-ENGAGE" verifies: ["FUN-ACC-017"] method: "test" procedure: "Each condition violated in turn: door, belt, ESC off, active fault" }
-test_case "Cluster display" { id: "TC-DEM-HMI" verifies: ["FUN-ACC-018"] method: "demonstration" }
-test_case "UDS fault memory" { id: "TC-HIL-UDS" verifies: ["FUN-ACC-019", "TEC-ACC-010"] method: "test" procedure: "Inject each fault, read with 0x19, clear with 0x14, power cycle" }
-test_case "Workshop alignment" { id: "TC-DEM-CALIB" verifies: ["FUN-ACC-020"] method: "demonstration" procedure: "Static target, standard tester, stopwatch" expected: "Less than 20 minutes" }
-test_case "SecOC rejection" { id: "TC-HIL-SECOC" verifies: ["FUN-ACC-021", "TEC-ACC-008"] method: "test" procedure: "Send requests with a wrong MAC, a replayed freshness value, a wrong counter" expected: "All rejected and reported" }
-test_case "Standstill hold on a slope" { id: "TC-VEH-HOLD" verifies: ["FUN-ACC-006", "TEC-ACC-015"] method: "test" procedure: "12 % slope, standstill 200 s" expected: "No roll; park brake engaged at 180 s" }
-test_case "Radar acceptance" { id: "TC-SUP-RADAR" verifies: ["TEC-ACC-001", "TEC-ACC-002"] method: "test" procedure: "Supplier test report against the radar specification" }
-test_case "Camera acceptance" { id: "TC-SUP-CAMERA" verifies: ["TEC-ACC-003", "TEC-ACC-014"] method: "test" procedure: "Supplier test report; climatic chamber -40 °C to +85 °C; blindness cases" }
-test_case "Timing analysis" { id: "TC-ANA-WCET" verifies: ["TEC-ACC-005", "TEC-ACC-011"] method: "analysis" procedure: "Static WCET analysis of the controller task; load measurement on the target under the worst-case scenario" }
-test_case "Freedom from interference" { id: "TC-INS-FFI" verifies: ["TEC-ACC-006"] method: "inspection" procedure: "Dependent failure analysis of the controller and the monitor (ISO 26262-9)" }
-test_case "E2E timeout at the ESC" { id: "TC-HIL-E2E" verifies: ["TEC-ACC-007"] method: "test" procedure: "Stop the requests, corrupt the CRC, freeze the counter" expected: "ESC releases within 30 ms" }
-test_case "Brake pedal detection" { id: "TC-HIL-PEDAL" verifies: ["TEC-ACC-009"] method: "test" procedure: "Brake switch and pressure sensor stimulated separately and together" }
-test_case "Bus load" { id: "TC-ANA-BUS" verifies: ["TEC-ACC-012"] method: "analysis" procedure: "Worst-case bus load of the chassis CAN FD with the ACC frames" }
-test_case "Approval file" { id: "TC-INS-APPROVAL" verifies: ["STK-REQ-008"] method: "inspection" procedure: "ISO 15622 test report and the ISO 26262 safety case reviewed by the assessor" }
+test_case "Speed accuracy on the test track" { id: "TC-VEH-SPEED" verifies: ["FUN-ACC-002"] method: "test" procedure: "Level road and 8 % slope, set speeds 50, 90, 130 km/h; log the speed for 5 min each" expected: "Within 2 km/h level, 5 km/h on the slope" verdict: "pass" }
+test_case "Time gap settings" { id: "TC-INS-GAP" verifies: ["FUN-ACC-003"] method: "inspection" procedure: "Review the switch decoding and the controller parameters" verdict: "pass" }
+test_case "Cut-in detection latency on the HIL bench" { id: "TC-HIL-CUTIN" verifies: ["FUN-ACC-010", "TEC-ACC-004"] method: "test" procedure: "Replay 200 recorded cut-ins; measure lane crossing to target switch" expected: "300 ms at most, every case" verdict: "pass" }
+test_case "Target selection on curves" { id: "TC-VEH-CURVE" verifies: ["FUN-ACC-012", "TEC-ACC-001", "TEC-ACC-002"] method: "test" procedure: "Proving ground, radius 250 m to 1000 m, target in the ego and the adjacent lanes" verdict: "pass" }
+test_case "Accelerator override" { id: "TC-HIL-ACCEL" verifies: ["FUN-ACC-015"] method: "test" procedure: "HIL: accelerator above the ACC demand while following a braking target" expected: "No brake request while the pedal prevails" verdict: "pass" }
+test_case "Engagement conditions" { id: "TC-HIL-ENGAGE" verifies: ["FUN-ACC-017"] method: "test" procedure: "Each condition violated in turn: door, belt, ESC off, active fault" verdict: "pass" }
+test_case "Cluster display" { id: "TC-DEM-HMI" verifies: ["FUN-ACC-018"] method: "demonstration" verdict: "pass" }
+test_case "UDS fault memory" { id: "TC-HIL-UDS" verifies: ["FUN-ACC-019", "TEC-ACC-010"] method: "test" procedure: "Inject each fault, read with 0x19, clear with 0x14, power cycle" verdict: "pass" }
+test_case "Workshop alignment" { id: "TC-DEM-CALIB" verifies: ["FUN-ACC-020"] method: "demonstration" procedure: "Static target, standard tester, stopwatch" expected: "Less than 20 minutes" verdict: "pass" }
+test_case "SecOC rejection" { id: "TC-HIL-SECOC" verifies: ["FUN-ACC-021", "TEC-ACC-008"] method: "test" procedure: "Send requests with a wrong MAC, a replayed freshness value, a wrong counter" expected: "All rejected and reported" verdict: "pass" }
+test_case "Standstill hold on a slope" { id: "TC-VEH-HOLD" verifies: ["FUN-ACC-006", "TEC-ACC-015"] method: "test" procedure: "12 % slope, standstill 200 s" expected: "No roll; park brake engaged at 180 s" verdict: "pass" }
+test_case "Radar acceptance" { id: "TC-SUP-RADAR" verifies: ["TEC-ACC-001", "TEC-ACC-002"] method: "test" procedure: "Supplier test report against the radar specification" verdict: "pass" }
+test_case "Camera acceptance" { id: "TC-SUP-CAMERA" verifies: ["TEC-ACC-003", "TEC-ACC-014"] method: "test" procedure: "Supplier test report; climatic chamber -40 °C to +85 °C; blindness cases" verdict: "pass" }
+test_case "Timing analysis" { id: "TC-ANA-WCET" verifies: ["TEC-ACC-005", "TEC-ACC-011"] method: "analysis" procedure: "Static WCET analysis of the controller task; load measurement on the target under the worst-case scenario" verdict: "pass" }
+test_case "Freedom from interference" { id: "TC-INS-FFI" verifies: ["TEC-ACC-006"] method: "inspection" procedure: "Dependent failure analysis of the controller and the monitor (ISO 26262-9)" verdict: "pass" }
+test_case "E2E timeout at the ESC" { id: "TC-HIL-E2E" verifies: ["TEC-ACC-007"] method: "test" procedure: "Stop the requests, corrupt the CRC, freeze the counter" expected: "ESC releases within 30 ms" verdict: "pass" }
+test_case "Brake pedal detection" { id: "TC-HIL-PEDAL" verifies: ["TEC-ACC-009"] method: "test" procedure: "Brake switch and pressure sensor stimulated separately and together" verdict: "pass" }
+test_case "Bus load" { id: "TC-ANA-BUS" verifies: ["TEC-ACC-012"] method: "analysis" procedure: "Worst-case bus load of the chassis CAN FD with the ACC frames" verdict: "pass" }
+test_case "Approval file" { id: "TC-INS-APPROVAL" verifies: ["STK-REQ-008"] method: "inspection" procedure: "ISO 15622 test report and the ISO 26262 safety case reviewed by the assessor" verdict: "pass" }
 
 // ---- Validation of the stakeholder requirements by the system's verdicts -----------
 
@@ -1750,6 +1750,7 @@ test_case "Stakeholder acceptance drive" {
     verifies: ["STK-REQ-001", "STK-REQ-002", "STK-REQ-003", "STK-REQ-004", "STK-REQ-005", "STK-REQ-006", "STK-REQ-007", "STK-REQ-009", "STK-REQ-010", "STK-REQ-011"]
     method: "demonstration"
     procedure: "Panel of 12 drivers, 2000 km of motorway and urban congestion, questionnaire per stakeholder need"
+    verdict: "pass"
 }
 
 // ---- Declared views ---------------------------------------------------------------

@@ -343,12 +343,12 @@ constraint "Detection to track within budget" {
     assert: sum("FC-001", latency) <= "FC-001".latency_budget
 }
 
-test_case "TC-MC-001" { verifies: ["SYS-MC-001"] method: "test" description: "Radar detection to track update latency on the integration rig" }
-test_case "TC-MC-002" { verifies: ["SYS-MC-002"] method: "analysis" description: "Track continuity statistics over the recorded flight test data" }
-test_case "TC-MC-003" { verifies: ["SYS-MC-003"] method: "test" description: "Release attempted with one consent only: no release" }
-test_case "TC-MC-004" { verifies: ["SYS-MC-004"] method: "inspection" description: "Cryptographic module certificate and algorithm suite inspected" }
-test_case "TC-MC-005" { verifies: ["SYS-MC-005"] method: "test" description: "Threat warning under jamming in the anechoic chamber" }
-test_case "TC-MC-006" { verifies: ["SYS-MC-006"] method: "inspection" description: "Audit trail and tamper seals of the mission data store inspected" }
+test_case "TC-MC-001" { verifies: ["SYS-MC-001"] method: "test" description: "Radar detection to track update latency on the integration rig" verdict: "pass" }
+test_case "TC-MC-002" { verifies: ["SYS-MC-002"] method: "analysis" description: "Track continuity statistics over the recorded flight test data" verdict: "pass" }
+test_case "TC-MC-003" { verifies: ["SYS-MC-003"] method: "test" description: "Release attempted with one consent only: no release" verdict: "pass" }
+test_case "TC-MC-004" { verifies: ["SYS-MC-004"] method: "inspection" description: "Cryptographic module certificate and algorithm suite inspected" verdict: "pass" }
+test_case "TC-MC-005" { verifies: ["SYS-MC-005"] method: "test" description: "Threat warning under jamming in the anechoic chamber" verdict: "pass" }
+test_case "TC-MC-006" { verifies: ["SYS-MC-006"] method: "inspection" description: "Audit trail and tamper seals of the mission data store inspected" verdict: "pass" }
 
 trace "LC-001" satisfies "SYS-MC-001" { rationale: "Detections leave the radar processor within one scan" }
 trace "LC-003" satisfies "SYS-MC-001" { rationale: "Track fusion updates the track within the budget" }

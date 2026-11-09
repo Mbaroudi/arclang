@@ -5,6 +5,7 @@
 use super::graph::millis;
 use super::{gate_state, summarize, Analysis, Category, GateState, ImpactReport, ImpactSeverity, Impacted, Options};
 use crate::compiler::semantic_diff::{self, DiffReport};
+use crate::compiler::verification::{self, Standing};
 use crate::compiler::workbench::{self, EditRequest};
 use crate::compiler::CompilationResult;
 use serde::Serialize;
@@ -39,9 +40,14 @@ pub struct BudgetState {
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Coverage {
-    /// `covered`, `unverified`, `failing`, `unsatisfied` or `absent`.
+    /// `covered`, `unsatisfied` (whatever its cases say), or where its
+    /// verification stands: `unverified`, `failing`, `inconclusive`,
+    /// `pending`; `absent` when the model has no such requirement.
     pub status: String,
+    /// Every case that verifies it passes, in every configuration it applies to: as the gate counts it.
+    pub verified: bool,
     pub satisfied_by: Vec<String>,
+    /// The cases, each with its verdict for this requirement.
     pub verified_by: Vec<String>,
 }
 
@@ -122,45 +128,28 @@ pub fn apply(source: &str, requests: &[EditRequest]) -> Result<String, String> {
     Ok(text)
 }
 
-/// The coverage of every requirement: what satisfies it, what verifies it, the verdicts.
-fn coverage(analysis: &Analysis) -> BTreeMap<String, (String, Coverage)> {
-    let context = &analysis.context;
+/// The coverage of every requirement: what satisfies it, what verifies it
+/// and where it stands, as the gate reads it ([`verification::requirement_status`]).
+pub fn coverage(analysis: &Analysis) -> BTreeMap<String, (String, Coverage)> {
+    let result = analysis.context.result;
     let mut out = BTreeMap::new();
-    for element in &context.graph.elements {
-        if element.kind != "Requirement" {
-            continue;
-        }
-        let mut satisfied_by = BTreeSet::new();
-        let mut verified_by = BTreeSet::new();
-        let mut failing = false;
-        for r in &context.graph.relationships {
-            if r.target != element.uuid {
-                continue;
-            }
-            let Some(source) = context.index_of_uuid(&r.source) else { continue };
-            let source = context.element(source);
-            match r.kind {
-                "Trace" if r.extra.get("traceKind").and_then(|v| v.as_str()) == Some("satisfies") => {
-                    satisfied_by.insert(source.id.clone());
-                }
-                "Verification" => {
-                    let verdict = context.verdicts.get(&source.id).map(|(v, _)| v.clone()).unwrap_or_else(|| "pending".to_string());
-                    failing |= verdict == "fail";
-                    verified_by.insert(format!("{} ({verdict})", source.id));
-                }
-                _ => {}
-            }
-        }
-        let status = if satisfied_by.is_empty() {
-            "unsatisfied"
-        } else if verified_by.is_empty() {
-            "unverified"
-        } else if failing {
-            "failing"
-        } else {
-            "covered"
+    for element in analysis.context.graph.elements.iter().filter(|e| e.kind == "Requirement") {
+        let status = verification::requirement_status(&result.ast, &result.semantic_model, &element.id);
+        let word = match status.standing() {
+            _ if !status.satisfied() => "unsatisfied",
+            Standing::Unverified => "unverified",
+            Standing::Fail => "failing",
+            Standing::Inconclusive => "inconclusive",
+            Standing::Pending => "pending",
+            Standing::Pass => "covered",
         };
-        out.insert(element.id.clone(), (element.name.clone(), Coverage { status: status.to_string(), satisfied_by: satisfied_by.into_iter().collect(), verified_by: verified_by.into_iter().collect() }));
+        let coverage = Coverage {
+            status: word.to_string(),
+            verified: status.verified(),
+            satisfied_by: status.satisfied_by.iter().map(|s| s.to_string()).collect(),
+            verified_by: status.cases.iter().map(|(case, verdict)| format!("{} ({})", if case.id.is_empty() { &case.name } else { &case.id }, verdict.word())).collect(),
+        };
+        out.insert(element.id.clone(), (element.name.clone(), coverage));
     }
     out
 }
@@ -169,7 +158,7 @@ fn counts(coverage: &BTreeMap<String, (String, Coverage)>) -> CoverageCounts {
     CoverageCounts {
         requirements: coverage.len(),
         satisfied: coverage.values().filter(|(_, c)| c.status != "unsatisfied").count(),
-        verified: coverage.values().filter(|(_, c)| c.status == "covered").count(),
+        verified: coverage.values().filter(|(_, c)| c.verified).count(),
     }
 }
 
@@ -350,7 +339,7 @@ pub fn compare(before: &CompilationResult, after: &CompilationResult, diff: Diff
         .collect();
 
     let (cov_before, cov_after) = (coverage(&old), coverage(&new));
-    let absent = || Coverage { status: "absent".to_string(), satisfied_by: Vec::new(), verified_by: Vec::new() };
+    let absent = || Coverage { status: "absent".to_string(), verified: false, satisfied_by: Vec::new(), verified_by: Vec::new() };
     let mut requirement_ids: BTreeSet<&String> = cov_before.keys().collect();
     requirement_ids.extend(cov_after.keys());
     let coverage: Vec<CoverageDelta> = requirement_ids

@@ -46,7 +46,7 @@ function coverageCard(w: WhatIfResult, host: WhatIfHost): HTMLElement {
     link.addEventListener('click', () => host.reveal(c.requirement));
     rows.appendChild(el('li', {}, [link, ` ${c.before.status} → `, el('b', { class: c.after.status === 'covered' ? 'is-better' : 'is-worse', text: c.after.status })]));
   }
-  const worse = a.satisfied < b.satisfied || w.coverage.some((c) => c.after.status === 'failing');
+  const worse = a.satisfied < b.satisfied || a.verified < b.verified || w.coverage.some((c) => c.after.status === 'failing');
   return card('Requirement coverage', worse ? 'bad' : 'plain', [
     el('div', { class: 'ip-stats' }, [stat('Satisfied', b.satisfied, a.satisfied, a.requirements), stat('Verified', b.verified, a.verified, a.requirements)]),
     w.coverage.length ? rows : el('p', { class: 'ip-muted', text: 'No requirement changes status.' }),

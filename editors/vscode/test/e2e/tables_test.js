@@ -31,7 +31,7 @@ const ok = (name, cond, detail = '') => { if (!cond) failures++; console.log(`${
   const page = await open('coverage');
   ok('every requirement is a row', JSON.stringify(await ids(page)) === JSON.stringify(['REQ-1', 'REQ-2', 'REQ-3', 'REQ-4']), (await ids(page)).join(' '));
   ok('the header says the gate is blocked', /blocker/.test(await page.textContent('.tb-gate')));
-  ok('a failing row and a gap row are marked', (await page.$$('.tb-row-fail')).length === 1 && (await page.$$('.tb-row-gap')).length === 1);
+  ok('a failing row and the gap rows are marked', (await page.$$('.tb-row-fail')).length === 1 && (await page.$$('.tb-row-gap')).length === 2);
   ok('links are chips with the verdict', /Range test\s*pass/.test(await page.textContent('.tb-row[data-id="REQ-1"] [data-key="verified_by"]')));
   if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'browser-coverage-light.png') });
   // Sort
@@ -40,7 +40,7 @@ const ok = (name, cond, detail = '') => { if (!cond) failures++; console.log(`${
   await page.click('.tb-th:has-text("Req id")');
   // Filter
   await page.fill('.tb-filter', 'is:gap'); await page.waitForTimeout(250);
-  ok('is:gap keeps the gaps and failures', JSON.stringify(await ids(page)) === JSON.stringify(['REQ-2', 'REQ-4']), (await ids(page)).join(' '));
+  ok('is:gap keeps the gaps and failures', JSON.stringify(await ids(page)) === JSON.stringify(['REQ-2', 'REQ-3', 'REQ-4']), (await ids(page)).join(' '));
   await page.fill('.tb-filter', 'priority=high -is:fail'); await page.waitForTimeout(250);
   ok('column=text and negation', JSON.stringify(await ids(page)) === JSON.stringify(['REQ-1']), (await ids(page)).join(' '));
   await page.fill('.tb-filter', ''); await page.waitForTimeout(250);
@@ -50,7 +50,7 @@ const ok = (name, cond, detail = '') => { if (!cond) failures++; console.log(`${
   ok('the column filter keeps its focus while typing', await satisfiedFilter.evaluate((n) => document.activeElement === n));
   await satisfiedFilter.fill(''); await page.waitForTimeout(250);
   await page.check('.tb-toggle input'); await page.waitForTimeout(150);
-  ok('only gaps (a pending verdict is none)', (await ids(page)).length === 2, (await ids(page)).join(' '));
+  ok('only gaps (a pending verdict is one: the gate blocks on it)', (await ids(page)).length === 3, (await ids(page)).join(' '));
   await page.uncheck('.tb-toggle input'); await page.waitForTimeout(150);
   // Edit in place
   await page.dblclick('.tb-row[data-id="REQ-3"] [data-key="text"]');

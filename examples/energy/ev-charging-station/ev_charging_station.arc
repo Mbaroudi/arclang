@@ -821,22 +821,22 @@ security_analysis {
 
 // ---- Verification ---------------------------------------------------------
 
-test_case "TC-CHG-001" { id: "TC-CHG-001" method: "test" verifies: ["REQ-CHG-001"] description: "Rated output 1000 V / 500 A for 30 minutes on a battery emulator; cable below 70 degrees Celsius" }
-test_case "TC-CHG-002" { id: "TC-CHG-002" method: "test" verifies: ["REQ-CHG-002"] description: "ISO 15118-2 conformance: PaymentDetails with contract certificate, no driver action; RFID and card fallbacks" }
-test_case "TC-CHG-003" { id: "TC-CHG-003" method: "demonstration" verifies: ["REQ-CHG-003"] description: "Contactless card session: pre-authorization and settlement on the metered energy" }
-test_case "TC-CHG-004" { id: "TC-CHG-004" method: "test" verifies: ["REQ-CHG-004"] description: "Authorization-to-current timing on 20 sessions with three vehicle models" }
-test_case "TC-CHG-005" { id: "TC-CHG-005" method: "test" verifies: ["REQ-CHG-005"] description: "Efficiency sweep 50-100 % load with calibrated AC and DC power analyzers" }
-test_case "TC-CHG-006" { id: "TC-CHG-006" method: "test" verifies: ["REQ-CHG-006"] description: "Meter accuracy against the reference meter; MeterValues interval observed on the CSMS" }
-test_case "TC-CHG-007" { id: "TC-CHG-007" method: "test" verifies: ["REQ-CHG-007"] description: "OCPP 2.0.1 certification tool, security profile 3; TLS handshake inspection" }
-test_case "TC-CHG-008" { id: "TC-CHG-008" method: "test" verifies: ["REQ-CHG-008"] description: "Eight chargers at full demand on the site simulator; grid cap stepped 600 kW to 300 kW, redistribution time measured" }
-test_case "TC-OPS-001" { id: "TC-OPS-001" method: "demonstration" verifies: ["REQ-OPS-001"] description: "Injected faults read remotely with their 10 s measurement window" }
-test_case "TC-SAF-001" { id: "TC-SAF-001" method: "test" verifies: ["REQ-SAF-001"] description: "Emergency stop under 500 A load: contactor opening and output discharge measured on 50 trips" }
-test_case "TC-SAF-002" { id: "TC-SAF-002" method: "test" verifies: ["REQ-SAF-002"] description: "Insulation fault injected before and during charging at the IMD threshold" }
-test_case "TC-SAF-003" { id: "TC-SAF-003" method: "test" verifies: ["REQ-SAF-003"] description: "Coolant pump stopped at 500 A: derating at 70 and stop at 90 degrees Celsius on the connector thermocouples" }
-test_case "TC-SAF-004" { id: "TC-SAF-004" method: "test" verifies: ["REQ-SAF-004"] description: "Lock actuator inspection; unlock inhibited above 60 V" }
-test_case "TC-SEC-001" { id: "TC-SEC-001" method: "inspection" verifies: ["REQ-SEC-001"] description: "PCI DSS assessment of HMI logs and storage: no PAN found" }
-test_case "TC-SEC-002" { id: "TC-SEC-002" method: "test" verifies: ["REQ-SEC-002"] description: "Unsigned and wrongly signed images rejected at boot and by UpdateFirmware" }
-test_case "TC-SEC-003" { id: "TC-SEC-003" method: "test" verifies: ["REQ-SEC-003"] description: "Altered meter value rejected by the billing service and by the transparency software" }
+test_case "TC-CHG-001" { id: "TC-CHG-001" method: "test" verifies: ["REQ-CHG-001"] description: "Rated output 1000 V / 500 A for 30 minutes on a battery emulator; cable below 70 degrees Celsius" verdict: "pass" }
+test_case "TC-CHG-002" { id: "TC-CHG-002" method: "test" verifies: ["REQ-CHG-002"] description: "ISO 15118-2 conformance: PaymentDetails with contract certificate, no driver action; RFID and card fallbacks" verdict: "pass" }
+test_case "TC-CHG-003" { id: "TC-CHG-003" method: "demonstration" verifies: ["REQ-CHG-003"] description: "Contactless card session: pre-authorization and settlement on the metered energy" verdict: "pass" }
+test_case "TC-CHG-004" { id: "TC-CHG-004" method: "test" verifies: ["REQ-CHG-004"] description: "Authorization-to-current timing on 20 sessions with three vehicle models" verdict: "pass" }
+test_case "TC-CHG-005" { id: "TC-CHG-005" method: "test" verifies: ["REQ-CHG-005"] description: "Efficiency sweep 50-100 % load with calibrated AC and DC power analyzers" verdict: "pass" }
+test_case "TC-CHG-006" { id: "TC-CHG-006" method: "test" verifies: ["REQ-CHG-006"] description: "Meter accuracy against the reference meter; MeterValues interval observed on the CSMS" verdict: "pass" }
+test_case "TC-CHG-007" { id: "TC-CHG-007" method: "test" verifies: ["REQ-CHG-007"] description: "OCPP 2.0.1 certification tool, security profile 3; TLS handshake inspection" verdict: "pass" }
+test_case "TC-CHG-008" { id: "TC-CHG-008" method: "test" verifies: ["REQ-CHG-008"] description: "Eight chargers at full demand on the site simulator; grid cap stepped 600 kW to 300 kW, redistribution time measured" verdict: "pass" }
+test_case "TC-OPS-001" { id: "TC-OPS-001" method: "demonstration" verifies: ["REQ-OPS-001"] description: "Injected faults read remotely with their 10 s measurement window" verdict: "pass" }
+test_case "TC-SAF-001" { id: "TC-SAF-001" method: "test" verifies: ["REQ-SAF-001"] description: "Emergency stop under 500 A load: contactor opening and output discharge measured on 50 trips" verdict: "pass" }
+test_case "TC-SAF-002" { id: "TC-SAF-002" method: "test" verifies: ["REQ-SAF-002"] description: "Insulation fault injected before and during charging at the IMD threshold" verdict: "pass" }
+test_case "TC-SAF-003" { id: "TC-SAF-003" method: "test" verifies: ["REQ-SAF-003"] description: "Coolant pump stopped at 500 A: derating at 70 and stop at 90 degrees Celsius on the connector thermocouples" verdict: "pass" }
+test_case "TC-SAF-004" { id: "TC-SAF-004" method: "test" verifies: ["REQ-SAF-004"] description: "Lock actuator inspection; unlock inhibited above 60 V" verdict: "pass" }
+test_case "TC-SEC-001" { id: "TC-SEC-001" method: "inspection" verifies: ["REQ-SEC-001"] description: "PCI DSS assessment of HMI logs and storage: no PAN found" verdict: "pass" }
+test_case "TC-SEC-002" { id: "TC-SEC-002" method: "test" verifies: ["REQ-SEC-002"] description: "Unsigned and wrongly signed images rejected at boot and by UpdateFirmware" verdict: "pass" }
+test_case "TC-SEC-003" { id: "TC-SEC-003" method: "test" verifies: ["REQ-SEC-003"] description: "Altered meter value rejected by the billing service and by the transparency software" verdict: "pass" }
 
 // ---- Constraints the compiler evaluates -----------------------------------
 

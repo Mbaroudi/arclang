@@ -88,11 +88,16 @@ an element kind accepts and with which type.
     `link "Name" { from: "PN-001" to: "PN-002" }` joins two nodes; a
     `physical_path "Name" { involves: ["Link"] }` orders links by name.
 17. The production gate (`arclang_gate`) needs: every requirement satisfied by
-    a trace and verified by a `test_case` (`verifies: ["REQ-001"]`), every
+    a trace and verified by a `test_case` (`verifies: ["REQ-001"]`) whose
+    outcome is known and passes, every
     constraint true, no `metamodel.type` finding and, when safety levels are
     declared, a `safety_analysis` with `hazard` entries that are
     `mitigated_by` requirements (for `do178c`, each hazard also states its
-    failure condition).
+    failure condition). The outcome of a case is computed (`simulate:`,
+    `execute:`, `asserts:`) or recorded from a test run elsewhere
+    (`verdict: "pass"`, `"fail"`); a case that says nothing verifies nothing.
+    Never record a verdict for a test nobody ran: leave the case without one
+    and tell the engineer what remains to run.
 
 ## Editing a model: precise requests, not a rewrite
 

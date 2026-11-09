@@ -79,8 +79,13 @@ export interface GateState {
   blockers: string[];
 }
 
+/** A requirement as the gate reads it: `covered`, `unsatisfied`, `unverified`,
+ *  `failing`, `inconclusive`, `pending` (a case with no verdict) or `absent`. */
 export interface Coverage {
   status: string;
+  /** Every case that verifies it passes, in every configuration it applies
+   *  to. Whether something satisfies it is in `status`. */
+  verified: boolean;
   satisfied_by: string[];
   verified_by: string[];
 }

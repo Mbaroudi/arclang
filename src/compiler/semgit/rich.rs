@@ -331,8 +331,8 @@ pub fn relation_changes_of(diff: &DiffReport) -> Vec<RelationChange> {
 fn consequences(old: &CompilationResult, new: &CompilationResult, diff: &DiffReport, options: &Options) -> Result<Consequences, String> {
     let report = whatif::compare(old, new, diff.clone(), Vec::new(), options)?;
     let w = report.what_if.ok_or("the comparison has no consequences")?;
-    let verified = |c: &Coverage| c.status == "covered";
-    let satisfied = |c: &Coverage| matches!(c.status.as_str(), "covered" | "unverified" | "failing");
+    let verified = |c: &Coverage| c.verified;
+    let satisfied = |c: &Coverage| !matches!(c.status.as_str(), "unsatisfied" | "absent");
     let newly_unsatisfied = w.coverage.iter().filter(|d| satisfied(&d.before) && !satisfied(&d.after) && d.after.status != "absent").cloned().collect();
     let newly_unverified = w.coverage.iter().filter(|d| verified(&d.before) && !verified(&d.after) && d.after.status != "absent").cloned().collect();
     Ok(Consequences {

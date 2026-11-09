@@ -74,9 +74,9 @@ physical_architecture "Imported Deployment" {
     physical_link "Sensor CAN FD" { id: "PL-001" from: "PN-001" to: "PN-002" protocol: "CAN FD" bandwidth: 2 Mbps }
 }
 
-test_case "TC-ACC-001" { verifies: ["SYS-ACC-001"] method: "test" description: "Time gap measured behind a lead vehicle" }
-test_case "TC-ACC-002" { verifies: ["SYS-ACC-002"] method: "demonstration" description: "Brake pedal override demonstrated" }
-test_case "TC-ACC-003" { verifies: ["SYS-ACC-003"] method: "test" description: "Cut-in detection latency on the HIL bench" }
+test_case "TC-ACC-001" { verifies: ["SYS-ACC-001"] method: "test" description: "Time gap measured behind a lead vehicle" verdict: "pass" }
+test_case "TC-ACC-002" { verifies: ["SYS-ACC-002"] method: "demonstration" description: "Brake pedal override demonstrated" verdict: "pass" }
+test_case "TC-ACC-003" { verifies: ["SYS-ACC-003"] method: "test" description: "Cut-in detection latency on the HIL bench" verdict: "pass" }
 
 trace "LC-001" satisfies "SYS-ACC-001" {
 }

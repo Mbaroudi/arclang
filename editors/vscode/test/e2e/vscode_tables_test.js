@@ -72,7 +72,7 @@ async function saveTo(win, file) {
     const ids = await rowIds(table);
     report('one row per requirement of the model', ids.length === 7 && ids[0] === 'REQ-AEB-001', ids.join(' '));
     report('satisfied by: links to the components', /RadarSensor/.test(await table.textContent('.tb-row[data-id="REQ-AEB-001"] [data-key="satisfied_by"]')));
-    report('verified by: the test cases with their verdict', /Radar range verification\s*pending/.test(await table.textContent('.tb-row[data-id="REQ-AEB-001"] [data-key="verified_by"]')));
+    report('verified by: the test cases with their verdict', /Radar range verification\s*pass/.test(await table.textContent('.tb-row[data-id="REQ-AEB-001"] [data-key="verified_by"]')));
     report('the gate badge says what the gate says', /Gate ISO26262/.test(await table.textContent('.tb-gate')));
     if (SHOTS) await win.screenshot({ path: path.join(SHOTS, 'vscode-coverage-light.png') });
 

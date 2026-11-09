@@ -391,4 +391,5 @@ test_case "Leak isolation" {
     verifies: ["REQ-LEAK"]
     method: "analysis"
     description: "The leak isolation chain is checked against its 10 s budget by the compiler (FC-LEAK)"
+    verdict: "pass"
 }

@@ -596,42 +596,49 @@ test_case "Radar range verification" {
     method: "test"
     verifies: ["REQ-AEB-001"]
     description: "Verify 150 m obstacle detection on the proving ground"
+    verdict: "pass"
 }
 test_case "Fusion latency measurement" {
     id: "TC-002"
     method: "test"
     verifies: ["REQ-AEB-002"]
     description: "Measure the radar and camera fusion latency under full bus load"
+    verdict: "pass"
 }
 test_case "TTC computation analysis" {
     id: "TC-003"
     method: "analysis"
     verifies: ["REQ-AEB-003"]
     description: "Worst-case execution time analysis of the TTC algorithm"
+    verdict: "pass"
 }
 test_case "Emergency braking activation test" {
     id: "TC-004"
     method: "test"
     verifies: ["REQ-AEB-004"]
     description: "Full braking force commanded within 100 ms on the target dummy"
+    verdict: "pass"
 }
 test_case "Driver warning demonstration" {
     id: "TC-005"
     method: "demonstration"
     verifies: ["REQ-AEB-005"]
     description: "Visual and audio warning precedes the autonomous braking"
+    verdict: "pass"
 }
 test_case "Driver override demonstration" {
     id: "TC-006"
     method: "demonstration"
     verifies: ["REQ-AEB-006"]
     description: "Kick-down during autonomous braking releases the brakes"
+    verdict: "pass"
 }
 test_case "Fault injection campaign" {
     id: "TC-007"
     method: "test"
     verifies: ["REQ-AEB-007"]
     description: "Radar and controller faults injected on the HIL bench, takeover requested within 200 ms"
+    verdict: "pass"
 }
 
 constraint "Braking chain within budget" {

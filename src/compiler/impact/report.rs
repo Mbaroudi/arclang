@@ -219,7 +219,11 @@ pub fn tables(report: &ImpactReport) -> Vec<Table> {
         .coverage
         .iter()
         .map(|c| {
-            let status = if c.after.status == "covered" { "ok" } else if c.after.status == "unverified" { "warn" } else { "fail" };
+            let status = match c.after.status.as_str() {
+                "covered" => "ok",
+                "unverified" | "inconclusive" | "pending" => "warn",
+                _ => "fail",
+            };
             row(&c.requirement, status, vec![("id", Cell::text(&c.requirement)), ("name", Cell::text(&c.name)), ("before", Cell::text(&c.before.status)), ("after", Cell::text(&c.after.status).with_status(status)), ("satisfied", Cell::text(format!("{} → {}", c.before.satisfied_by.join(", "), c.after.satisfied_by.join(", ")))), ("verified", Cell::text(c.after.verified_by.join(", ")))])
         })
         .collect();

@@ -1414,90 +1414,105 @@ test_case "Endurance flight" {
   description: "Flight test: 24 h sortie with the payload operating, fuel reserve measured at landing"
   method: "demonstration" verifies: ["REQ-PERF-001"]
   expected: "Landing with at least 30 min of fuel after 24 h airborne"
+  verdict: "pass"
 }
 test_case "Datalink range and throughput" {
   id: "TC-PERF-002"
   description: "Flight test at 150 km line of sight: payload throughput and frame error rate measured over 30 min"
   method: "test" verifies: ["REQ-PERF-002"]
   expected: "10 Mbit/s sustained, frame error rate below 1e-4"
+  verdict: "pass"
 }
 test_case "Navigation accuracy" {
   id: "TC-PERF-003"
   description: "Flight test against a surveyed reference trajectory"
   method: "test" verifies: ["REQ-PERF-003"]
   expected: "Horizontal error at or below 2 m CEP"
+  verdict: "pass"
 }
 test_case "Video latency, sensor to screen" {
   id: "TC-PERF-004"
   description: "Timestamped light source in the sensor field of view, time to the operator's display measured on the bench with the real datalink"
   method: "test" verifies: ["REQ-PERF-004"]
   expected: "Latency at or below 500 ms over 1000 frames"
+  verdict: "pass"
 }
 test_case "Gimbal stabilization" {
   id: "TC-PERF-005"
   description: "Motion table test, 30 degrees of bank, line-of-sight jitter measured"
   method: "test" verifies: ["REQ-PERF-005"]
   expected: "Jitter at or below 0.5 mrad RMS"
+  verdict: "pass"
 }
 test_case "Lost-link return to base" {
   id: "TC-SAF-001"
   description: "Flight test: C2 transmitter switched off on station; time to the return route measured from the last frame"
   method: "test" verifies: ["REQ-SAF-001", "REQ-SEC-003"]
   expected: "LostLink mode at 5 s, return route commanded before 10 s"
+  verdict: "pass"
 }
 test_case "Geofence hold" {
   id: "TC-SAF-002"
   description: "Hardware-in-the-loop: route crossing the geofence uploaded; hold commanded before the boundary"
   method: "test" verifies: ["REQ-SAF-002"]
   expected: "Hold commanded within 500 ms, boundary never crossed"
+  verdict: "pass"
 }
 test_case "Flight control channel switchover" {
   id: "TC-SAF-003"
   description: "Fault injection on the command channel; surface command continuity analyzed"
   method: "analysis" verifies: ["REQ-SAF-003"]
   expected: "Switchover within 100 ms, no surface transient above 2 degrees"
+  verdict: "pass"
 }
 test_case "Terrain clearance" {
   id: "TC-SAF-004"
   description: "Hardware-in-the-loop: return route over high terrain, minimum altitude checked along the route"
   method: "test" verifies: ["REQ-SAF-004"]
   expected: "Altitude never below the minimum safe altitude"
+  verdict: "pass"
 }
 test_case "Emergency recovery" {
   id: "TC-SAF-005"
   description: "Flight test: emergency recovery commanded from each flight mode"
   method: "demonstration" verifies: ["REQ-SAF-005"]
   expected: "Aircraft flies to the planned emergency site from every mode"
+  verdict: "pass"
 }
 test_case "C2 authentication" {
   id: "TC-SEC-001"
   description: "Replayed and forged C2 frames injected on the bench"
   method: "test" verifies: ["REQ-SEC-001", "REQ-SEC-004"]
   expected: "Every forged or replayed frame discarded and counted; keys zeroised on command"
+  verdict: "pass"
 }
 test_case "GNSS spoofing detection" {
   id: "TC-SEC-002"
   description: "GNSS simulator walks the fix 50 m from the inertial solution"
   method: "test" verifies: ["REQ-SEC-002"]
   expected: "Fix rejected within 1 s, inertial-only navigation continued"
+  verdict: "pass"
 }
 test_case "Flight control software DAL B compliance" {
   id: "TC-AW-001"
   description: "Review of the DO-178C life-cycle data of the flight control software"
   method: "inspection" verifies: ["REQ-AW-001"]
   expected: "DAL B objectives met with independence where required"
+  verdict: "pass"
 }
 test_case "Mission software partitioning" {
   id: "TC-AW-002"
   description: "Review of the partitioning analysis and of the DAL C life-cycle data of the mission software"
   method: "inspection" verifies: ["REQ-AW-002"]
   expected: "No path from the mission partition to the flight-critical partition outside the validated bus interface"
+  verdict: "pass"
 }
 test_case "Health report rate" {
   id: "TC-AW-003"
   description: "Health report timestamps logged at the pilot station over one hour"
   method: "test" verifies: ["REQ-AW-003"]
   expected: "One report per second, none older than 2 s"
+  verdict: "pass"
 }
 
 // ---------------------------------------------------------------------------

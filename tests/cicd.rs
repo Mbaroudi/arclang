@@ -46,8 +46,8 @@ logical_architecture "Logical" {
 trace "LC-001" satisfies "REQ-001" { rationale: "plans" }
 trace "LC-001" satisfies "REQ-002" { rationale: "reacts" }
 
-test_case "TC-1" { verifies: ["REQ-001"] method: "test" description: "range" }
-test_case "TC-2" { verifies: ["REQ-002"] method: "test" description: "timing" }
+test_case "TC-1" { verifies: ["REQ-001"] method: "test" verdict: "pass" description: "range" }
+test_case "TC-2" { verifies: ["REQ-002"] method: "test" verdict: "pass" description: "timing" }
 "#;
 
 fn arclang() -> &'static str {

@@ -95,9 +95,9 @@ safety_analysis {
     }
 }
 
-test_case "TC-ACC-001" { verifies: ["SYS-ACC-001"] method: "test" description: "Time gap measured on the track behind a lead vehicle" }
-test_case "TC-ACC-002" { verifies: ["SYS-ACC-002"] method: "test" description: "Cut-in detection latency on the HIL bench" }
-test_case "TC-ACC-003" { verifies: ["SYS-ACC-003"] method: "demonstration" description: "Brake pedal override demonstrated at every speed" }
+test_case "TC-ACC-001" { verifies: ["SYS-ACC-001"] method: "test" description: "Time gap measured on the track behind a lead vehicle" verdict: "pass" }
+test_case "TC-ACC-002" { verifies: ["SYS-ACC-002"] method: "test" description: "Cut-in detection latency on the HIL bench" verdict: "pass" }
+test_case "TC-ACC-003" { verifies: ["SYS-ACC-003"] method: "demonstration" description: "Brake pedal override demonstrated at every speed" verdict: "pass" }
 
 trace "LC-001" satisfies "SYS-ACC-002" { rationale: "The radar sees the cut-in vehicle within one cycle" }
 trace "LC-002" satisfies "SYS-ACC-001" { rationale: "The controller plans the time gap" }

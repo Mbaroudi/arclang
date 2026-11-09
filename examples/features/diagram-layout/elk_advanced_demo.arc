@@ -122,9 +122,9 @@ physical_architecture "ECU Deployment" {
     physical_link "Sensor CAN" { id: "PL-001" from: "PA-002" to: "PA-001" protocol: "CAN" bandwidth: 500 kbps }
 }
 
-test_case "TC-001" { verifies: ["SYS-001"] method: "test" description: "Speed held on the chassis dynamometer" }
-test_case "TC-002" { verifies: ["SYS-002"] method: "test" description: "Range measured on the proving ground" }
-test_case "TC-003" { verifies: ["SYS-003"] method: "test" description: "Fault injected, alert latency measured" }
+test_case "TC-001" { verifies: ["SYS-001"] method: "test" description: "Speed held on the chassis dynamometer" verdict: "pass" }
+test_case "TC-002" { verifies: ["SYS-002"] method: "test" description: "Range measured on the proving ground" verdict: "pass" }
+test_case "TC-003" { verifies: ["SYS-003"] method: "test" description: "Fault injected, alert latency measured" verdict: "pass" }
 
 trace "LA-001" satisfies "SYS-001" { rationale: "Set speed read from the driver" }
 trace "LA-002" satisfies "SYS-001" { rationale: "Speed regulation within 2 km/h" }

@@ -138,6 +138,7 @@ test_case "TC-LKA-001" {
     verifies: ["REQ-LKA-001"]
     method: "test"
     description: "HIL measurement of departure-to-command latency"
+    verdict: "pass"
 }
 
 safety_analysis {

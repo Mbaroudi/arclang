@@ -114,11 +114,14 @@ model EmergencyBraking {
         }
     }
 
-    // Verification: the gate needs one test case per requirement.
+    // Verification: the gate needs, per requirement, a test case whose outcome
+    // is known: computed (simulate:, execute:, asserts:) or, as here, recorded
+    // from a test run elsewhere (verdict:).
     test_case "TC-001" {
         description: "Target cut-in at 50 km/h"
         verifies: ["REQ-BRK-001"]
         method: test
+        verdict: "pass"
     }
 }
 

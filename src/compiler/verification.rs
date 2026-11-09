@@ -6,7 +6,10 @@
 //! cached simulation (`compiler::simulation`): inconclusive when it was
 //! never run, or was run on another version of the model. A requirement
 //! with a failing or inconclusive verification case is not verified, for
-//! the production gate, even when another case passes.
+//! the production gate, even when another case passes; nor is one whose
+//! case says no verdict. Where a requirement stands is computed here, once
+//! ([`requirement_status`]): the gate, the coverage table, the impact
+//! analysis and the requirements view read it.
 
 use super::ast::{AttributeValue, Model, TestCase};
 use super::semantic::{ConstraintInfo, SemanticModel};
@@ -126,6 +129,118 @@ pub fn verdict(test: &TestCase, semantic: &SemanticModel) -> Verdict {
         Some(other @ ("fail" | "inconclusive" | "error")) => Verdict::Fail(format!("its verdict is {other}")),
         _ => Verdict::Pending,
     }
+}
+
+/// Where the verification of a requirement stands, the worst first: one
+/// case that fails, that is inconclusive or that says nothing is not hidden
+/// by another that passes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Standing {
+    /// No case verifies it, or none runs in a configuration it applies to.
+    Unverified,
+    Fail,
+    Inconclusive,
+    /// A case verifies it and says no verdict yet.
+    Pending,
+    /// Every case passes, in every configuration it applies to.
+    Pass,
+}
+
+impl Standing {
+    pub fn word(self) -> &'static str {
+        match self {
+            Standing::Unverified => "unverified",
+            Standing::Fail => "fail",
+            Standing::Inconclusive => "inconclusive",
+            Standing::Pending => "pending",
+            Standing::Pass => "pass",
+        }
+    }
+}
+
+impl Verdict {
+    pub fn word(&self) -> &'static str {
+        match self {
+            Verdict::Pending => "pending",
+            Verdict::Pass => "pass",
+            Verdict::Fail(_) => "fail",
+            Verdict::Inconclusive(_) => "inconclusive",
+        }
+    }
+
+    /// Why a case fails or is inconclusive.
+    pub fn why(&self) -> Option<&str> {
+        match self {
+            Verdict::Fail(why) | Verdict::Inconclusive(why) => Some(why),
+            _ => None,
+        }
+    }
+}
+
+/// What satisfies a requirement and what verifies it, with the verdicts.
+#[derive(Debug, Clone)]
+pub struct RequirementStatus<'a> {
+    /// The elements a `satisfies` trace leads from, by id, in the order of the model.
+    pub satisfied_by: Vec<&'a str>,
+    /// The cases that verify it (their `verifies:`), each with its verdict
+    /// for this requirement.
+    pub cases: Vec<(&'a TestCase, Verdict)>,
+    /// The configurations it applies to that no case runs in, by id.
+    pub uncovered: Vec<String>,
+}
+
+impl RequirementStatus<'_> {
+    pub fn satisfied(&self) -> bool {
+        !self.satisfied_by.is_empty()
+    }
+
+    pub fn standing(&self) -> Standing {
+        let any = |wanted: &str| self.cases.iter().any(|(_, verdict)| verdict.word() == wanted);
+        if self.cases.is_empty() {
+            Standing::Unverified
+        } else if any("fail") {
+            Standing::Fail
+        } else if any("inconclusive") {
+            Standing::Inconclusive
+        } else if any("pending") {
+            Standing::Pending
+        } else if !self.uncovered.is_empty() {
+            Standing::Unverified
+        } else {
+            Standing::Pass
+        }
+    }
+
+    /// Verified: every case passes, and none is missing. Nothing else counts.
+    pub fn verified(&self) -> bool {
+        self.standing() == Standing::Pass
+    }
+}
+
+/// The status of the requirement of this id (see [`requirement_key`]).
+/// Only a test case verifies, by its `verifies:`.
+pub fn requirement_status<'a>(model: &'a Model, semantic: &'a SemanticModel, requirement: &str) -> RequirementStatus<'a> {
+    let mut satisfied_by: Vec<&str> = Vec::new();
+    for trace in semantic.traces.iter().filter(|t| t.trace_type == "satisfies" && t.to == requirement) {
+        if !satisfied_by.contains(&trace.from.as_str()) {
+            satisfied_by.push(&trace.from);
+        }
+    }
+    let cases: Vec<(&TestCase, Verdict)> = model
+        .test_cases
+        .iter()
+        .filter_map(|test| {
+            // The reference as the case writes it: an expectation naming its requirement is judged under it.
+            let written = test.verifies.iter().find(|r| requirement_key(model, r) == requirement)?;
+            Some((test, verdict_for(test, written, semantic)))
+        })
+        .collect();
+    let uncovered = applies_to(model, requirement)
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|configuration| !cases.iter().any(|(test, _)| configuration_of(model, test).is_none_or(|runs_in| &runs_in == configuration)))
+        .collect();
+    RequirementStatus { satisfied_by, cases, uncovered }
 }
 
 /// An asserted constraint that is none is an error; a failing case, a

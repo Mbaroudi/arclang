@@ -26,7 +26,10 @@ safety process, using the evidence inventoried here.
   malformed models, dangling traces, duplicate identities, methodology
   violations.
 - **UC-2 — Requirements status:** the gate checks every requirement is
-  satisfied by a trace and verified by a `test_case`.
+  satisfied by a trace and verified by a `test_case` whose outcome is
+  known and passes: computed (`simulate:`, `execute:`, `asserts:`) or
+  recorded from a test run elsewhere (`verdict:`). A case that says
+  nothing verifies nothing: the gate blocks and names it.
 - **UC-3 — HARA consistency:** the gate recomputes ASIL from declared
   S/E/C (ISO 26262-3 table 4) and flags contradictions with the declared
   ASIL; DO-178C failure conditions map to DAL.
@@ -79,7 +82,7 @@ avoid that usage or qualify accordingly.
 | TF-2 | Identity registry | duplicate or unstable identity → wrong traceability | UUIDv5 deterministic (golden-value tests); duplicate ids produce warnings |
 | TF-3 | Trace resolution | dangling trace accepted → false coverage | dangling references are compile ERRORS, not warnings |
 | TF-4 | Requirement satisfaction check | requirement wrongly marked satisfied | verdict names the satisfying trace; reviewable in PR |
-| TF-5 | Requirement verification check | requirement wrongly marked verified | verdict names the verifying `test_case` and its method |
+| TF-5 | Requirement verification check | requirement wrongly marked verified | verdict names the verifying `test_case` and its method; a case with no verdict, an inconclusive or a failing one blocks; the gate, the coverage table, the impact analysis and the Requirements view read one status computation, compared on one model in `tests/requirement_status.rs`. A `verdict:` written by hand is a declaration: review it against the test report (§7) |
 | TF-6 | ASIL computation (ISO 26262-3 table 4) | wrong ASIL derived from S/E/C | full table encoded as data; exhaustive unit test against the published table |
 | TF-7 | DAL mapping (DO-178C) | wrong DAL for a failure condition | unit-tested mapping |
 | TF-8 | Timing budget summation | wrong latency sum or unit conversion | `parse_millis` unit-tested (ms/us/s); blown budget is a blocker |
