@@ -493,6 +493,7 @@ fn run_case_inner(test: &TestCase, plan: &Plan, bindings: &[super::binding::Bind
     hdl::conclude(&r, plan, &device_raw, if options.port.is_some() { "the board" } else { "the SoC" }, texts, outcome, r.case.plant.is_some());
     if !departed.is_empty() {
         outcome.verdict = "fail".to_string();
+        outcome.agrees = false;
         outcome.reason = departed;
     }
     if binding.is_some() {

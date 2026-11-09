@@ -42,13 +42,21 @@ fn constraint<'s>(semantic: &'s SemanticModel, reference: &str) -> Option<&'s Co
     semantic.constraints.iter().find(|c| c.id == reference).or_else(|| semantic.constraints.iter().find(|c| c.name == reference))
 }
 
-/// The id a reference to a requirement names (its `id:`, or its name when
-/// it has none), or the reference itself when it names no requirement.
+/// The id a reference to a requirement names (see [`resolve_requirement`]),
+/// or the reference itself when it names no requirement.
 pub fn requirement_key(model: &Model, reference: &str) -> String {
+    resolve_requirement(model, reference).unwrap_or_else(|| reference.to_string())
+}
+
+/// The id of the requirement a reference names: the requirement of this id,
+/// else the one of this name (the compiler refuses two requirements of one
+/// name). Every reader of `verifies:` resolves a reference here, the gate
+/// included.
+pub fn resolve_requirement(model: &Model, reference: &str) -> Option<String> {
     requirements(model)
-        .find(|(_, name, written_id)| written_id == reference || *name == reference)
-        .map(|(_, _, written_id)| written_id)
-        .unwrap_or_else(|| reference.to_string())
+        .find(|(_, _, id)| id == reference)
+        .or_else(|| requirements(model).find(|(_, name, _)| *name == reference))
+        .map(|(_, _, id)| id)
 }
 
 /// Every requirement: its block, its name, its id.
@@ -77,12 +85,22 @@ pub fn applies_to(model: &Model, requirement: &str) -> Option<Vec<String>> {
     Some(written.iter().map(|w| configuration_key(model, w).unwrap_or_else(|| w.clone())).collect())
 }
 
-/// The configuration a case runs in (the one it simulates), by id; `None`
-/// when it names none, and so stands for every configuration.
+/// The configuration a case runs in, by id: the one it simulates, else the
+/// one it names (`configuration:`, where a verdict recorded by hand was
+/// obtained); `None` when it names none, and so stands for every configuration.
 pub fn configuration_of(model: &Model, test: &TestCase) -> Option<String> {
-    let spec = super::simulation::spec_of(&test.attributes)?.ok()?;
-    let written = spec.configuration?;
+    let written = simulated_configuration(test).or_else(|| named_configuration(test))?;
     Some(configuration_key(model, &written).unwrap_or(written))
+}
+
+/// The configuration of `simulate: { configuration: ... }`, as written.
+fn simulated_configuration(test: &TestCase) -> Option<String> {
+    super::simulation::spec_of(&test.attributes)?.ok()?.configuration
+}
+
+/// The `configuration:` of the case itself, as written.
+fn named_configuration(test: &TestCase) -> Option<String> {
+    test.attributes.get("configuration").and_then(|v| v.as_string()).map(str::to_string)
 }
 
 /// The verdict of a case for one requirement it verifies, by the reference
@@ -283,6 +301,15 @@ fn check_applicability(model: &Model) -> Result<(), String> {
         }
     }
     for test in &model.test_cases {
+        if let Some(named) = named_configuration(test) {
+            let Some(key) = configuration_key(model, &named) else {
+                return Err(format!("test_case '{}' runs in '{named}', which is no configuration", test.name));
+            };
+            // Said twice and differently, one of the two would be dropped without a word.
+            if let Some(simulated) = simulated_configuration(test).filter(|s| configuration_key(model, s).as_ref() != Some(&key)) {
+                return Err(format!("test_case '{}' names configuration '{named}' and simulates in '{simulated}': say it once", test.name));
+            }
+        }
         let configuration = configuration_of(model, test);
         for reference in &test.verifies {
             let (Some(only), Some(runs_in)) = (applies_to(model, reference), &configuration) else { continue };
@@ -295,7 +322,9 @@ fn check_applicability(model: &Model) -> Result<(), String> {
                 ));
             }
         }
-        if !super::simulation::is_simulated(test) {
+        // A case that runs (the simulation, the machine in C): its expectations
+        // are what judges each requirement it verifies.
+        if !super::simulation::is_simulated(test) && !super::embedded::case::is_executed(test) {
             continue;
         }
         let expects = super::simulation::case_expects(model, test);

@@ -64,14 +64,7 @@ pub fn attach(result: &mut CompilationResult, model_path: &Path) {
                         inconclusive(reason.clone()).with_rung(Rung::stale("simulation", outcome.tool.clone(), reason))
                     }
                     Some(outcome) => {
-                        let mut status = outcome.status();
-                        if outcome.names_requirements() {
-                            for written in &test.verifies {
-                                let target = crate::compiler::verification::requirement_key(&result.ast, written);
-                                let checks = |tag: Option<&str>| tag.is_none_or(|t| crate::compiler::verification::requirement_key(&result.ast, t) == target);
-                                status.by_requirement.insert(written.clone(), outcome.status_for(checks));
-                            }
-                        }
+                        let status = status_of(result, test, &outcome);
                         let rung = Rung::fresh("simulation", outcome.tool.clone(), &status);
                         status.with_rung(rung)
                     }
@@ -124,6 +117,11 @@ fn attach_twins(result: &CompilationResult, model_path: &Path) -> std::collectio
 }
 
 /// The status of a case of the cache, for each requirement it verifies too.
+/// A case that does not pass leaves at least one of its requirements
+/// unverified: when the expectations kept for each all hold (the case fails
+/// on what no single requirement shows, a probability over all of them, an
+/// expectation naming a requirement it does not verify), its verdict is
+/// that of every requirement.
 fn status_of(result: &CompilationResult, test: &crate::compiler::ast::TestCase, outcome: &Outcome) -> Status {
     let mut status = outcome.status();
     if outcome.names_requirements() {
@@ -131,6 +129,12 @@ fn status_of(result: &CompilationResult, test: &crate::compiler::ast::TestCase, 
             let target = crate::compiler::verification::requirement_key(&result.ast, written);
             let checks = |tag: Option<&str>| tag.is_none_or(|t| crate::compiler::verification::requirement_key(&result.ast, t) == target);
             status.by_requirement.insert(written.clone(), outcome.status_for(checks));
+        }
+        if status.verdict != "pass" && status.by_requirement.values().all(|each| each.verdict == "pass") {
+            let case = outcome.status();
+            for each in status.by_requirement.values_mut() {
+                *each = case.clone();
+            }
         }
     }
     status
@@ -188,10 +192,11 @@ fn attach_executed(result: &mut CompilationResult, model_path: &Path) -> std::co
 /// beside its SIL verdict (`<case>.<kind>.json`): processor in the loop
 /// (`arclang pil`), the logic in simulation (`arclang hdl`), the SoC or the
 /// board (`arclang soc`). A fresh failure or error is the case's verdict
-/// (it is the same C on the target, the hardware computes the machine); a
-/// fresh pass stands for a SIL verdict missing or stale and is added to the
-/// evidence otherwise; a stale one is a warning only. Each is a rung of the
-/// status, kept apart.
+/// (it is the same C on the target, the hardware computes the machine),
+/// and each requirement keeps the worst of what the stages say of it; a
+/// fresh verdict stands for a SIL verdict missing or stale, and a pass is
+/// added to the evidence otherwise; a stale one is a warning only. Each is
+/// a rung of the status, kept apart.
 fn with_stage(result: &mut CompilationResult, model_path: &Path, dir: &Path, test: &crate::compiler::ast::TestCase, status: Status, kind: &str) -> Status {
     let Some(outcome) = cache::read_kind(dir, &test.id, kind) else { return status };
     // `label` names the stage in a verdict's warning; `stale` is the sentence of a stale one.
@@ -231,14 +236,15 @@ fn with_stage(result: &mut CompilationResult, model_path: &Path, dir: &Path, tes
     let rung = Rung::fresh(stage, target, &later);
     if later.verdict != "pass" {
         result.warnings.push(format!("verification: test_case '{}' {} in {label}: {}", test.name, if later.verdict == "fail" { "fails" } else { "is in error" }, later.reason));
-        let mut rungs = status.rungs;
-        rungs.push(rung);
-        return Status { rungs, ..later };
     }
+    // The earlier stages say nothing (never run, or stale): this one stands for the case.
     if status.verdict == "inconclusive" {
         let mut rungs = status.rungs;
         rungs.push(rung);
         return Status { rungs, ..later };
+    }
+    if later.verdict != "pass" {
+        return status.worst_with(later).with_rung(rung);
     }
     let mut status = status;
     status.evidence = format!("{} · {label}: pass", status.evidence).trim_start_matches(" · ").to_string();
@@ -275,9 +281,10 @@ fn with_cosim(result: &mut CompilationResult, model_path: &Path, dir: &Path, tes
             let rung = Rung::fresh("sil", target, &later);
             Status { rungs: others.into_iter().chain([rung]).collect(), ..later }
         }
+        // Both ran the C: each requirement keeps the worst of the two.
         Some(harness) if later.verdict != "pass" => {
             let rung = Rung::fresh("sil", format!("{harness} · {target}"), &later);
-            Status { rungs: others.into_iter().chain([rung]).collect(), ..later }
+            Status { rungs: others.into_iter().chain([rung]).collect(), ..status.worst_with(later) }
         }
         Some(harness) => {
             let mut status = status;

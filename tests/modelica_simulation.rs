@@ -572,6 +572,53 @@ fn an_expectation_that_names_its_requirement_judges_only_that_requirement() {
 }
 
 #[test]
+fn a_case_that_fails_on_all_its_requirements_together_fails_each_of_them() {
+    // A Monte Carlo case of two requirements: each holds often enough on its
+    // own, the two together do not. The case fails, so neither is verified.
+    let (_dir, model) = demo_copy();
+    let trip = "    requirement \"Trip length\" {\n        id: \"REQ-TRIP\"\n        description: \"The vehicle drives 300 km\"\n    }\n";
+    edit(&model, &[
+        ("system_analysis \"Vehicle needs\" {\n", &format!("system_analysis \"Vehicle needs\" {{\n{trip}")),
+        ("trace \"PN-BATT\" satisfies \"REQ-RANGE\"\n", "trace \"PN-BATT\" satisfies \"REQ-RANGE\"\ntrace \"PN-BATT\" satisfies \"REQ-TRIP\"\n"),
+        (
+            "    verifies: [\"REQ-RANGE\"]\n    method: \"analysis\"\n    simulate: { model: \"EVPhysics.CityRange\" configuration: \"CFG-CITY\" stop_time: 5 h sources: [\"physics/EVPhysics.mo\"] }\n    expects: [\"final(vehicleBody.distance) >= 300 km\", \"min(\\\"PN-BATT\\\".soc) >= 0.1\"]",
+            "    verifies: [\"REQ-RANGE\", \"REQ-TRIP\"]\n    method: \"analysis\"\n    simulate: { model: \"EVPhysics.CityRange\" configuration: \"CFG-CITY\" stop_time: 5 h sources: [\"physics/EVPhysics.mo\"] }\n    expects: [\"REQ-TRIP: final(vehicleBody.distance) >= 300 km\", \"REQ-RANGE: min(\\\"PN-BATT\\\".soc) >= 0.1\"]",
+        ),
+    ]);
+    assert_eq!(compile_err(&model), "");
+    let tagged = |holds: bool, requirement: &str| simulation::expects::Evaluated { expect: "e".into(), value: format!("{requirement} sampled"), holds, margin: String::new(), slack: None, slack_unit: None, requirement: Some(requirement.into()) };
+    // 1000 samples: the trip falls short in 20, the reserve in 20 others.
+    let points: Vec<simulation::PointOutcome> = (0..1000)
+        .map(|sample| {
+            let (trip, reserve) = (sample >= 20, !(20..40).contains(&sample));
+            simulation::PointOutcome { label: format!("sample {sample}"), values: vec![tagged(trip, "REQ-TRIP"), tagged(reserve, "REQ-RANGE")], holds: trip && reserve, error: String::new(), inputs: Vec::new() }
+        })
+        .collect();
+    let required = simulation::montecarlo::Requirement { probability: 0.96, confidence: 0.95 };
+    let alone = |requirement: &str| {
+        let kept: Vec<simulation::PointOutcome> = points.iter().map(|p| { let values: Vec<_> = p.values.iter().filter(|v| v.requirement.as_deref() == Some(requirement)).cloned().collect(); simulation::PointOutcome { holds: values.iter().all(|v| v.holds), values, ..p.clone() } }).collect();
+        simulation::montecarlo::judge(&kept, required).0
+    };
+    let (verdict, reason) = simulation::montecarlo::judge(&points, required);
+    assert_eq!((verdict.as_str(), alone("REQ-TRIP").as_str(), alone("REQ-RANGE").as_str()), ("fail", "pass", "pass"), "{reason}");
+
+    let result = compile_file(&model);
+    let export = modelica::export(&result.ast).unwrap();
+    let case = result.ast.test_cases.iter().find(|t| t.id == "TC-RANGE-STD").unwrap();
+    let spec = simulation::spec_of(&case.attributes).unwrap().unwrap();
+    let key = cache::key(&export.text, model.parent().unwrap(), &spec, &simulation::expects_of(&case.attributes));
+    let outcome = Outcome { test_case: "TC-RANGE-STD".into(), verdict, reason: reason.clone(), points, probability: Some(required), key, model: spec.model, configuration: spec.configuration, tool: "test".into(), omc_version: "OpenModelica test".into(), ..Default::default() };
+    cache::write(&cache::dir(&model), &outcome).unwrap();
+
+    let result = compile_file(&model);
+    let status = &result.semantic_model.simulations["TC-RANGE-STD"];
+    assert_eq!(status.verdict, "fail");
+    for requirement in ["REQ-TRIP", "REQ-RANGE"] {
+        assert_eq!((status.by_requirement[requirement].verdict.as_str(), status.by_requirement[requirement].reason.as_str()), ("fail", reason.as_str()), "{requirement}");
+    }
+}
+
+#[test]
 fn physics_units_reach_the_modelica_parameters() {
     // The demo writes `ambient: -10 °C` and `drag_area: 0.62 m²`.
     let (_dir, model) = demo_copy();

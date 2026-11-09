@@ -989,7 +989,7 @@ HARA entry: hazardous event and its classification.
 | `dal` | `enum Dal` | Declared DAL; must match the condition. |
 | `sil` | `enum Sil` | IEC 61508 SIL of the hazard (SIL-1..SIL-4); classifies it without S/E/C. |
 | `mitigated_by` | `list<ref<Requirement>>` | Safety requirements mitigating the hazard. |
-| `gate` | `text` | Fault tree: `or` (default, one failure mode leading to it suffices) or `and` (all of them, a redundancy). |
+| `gate` | `enum FaultGate` | Fault tree: `or` (default, one failure mode leading to it suffices) or `and` (all of them, a redundancy). |
 | `budget_fit` | `number` | Fault tree: the most its rate may be, in FIT; else the target of its ASIL, failure condition, DAL or SIL. |
 | `mission_time` | `quantity<time>` | Fault tree: the exposure the probability is computed over (1 h by default). |
 
@@ -1126,6 +1126,7 @@ Verification case covering requirements.
 | `execute` | `{machine, step, stop_time, inputs, binding, tolerance, quantisation, plant}` | Verified by executing a state machine at fixed step: the `machine`, the `step` (default the binding's period, else 10 ms), `stop_time`, the `inputs` (`["0 s: main switch on", "10 ms: LF-022", "300 ms: main switch on = false"]`: an event occurs in the step at its time, a condition holds or not from it on, an `in` variable takes a value from it on: `"100 ms: speed = 50 km/h"`), a `binding` (the run then goes through the I/O glue and the host board) and the `tolerance` of the comparison with the C (`quantisation`: of the fixed point of a machine allocated to programmable logic against the model, in `arclang hdl` and `arclang soc`). The expectations read the states (`"Machine".State`, 1 while active), the actions (`"Machine".action.close_contactors`, times run in the step) and the variables (`"Machine".speed`, in their unit). Compiling runs the model and reports a failing case; `arclang sil` runs the generated C against it. |
 | `snapshots` | `list<text>` | Snapshots the simulation must reach: a snapshot, a timeslice (its snapshots) or an element (all its snapshots), by id (`["LC-DRONE.Takeoff.At cruise"]`). Each value of each one, at its `at:`, is an expectation within the snapshot's tolerance (`at(40 s, "LC-DRONE".altitude) == 120 m within 1 %`). |
 | `expects` | `list<text>` | What the simulation result must show: comparisons over its variables read with `min`, `max`, `final`, `initial`, `mean` or `at(t, var)`, with units (`final(vehicle.distance) >= 300 km`); `==` and `!=` may say how far equal may be (`at(1 h, battery.soc) == 0.7 within 2 %`, or `within 0.05`). A comparison may name the requirement it checks (`"REQ-SHED: at(40 min, cabin.drawn) <= 1 W"`): each requirement is then judged on the comparisons naming it and those naming none. |
+| `configuration` | `ref<Configuration>` | The configuration a verdict recorded by hand was obtained in (a simulated case says it in `simulate:`); without it, the case stands for every configuration its requirements apply to. |
 | `reviewed` | `list<text>` | The verifications reviewed: one entry per verified requirement, the requirement and the fingerprints of the case and of the requirement, written by `arclang trace --review`. A verification whose case or requirement changed since is suspect, and so is one the case verifies but does not name here. |
 
 #### Model
@@ -1460,6 +1461,7 @@ Values match ignoring case and the separators `-`, `_` and space.
 | Physics | `signal`, `electrical`, `mechanical_translational`, `mechanical_rotational`, `thermal`, `fluid` | What a port carries, for the Modelica export: the Modelica Standard Library connector it becomes (`fluid` is not exported yet). |
 | Pole | `positive`, `negative` | The pin an electrical port is (`PositivePin`, `NegativePin`). |
 | Flange | `a`, `b` | The flange (or heat port) a mechanical or thermal port is (`Flange_a`, `Flange_b`). |
+| FaultGate | `or`, `and` | How the failure modes of a hazard combine in its fault tree. |
 | Verdict | `pass`, `fail`, `inconclusive`, `error` | Verdict of a verification case (SysML v2 `VerdictKind`). |
 | ExchangeMechanism | `EVENT`, `FLOW`, `OPERATION`, `DATA`, `SHARED_DATA` | Arcadia exchange item mechanism. |
 | TraceKind | `satisfies`, `implements`, `validates`, `verifies`, `realizes`, `refines`, `derives`, `allocates` | Traceability link kinds. |

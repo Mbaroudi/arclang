@@ -377,7 +377,8 @@ naming none: here the bus voltage fails `REQ-ESS-30MIN` and leaves
 `REQ-SHED`, whose cabin loads are shed, verified. An expectation naming a
 requirement the case does not verify is an error, and so is a requirement
 the case verifies that no expectation checks. Without names, every
-expectation checks every requirement, as before.
+expectation checks every requirement, as before. A case executed on a state
+machine (`execute:`) follows the same two rules.
 
 ### Requirements of a product line
 
@@ -392,6 +393,19 @@ A case verifying it must run in one of those configurations (otherwise the
 model does not compile), and the gate wants, for each of them, a case that
 runs in it or in no configuration: `requirement 'REQ-X' applies to
 configuration City (CFG-CITY), which no verification case runs in`.
+
+A simulated case says its configuration in `simulate:`. A case whose verdict
+is recorded by hand says where the test was run with `configuration:`, by id
+or by name:
+
+```arc
+test_case "Range on the bench" { id: "TC-RANGE" verifies: ["REQ-RANGE"] configuration: "CFG-CITY" verdict: "pass" }
+```
+
+It then counts for that configuration only; without it, the recorded verdict
+stands for every configuration its requirements apply to. A configuration
+that does not exist, or one that differs from the one in `simulate:`, is an
+error.
 
 ### When a run ends
 

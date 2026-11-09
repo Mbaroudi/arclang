@@ -51,6 +51,14 @@ fn two_requirements_of_one_id_in_one_file_are_an_error() {
     assert!(error.contains("requirement 'REQ-1' is declared twice: line 3 and line 4"), "{error}");
 }
 
+#[test]
+fn two_requirements_of_one_written_id_are_an_error_whatever_their_names() {
+    // A requirement copied with its `id:` left as it was: one case and one trace would count for both.
+    let source = "model Twice {}\nsystem_analysis \"Needs\" {\n    requirement \"AC charge\" { id: \"REQ-CHG\" description: \"a\" }\n    requirement \"DC charge\" { id: \"REQ-CHG\" description: \"b\" }\n}\n";
+    let error = Compiler::new(CompilerConfig::default()).compile_string(source).err().map(|e| e.to_string()).unwrap_or_default();
+    assert!(error.contains("requirement 'REQ-CHG' is declared twice: line 3 and line 4"), "{error}");
+}
+
 /// A duplicate component identity stays a warning (the gate blocks it, and
 /// `integration_tests` holds that it compiles); the warning names both places.
 #[test]
@@ -75,4 +83,34 @@ fn the_workbench_reads_a_model_of_several_files() {
     let json: serde_json::Value = serde_json::from_str(&arclang::compiler::workbench::snapshot_file_json(&root.join("main.arc"), &options)).unwrap();
     assert_eq!(json["success"], true, "{json}");
     assert_eq!(json["stats"]["requirements"], 1);
+}
+
+/// Everything an imported file declares is part of the model: its rules
+/// judge the model, its notes, diagrams and associations are there.
+#[test]
+fn the_rules_notes_diagrams_and_associations_of_an_imported_file_are_kept() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    write(root, &[
+        ("main.arc", "model Project {}\nimport \"shared.arc\"\n\nphysical_architecture \"Hardware\" {\n    node \"Battery\" { id: \"PN-BATT\" mass: 450 kg }\n    node \"Cable\" { id: \"PN-CABLE\" }\n}\n"),
+        (
+            "shared.arc",
+            concat!(
+                "rule \"Every node declares its mass\" {\n    id: \"RULE-MASS\"\n    kind: \"PhysicalNode\"\n    require: \"has(mass)\"\n    severity: \"blocker\"\n}\n",
+                "note \"The cable is supplied by the customer\" { id: \"N-1\" about: [\"PN-CABLE\"] }\n",
+                "diagram \"Power\" {\n  view: pab\n  shows: [\"PN-BATT\", \"PN-CABLE\"]\n}\n",
+                "class \"Pack\" { id: \"CL-PACK\" cells: \"Cell\" }\nclass \"Cell\" { id: \"CL-CELL\" label: \"String\" }\n",
+                "association \"holds\" { id: \"AS-1\" from: \"CL-PACK\" to: \"CL-CELL\" role: \"cells\" kind: \"composition\" multiplicity: \"1..*\" }\n",
+            ),
+        ),
+    ]);
+    let result = compile(&root.join("main.arc")).unwrap();
+    let ast = &result.ast;
+    assert_eq!((ast.rules.len(), ast.notes.len(), ast.diagrams.len(), ast.associations.len()), (1, 1, 1, 1));
+    // The imported rule judges the model, and blocks the gate.
+    let broken: Vec<&str> = result.warnings.iter().map(String::as_str).filter(|w| w.starts_with("rule '")).collect();
+    assert_eq!(broken.len(), 1, "{:?}", result.warnings);
+    assert!(broken[0].starts_with("rule 'RULE-MASS' (blocker): 'PN-CABLE'"), "{broken:?}");
+    let report = arclang::compiler::production_gate::run_gate(&result.ast, &result.semantic_model, "ISO26262");
+    assert!(report.findings.iter().any(|f| f.check == "rule.RULE-MASS"), "{:?}", report.findings.iter().map(|f| &f.check).collect::<Vec<_>>());
 }

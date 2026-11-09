@@ -740,6 +740,14 @@ with the vectors, and judged:
 - `error`: the C did not compile or run, or the vectors cannot go through
   the I/O.
 
+A case that verifies several requirements fails each of them on its own
+expectations while the C reproduces the model. When the C departs from the
+model, every requirement of the case fails, whatever its expectations say:
+what was checked is not what was built. A case run at several stages (the
+model, the C, the co-simulation, the HDL) keeps for each requirement the
+worst of what the stages say; a later stage that passes does not clear an
+earlier failure.
+
 `--test` runs one case, `--keep DIR` keeps the generated files, the
 harnesses and the binaries, `--json` prints the outcomes. The command fails
 when a case does not pass.

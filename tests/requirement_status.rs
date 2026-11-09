@@ -197,11 +197,11 @@ test_case "City drive" {
     assert!(blockers(&gate, "REQ-RANGE").iter().any(|b| b.contains("applies to configuration Touring (CFG-TOURING), which no verification case runs in")), "{:?}", blockers(&gate, "REQ-RANGE"));
 }
 
-/// A reference is an id. A case that names its requirement by its name is
-/// read the same everywhere (the requirement has its verdict), and the gate
-/// blocks on the reference.
+/// A requirement is referred to by its id, or by its name when one
+/// requirement alone carries it: the gate reads a case that names its
+/// requirement by its name as every other reader does.
 #[test]
-fn a_case_naming_its_requirement_by_its_name_is_judged_and_the_gate_blocks_on_the_reference() {
+fn a_case_naming_its_requirement_by_its_name_verifies_it_for_the_gate_too() {
     let model = r#"
 model "Named" {}
 system_analysis "Needs" {
@@ -214,18 +214,80 @@ trace "LC-CHG" satisfies "REQ-CHARGE"
 test_case "Fast charge" { id: "TC-CHG" verifies: ["Charge"] method: "test" verdict: "fail" }
 table "Coverage" { kind: requirements_coverage columns: ["id", "verdict", "status"] }
 "#;
+    let unknown = |gate: &GateReport| gate.findings.iter().filter(|f| f.message.contains("unknown requirement")).map(|f| f.message.clone()).collect::<Vec<_>>();
     let result = compile(model);
     let status = requirement_status(&result.ast, &result.semantic_model, "REQ-CHARGE");
     assert_eq!(status.standing(), Standing::Fail);
     let gate = gate(&result);
     assert!(blockers(&gate, "REQ-CHARGE").iter().any(|b| b.contains("verification cases fail")), "{:?}", blockers(&gate, "REQ-CHARGE"));
-    assert!(gate.findings.iter().any(|f| matches!(f.severity, Severity::Blocker) && f.message.contains("unknown requirement 'Charge'")), "{:?}", gate.findings.iter().map(|f| &f.message).collect::<Vec<_>>());
+    assert_eq!(unknown(&gate), Vec::<String>::new());
     let decl = result.ast.tables.iter().find(|t| t.name == "Coverage").unwrap();
     let table = tables::compute(&result, &TableSpec::of(decl), &tables::Options::default()).unwrap();
     assert_eq!((table.rows[0].cells["verdict"].text.as_str(), table.rows[0].status.as_str()), ("fail", "fail"));
 
-    // The same case with a passing verdict: the reference still blocks, the gate does not pass.
+    // The same case with a passing verdict: the requirement is verified, nothing blocks on the reference.
     let gate = self::gate(&compile(&model.replace("verdict: \"fail\"", "verdict: \"pass\"")));
-    assert!(!gate.passed);
-    assert!(gate.findings.iter().any(|f| matches!(f.severity, Severity::Blocker) && f.message.contains("unknown requirement 'Charge'")));
+    assert_eq!((gate.requirements_verified, gate.requirements_total), (1, 1));
+    assert_eq!(unknown(&gate), Vec::<String>::new());
+    assert_eq!(blockers(&gate, "REQ-CHARGE"), Vec::<&str>::new());
+}
+
+#[test]
+fn a_recorded_verdict_counts_for_the_configuration_it_names() {
+    let model = r#"
+model "Line" {}
+system_analysis "Needs" {
+    requirement "Range" { id: "REQ-RANGE" applies_to: ["City", "Touring"] description: "Drives 300 km" }
+}
+logical_architecture "LA" {
+    component "Pack" { id: "LC-PACK" }
+}
+configuration "City" { id: "CFG-CITY" }
+configuration "Touring" { id: "CFG-TOURING" }
+trace "LC-PACK" satisfies "REQ-RANGE"
+test_case "City drive" { id: "TC-CITY" verifies: ["REQ-RANGE"] method: "test" verdict: "pass" configuration: "CFG-CITY" }
+"#;
+    let result = compile(model);
+    let status = requirement_status(&result.ast, &result.semantic_model, "REQ-RANGE");
+    assert_eq!(status.uncovered, ["CFG-TOURING"]);
+    assert!(!status.verified());
+    let gate = gate(&result);
+    assert!(blockers(&gate, "REQ-RANGE").iter().any(|b| b.contains("applies to configuration Touring (CFG-TOURING), which no verification case runs in")), "{:?}", blockers(&gate, "REQ-RANGE"));
+
+    // A second drive, in the other configuration (named by its name): verified in both.
+    let both = format!("{model}test_case \"Touring drive\" {{ id: \"TC-TOURING\" verifies: [\"REQ-RANGE\"] method: \"test\" verdict: \"pass\" configuration: \"Touring\" }}\n");
+    let result = compile(&both);
+    let status = requirement_status(&result.ast, &result.semantic_model, "REQ-RANGE");
+    assert_eq!(status.uncovered, Vec::<String>::new());
+    assert!(status.verified());
+
+    // Said in no configuration, the verdict stands for every one.
+    let result = compile(&model.replace(" configuration: \"CFG-CITY\"", ""));
+    assert!(requirement_status(&result.ast, &result.semantic_model, "REQ-RANGE").verified());
+}
+
+#[test]
+fn a_case_cannot_say_two_configurations() {
+    let model = r#"
+model "Line" {}
+system_analysis "Needs" {
+    requirement "Range" { id: "REQ-RANGE" description: "Drives 300 km" }
+}
+configuration "City" { id: "CFG-CITY" }
+configuration "Touring" { id: "CFG-TOURING" }
+test_case "Drive" {
+    id: "TC-DRIVE"
+    verifies: ["REQ-RANGE"]
+    method: "analysis"
+    configuration: "CFG-TOURING"
+    simulate: { model: "P.M" stop_time: 1 h configuration: "CFG-CITY" }
+    expects: ["final(a.b) >= 300 km"]
+}
+"#;
+    let error = Compiler::new(CompilerConfig::default()).compile_string(model).err().map(|e| e.to_string()).unwrap_or_default();
+    assert!(error.contains("test_case 'Drive' names configuration 'CFG-TOURING' and simulates in 'CFG-CITY': say it once"), "{error}");
+    // An unknown one is refused, as in `applies_to:`.
+    let unknown = model.replace("configuration: \"CFG-TOURING\"\n    simulate: { model: \"P.M\" stop_time: 1 h configuration: \"CFG-CITY\" }", "configuration: \"CFG-SPORT\"\n    simulate: { model: \"P.M\" stop_time: 1 h }");
+    let error = Compiler::new(CompilerConfig::default()).compile_string(&unknown).err().map(|e| e.to_string()).unwrap_or_default();
+    assert!(error.contains("test_case 'Drive' runs in 'CFG-SPORT', which is no configuration"), "{error}");
 }

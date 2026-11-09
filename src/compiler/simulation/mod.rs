@@ -150,6 +150,37 @@ impl Status {
         self.rungs.push(rung);
         self
     }
+
+    /// How much a verdict leaves standing: nothing for a failure or an
+    /// error, less than a pass for one that says nothing.
+    fn standing(&self) -> u8 {
+        match self.verdict.as_str() {
+            "fail" | "error" => 0,
+            "pass" => 2,
+            _ => 1,
+        }
+    }
+
+    /// What this stage says of a requirement of the case: its verdict on
+    /// that requirement when it judged them apart, the case's otherwise.
+    fn on(&self, requirement: &str) -> Status {
+        self.by_requirement.get(requirement).cloned().unwrap_or_else(|| Status::new(self.verdict.clone(), self.reason.clone(), self.evidence.clone()))
+    }
+
+    /// This status and that of a later stage of the same case as one: the
+    /// worse of the two for the case, and for each requirement the worse of
+    /// what the two stages say of it (the later stage's when they are as
+    /// bad). A stage never clears what another found. The rungs are this
+    /// status's: the caller records the later stage.
+    pub fn worst_with(self, later: Status) -> Status {
+        let worse = |earlier: Status, later: Status| if later.standing() <= earlier.standing() { later } else { earlier };
+        let mut requirements: Vec<&String> = self.by_requirement.keys().chain(later.by_requirement.keys()).collect();
+        requirements.sort();
+        requirements.dedup();
+        let by_requirement = requirements.into_iter().map(|requirement| (requirement.clone(), worse(self.on(requirement), later.on(requirement)))).collect();
+        let case = worse(Status::new(self.verdict.clone(), self.reason.clone(), self.evidence.clone()), Status::new(later.verdict, later.reason, later.evidence));
+        Status { by_requirement, rungs: self.rungs, ..case }
+    }
 }
 
 /// One stage of the realization of a case, as a verdict of its own: what
@@ -214,6 +245,12 @@ pub struct Outcome {
     pub verdict: String,
     pub reason: String,
     pub values: Vec<expects::Evaluated>,
+    /// A stage that runs an implementation of the model (the C, the
+    /// processor, the logic, the SoC): whether the implementation reproduces
+    /// the model, so that a failure is one of the expectations alone. A
+    /// verdict kept before this was recorded reads as `false`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub agrees: bool,
     pub key: String,
     pub model: String,
     #[serde(default)]
@@ -281,6 +318,13 @@ impl Outcome {
         Status::new(self.verdict.clone(), self.reason.clone(), self.evidence())
     }
 
+    /// Whether the run is that of an implementation of the model (`sil`,
+    /// `cosim`, `pil`, `hdl`, `soc`), judged against the model as well as on
+    /// the expectations; a simulation is the model itself.
+    pub fn runs_an_implementation(&self) -> bool {
+        !self.kind.is_empty()
+    }
+
     /// Whether an expectation of the case names a requirement.
     pub fn names_requirements(&self) -> bool {
         self.values.iter().chain(self.points.iter().flat_map(|p| p.values.iter())).any(|v| v.requirement.is_some())
@@ -288,9 +332,14 @@ impl Outcome {
 
     /// The verdict of the case on the expectations `checks` keeps (by the
     /// requirement each names, `None` when it names none). An error or an
-    /// inconclusive run is that for every requirement.
+    /// inconclusive run is that for every requirement, and so is the failure
+    /// of an implementation that does not reproduce the model: what it
+    /// computes then verifies nothing, whatever its expectations read.
     pub fn status_for(&self, checks: impl Fn(Option<&str>) -> bool) -> Status {
         if !matches!(self.verdict.as_str(), "pass" | "fail") || !self.names_requirements() {
+            return self.status();
+        }
+        if self.verdict == "fail" && self.runs_an_implementation() && !self.agrees {
             return self.status();
         }
         let kept = |values: &[expects::Evaluated]| values.iter().filter(|v| checks(v.requirement.as_deref())).cloned().collect::<Vec<_>>();

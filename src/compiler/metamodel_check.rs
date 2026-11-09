@@ -51,6 +51,8 @@ struct Checker<'a> {
     metamodel: &'a Metamodel,
     semantic: &'a SemanticModel,
     requirement_keys: Vec<&'a str>,
+    /// Attributes the model's own types declare: never a misspelling.
+    own_keys: std::collections::HashSet<&'a str>,
     out: Vec<Diagnostic>,
 }
 
@@ -69,7 +71,15 @@ pub fn check_model_with(metamodel: &Metamodel, ast: &Model, semantic: &SemanticM
             .filter(|e| e.element_type == "Requirement")
             .map(|e| e.name.as_str()),
     );
-    let mut checker = Checker { metamodel, semantic, requirement_keys, out: Vec::new() };
+    // A requirement is also named by the name of its block, as the readers of `verifies:` resolve it.
+    requirement_keys.extend(ast.system_analysis.iter().flat_map(|sa| sa.requirements.iter()).map(|r| r.id.as_str()));
+    let own_keys = ast
+        .types
+        .iter()
+        .flat_map(|t| t.attributes.keys().chain(t.required.iter()))
+        .map(String::as_str)
+        .collect();
+    let mut checker = Checker { metamodel, semantic, requirement_keys, own_keys, out: Vec::new() };
     checker.walk(ast);
     // What the geometry contradicts: errors, the production gate blocks on them.
     checker.out.extend(super::spatial::checks::check(ast).into_iter().map(|f| Diagnostic {
@@ -426,6 +436,22 @@ impl<'a> Checker<'a> {
         for (key, ty) in typed {
             self.check_value(kind, element, key, ty, &attributes[key]);
         }
+        // An attribute the kind does not declare is the model's own, unless it
+        // is spelled almost like one the compiler reads: `verdit: "fail"`
+        // would be kept as a note and the failure read as no verdict at all.
+        let declared: Vec<&str> = spec.attributes.iter().map(|a| a.key).collect();
+        let mut written: Vec<&str> = attributes
+            .keys()
+            .map(String::as_str)
+            .filter(|key| !declared.contains(key) && !self.own_keys.contains(key))
+            .collect();
+        written.sort_unstable();
+        for key in written {
+            if let Some(meant) = nearest_key(key, declared.iter().copied()) {
+                self.push(Level::Warning, kind, element, Some(key),
+                    format!("not an attribute the compiler reads: did you mean '{meant}'?"));
+            }
+        }
     }
 
     fn check_value(&mut self, kind: &'static str, element: &str, key: &str, ty: &AttrType, value: &AttributeValue) {
@@ -553,6 +579,53 @@ impl<'a> Checker<'a> {
             message,
         });
     }
+}
+
+/// A key shorter than this has too many neighbours to call one a misspelling.
+const NEAR_MISS_MIN_LENGTH: usize = 4;
+/// From this length on, two slips still read as the same word.
+const TWO_SLIPS_MIN_LENGTH: usize = 8;
+
+/// The declared key `written` is a slip away from (a letter dropped, added,
+/// changed, or two swapped): the closest one, the first in the alphabet at
+/// equal distance.
+fn nearest_key<'k>(written: &str, declared: impl Iterator<Item = &'k str>) -> Option<&'k str> {
+    let length = written.chars().count();
+    if length < NEAR_MISS_MIN_LENGTH {
+        return None;
+    }
+    let allowed = if length >= TWO_SLIPS_MIN_LENGTH { 2 } else { 1 };
+    declared
+        .filter(|known| known.chars().count() >= NEAR_MISS_MIN_LENGTH)
+        .map(|known| (slips(written, known), known))
+        .filter(|(distance, _)| *distance <= allowed)
+        .min()
+        .map(|(_, known)| known)
+}
+
+/// The number of slips between two words: letters dropped, added or changed,
+/// and neighbours swapped (optimal string alignment).
+fn slips(a: &str, b: &str) -> usize {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    let mut rows = vec![vec![0usize; b.len() + 1]; a.len() + 1];
+    for (i, row) in rows.iter_mut().enumerate() {
+        row[0] = i;
+    }
+    for j in 0..=b.len() {
+        rows[0][j] = j;
+    }
+    for i in 1..=a.len() {
+        for j in 1..=b.len() {
+            let changed = usize::from(a[i - 1] != b[j - 1]);
+            let mut best = (rows[i - 1][j] + 1).min(rows[i][j - 1] + 1).min(rows[i - 1][j - 1] + changed);
+            if i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1] {
+                best = best.min(rows[i - 2][j - 2] + 1);
+            }
+            rows[i][j] = best;
+        }
+    }
+    rows[a.len()][b.len()]
 }
 
 fn collect_component_ports(component: &LogicalComponent, out: &mut HashMap<String, Vec<String>>) {

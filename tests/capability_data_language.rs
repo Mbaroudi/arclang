@@ -373,7 +373,7 @@ fn class_declaring_a_field_twice_is_a_compile_error() {
     let error = compile(r#"class "Frame" { range: "float" range: "uint8" }"#)
         .expect_err("a field declared twice must not compile");
     assert!(
-        error.contains("class 'Frame' declares field 'range' twice"),
+        error.contains("'range' is written twice in this block: keep one"),
         "got: {error}"
     );
 }
@@ -488,7 +488,7 @@ fn capability_relation_written_twice_is_a_compile_error() {
     )
     .expect_err("an attribute written twice would lose one value");
     assert!(
-        same_key.contains("capability 'A' declares attribute 'includes' twice"),
+        same_key.contains("'includes' is written twice in this block: keep one"),
         "got: {same_key}"
     );
 }

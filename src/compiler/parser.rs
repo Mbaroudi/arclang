@@ -20,6 +20,9 @@ pub struct Parser {
     warnings: Vec<String>,
     /// Traces declared inside architecture blocks; hoisted to the model level.
     pending_traces: Vec<Trace>,
+    /// The attribute keys already written in each block still open, the
+    /// innermost last: a key written twice in one block is refused.
+    written: Vec<std::collections::HashSet<String>>,
 }
 
 impl Parser {
@@ -30,6 +33,7 @@ impl Parser {
             position: 0,
             warnings: Vec::new(),
             pending_traces: Vec::new(),
+            written: Vec::new(),
         }
     }
 
@@ -40,6 +44,7 @@ impl Parser {
             position: 0,
             warnings: Vec::new(),
             pending_traces: Vec::new(),
+            written: Vec::new(),
         }
     }
 
@@ -3653,24 +3658,24 @@ impl Parser {
     fn parse_attribute(&mut self) -> Result<(String, AttributeValue), String> {
         // Accept both identifiers and reserved keywords as attribute keys
         let key = match self.current() {
-            Token::Identifier(id) => {
-                let k = id.clone();
-                self.advance();
-                k
-            }
+            Token::Identifier(id) => id.clone(),
             // Any keyword can double as an attribute key (via:, type:, from:, ...)
             token => match token.keyword_text() {
-                Some(text) => {
-                    let k = text.to_string();
-                    self.advance();
-                    k
-                }
+                Some(text) => text.to_string(),
                 None => {
                     return Err(self.err(format!("Expected attribute key, got: {}", self.current())))
                 }
             },
         };
-        
+        // The second value would replace the first without a word: which of
+        // `verdict: "fail"` and `verdict: "pass"` the author meant is not ours to pick.
+        if let Some(block) = self.written.last_mut() {
+            if !block.insert(key.clone()) {
+                return Err(self.err(format!("'{key}' is written twice in this block: keep one")));
+            }
+        }
+        self.advance();
+
         self.expect(Token::Colon)?;
         let value = self.parse_attribute_value()?;
         
@@ -3810,6 +3815,13 @@ impl Parser {
     
     fn advance(&mut self) {
         if !self.is_at_end() {
+            match self.current() {
+                Token::LeftBrace => self.written.push(Default::default()),
+                Token::RightBrace => {
+                    self.written.pop();
+                }
+                _ => {}
+            }
             self.position += 1;
         }
     }

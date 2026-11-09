@@ -108,12 +108,8 @@ impl Parser {
                 nested.push(self.capability_block(id_prefix, nests)?);
                 continue;
             }
+            // A key written twice is refused where every attribute is read.
             let (key, value) = self.parse_attribute()?;
-            if attributes.contains_key(&key) {
-                return Err(self.err(format!(
-                    "capability '{name}' declares attribute '{key}' twice"
-                )));
-            }
             attributes.insert(key, value);
         }
         self.expect(Token::RightBrace)?;
@@ -159,10 +155,6 @@ impl Parser {
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             let (key, value) = self.parse_attribute()?;
             let is_field = !CLASS_ATTRIBUTES.contains(&key.as_str());
-            if attributes.contains_key(&key) {
-                let what = if is_field { "field" } else { "attribute" };
-                return Err(self.err(format!("class '{name}' declares {what} '{key}' twice")));
-            }
             if is_field {
                 let Some(field_type) = value.as_string() else {
                     return Err(self.err(format!(
