@@ -124,7 +124,10 @@ body.tb-stale .tb-body { opacity: 0.55; }
 .tb-body { flex: 1; min-height: 0; position: relative; }
 .tb-scroll { position: absolute; inset: 0; overflow: auto; }
 /* Scroll bars always shown: macOS hides them until one scrolls, and then
-   nothing says that the table goes on below or to the right. */
+   nothing says that the table goes on below or to the right. The webview's
+   page sets scrollbar-color on html, inherited, and Chrome then ignores the
+   ::-webkit-scrollbar rules: the table takes them back with auto. */
+.tb-scroll { scrollbar-color: auto; scrollbar-width: auto; }
 .tb-scroll::-webkit-scrollbar { width: 12px; height: 12px; }
 .tb-scroll::-webkit-scrollbar-track { background: var(--tb-bg); }
 .tb-scroll::-webkit-scrollbar-thumb { background-color: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, 0.4)); border: 3px solid transparent; border-radius: 7px; background-clip: content-box; min-height: 32px; }
