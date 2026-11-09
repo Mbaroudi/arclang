@@ -162,6 +162,10 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
             if !link.protocol.is_empty() {
                 link_properties.insert("protocol".to_string(), link.protocol.clone());
             }
+            // Its id, by which a physical path names it as well as by its name.
+            if let Some(id) = link.attributes.get("id").and_then(|v| v.as_string()) {
+                link_properties.insert("id".to_string(), id.to_string());
+            }
             builder.add_edge(
                 EdgeKind::PhysicalLink,
                 &source,

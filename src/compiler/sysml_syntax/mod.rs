@@ -398,6 +398,11 @@ impl Reader {
             declaration.metaclass = "ConcernUsage";
             declaration.membership = "FramedConcernMembership";
             declaration.references = vec![head.path()?];
+        } else if head.take_word("subject") {
+            // `subject = 'Layer'::'LC-1';` / `subject v : Vehicle;`: what a requirement is about.
+            declaration.metaclass = "ReferenceUsage";
+            declaration.membership = "SubjectMembership";
+            self.named(&mut head, &mut declaration)?;
         } else if head.take_word("objective") {
             declaration.metaclass = "RequirementUsage";
             declaration.membership = "ObjectiveMembership";

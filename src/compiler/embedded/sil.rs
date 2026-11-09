@@ -637,6 +637,20 @@ pub fn channel_operations(case: &Case, plan: &Plan, binding: &Binding, vectors: 
 }
 
 /// Compare two tables of the same columns, step by step.
+/// A table without the named columns.
+fn without(table: &Table, columns: &[String]) -> Table {
+    if columns.is_empty() {
+        return table.clone();
+    }
+    let keep: Vec<usize> = (0..table.names.len()).filter(|&i| !columns.contains(&table.names[i])).collect();
+    Table {
+        names: keep.iter().map(|&i| table.names[i].clone()).collect(),
+        period_us: table.period_us,
+        rows: table.rows.iter().map(|row| keep.iter().filter_map(|&i| row.get(i).copied()).collect()).collect(),
+        units: table.units.clone(),
+    }
+}
+
 pub fn compare(model: &Table, c: &Table, tolerance: f64) -> BackToBack {
     let mut max_difference: f64 = 0.0;
     let mut first_mismatch = None;
@@ -760,6 +774,10 @@ pub struct Prepared<'a> {
     pub model: Table,
     pub texts: Vec<String>,
     pub aliases: BTreeMap<String, String>,
+    /// Through an `io_binding`, the glue steps the bound machine only: the
+    /// columns of the model's other machines (a lifecycle, the technical
+    /// configurations) are not run on the board, so not compared.
+    pub unrun: Vec<String>,
 }
 
 /// Read a case, run it on the model and judge it there; the outcome in
@@ -827,17 +845,24 @@ pub fn prepare<'a>(test: &TestCase, plan: &Plan, bindings: &'a [Binding], implem
             row.extend(extra);
         }
     }
-    Ok(Prepared { outcome, case, binding, vectors, model, texts, aliases })
+    let unrun = match binding {
+        Some(b) => {
+            let bound = format!("{}.", plan.machines[b.machine].ident);
+            model.names.iter().filter(|n| !n.starts_with(&bound) && !n.starts_with("io.")).cloned().collect()
+        }
+        None => Vec::new(),
+    };
+    Ok(Prepared { outcome, case, binding, vectors, model, texts, aliases, unrun })
 }
 
 /// Judge the run of an implementation (`c`, the columns of the model's
 /// table) against the model: the expectations on both, step by step, the
 /// verdict and its reason.
 pub fn conclude(prepared: Prepared<'_>, c: Table) -> Outcome {
-    let Prepared { mut outcome, case, model, texts, aliases, .. } = prepared;
+    let Prepared { mut outcome, case, model, texts, aliases, unrun, .. } = prepared;
     let c = Table { units: model.units.clone(), ..c };
     let c_values = judge(&texts, &aliases, &c);
-    let back_to_back = compare(&model, &c, case.tolerance);
+    let back_to_back = compare(&without(&model, &unrun), &without(&c, &unrun), case.tolerance);
     match c_values {
         Ok(c_values) => {
             for (judged, c) in outcome.expectations.iter_mut().zip(c_values) {

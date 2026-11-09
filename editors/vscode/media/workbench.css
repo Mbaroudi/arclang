@@ -835,6 +835,18 @@ body.vscode-dark .wb-cesam, body.vscode-high-contrast .wb-cesam { --cesam-op: #4
 .wb-cesam-more { color: var(--vscode-descriptionForeground); }
 .wb-cesam-open { margin-top: 2px; text-align: left; padding: 3px 8px; font-size: 11px; border-radius: 4px; border: 1px solid var(--vscode-panel-border, #8885); background: var(--vscode-editor-background); color: var(--vscode-textLink-foreground, var(--vscode-foreground)); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wb-cesam-open:hover, .wb-cesam-open:focus-visible { border-color: var(--vscode-focusBorder); outline: none; }
+.wb-cesam-cell-aspect { display: none; font-size: 11px; font-weight: 600; color: var(--vscode-descriptionForeground); }
+/* A narrow pane (the workbench beside the source): the grid is read vision by
+   vision, each vision on its own line and its six aspects below it, named in
+   their cells, rather than a wide table cut at the right. */
+.wb-cesam { container-type: inline-size; }
+@container (max-width: 900px) {
+  .wb-cesam-grid { min-width: 0; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .wb-cesam-corner, .wb-cesam-aspect { display: none; }
+  .wb-cesam-vision { grid-column: 1 / -1; margin-top: 6px; }
+  .wb-cesam-cell-aspect { display: block; }
+  .wb-cesam-head h2 { font-size: 18px; }
+}
 .wb-cesam-foot { margin: 14px 0 0; font-size: 12px; color: var(--vscode-descriptionForeground); }
 .wb-cesam-caption { position: absolute; bottom: 12px; left: 12px; z-index: 4; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; background: var(--vscode-badge-background, #4d4d4d); color: var(--vscode-badge-foreground, #fff); pointer-events: none; }
 body.wb-on-cesam-grid .wb-left,

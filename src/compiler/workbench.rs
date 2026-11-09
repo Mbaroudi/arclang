@@ -231,10 +231,27 @@ fn cesam_view(result: &crate::CompilationResult, diagrams: &crate::compiler::dia
     let spec = tables::TableSpec { kind: "cesam_grid".to_string(), ..Default::default() };
     let table = tables::compute(result, &spec, &tables::Options { gate_standard: gate_standard.to_string() }).ok()?;
     let graph = elements::build(&result.ast, &result.semantic_model);
-    let cells: Vec<serde_json::Value> = crate::compiler::cesam::diagram_cells(diagrams, &result.ast, &graph)
-        .into_iter()
-        .map(|(id, view)| serde_json::json!({ "id": id, "vision": view.vision, "aspect": view.aspect, "view": view.name }))
-        .collect();
+    let table_json = serde_json::to_value(&table).ok()?;
+    // The requirements diagram draws the expected properties of the three
+    // visions: the grid opens it from each cell that holds requirements
+    // (stakeholder, system, allocated), and from the operational one when
+    // none does.
+    let holds_requirements = |vision: &str| {
+        table_json["rows"].as_array().into_iter().flatten().any(|row| row["id"] == vision && row["cells"]["requirements"]["text"].as_str().is_some_and(|t| t.starts_with(|c: char| c.is_ascii_digit()) && !t.starts_with('0')))
+    };
+    let mut cells: Vec<serde_json::Value> = Vec::new();
+    for (id, view) in crate::compiler::cesam::diagram_cells(diagrams, &result.ast, &graph) {
+        if id == "req" {
+            use crate::compiler::cesam::{view as cell, Aspect, VISIONS};
+            let held: Vec<_> = VISIONS.into_iter().filter(|v| holds_requirements(v.key())).collect();
+            for vision in if held.is_empty() { vec![view.vision] } else { held } {
+                let shown = cell(vision, Aspect::Requirements);
+                cells.push(serde_json::json!({ "id": id, "vision": shown.vision, "aspect": shown.aspect, "view": shown.name }));
+            }
+            continue;
+        }
+        cells.push(serde_json::json!({ "id": id, "vision": view.vision, "aspect": view.aspect, "view": view.name }));
+    }
     Some(serde_json::json!({ "declared": crate::compiler::cesam_rules::declared(&result.ast), "table": table, "diagrams": cells }))
 }
 
@@ -938,6 +955,13 @@ mod cesam_tests {
         for d in diagrams {
             assert!(drawn.contains(&d["id"].as_str().unwrap()), "{d}");
             assert!(d["view"].as_str().is_some_and(|v| !v.is_empty()));
+        }
+        // The requirements diagram opens from each cell that holds requirements.
+        let req_cells: Vec<&str> = diagrams.iter().filter(|d| d["id"] == "req").map(|d| d["vision"].as_str().unwrap()).collect();
+        assert!(!req_cells.is_empty());
+        for vision in &req_cells {
+            let row = rows.iter().find(|r| r["id"] == *vision).unwrap();
+            assert!(!row["cells"]["requirements"]["text"].as_str().unwrap().starts_with('—'), "{vision}: {row}");
         }
         // A model that does not declare the method is read through the grid all the same.
         let plain = snapshot_of_text("model M {}\nlogical_architecture \"LA\" {\n  component \"C\" { id: \"LC-1\" }\n}\n");

@@ -736,6 +736,59 @@ const SCENARIOS = {
     check(S, 'no error notification', errors.length === 0, errors.join(' | '));
     await context.close();
   },
+
+  // The reference model (examples/automotive/acc-stop-and-go): it opens on the CESAM grid,
+  // every cell filled, readable in the pane beside the source; Arcadia and SysML v2 draw its layers.
+  async reference_model(browser) {
+    const S = 'reference_model';
+    const { context, page } = await open(browser);
+    await page.keyboard.press('Meta+P');
+    await page.waitForTimeout(700);
+    await page.keyboard.type('acc_stop_and_go.arc');
+    await page.waitForTimeout(1500);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(3000);
+    await command(page, 'ArcLang: Open the workbench beside the source');
+    let wb = null;
+    for (let i = 0; i < 30 && !wb; i++) {
+      await page.waitForTimeout(1000);
+      for (const f of page.frames()) if (await f.$('.wb-cesam:not([hidden]) .wb-cesam-cell').catch(() => null)) wb = f;
+    }
+    check(S, 'the model opens on the CESAM grid (method: "cesam")', !!wb);
+    if (!wb) return void (await context.close());
+    const grid = await wb.evaluate(() => {
+      const cells = [...document.querySelectorAll('.wb-cesam-cell')];
+      const aspect = document.querySelector('.wb-cesam-cell-aspect');
+      const scroll = document.querySelector('.wb-cesam-scroll');
+      return {
+        cells: cells.length,
+        empty: cells.filter((c) => c.classList.contains('is-gap')).length,
+        requirements: [...document.querySelectorAll('.wb-cesam-cell')].filter((c) => /requirement/i.test(c.textContent) && c.querySelector('.wb-cesam-open')).length,
+        narrow: !!aspect && getComputedStyle(aspect).display !== 'none',
+        cut: scroll ? scroll.scrollWidth > scroll.clientWidth + 2 : true,
+        lede: document.querySelector('.wb-cesam-lede')?.textContent ?? '',
+      };
+    });
+    await shot(page, 'reference-cesam-grid');
+    check(S, 'all 18 cells filled', grid.cells === 18 && grid.empty === 0, `${grid.cells} cells, ${grid.empty} empty; ${grid.lede.slice(0, 60)}`);
+    check(S, 'beside the source, the grid reads vision by vision, nothing cut at the right', grid.narrow && !grid.cut, JSON.stringify({ narrow: grid.narrow, cut: grid.cut }));
+    const reqCells = await wb.$$eval('.wb-cesam-open', (l) => l.filter((b) => /Requirements/i.test(b.textContent)).length);
+    check(S, 'the requirements diagram opens from the three requirement cells', reqCells === 3, `${reqCells}`);
+    const tabs = () => wb.$$eval('.wb-layers .wb-layer .wb-layer-name', (l) => l.map((x) => x.textContent.trim()));
+    await wb.click('.wb-notation-item:has-text("Arcadia")');
+    await page.waitForTimeout(3000);
+    let t = await tabs();
+    await shot(page, 'reference-arcadia');
+    check(S, 'Arcadia: every level drawn', ['Operational', 'System', 'Logical', 'Physical', 'EPBS'].every((x) => t.includes(x)), t.join(' | '));
+    await wb.click('.wb-notation-item:has-text("SysML v2")');
+    await page.waitForTimeout(3000);
+    t = await tabs();
+    await shot(page, 'reference-sysml');
+    check(S, 'SysML v2: its views', t.includes('General View') && t.includes('Interconnection') && t.includes('Requirements'), t.join(' | '));
+    const errors = await errorToasts(page);
+    check(S, 'no error notification', errors.length === 0, errors.join(' | '));
+    await context.close();
+  },
 };
 
 /** The model and the files the AI wrote, simulated by OpenModelica in the image the server runs. */

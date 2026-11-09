@@ -143,7 +143,9 @@ export function installNotation(d: NotationDeps): NotationApi {
         const match = /^(\d+)(?:\s*\(([^)]*)\))?/.exec(cell?.text ?? '');
         const names = (cell?.links ?? []).map((l) => l.name);
         const diagrams = grid.diagrams.filter((c) => c.vision === vision.id && c.aspect === aspect.key && graphs().some((g) => g.id === c.id));
-        const box = el('div', { class: `wb-cesam-cell is-${vision.id} is-${status}`, role: 'cell' }, [
+        const box = el('div', { class: `wb-cesam-cell is-${vision.id} is-${status}`, role: 'cell', 'aria-label': `${vision.label}: ${aspect.label}` }, [
+          // The aspect, written in the cell when the grid is read vision by vision (a narrow pane).
+          el('div', { class: 'wb-cesam-cell-aspect', 'aria-hidden': 'true', text: aspect.label }),
           el('div', { class: 'wb-cesam-count' }, [el('span', { text: match ? match[1] : '0' }), el('span', { class: `wb-cesam-badge is-${status}`, text: status === 'ok' ? 'OK' : status === 'warn' ? 'CHECK' : 'EMPTY' })]),
           match?.[2] ? el('div', { class: 'wb-cesam-levels', text: match[2] }) : null,
           names.length ? el('div', { class: 'wb-cesam-names', text: names.slice(0, 3).join(', ') }, names.length > 3 ? [el('span', { class: 'wb-cesam-more', text: ` +${names.length - 3}` })] : []) : el('div', { class: 'wb-cesam-names is-empty', text: 'Nothing modelled yet' }),
