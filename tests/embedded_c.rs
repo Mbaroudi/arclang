@@ -48,6 +48,9 @@ const ACC: &str = "automotive/adaptive-cruise/adaptive_cruise_control.arc";
 const REMOTE_START: &str = "automotive/remote-start/remote_start_architecture.arc";
 const CHARGER: &str = "energy/battery-charger/battery_charger.arc";
 const WINDOW: &str = "automotive/power-window/power_window.arc";
+// Three machines (a lifecycle, the modes, the configurations), one bound to the board: the
+// run through the binding compares the bound machine only.
+const ACC_STOP_GO: &str = "automotive/acc-stop-and-go/acc_stop_and_go.arc";
 
 fn compile_file(path: &Path) -> arclang::compiler::CompilationResult {
     Compiler::new(CompilerConfig::default()).compile_file(path).unwrap_or_else(|e| panic!("{} compiles: {e}", path.display()))
@@ -176,7 +179,7 @@ fn model_verdicts(path: &Path) -> Vec<(String, Vec<bool>)> {
 
 #[test]
 fn sil_reproduces_the_model_on_real_examples_with_both_compilers() {
-    for path in [ACC, REMOTE_START, CHARGER, WINDOW] {
+    for path in [ACC, REMOTE_START, CHARGER, WINDOW, ACC_STOP_GO] {
         let expected = model_verdicts(&example(path));
         assert!(expected.len() >= 2, "{path} has executed cases");
         for cc in compilers() {

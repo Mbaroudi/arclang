@@ -177,6 +177,18 @@ fn a_package_is_searched_only_when_imported() {
 }
 
 #[test]
+fn a_requirement_reads_its_subject() {
+    // What the export writes for `subject: "LC-1"`: the requirement's subject, by reference.
+    let text = "package M {\n  package 'LA' {\n    part 'LC-1';\n  }\n  requirement <'R-1'> 'R' {\n    subject = 'LA'::'LC-1';\n  }\n}\n";
+    let declarations = read_ok(text);
+    let subject = declarations.iter().find(|d| d.membership == "SubjectMembership").expect("a subject");
+    assert_eq!(subject.metaclass, "ReferenceUsage");
+    // A named, typed subject reads as well.
+    let declarations = read_ok("package M {\n  part def Vehicle;\n  requirement def R {\n    subject v : Vehicle;\n  }\n}\n");
+    assert!(declarations.iter().any(|d| d.membership == "SubjectMembership" && d.name.as_deref() == Some("v")));
+}
+
+#[test]
 fn an_unknown_statement_is_an_error() {
     let error = read("package M {\n  viewpoint V;\n}\n").unwrap_err();
     assert!(error.contains("unknown statement `viewpoint V`"), "{error}");

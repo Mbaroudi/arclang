@@ -11,7 +11,8 @@ Every model here compiles with the strict parser, and CI compiles them all (`tes
 3. [Autonomous emergency braking](automotive/emergency-braking/): the flagship, every level with ISO 26262 safety, modes and a scenario to run in the debugger.
 4. [Electric vehicle range](automotive/ev-range/): a requirement verified by simulation in OpenModelica.
 5. [Liquid cooling of an AI training hall](datacenter/ai-liquid-cooling/): ten scenarios, failures and a Monte Carlo.
-6. Then the domain closest to yours, below.
+6. [Adaptive cruise control with Stop & Go](automotive/acc-stop-and-go/): a full engineering model in CESAM, from the stakeholders to the bill of materials, verified by simulation, by executing its modes and by its fault trees.
+7. Then the domain closest to yours, below.
 
 ## How to open an example
 
@@ -40,6 +41,7 @@ Simulation needs OpenModelica: on the desktop, *ArcLang: Set up OpenModelica*; o
 | Example | Level | What it is |
 |---|---|---|
 | [Autonomous emergency braking (AEB)](automotive/emergency-braking/) | Intermediate | The flagship: an AEB system through every Arcadia level, with ISO 26262 safety, modes, a scenario and declared diagrams. |
+| [Adaptive cruise control with Stop & Go, the engineering model](automotive/acc-stop-and-go/) | Advanced | A full-speed-range ACC in CESAM: stakeholders, three visions, ECUs and bill of materials; the control law simulated, the modes executed, HARA, FMEA, fault trees and TARA. |
 | [Adaptive cruise control, complete](automotive/adaptive-cruise/) | Intermediate | The full ACC: perception, fusion, target selection, longitudinal control, driver override and safety monitoring. |
 | [One-pedal drive](automotive/one-pedal-drive/) | Intermediate | The accelerator pedal also brakes: regeneration first, then the friction brake, then the hold at standstill. |
 | [An electric car product line](automotive/ev-product-line/) | Intermediate | What Arcadia gains from SysML v2: definitions, variants and configurations, typed allocations, tagged views, analyses. |

@@ -460,7 +460,7 @@ impl Builder {
             } else if let Some(edge) = self
                 .edges
                 .iter()
-                .find(|e| &e.label == reference || &e.id == reference)
+                .find(|e| &e.label == reference || &e.id == reference || e.properties.get("id") == Some(reference))
             {
                 edges.push(edge.id.clone());
             } else if let Some(other) = self.chains.iter().find(|c| &c.id == reference || &c.name == reference) {

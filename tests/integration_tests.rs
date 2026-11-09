@@ -693,6 +693,33 @@ physical_architecture "PA" {
 }
 
 #[test]
+fn test_physical_path_drawn_whether_it_names_its_links_by_name_or_by_id() {
+    let model = |involves: &str| {
+        format!(
+            r#"
+model Test {{
+}}
+
+physical_architecture "PA" {{
+    node "A" {{ id: "PN-A" }}
+    node "B" {{ id: "PN-B" }}
+    node "C" {{ id: "PN-C" }}
+    physical_link "Backbone" {{ id: "PL-1" from: "PN-A" to: "PN-B" protocol: "CAN" }}
+    physical_link "Branch" {{ id: "PL-2" from: "PN-B" to: "PN-C" protocol: "CAN" }}
+    physical_path "Route" {{ involves: [{involves}] }}
+}}
+"#
+        )
+    };
+    for involves in [r#""Backbone", "Branch""#, r#""PL-1", "PL-2""#] {
+        let result = Compiler::new(CompilerConfig::default()).compile_string(&model(involves)).expect("must compile");
+        let set = arclang::compiler::diagram::build_diagrams(&result.ast);
+        let unresolved: Vec<&String> = set.diagnostics.iter().filter(|d| d.contains("chain 'Route'")).collect();
+        assert!(unresolved.is_empty(), "{involves}: {unresolved:?}");
+    }
+}
+
+#[test]
 fn test_transport_rule_lint_flags_unsupported_cross_node_exchange() {
     let input = r#"
 model Test {
