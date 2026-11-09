@@ -28,7 +28,7 @@ Realization (what each stage says of each requirement; ✓ fresh pass · ✗ fai
 | Stage | Produced by | Applies to a requirement when |
 |---|---|---|
 | `simulation` | `arclang verify` | a case verifying it has `simulate:` |
-| `sil` | `arclang sil` | a case verifying it has `execute:` |
+| `sil` | `arclang sil`, or `arclang cosim` (the same generated C as an FMU under OMSimulator, see [cosimulation.md](cosimulation.md)) | a case verifying it has `execute:` |
 | `pil` | `arclang pil` | a case verifying it has `execute:` |
 | `hdl` | `arclang hdl` | an executed case, and a machine of the model is allocated to programmable logic (a node of kind `fpga`) |
 | `soc` | `arclang soc` | as `hdl` |

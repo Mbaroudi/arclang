@@ -76,8 +76,13 @@ async function folderFiles(dir: string): Promise<Map<string, Uint8Array> | null>
       return true;
     }
     for (const [name, type] of entries) {
-      if (!SEGMENT.test(name) || name === 'node_modules') continue;
       const child = `${path}/${name}`;
+      // The compiler's own folder: the verdicts the runs kept beside the model (what the desktop reads), nothing else of it.
+      if (name === '.arclang' && type & vscode.FileType.Directory) {
+        if (!(await verdicts(`${child}/sim-cache`))) return false;
+        continue;
+      }
+      if (!SEGMENT.test(name) || name === 'node_modules') continue;
       if (type & vscode.FileType.Directory) {
         if (!(await walk(child))) return false;
       } else if (SENT.test(name)) {
@@ -86,6 +91,22 @@ async function folderFiles(dir: string): Promise<Map<string, Uint8Array> | null>
         if (out.size >= LIMITS.files || bytes > LIMITS.bytes) return false;
         out.set(child, data);
       }
+    }
+    return true;
+  };
+  const verdicts = async (path: string): Promise<boolean> => {
+    let entries: [string, vscode.FileType][];
+    try {
+      entries = await vscode.workspace.fs.readDirectory(vscode.Uri.file(path));
+    } catch {
+      return true;
+    }
+    for (const [name, type] of entries) {
+      if (!(type & vscode.FileType.File) || !SEGMENT.test(name) || !name.endsWith('.json')) continue;
+      const data = await vscode.workspace.fs.readFile(vscode.Uri.file(`${path}/${name}`));
+      bytes += data.length;
+      if (out.size >= LIMITS.files || bytes > LIMITS.bytes) return false;
+      out.set(`${path}/${name}`, data);
     }
     return true;
   };

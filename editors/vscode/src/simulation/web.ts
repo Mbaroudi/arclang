@@ -9,7 +9,7 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { failureText, run } from '../cli';
-import { cosimCases, cosimLog, cosimText, executes, leftText, pickFiles, sentAsBytes, walkable, ONLINE_LIMITS } from '../pure/sim-online';
+import { cosimCases, cosimLog, cosimText, executes, leftText, pickFiles, sentAsBytes, walkable, ONLINE_LIMITS, SIL_STAGE } from '../pure/sim-online';
 import type { Replay } from '../pure/sim-report';
 import { DOCS_URL, Outcome, countOutcomes, parseOutcomes, runLog, simulates, summaryText } from '../pure/simulation';
 import { MonteCarloPanel } from './montecarlo';
@@ -19,6 +19,7 @@ import { openModelicaDrawing } from './modelica-view';
 import { exportSimulationReport } from './report';
 import { parseTwinOutcomes, twinSummary } from '../pure/twin';
 import { showTwinOutcomes, twinsBusy } from './twin-view';
+import { forgetSnapshot, snapshotOf } from '../workbench/snapshot';
 
 const HOST_COMMAND = 'arclangWeb.simulation.run';
 const DESKTOP_ONLY = 'ArcLang: simulation needs the desktop extension. It runs OpenModelica on your computer, which a browser cannot do.';
@@ -74,6 +75,26 @@ async function readFiles(dir: vscode.Uri, take: string[]): Promise<Record<string
   return files;
 }
 
+/** A verdict's file name as the compiler writes it (`TC-1.json`, `TC-1.cosim.json`). */
+const VERDICT_FILE = /^[A-Za-z0-9_-]+(\.[a-z]+)?\.json$/;
+
+/**
+ * The verdicts of the run, kept beside the model in the workspace
+ * (`.arclang/sim-cache/`) as the desktop keeps them: they outlive the page,
+ * and the compiler online reads them from there for the gate and the tables.
+ */
+async function keepVerdicts(dir: vscode.Uri, cache: Record<string, string>): Promise<void> {
+  const entries = Object.entries(cache).filter(([name, text]) => VERDICT_FILE.test(name) && typeof text === 'string');
+  if (!entries.length) return;
+  const folder = vscode.Uri.joinPath(dir, '.arclang', 'sim-cache');
+  try {
+    await vscode.workspace.fs.createDirectory(folder);
+    for (const [name, text] of entries) await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(folder, name), new TextEncoder().encode(text));
+  } catch (error) {
+    output().appendLine(`The verdicts could not be kept beside the model (${folder.path}): ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 async function runOnline(arg: unknown, monteCarlo: boolean): Promise<void> {
   if (running) return void vscode.window.showInformationMessage('ArcLang: a simulation is already running.');
   const uri = activeModel(arg);
@@ -106,10 +127,11 @@ async function runOnline(arg: unknown, monteCarlo: boolean): Promise<void> {
   if (!reply) return;
   if (!reply.ok) return void vscode.window.showErrorMessage(`ArcLang: ${reply.error}`);
   const answer = reply.answer;
-  // The test cases that execute:, co-simulated in OMSimulator in the same job.
+  // The test cases that execute:, co-simulated in OMSimulator and run in SIL (the C compiled on the server) in the same job.
   const cosim = cosimCases(answer.cosim);
+  const sil = cosimCases(answer.sil);
   const parsed = Array.isArray(answer.outcomes) ? parseOutcomes(JSON.stringify(answer.outcomes)) : null;
-  const outcomes = parsed ?? (cosim.length ? [] : null);
+  const outcomes = parsed ?? (cosim.length || sil.length ? [] : null);
   const log = output();
   if (!outcomes) {
     log.appendLine(`--- ${model}: the model could not be simulated${answer.timedOut ? ' (it took longer than allowed online)' : ''}`);
@@ -126,6 +148,10 @@ async function runOnline(arg: unknown, monteCarlo: boolean): Promise<void> {
   const statistics = (answer.statistics && typeof answer.statistics === 'object' ? answer.statistics : {}) as Record<string, Record<string, OnlineStatistics>>;
   const cache = (answer.cache && typeof answer.cache === 'object' ? answer.cache : {}) as Record<string, string>;
   keepOnlineRun(uri.fsPath, { cases: outcomes.map((o) => ({ id: o.test_case, name: o.name || o.test_case, replayable: !!byCase[o.test_case] })), replays: byCase, statistics, cache });
+  await keepVerdicts(dir, cache);
+  // The snapshot (the status bar's gate, the workbench's coverage) reads the verdicts: computed again now.
+  forgetSnapshot(uri);
+  void snapshotOf(doc);
   // The report draws the curves of single runs (a sweep or a Monte Carlo case shows its points).
   const replays = new Map<string, Replay>();
   for (const o of outcomes.filter((o) => !o.points.length)) {
@@ -136,14 +162,16 @@ async function runOnline(arg: unknown, monteCarlo: boolean): Promise<void> {
   // The same log as the desktop's (the tool, OpenModelica's version, each case and its time).
   if (outcomes.length) log.appendLine(runLog(`${model} (online)`, outcomes, new Date()));
   if (cosim.length) log.appendLine(`── arclang cosim ${model} (online)\n\n${cosimLog(cosim)}\n\n${cosimText(cosim)}\n`);
+  if (sil.length) log.appendLine(`── arclang sil ${model} (online)\n\n${cosimLog(sil)}\n\n${cosimText(sil, SIL_STAGE)}\n`);
+  if (typeof answer.silStderr === 'string' && answer.silStderr.trim()) log.appendLine(`── arclang sil ${model} (online): no verdict\n${answer.silStderr}\n`);
   if (picked.left) log.appendLine(`${picked.left} file(s) of the folder were not sent (limits).\n`);
   if (MonteCarloPanel.has(outcomes)) MonteCarloPanel.show(uri.fsPath, outcomes, () => ({}));
   else if (monteCarlo) void vscode.window.showInformationMessage('ArcLang: no test case of this model samples uncertain parameters (uncertain: in simulate: { ... }).');
   const counts = countOutcomes(outcomes);
-  const cosimBad = cosim.some((c) => c.verdict !== 'pass');
+  const cosimBad = [...cosim, ...sil].some((c) => c.verdict !== 'pass');
   const show = counts.fail || counts.other || cosimBad ? vscode.window.showWarningMessage : vscode.window.showInformationMessage;
   // The same choices as on the desktop: the verdicts in the coverage table (the compiler online reads the run's cache), the report, the log.
-  const said = [outcomes.length ? summaryText(counts) : '', cosimText(cosim)].filter(Boolean).join(' ');
+  const said = [outcomes.length ? summaryText(counts) : '', cosimText(cosim), cosimText(sil, SIL_STAGE)].filter(Boolean).join(' ');
   const choice = await show(`ArcLang: ${said || summaryText(counts)}${leftText(answer.left)}`, 'Show the verdicts', 'Export the report', 'Show the log');
   if (choice === 'Show the verdicts') await vscode.commands.executeCommand('arclang.table.coverage', uri);
   else if (choice === 'Export the report') await exportReport();

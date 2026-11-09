@@ -2232,12 +2232,17 @@ impl CliRunner {
         let work = keep.unwrap_or_else(|| std::env::temp_dir().join(format!("arclang-cosim-{}", std::process::id())));
         let options = cosim::Options { compiler, work: work.clone(), only: test, base: crate::compiler::simulation::cache::model_dir(input) };
         let outcomes = cosim::run_with(&result.ast, &options, &mut plants_of(input)).map_err(CliError::Compilation)?;
+        // Kept where check, gate and the tables read verdicts: evidence of the SIL stage.
+        let cached = cosim::cache(&result.ast, input, &outcomes).map_err(CliError::Compilation)?;
         if json {
             println!("{}", serde_json::to_string_pretty(&outcomes).unwrap_or_default());
         } else {
             println!("\nCo-simulation {} — {}", input.display(), cosim::version().unwrap_or_default());
             for outcome in &outcomes {
                 self.print_stage(outcome, "OMSimulator");
+            }
+            if !cached.is_empty() {
+                println!("\n  {} verdict(s) cached in {}", cached.len(), crate::compiler::simulation::cache::dir(input).display());
             }
         }
         if scratch {

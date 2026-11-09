@@ -43,6 +43,8 @@ const PLANT_AGREEMENT: f64 = 100.0;
 const PLANT_FLOOR: f64 = 1e-6;
 /// The Modelica class wrapping a plant for co-simulation.
 const WRAPPER: &str = "ArcLangCosimPlant";
+/// The verdicts kept beside the model and read as SIL evidence: `cosim_verdict`.
+pub use super::cosim_verdict::{cache, cache_key, target_of};
 
 #[derive(Debug, Clone)]
 pub struct Options {

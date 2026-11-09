@@ -123,6 +123,30 @@ pub fn snapshot(source: &str, options: &SnapshotOptions) -> Snapshot {
     snapshot_of(compiler.compile_string(source), options, None)
 }
 
+/// The snapshot of a model text with the files of its folder given in place
+/// of a file system (the browser), by path relative to the model: the
+/// verdicts the runs kept (`.arclang/sim-cache/*.json`) and the Modelica
+/// sources their keys hash. The cached verdicts attach as they do to a model
+/// on disk, so the gate, the coverage and the ladder say what the runs said.
+pub fn snapshot_with_files(source: &str, options: &SnapshotOptions, files: std::collections::HashMap<String, String>) -> Snapshot {
+    let mut compiler = Compiler::new(CompilerConfig {
+        optimization_level: 0,
+        target: "json".to_string(),
+    });
+    let files: std::collections::HashMap<std::path::PathBuf, Vec<u8>> = files.into_iter().map(|(path, text)| (std::path::PathBuf::from(path), text.into_bytes())).collect();
+    let compiled = compiler.compile_string(source).map(|mut result| {
+        // The model stands at the root of the files given: its cache is `.arclang/sim-cache`, its sources beside it.
+        crate::compiler::simulation::cache::with_files(files, || crate::compiler::simulation::run::attach(&mut result, std::path::Path::new("model.arc")));
+        result
+    });
+    snapshot_of(compiled, options, None)
+}
+
+pub fn snapshot_with_files_json(source: &str, options: &SnapshotOptions, files: std::collections::HashMap<String, String>) -> String {
+    serde_json::to_string(&snapshot_with_files(source, options, files))
+        .unwrap_or_else(|e| format!("{{\"success\":false,\"errors\":[\"serialization: {e}\"]}}"))
+}
+
 /// The snapshot of a model file, its imports resolved relative to it.
 pub fn snapshot_file_json(path: &std::path::Path, options: &SnapshotOptions) -> String {
     let mut compiler = Compiler::new(CompilerConfig {
