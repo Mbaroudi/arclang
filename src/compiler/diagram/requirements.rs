@@ -64,6 +64,13 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
             None => diagnostics.push(format!("[req] '{id}': parent '{parent}' is not a requirement")),
         }
     }
+    // A requirement derived from, or refining, another: the thread from the
+    // stakeholders' needs down to the technical requirements.
+    for trace in model.traces.iter().filter(|t| matches!(t.trace_type.as_str(), "derives" | "refines")) {
+        let (Some(from), Some(to)) = (written.get(trace.from.as_str()), written.get(trace.to.as_str())) else { continue };
+        let properties = BTreeMap::from([("trace".to_string(), trace.trace_type.clone())]);
+        edges.push(edge(EdgeKind::Trace, "drv", from, to, &trace.trace_type, properties));
+    }
     for case in &model.test_cases {
         let id = if case.id.is_empty() { case.name.as_str() } else { case.id.as_str() };
         let targets: Vec<&str> = case.verifies.iter().filter_map(|r| written.get(r.as_str()).copied()).collect();
@@ -163,6 +170,42 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
         invariants: Vec::new(),
     };
     Some((diagram, diagnostics))
+}
+
+/// The requirements views: one per requirements block when there are
+/// several (`req:Stakeholder Requirements`...), each with its requirements,
+/// what satisfies and verifies them, the needs they frame, their subjects
+/// and the requirements of the other blocks they derive from or into;
+/// then every requirement at once (`req`).
+pub(super) fn diagrams(model: &Model) -> Vec<(Diagram, Vec<String>)> {
+    let Some((all, diagnostics)) = build(model) else { return Vec::new() };
+    let blocks: Vec<(&str, Vec<&str>)> = model
+        .system_analysis
+        .iter()
+        .filter(|sa| !sa.requirements.is_empty())
+        .map(|sa| (sa.name.as_str(), sa.requirements.iter().map(|r| identity(&r.attributes, &r.id)).collect()))
+        .collect();
+    let mut out = Vec::new();
+    if blocks.len() > 1 {
+        for (name, ids) in &blocks {
+            let own: HashSet<&str> = ids.iter().copied().collect();
+            let mut kept: HashSet<String> = own.iter().map(|s| s.to_string()).collect();
+            for edge in &all.edges {
+                if own.contains(edge.source.as_str()) {
+                    kept.insert(edge.target.clone());
+                }
+                if own.contains(edge.target.as_str()) {
+                    kept.insert(edge.source.clone());
+                }
+            }
+            let nodes: Vec<Node> = all.nodes.iter().filter(|n| kept.contains(&n.id)).cloned().collect();
+            let edges: Vec<Edge> = all.edges.iter().filter(|e| kept.contains(&e.source) && kept.contains(&e.target) && (own.contains(e.source.as_str()) || own.contains(e.target.as_str()))).cloned().collect();
+            let view = Diagram { id: format!("{}:{name}", ViewKind::Req.id()), title: name.to_string(), nodes, edges, ..all.clone() };
+            out.push((view, Vec::new()));
+        }
+    }
+    out.push((all, diagnostics));
+    out
 }
 
 /// The name a requirement is shown by: its `title`, its `name`, else the name it is declared with.
@@ -303,8 +346,14 @@ fn wrapped(text: &str, width: usize) -> Vec<String> {
 /// verifications that are suspect (`suspect: true`, with the line `check`
 /// gives).
 pub fn judge(set: &mut super::DiagramSet, model: &Model, semantic: &SemanticModel) {
+    for diagram in set.diagrams.iter_mut().filter(|d| d.kind == ViewKind::Req) {
+        judge_one(diagram, model, semantic);
+    }
+}
+
+/// The verdicts, and the suspect links, on one requirements view.
+fn judge_one(diagram: &mut Diagram, model: &Model, semantic: &SemanticModel) {
     use crate::compiler::verification::{verdict, verdict_for, Verdict};
-    let Some(diagram) = set.diagrams.iter_mut().find(|d| d.kind == ViewKind::Req) else { return };
     let word = |v: &Verdict| match v {
         Verdict::Pass => "pass",
         Verdict::Fail(_) => "fail",

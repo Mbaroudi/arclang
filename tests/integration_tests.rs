@@ -720,6 +720,41 @@ physical_architecture "PA" {{
 }
 
 #[test]
+fn test_requirements_views_one_per_block_with_the_derivations() {
+    let input = r#"
+model Test {}
+requirements stakeholder {
+    req "STK-1" "Follow traffic" { description: "d" }
+}
+requirements functional {
+    req "FUN-1" "Time gap" { description: "d" }
+    req "FUN-2" "Speed range" { description: "d" }
+}
+requirements technical {
+    req "TEC-1" "Radar range" { description: "d" }
+}
+trace "FUN-1" derives "STK-1" {}
+trace "FUN-2" derives "STK-1" {}
+trace "TEC-1" derives "FUN-1" {}
+test_case "TC-1" { verifies: ["FUN-1"] method: "test" }
+"#;
+    let result = Compiler::new(CompilerConfig::default()).compile_string(input).expect("must compile");
+    let set = arclang::compiler::diagram::build_diagrams(&result.ast);
+    let ids: Vec<&str> = set.diagrams.iter().filter(|d| d.kind == arclang::compiler::diagram::ViewKind::Req).map(|d| d.id.as_str()).collect();
+    assert_eq!(ids, ["req:Stakeholder Requirements", "req:Functional Requirements", "req:Technical Requirements", "req"]);
+    let functional = set.diagrams.iter().find(|d| d.id == "req:Functional Requirements").unwrap();
+    let names: Vec<&str> = functional.nodes.iter().map(|n| n.id.as_str()).collect();
+    // Its requirements, the case verifying one, and the requirements above and below them.
+    for id in ["FUN-1", "FUN-2", "TC-1", "STK-1", "TEC-1"] {
+        assert!(names.contains(&id), "{id} in {names:?}");
+    }
+    let derived: Vec<(&str, &str)> = functional.edges.iter().filter(|e| e.label == "derives").map(|e| (e.source.as_str(), e.target.as_str())).collect();
+    assert!(derived.contains(&("FUN-1", "STK-1")) && derived.contains(&("TEC-1", "FUN-1")), "{derived:?}");
+    let all = set.diagrams.iter().find(|d| d.id == "req").unwrap();
+    assert_eq!(all.edges.iter().filter(|e| e.label == "derives").count(), 3);
+}
+
+#[test]
 fn test_transport_rule_lint_flags_unsupported_cross_node_exchange() {
     let input = r#"
 model Test {

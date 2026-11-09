@@ -167,6 +167,18 @@ pub(super) fn register_part(e: &mut Exporter<'_>, package: &str, base: &[String]
     segments
 }
 
+/// The id of the entity or actor of the level that performs an activity
+/// of the level (`performed_by:`, by id or name); none when none does.
+fn performer(oa: &OperationalAnalysis, activity: &OperationalActivity) -> Option<String> {
+    let by = activity.performed_by.as_str();
+    if by.is_empty() {
+        return None;
+    }
+    let entities = oa.entities.iter().map(|en| (id_of(&en.attributes, &en.id).to_string(), en.name.as_str()));
+    let actors = oa.actors.iter().map(|a| (id_of(&a.attributes, &operational_actor_id(a)).to_string(), a.name.as_str()));
+    entities.chain(actors).find(|(id, name)| id == by || *name == by).map(|(id, _)| id)
+}
+
 /// The id of an operational actor: written, else `ACT-<name>`, as the element graph has it.
 fn operational_actor_id(actor: &Actor) -> String {
     actor.id.clone().unwrap_or_else(|| format!("ACT-{}", actor.name.replace(' ', "-")))
@@ -180,27 +192,40 @@ pub(super) fn register(e: &mut Exporter<'_>) {
     let model = e.model;
     for oa in &model.operational_analysis {
         let package = oa_level(oa).qualified();
-        for activity in &oa.activities {
+        // An activity of the level performed by an entity or an actor is
+        // written in that part (`perform action`), as the entity's own: its
+        // interactions are then flows between the parts' features.
+        for activity in oa.activities.iter().filter(|a| performer(oa, a).is_none()) {
             register_function(e, &package, &[], activity);
         }
         for entity in &oa.entities {
             let id = id_of(&entity.attributes, &entity.id);
             let at = register_part(e, &package, &[], id, &entity.name, &[]);
-            for activity in &entity.activities {
-                register_function(e, &package, &at, activity);
+            let performed: Vec<&OperationalActivity> = entity.activities.iter().chain(oa.activities.iter().filter(|a| performer(oa, a).as_deref() == Some(id))).collect();
+            for activity in &performed {
+                register_function(e, &package, &at, *activity);
             }
-            alias_held(e, &[id, &entity.name], &entity.activities);
-            let performed: Vec<&OperationalActivity> = oa.activities.iter().filter(|a| a.performed_by == id || a.performed_by == entity.name).collect();
-            for activity in performed {
-                for owner in [id, entity.name.as_str()] {
-                    e.alias(&format!("{owner}.{}", activity.name), activity.written());
+            for activity in &performed {
+                for name in [activity.name.as_str(), activity.written()] {
+                    e.alias(&format!("{id}.{name}"), activity.written());
+                    e.alias(&format!("{}.{name}", entity.name), activity.written());
                 }
             }
         }
         for actor in &oa.actors {
             let fallback = operational_actor_id(actor);
             let id = id_of(&actor.attributes, &fallback);
-            register_part(e, &package, &[], id, &actor.name, &[]);
+            let at = register_part(e, &package, &[], id, &actor.name, &[]);
+            let performed: Vec<&OperationalActivity> = oa.activities.iter().filter(|a| performer(oa, a).as_deref() == Some(id)).collect();
+            for activity in &performed {
+                register_function(e, &package, &at, *activity);
+            }
+            for activity in &performed {
+                for name in [activity.name.as_str(), activity.written()] {
+                    e.alias(&format!("{id}.{name}"), activity.written());
+                    e.alias(&format!("{}.{name}", actor.name), activity.written());
+                }
+            }
         }
         register_capabilities(e, &package, &oa.capabilities);
         for process in &oa.processes {
@@ -543,34 +568,35 @@ fn operational(e: &mut Exporter<'_>, oa: &OperationalAnalysis) {
     {
         let e = &mut *e;
         e.header("OperationalAnalysis", &oa.attributes, &[]);
-        for activity in &oa.activities {
+        for activity in oa.activities.iter().filter(|a| performer(oa, a).is_none()) {
             function(e, "OperationalActivity", activity, "action");
         }
         for entity in &oa.entities {
             let id = id_of(&entity.attributes, &entity.id).to_string();
-            let allocated: Vec<String> = oa.activities.iter().filter(|a| a.performed_by == id || a.performed_by == entity.name).map(|a| a.written().to_string()).collect();
             let typing = e.typing(&entity.attributes);
             e.block(&format!("#Entity part {}{typing}", text::declared(&id, &entity.name)), |e| {
                 e.header("OperationalEntity", &entity.attributes, &[]);
-                for activity in &entity.activities {
+                for activity in entity.activities.iter().chain(oa.activities.iter().filter(|a| performer(oa, a).as_deref() == Some(id.as_str()))) {
                     function(e, "OperationalActivity", activity, "perform action");
                 }
-                performs(e, &allocated);
             });
         }
         for actor in &oa.actors {
             let id = id_of(&actor.attributes, &operational_actor_id(actor)).to_string();
-            let allocated: Vec<String> = oa.activities.iter().filter(|a| a.performed_by == id || a.performed_by == actor.name).map(|a| a.written().to_string()).collect();
             let typing = e.typing(&actor.attributes);
             e.block(&format!("#Actor part {}{typing}", text::declared(&id, &actor.name)), |e| {
                 e.header("Actor", &actor.attributes, &[]);
-                performs(e, &allocated);
+                for activity in oa.activities.iter().filter(|a| performer(oa, a).as_deref() == Some(id.as_str())) {
+                    function(e, "OperationalActivity", activity, "perform action");
+                }
             });
         }
         capabilities(e, &oa.capabilities);
         for exchange in &oa.exchanges {
             let id = id_of(&exchange.attributes, "").to_string();
-            flow(e, &id, exchange.label.as_deref().unwrap_or(""), &exchange.data_type, &exchange.from, &exchange.to);
+            // The parser's "Data" stands for no data type written: no item flows then.
+            let item = if exchange.attributes.contains_key("data_type") { exchange.data_type.as_str() } else { "" };
+            flow(e, &id, exchange.label.as_deref().unwrap_or(""), item, &exchange.from, &exchange.to);
         }
         for mean in &oa.communication_means {
             let id = id_of(&mean.attributes, "").to_string();

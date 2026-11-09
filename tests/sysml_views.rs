@@ -16,14 +16,17 @@ fn find<'n>(nodes: &'n [Node], id: &str) -> Option<&'n Node> {
 #[test]
 fn the_general_view_shows_definitions_and_parts_and_how_parts_are_made() {
     let diagrams = drone();
-    let gv = diagrams.iter().find(|d| d.kind == ViewKind::Gv).expect("a general view");
-    let signal = gv.nodes.iter().find(|n| n.name == "Signal").unwrap();
+    // One General View per package.
+    let views: Vec<&Diagram> = diagrams.iter().filter(|d| d.kind == ViewKind::Gv).collect();
+    assert!(views.len() > 1 && views.iter().all(|v| v.id.starts_with("gv:") && v.title.starts_with("General View: ")), "{:?}", views.iter().map(|v| &v.id).collect::<Vec<_>>());
+    let nodes: Vec<Node> = views.iter().flat_map(|v| v.nodes.clone()).collect();
+    let signal = nodes.iter().find(|n| n.name == "Signal").unwrap();
     assert_eq!((signal.kind, signal.properties["stereotype"].as_str()), (NodeKind::SysmlDefinition, "port def"));
     assert_eq!(signal.compartment, ["physics : String = \"signal\""]);
-    let battery = find(&gv.nodes, "PN-BATT").unwrap();
+    let battery = find(&nodes, "PN-BATT").unwrap();
     assert_eq!((battery.kind, battery.properties["stereotype"].as_str()), (NodeKind::SysmlPart, "part"));
     assert!(battery.compartment.contains(&"voltage : ElectricPotentialValue = 44.4 [V]".to_string()), "{:?}", battery.compartment);
-    let made: Vec<(&str, &str)> = gv.edges.iter().filter(|e| e.kind == EdgeKind::Composition).map(|e| (e.source.as_str(), e.target.as_str())).collect();
+    let made: Vec<(&str, &str)> = views.iter().flat_map(|v| v.edges.iter()).filter(|e| e.kind == EdgeKind::Composition).map(|e| (e.source.as_str(), e.target.as_str())).collect();
     assert!(made.contains(&("LC-UAV", "LC-ENERGY")) && made.contains(&("LC-ENERGY", "LC-PACK-EXT")) && made.contains(&("PN-FC", "BC-ALT")), "{made:?}");
 }
 
@@ -54,6 +57,41 @@ fn an_action_flow_view_draws_the_flows_between_items_and_the_steps_in_order() {
     assert_eq!(loop_.children.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), ["step1 :> SF-ALT", "step2 :> SF-HOLD", "step3 :> SF-THRUST"]);
     let then: Vec<(&str, &str)> = afv.edges.iter().filter(|e| e.kind == EdgeKind::Succession).map(|e| (e.source.as_str(), e.target.as_str())).collect();
     assert_eq!(then, [("FC-ALT.step1", "FC-ALT.step2"), ("FC-ALT.step2", "FC-ALT.step3")]);
+}
+
+#[test]
+fn the_views_of_an_operational_world_show_what_its_actors_and_entities_exchange() {
+    // Activities performed by an actor and by an entity, exchanging through interactions;
+    // a scenario (lifelines) and a threat, which the General View leaves out.
+    let text = r#"
+model W {}
+operational_analysis "World" {
+    actor "Driver" { id: "OA-DRV" }
+    entity "Car" { id: "OA-CAR" activity "Regulate" { id: "OAC-REG" } activity "Inform" { id: "OAC-INF" } }
+    operational_activity "Choose" { id: "OAC-CHOOSE" performed_by: "OA-DRV" }
+    operational_activity "Watch" { id: "OAC-WATCH" performed_by: "OA-DRV" }
+    interaction "wishes" { id: "OE-1" from: "OAC-CHOOSE" to: "OAC-REG" }
+    interaction "state" { id: "OE-2" from: "OAC-INF" to: "OAC-WATCH" }
+    interaction "need" { id: "OE-3" from: "OAC-REG" to: "OAC-INF" }
+}
+scenario "Drive" { participants: ["OA-DRV", "OA-CAR"] message "OA-DRV" -> "OA-CAR" "set" }
+security_analysis {
+    asset "Settings" { id: "AS-1" kind: "information" members: ["OAC-CHOOSE"] }
+    threat "Forged settings" { id: "TH-1" level: 2 applies_to: ["AS-1"] involves: ["OA-CAR"] }
+}
+"#;
+    let result = Compiler::new(CompilerConfig::default()).compile_string(text).unwrap();
+    let set = build_diagrams(&result.ast);
+    let iv = set.diagrams.iter().find(|d| d.id == "iv:World").expect("the world's interconnection view");
+    let between: Vec<(&str, &str)> = iv.edges.iter().map(|e| (e.source.as_str(), e.target.as_str())).collect();
+    assert_eq!(between, [("OA-DRV", "OA-CAR"), ("OA-CAR", "OA-DRV")], "the flows between the two parts; the one inside the car is not between parts");
+    let afv = set.diagrams.iter().find(|d| d.id == "afv:World").expect("the world's action flow view");
+    let driver = find(&afv.nodes, "OA-DRV").expect("the driver's lane");
+    assert_eq!(driver.children.iter().map(|c| c.id.as_str()).collect::<Vec<_>>(), ["OAC-CHOOSE", "OAC-WATCH"]);
+    assert_eq!(afv.edges.iter().filter(|e| e.kind == EdgeKind::Flow).count(), 3, "every interaction, between the lanes and inside one");
+    let general: Vec<&Node> = set.diagrams.iter().filter(|d| d.kind == ViewKind::Gv).flat_map(|d| d.nodes.iter()).collect();
+    assert!(general.iter().all(|n| !n.id.starts_with("l_") && n.id != "TH-1" && n.id != "AS-1"), "no lifeline, no threat: {:?}", general.iter().map(|n| &n.id).collect::<Vec<_>>());
+    assert!(general.iter().any(|n| n.id == "OA-DRV") && general.iter().any(|n| n.id == "OA-CAR"));
 }
 
 #[test]

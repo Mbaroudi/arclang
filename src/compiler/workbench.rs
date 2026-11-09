@@ -240,7 +240,13 @@ fn cesam_view(result: &crate::CompilationResult, diagrams: &crate::compiler::dia
         table_json["rows"].as_array().into_iter().flatten().any(|row| row["id"] == vision && row["cells"]["requirements"]["text"].as_str().is_some_and(|t| t.starts_with(|c: char| c.is_ascii_digit()) && !t.starts_with('0')))
     };
     let mut cells: Vec<serde_json::Value> = Vec::new();
-    for (id, view) in crate::compiler::cesam::diagram_cells(diagrams, &result.ast, &graph) {
+    let placed = crate::compiler::cesam::diagram_cells(diagrams, &result.ast, &graph);
+    // A view of each requirements block, when there are several, stands in its own cell.
+    let by_block = placed.iter().any(|(id, _)| id.starts_with("req:"));
+    for (id, view) in placed {
+        if id == "req" && by_block {
+            continue;
+        }
         if id == "req" {
             use crate::compiler::cesam::{view as cell, Aspect, VISIONS};
             let held: Vec<_> = VISIONS.into_iter().filter(|v| holds_requirements(v.key())).collect();
@@ -957,8 +963,9 @@ mod cesam_tests {
             assert!(d["view"].as_str().is_some_and(|v| !v.is_empty()));
         }
         // The requirements diagram opens from each cell that holds requirements.
-        let req_cells: Vec<&str> = diagrams.iter().filter(|d| d["id"] == "req").map(|d| d["vision"].as_str().unwrap()).collect();
-        assert!(!req_cells.is_empty());
+        let req_cells: Vec<&str> = diagrams.iter().filter(|d| d["id"].as_str().is_some_and(|i| i == "req" || i.starts_with("req:"))).map(|d| d["vision"].as_str().unwrap()).collect();
+        // The template's three blocks: a view of each, in its vision.
+        assert_eq!(req_cells, ["operational", "functional", "constructional"], "{diagrams:?}");
         for vision in &req_cells {
             let row = rows.iter().find(|r| r["id"] == *vision).unwrap();
             assert!(!row["cells"]["requirements"]["text"].as_str().unwrap().starts_with('—'), "{vision}: {row}");
