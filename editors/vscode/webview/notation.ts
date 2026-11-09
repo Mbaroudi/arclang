@@ -5,7 +5,7 @@
 // CESAM opens on its grid, drawn from what the compiler computes, and each
 // cell opens the diagrams that draw that view.
 import type { CesamSnapshot, Notation, Snapshot, ViewerGraph } from '../src/pure/workbench';
-import { CESAM_VISIONS, NOTATIONS, VIEWPOINTS, defaultNotation, graphsOfNotation } from '../src/pure/workbench';
+import { CESAM_VISIONS, NOTATIONS, NOTATION_VIEWS, VIEWPOINTS, defaultNotation, graphsOfNotation } from '../src/pure/workbench';
 import { button, clear, el } from './dom';
 
 export interface NotationDeps {
@@ -100,7 +100,9 @@ export function installNotation(d: NotationDeps): NotationApi {
       return;
     }
     const own = graphsOfNotation(n, graphs(), cesam());
-    for (const viewpoint of VIEWPOINTS) {
+    // In the notation's own order (SysML v2: the general view first).
+    const ordered = NOTATION_VIEWS[n].map((view) => VIEWPOINTS.find((v) => v.view === view)).filter((v): v is (typeof VIEWPOINTS)[number] => !!v);
+    for (const viewpoint of ordered) {
       const diagrams = own.filter((g) => g.arc.view === viewpoint.view);
       if (!diagrams.length) continue;
       const active = diagrams.some((g) => g.id === current);
