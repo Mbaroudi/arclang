@@ -93,15 +93,21 @@ export function cosimCases(value: unknown): CosimCase[] {
     .filter((c) => c.verdict !== 'skipped');
 }
 
-/** "1 co-simulation (OMSimulator) passes." / "2 co-simulations: 1 pass, 1 fail." */
-export function cosimText(cases: CosimCase[]): string {
+/**
+ * "1 co-simulation (OMSimulator) passes." / "2 co-simulations: 1 pass, 1 fail."
+ * With `stage`, the SIL cases the server ran the same way: "All 3 SIL cases pass."
+ */
+export function cosimText(cases: CosimCase[], stage: { one: string; many: string } = { one: 'co-simulation (OMSimulator)', many: 'co-simulations (OMSimulator)' }): string {
   if (!cases.length) return '';
   const pass = cases.filter((c) => c.verdict === 'pass').length;
   const fail = cases.filter((c) => c.verdict === 'fail').length;
   const other = cases.length - pass - fail;
-  if (pass === cases.length) return `${cases.length === 1 ? '1 co-simulation (OMSimulator) passes' : `All ${cases.length} co-simulations (OMSimulator) pass`}.`;
-  return `${cases.length} co-simulation${cases.length > 1 ? 's' : ''} (OMSimulator): ${[pass && `${pass} pass`, fail && `${fail} fail`, other && `${other} error`].filter(Boolean).join(', ')}.`;
+  if (pass === cases.length) return `${cases.length === 1 ? `1 ${stage.one} passes` : `All ${cases.length} ${stage.many} pass`}.`;
+  return `${cases.length} ${cases.length > 1 ? stage.many : stage.one}: ${[pass && `${pass} pass`, fail && `${fail} fail`, other && `${other} error`].filter(Boolean).join(', ')}.`;
 }
+
+/** The SIL cases of an online answer (the C compiled and run on the server), as the co-simulated ones. */
+export const SIL_STAGE = { one: 'SIL case', many: 'SIL cases' };
 
 /** The log of the co-simulated cases: one line each, with its reason when it does not pass. */
 export function cosimLog(cases: CosimCase[]): string {

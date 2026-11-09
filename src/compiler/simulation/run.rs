@@ -175,6 +175,7 @@ fn attach_executed(result: &mut CompilationResult, model_path: &Path) -> std::co
                 }
             },
         };
+        let status = with_cosim(result, model_path, &dir, test, status);
         let status = with_pil(result, model_path, &dir, test, status);
         let status = with_hdl(result, model_path, &dir, test, status);
         let status = with_soc(result, model_path, &dir, test, status);
@@ -242,6 +243,49 @@ fn with_stage(result: &mut CompilationResult, model_path: &Path, dir: &Path, tes
     let mut status = status;
     status.evidence = format!("{} · {label}: pass", status.evidence).trim_start_matches(" · ").to_string();
     status.with_rung(rung)
+}
+
+/// A case's status with its co-simulation verdict, when one is cached
+/// beside its SIL verdict (`arclang cosim` writes `<case>.cosim.json`): the
+/// same generated C, run as an FMU under OMSimulator and judged as SIL
+/// judges it. Fresh, it is evidence of the SIL stage: it stands for a SIL
+/// verdict missing or stale, a failure or an error is the case's verdict,
+/// a pass joins the C harness's; the stage keeps one rung, naming both.
+/// Stale, it is a warning only.
+fn with_cosim(result: &mut CompilationResult, model_path: &Path, dir: &Path, test: &crate::compiler::ast::TestCase, status: Status) -> Status {
+    let Some(outcome) = cache::read_kind(dir, &test.id, "cosim") else { return status };
+    let base = cache::model_dir(model_path);
+    let fresh = crate::compiler::embedded::cosim_verdict::cache_key(&result.ast, test, &base).is_ok_and(|key| key == outcome.key);
+    let target = crate::compiler::embedded::cosim_verdict::target_of(&outcome);
+    if !fresh {
+        let reason = format!("its co-simulation verdict is stale (the generated C, the plant or the case changed); run `arclang cosim {} --test {}`", model_path.display(), test.id);
+        result.warnings.push(format!("verification: test_case '{}': {reason}", test.name));
+        return status;
+    }
+    let later = status_of(result, test, &outcome);
+    let label = format!("co-simulation in {target}");
+    if later.verdict != "pass" {
+        result.warnings.push(format!("verification: test_case '{}' {} in {label}: {}", test.name, if later.verdict == "fail" { "fails" } else { "is in error" }, later.reason));
+    }
+    let sil = status.rungs.iter().find(|r| r.stage == "sil" && r.state == "fresh").map(|r| r.target.clone());
+    let others: Vec<Rung> = status.rungs.iter().filter(|r| r.stage != "sil").cloned().collect();
+    match sil {
+        // No C harness ran (or its verdict no longer holds): the co-simulation is the stage's evidence.
+        None => {
+            let rung = Rung::fresh("sil", target, &later);
+            Status { rungs: others.into_iter().chain([rung]).collect(), ..later }
+        }
+        Some(harness) if later.verdict != "pass" => {
+            let rung = Rung::fresh("sil", format!("{harness} · {target}"), &later);
+            Status { rungs: others.into_iter().chain([rung]).collect(), ..later }
+        }
+        Some(harness) => {
+            let mut status = status;
+            status.evidence = format!("{} · {label}: pass", status.evidence).trim_start_matches(" · ").to_string();
+            let rung = Rung::fresh("sil", format!("{harness} · {target}"), &status);
+            Status { rungs: others.into_iter().chain([rung]).collect(), ..status }
+        }
+    }
 }
 
 fn with_pil(result: &mut CompilationResult, model_path: &Path, dir: &Path, test: &crate::compiler::ast::TestCase, status: Status) -> Status {

@@ -3,10 +3,38 @@
 
 use super::{Outcome, Spec};
 use sha2::{Digest, Sha256};
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 /// Bumped when the meaning of a cached verdict changes.
 const FORMAT: &str = "arclang-sim-cache-1";
+
+thread_local! {
+    /// Files given in place of the file system (the browser: the workbench
+    /// snapshot reads the verdicts and the Modelica sources the page holds,
+    /// by path relative to the model), for the span of `with_files`.
+    static FILES: RefCell<Option<HashMap<PathBuf, Vec<u8>>>> = const { RefCell::new(None) };
+}
+
+/// Runs `f` with `files` standing for the file system in every read of
+/// this module (the verdicts, the sources a key hashes): what the browser
+/// knows of the model's folder, where there is no file system.
+pub fn with_files<R>(files: HashMap<PathBuf, Vec<u8>>, f: impl FnOnce() -> R) -> R {
+    FILES.with(|cell| *cell.borrow_mut() = Some(files));
+    let out = f();
+    FILES.with(|cell| *cell.borrow_mut() = None);
+    out
+}
+
+/// The bytes of a file: of those given to `with_files` when inside it, else of the file system.
+pub fn read_bytes(path: &Path) -> Option<Vec<u8>> {
+    let given = FILES.with(|cell| cell.borrow().as_ref().map(|files| files.get(path).cloned()));
+    match given {
+        Some(found) => found,
+        None => std::fs::read(path).ok(),
+    }
+}
 
 /// The directory a model lives in: that of its path, or the one named by
 /// `ARCLANG_MODEL_DIR` when the model is read from a temporary copy (the VS
@@ -41,9 +69,9 @@ pub fn key(package: &str, base: &Path, spec: &Spec, expects: &[String]) -> Strin
     field("package", package.as_bytes());
     for source in &spec.sources {
         field("source", source.as_bytes());
-        match std::fs::read(base.join(source)) {
-            Ok(content) => field("content", &content),
-            Err(_) => field("missing", b""),
+        match read_bytes(&base.join(source)) {
+            Some(content) => field("content", &content),
+            None => field("missing", b""),
         }
     }
     field("backend", spec.backend.name().as_bytes());
@@ -75,8 +103,7 @@ fn kind_file(dir: &Path, test_id: &str, kind: &str) -> PathBuf {
 }
 
 pub fn read_kind(dir: &Path, test_id: &str, kind: &str) -> Option<Outcome> {
-    let text = std::fs::read_to_string(kind_file(dir, test_id, kind)).ok()?;
-    serde_json::from_str(&text).ok()
+    serde_json::from_slice(&read_bytes(&kind_file(dir, test_id, kind))?).ok()
 }
 
 pub fn write_kind(dir: &Path, kind: &str, outcome: &Outcome) -> Result<PathBuf, String> {
@@ -88,8 +115,7 @@ pub fn write_kind(dir: &Path, kind: &str, outcome: &Outcome) -> Result<PathBuf, 
 }
 
 pub fn read(dir: &Path, test_id: &str) -> Option<Outcome> {
-    let text = std::fs::read_to_string(file(dir, test_id)).ok()?;
-    serde_json::from_str(&text).ok()
+    serde_json::from_slice(&read_bytes(&file(dir, test_id))?).ok()
 }
 
 pub fn write(dir: &Path, outcome: &Outcome) -> Result<PathBuf, String> {

@@ -144,6 +144,23 @@ pub fn workbench(source: &str, gate_standard: &str, exports: bool) -> String {
     workbench::snapshot_json(source, &SnapshotOptions { gate_standard: standard, exports, explorer_html: false })
 }
 
+/// The same snapshot, reading the files of the model's folder the page
+/// holds, given as a JSON object `{"path relative to the model": text}`:
+/// the verdicts the runs kept (`.arclang/sim-cache/*.json`) and the Modelica
+/// sources their keys hash. The gate, the coverage and the realization
+/// ladder then say what the runs said, as they do beside a model on disk.
+// web hook
+#[wasm_bindgen]
+pub fn workbench_with(source: &str, gate_standard: &str, exports: bool, files: &str) -> String {
+    let standard = match gate_standard.to_ascii_uppercase().replace(['-', '_', ' '], "").as_str() {
+        "DO178C" => "DO178C",
+        "IEC61508" => "IEC61508",
+        _ => "ISO26262",
+    };
+    let files: std::collections::HashMap<String, String> = serde_json::from_str(files).unwrap_or_default();
+    workbench::snapshot_with_files_json(source, &SnapshotOptions { gate_standard: standard, exports, explorer_html: false }, files)
+}
+
 /// What `arclang check --json` prints: `{success, errors, findings, metrics}`.
 // web hook
 #[wasm_bindgen]

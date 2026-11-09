@@ -250,6 +250,29 @@ a disagreement between the two verdicts.
 The outcome says `OMSimulator 2.1.3; the behavior's FMU (…), plant …
 built by OpenModelica …` in its tools.
 
+## Where the verdict goes
+
+`arclang cosim` keeps each case's verdict beside the model, as
+`.arclang/sim-cache/<case>.cosim.json`, next to the verdict `arclang sil`
+keeps for the same case. `check`, `gate`, the tables and the workbench read
+it as evidence of the **SIL** stage of the realization ladder
+([realization.md](realization.md)): it is the same generated C, run as an
+FMU under a standard master and judged as SIL judges it.
+
+- A case never run in SIL (or whose SIL verdict is stale) takes the
+  co-simulation's verdict: a fresh pass verifies the requirements the case
+  names, and the SIL rung says `OMSimulator 2.1.3`.
+- When both ran, a co-simulation that fails or is in error is the case's
+  verdict, with a warning; a pass joins the C harness's evidence, and the
+  rung names both.
+- The verdict is keyed by what the SIL verdict is keyed by (the generated C,
+  the case, its expectations) and by the plant's sources or FMU. A change of
+  any of them makes it stale: a warning names `arclang cosim` to run again.
+
+Online (arclang.fr), **Simulate** co-simulates the cases that `execute:`
+in the same run as the simulations; their verdicts come back with the
+simulations' and count in the gate and the coverage table the same way.
+
 ## Measured
 
 On the examples, in the Studio image (arm64):
@@ -298,6 +321,4 @@ never reads. An event is then read as exactly 1 or 0, never as `1e-15`.
 - Wires to the plant other than reals: a co-simulation wire carries a Real.
 - A given plant FMU with its own units: the machine variables wired to it
   must be in SI.
-- The verdict is not yet a rung of the realization ladder
-  ([realization.md](realization.md)).
 - An FMI 3.0 export of the behavior.

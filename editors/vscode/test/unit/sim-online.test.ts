@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { ONLINE_LIMITS, leftText, pickFiles, sendablePath, walkable, sentAsBytes, cosimCases, cosimLog, cosimText, executes } from '../../src/pure/sim-online';
+import { ONLINE_LIMITS, leftText, pickFiles, sendablePath, walkable, sentAsBytes, cosimCases, cosimLog, cosimText, executes, SIL_STAGE } from '../../src/pure/sim-online';
 
 test('only what a simulation reads is sent, never a dot file nor the compiler cache', () => {
   for (const ok of ['ev.arc', 'lib/Plant.mo', 'data/drive cycle.csv', 'run.mos', 'data/house.parquet']) assert.ok(sendablePath(ok), ok);
@@ -47,6 +47,9 @@ test('a model with test cases that execute: is co-simulated online; their verdic
   assert.equal(cosimText(cases), '2 co-simulations (OMSimulator): 1 pass, 1 fail.');
   assert.equal(cosimText(cases.slice(0, 1)), '1 co-simulation (OMSimulator) passes.');
   assert.equal(cosimText([]), '');
+  // The SIL cases the server runs the same way (the C compiled there), said as such.
+  assert.equal(cosimText(cases, SIL_STAGE), '2 SIL cases: 1 pass, 1 fail.');
+  assert.equal(cosimText(cases.slice(0, 1), SIL_STAGE), '1 SIL case passes.');
   assert.match(cosimLog(cases), /FAIL  TC-2  Creep\n\s+speed 4 km\/h > 3 km\/h/);
   assert.deepEqual(cosimCases(null), []);
 });

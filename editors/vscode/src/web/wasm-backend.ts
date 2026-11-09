@@ -62,6 +62,51 @@ async function readModel(path: string | undefined): Promise<{ ok: true; text: st
   }
 }
 
+const SEGMENT = /^[A-Za-z0-9_][A-Za-z0-9._ -]{0,99}$/;
+const VERDICT_LIMITS = { files: 200, bytes: 4_000_000, depth: 6 };
+
+/**
+ * The files of a model's folder that its verdicts depend on, by path relative
+ * to it: the verdicts the runs kept (`.arclang/sim-cache/*.json`) and the
+ * Modelica sources their keys hash; null when the folder keeps no verdict
+ * (the usual case: nothing is read then).
+ */
+async function verdictFiles(dir: string): Promise<Record<string, string> | null> {
+  const read = async (path: string): Promise<[string, vscode.FileType][]> => {
+    try {
+      return await vscode.workspace.fs.readDirectory(vscode.Uri.file(path));
+    } catch {
+      return [];
+    }
+  };
+  const cacheDir = `${dir}/.arclang/sim-cache`;
+  const verdicts = (await read(cacheDir)).filter(([name, type]) => type & vscode.FileType.File && SEGMENT.test(name) && name.endsWith('.json'));
+  if (!verdicts.length) return null;
+  const out: Record<string, string> = {};
+  let bytes = 0;
+  const take = async (path: string, rel: string): Promise<boolean> => {
+    const data = await vscode.workspace.fs.readFile(vscode.Uri.file(path));
+    bytes += data.length;
+    if (Object.keys(out).length >= VERDICT_LIMITS.files || bytes > VERDICT_LIMITS.bytes) return false;
+    out[rel] = new TextDecoder().decode(data);
+    return true;
+  };
+  for (const [name] of verdicts) if (!(await take(`${cacheDir}/${name}`, `.arclang/sim-cache/${name}`))) return out;
+  const sources = async (path: string, rel: string, depth: number): Promise<boolean> => {
+    if (depth > VERDICT_LIMITS.depth) return true;
+    for (const [name, type] of await read(path)) {
+      if (!SEGMENT.test(name) || name === 'node_modules') continue;
+      const childRel = rel ? `${rel}/${name}` : name;
+      if (type & vscode.FileType.Directory) {
+        if (!(await sources(`${path}/${name}`, childRel, depth + 1))) return false;
+      } else if (/\.(mo|fmu)$/i.test(name) && !(await take(`${path}/${name}`, childRel))) return false;
+    }
+    return true;
+  };
+  await sources(dir, '', 1);
+  return out;
+}
+
 /** What this build answers: the subcommands, and for export and import the formats. */
 const SUPPORTED = new Set(['--version', 'workbench', 'check', 'edit', 'format', 'metamodel', 'rules', 'transition', 'debug']);
 
@@ -102,7 +147,10 @@ export function createWasmBackend(wasm: Wasm): Backend {
         case 'workbench': {
           const model = await readModel(positionals(rest, ['--gate-standard'])[0]);
           if (!model.ok) return model.result;
-          return done(wasm.workbench(model.text, option(rest, '--gate-standard') ?? 'iso26262', rest.includes('--exports')));
+          const standard = option(rest, '--gate-standard') ?? 'iso26262';
+          // The verdicts the runs kept beside the model, with the Modelica sources their keys hash: the gate and the coverage say what the runs said.
+          const beside = options.cwd ? await verdictFiles(options.cwd) : null;
+          return done(beside ? wasm.workbench_with(model.text, standard, rest.includes('--exports'), JSON.stringify(beside)) : wasm.workbench(model.text, standard, rest.includes('--exports')));
         }
         case 'check': {
           const model = await readModel(positionals(rest, [])[0]);
