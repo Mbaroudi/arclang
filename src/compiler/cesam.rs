@@ -510,7 +510,18 @@ pub fn diagram_view(id: &str, machine_vision: impl Fn(&str) -> Option<Vision>, s
         "lab" | "pab" => (Constructional, Interactions),
         "pbs" => (Constructional, Structure),
         "cdb" => (Functional, Interfaces),
-        "req" => (Operational, Requirements),
+        // One requirements block's view, in the vision of its block; every requirement at once, in the operational cell.
+        "req" => {
+            let block = name.to_ascii_lowercase();
+            let vision = if block.starts_with("functional") || block.starts_with("system") {
+                Functional
+            } else if block.starts_with("technical") {
+                Constructional
+            } else {
+                Operational
+            };
+            (vision, Requirements)
+        }
         "msm" => (machine_vision(name).unwrap_or(Functional), States),
         "es" => (scenario_vision(name).unwrap_or(Operational), Scenarios),
         _ => return None,
@@ -533,8 +544,11 @@ pub fn arrange_diagrams(set: &mut super::diagram::DiagramSet, ast: &Model, graph
     let classifier = Classifier::new(graph, ast);
     let machine = |name: &str| ast.state_machines.iter().find(|m| m.name == name).map(|m| machine_vision(&m.attributes, &m.name));
     let scenario = |name: &str| graph.elements.iter().find(|e| e.kind == "Scenario" && e.name == name).and_then(|e| classifier.element(e)).map(|p| p.vision);
+    // A view of each requirements block, when there are several, stands in its cell; not every requirement at once again.
+    let by_block = set.diagrams.iter().any(|d| d.id.starts_with("req:"));
     let mut placed: Vec<(usize, super::diagram::Diagram)> = std::mem::take(&mut set.diagrams)
         .into_iter()
+        .filter(|d| !(by_block && d.id == "req"))
         .filter_map(|mut diagram| {
             let cell = diagram_view(&diagram.id, machine, scenario)?;
             let rank = VISIONS.iter().position(|v| *v == cell.vision).unwrap_or(0) * ASPECTS.len() + ASPECTS.iter().position(|a| *a == cell.aspect).unwrap_or(0);

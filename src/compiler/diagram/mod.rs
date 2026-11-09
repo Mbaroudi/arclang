@@ -464,13 +464,13 @@ pub fn build_diagrams(model: &Model) -> DiagramSet {
             capabilities::build(model),
             data::build(model),
             product::build(model),
-            requirements::build(model),
-            parametric::build(model),
         ]
         .into_iter()
         .flatten()
         .map(|(diagram, diagnostics)| (Some(diagram), diagnostics)),
     )
+    .chain(requirements::diagrams(model).into_iter().map(|(diagram, diagnostics)| (Some(diagram), diagnostics)))
+    .chain(parametric::build(model).map(|(diagram, diagnostics)| (Some(diagram), diagnostics)))
     .chain(sysml_views::build(model))
     .chain(state_machine::build(model))
     .chain(scenario::build(model));

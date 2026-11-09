@@ -153,7 +153,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
         dependency involves from 'OC-001' to 'OE-Vehicle';
         connection DriverCommands connect 'OA-ACT-001' to 'OE-Vehicle'.'OA-MonitorEnvironment';
         connection EnvironmentData connect 'OA-ACT-003' to 'OE-Vehicle'.'OA-MonitorEnvironment';
-        flow ThreatDetection of Data::Data from 'OE-Vehicle'.'OA-MonitorEnvironment' to 'OE-Vehicle'.'OA-DetectThreat';
+        flow ThreatDetection from 'OE-Vehicle'.'OA-MonitorEnvironment' to 'OE-Vehicle'.'OA-DetectThreat';
         connection DriverWarning connect 'OE-Vehicle'.'OA-AlertDriver' to 'OA-ACT-001';
         connection BrakingAction connect 'OE-Vehicle'.'OA-ApplyBrakes' to 'OE-Vehicle';
         connection PedestrianProtection connect 'OE-Vehicle'.'OA-ApplyBrakes' to 'OA-ACT-002';

@@ -258,6 +258,12 @@ system_analysis "ACC system" {
     actor "Body controller" { id: "SA-BCM" asil: "QM" description: "Door, bonnet and seat-belt states" }
     actor "Diagnostic tester" { id: "SA-TESTER" description: "The workshop's UDS tester, on the diagnostic connector" }
 
+    system_component "ACC" {
+        id: "SC-ACC"
+        description: "The system under design: every system function is allocated to it"
+        allocated_functions: ["SF-RADAR", "SF-CAMERA", "SF-EGO", "SF-FUSE", "SF-PATH", "SF-SELECT", "SF-CUTDET", "SF-SET", "SF-OVR", "SF-MODE", "SF-GAP", "SF-SPEED", "SF-DIST", "SF-ARB", "SF-LIMIT", "SF-BRAKE", "SF-TORQUE", "SF-HOLD", "SF-HMI", "SF-TOR", "SF-PLAUS", "SF-DIAG"]
+    }
+
     mission "Relieve the driver of longitudinal control" { id: "MIS-ASSIST" }
     mission "Keep the car safe and serviceable" { id: "MIS-SAFE" }
 
@@ -300,157 +306,157 @@ system_analysis "ACC system" {
     function "Measure objects by radar" {
         id: "SF-RADAR"  asil: "ASIL-B"  latency: 50 ms  period: 50 ms
         description: "Range, range rate and angle of the objects ahead, up to 200 m"
-        port in "echo"
-        port out "radar_objects"
+        port in "echo" { data_type: "Radar echo" }
+        port out "radar_objects" { data_type: "Object list" }
     }
     function "Detect objects and lanes by camera" {
         id: "SF-CAMERA"  asil: "ASIL-B"  latency: 33 ms  period: 33 ms
         description: "Classify the objects ahead and find the lane markings"
-        port in "image"
-        port in "lane_markings"
-        port out "camera_objects"
-        port out "lanes"
+        port in "image" { data_type: "Camera image" }
+        port in "lane_markings" { data_type: "Camera image" }
+        port out "camera_objects" { data_type: "Object list" }
+        port out "lanes" { data_type: "Lane path" }
     }
     function "Estimate ego motion" {
         id: "SF-EGO"  asil: "ASIL-B"  latency: 5 ms  period: 10 ms
         description: "Speed, acceleration and yaw rate of the car from the wheel speeds and the inertial sensor"
-        port in "wheel_speeds"
-        port out "ego_motion"
+        port in "wheel_speeds" { data_type: "Vehicle dynamics" }
+        port out "ego_motion" { data_type: "Ego motion" }
     }
     function "Fuse objects into tracks" {
         id: "SF-FUSE"  asil: "ASIL-B"  latency: 15 ms  period: 50 ms
         description: "Associate radar and camera detections, track them, estimate their acceleration"
-        port in "radar_objects"
-        port in "camera_objects"
-        port in "ego_motion"
-        port out "tracks"
+        port in "radar_objects" { data_type: "Object list" }
+        port in "camera_objects" { data_type: "Object list" }
+        port in "ego_motion" { data_type: "Ego motion" }
+        port out "tracks" { data_type: "Tracks" }
     }
     function "Predict the ego path" {
         id: "SF-PATH"  asil: "ASIL-B"  latency: 5 ms
         description: "Course of the car over the next 4 s from the lanes and the yaw rate"
-        port in "lanes"
-        port in "ego_motion"
-        port out "path"
+        port in "lanes" { data_type: "Lane path" }
+        port in "ego_motion" { data_type: "Ego motion" }
+        port out "path" { data_type: "Lane path" }
     }
     function "Select the target to follow" {
         id: "SF-SELECT"  asil: "ASIL-B"  latency: 5 ms
         description: "The nearest moving track inside the predicted path"
-        port in "tracks"
-        port in "path"
-        port out "target"
+        port in "tracks" { data_type: "Tracks" }
+        port in "path" { data_type: "Lane path" }
+        port out "target" { data_type: "Target" }
     }
     function "Detect cut-ins and cut-outs" {
         id: "SF-CUTDET"  asil: "ASIL-B"  latency: 100 ms
         description: "A track crossing into or out of the path, confirmed over three cycles"
-        port in "tracks"
-        port in "path"
-        port out "lane_change"
+        port in "tracks" { data_type: "Tracks" }
+        port in "path" { data_type: "Lane path" }
+        port out "lane_change" { data_type: "Lane change" }
     }
     // Control
     function "Manage driver settings" {
         id: "SF-SET"  asil: "QM"  latency: 10 ms
         description: "Main switch, set, resume, cancel, speed steps, time gap"
-        port in "switches"
-        port out "settings"
+        port in "switches" { data_type: "Driver settings" }
+        port out "settings" { data_type: "Driver settings" }
     }
     function "Detect driver override" {
         id: "SF-OVR"  asil: "ASIL-B"  latency: 10 ms
         description: "Brake pedal, accelerator beyond the ACC demand, cancel"
-        port in "pedals"
-        port out "override"
+        port in "pedals" { data_type: "Pedal state" }
+        port out "override" { data_type: "Override" }
     }
     function "Manage the ACC mode" {
         id: "SF-MODE"  asil: "ASIL-B"  latency: 5 ms  period: 10 ms
         description: "Off, standby, cruising, following, standstill, overridden, degraded"
-        port in "settings"
-        port in "override"
-        port in "health"
-        port in "target"
-        port in "vehicle_state"
-        port out "mode"
+        port in "settings" { data_type: "Driver settings" }
+        port in "override" { data_type: "Override" }
+        port in "health" { data_type: "Health" }
+        port in "target" { data_type: "Target" }
+        port in "vehicle_state" { data_type: "Body state" }
+        port out "mode" { data_type: "ACC mode" }
     }
     function "Compute the distance to keep" {
         id: "SF-GAP"  asil: "ASIL-B"  latency: 2 ms
         description: "d = d0 + time gap x speed, d0 = 4 m"
-        port in "settings"
-        port in "ego_motion"
-        port out "gap_reference"
+        port in "settings" { data_type: "Driver settings" }
+        port in "ego_motion" { data_type: "Ego motion" }
+        port out "gap_reference" { data_type: "Distance to keep" }
     }
     function "Control speed" {
         id: "SF-SPEED"  asil: "ASIL-B"  latency: 2 ms  period: 20 ms
-        port in "settings"
-        port in "ego_motion"
-        port out "speed_acceleration"
+        port in "settings" { data_type: "Driver settings" }
+        port in "ego_motion" { data_type: "Ego motion" }
+        port out "speed_acceleration" { data_type: "Acceleration demand" }
     }
     function "Control distance" {
         id: "SF-DIST"  asil: "ASIL-B"  latency: 5 ms  period: 20 ms
         description: "Acceleration from the distance error and the relative speed; the deceleration needed to stop behind the target"
-        port in "target"
-        port in "gap_reference"
-        port in "ego_motion"
-        port in "lane_change"
-        port out "distance_acceleration"
-        port out "deceleration_needed"
+        port in "target" { data_type: "Target" }
+        port in "gap_reference" { data_type: "Distance to keep" }
+        port in "ego_motion" { data_type: "Ego motion" }
+        port in "lane_change" { data_type: "Lane change" }
+        port out "distance_acceleration" { data_type: "Acceleration demand" }
+        port out "deceleration_needed" { data_type: "Acceleration demand" }
     }
     function "Arbitrate the acceleration" {
         id: "SF-ARB"  asil: "ASIL-B"  latency: 2 ms
         description: "The lower of speed and distance control, according to the mode"
-        port in "speed_acceleration"
-        port in "distance_acceleration"
-        port in "mode"
-        port out "acceleration_request"
+        port in "speed_acceleration" { data_type: "Acceleration demand" }
+        port in "distance_acceleration" { data_type: "Acceleration demand" }
+        port in "mode" { data_type: "ACC mode" }
+        port out "acceleration_request" { data_type: "Acceleration demand" }
     }
     function "Bound acceleration and jerk" {
         id: "SF-LIMIT"  asil: "ASIL-B"  latency: 2 ms
         description: "Clamp to -3.5 .. +2.0 m/s2 and 2.5 m/s3, the safety envelope"
-        port in "acceleration_request"
-        port out "acceleration_command"
+        port in "acceleration_request" { data_type: "Acceleration demand" }
+        port out "acceleration_command" { data_type: "Acceleration demand" }
     }
     // Actuation
     function "Request deceleration" {
         id: "SF-BRAKE"  asil: "ASIL-B"  latency: 10 ms
-        port in "acceleration_command"
-        port out "brake_request"
+        port in "acceleration_command" { data_type: "Acceleration demand" }
+        port out "brake_request" { data_type: "Brake request" }
     }
     function "Request drive torque" {
         id: "SF-TORQUE"  asil: "ASIL-B"  latency: 10 ms
-        port in "acceleration_command"
-        port out "torque_request"
+        port in "acceleration_command" { data_type: "Acceleration demand" }
+        port out "torque_request" { data_type: "Torque request" }
     }
     function "Hold at standstill" {
         id: "SF-HOLD"  asil: "ASIL-B"  latency: 10 ms
         description: "Service brake hold, handed over to the park brake after 180 s"
-        port in "mode"
-        port out "hold_request"
-        port out "park_request"
+        port in "mode" { data_type: "ACC mode" }
+        port out "hold_request" { data_type: "Brake request" }
+        port out "park_request" { data_type: "Park request" }
     }
     // Driver information and safety
     function "Show the ACC state" {
         id: "SF-HMI"  asil: "QM"  latency: 20 ms
-        port in "mode"
-        port in "settings"
-        port out "display"
+        port in "mode" { data_type: "ACC mode" }
+        port in "settings" { data_type: "Driver settings" }
+        port out "display" { data_type: "ACC display" }
     }
     function "Request takeover" {
         id: "SF-TOR"  asil: "ASIL-B"  latency: 20 ms
         description: "Red symbol and chime when the deceleration needed exceeds 3.5 m/s2 or on a fault"
-        port in "deceleration_needed"
-        port in "health"
-        port out "takeover"
+        port in "deceleration_needed" { data_type: "Acceleration demand" }
+        port in "health" { data_type: "Health" }
+        port out "takeover" { data_type: "Takeover request" }
     }
     function "Monitor sensors and plausibility" {
         id: "SF-PLAUS"  asil: "ASIL-B"  latency: 50 ms  period: 50 ms
         description: "Blindness, misalignment, radar/camera disagreement, controller self-tests"
-        port in "tracks"
-        port out "health"
-        port out "fault_report"
+        port in "tracks" { data_type: "Tracks" }
+        port out "health" { data_type: "Health" }
+        port out "fault_report" { data_type: "Fault report" }
     }
     function "Record and report faults" {
         id: "SF-DIAG"  asil: "QM"
         description: "Diagnostic trouble codes with freeze frames, UDS services, calibration routines"
-        port in "fault_report"
-        port in "tester_request"
-        port out "tester_response"
+        port in "fault_report" { data_type: "Fault report" }
+        port in "tester_request" { data_type: "UDS request" }
+        port out "tester_response" { data_type: "UDS response" }
     }
 
     // Exchanges with the surroundings
@@ -692,23 +698,23 @@ scenario "Brake pedal during following" {
 
 class "ObjectTrack" {
     id: "CL-TRACK"
-    track_id: "uint8"  range: "float [m]"  range_rate: "float [m/s]"  acceleration: "float [m/s2]"
-    lateral_offset: "float [m]"  existence_probability: "float [0..1]"  object_class: "ObjectClass"  lane: "LaneAssignment"
+    track_id: "uint8"  range: "Distance"  range_rate: "Speed"  acceleration: "Acceleration"
+    lateral_offset: "Distance"  existence_probability: "Probability"  object_class: "ObjectClass"  lane: "LaneAssignment"
 }
 class "TargetObject" {
     id: "CL-TARGET"  extends: "CL-TRACK"
-    selected_since: "uint32 [ms]"  in_path_confidence: "float [0..1]"
+    selected_since: "Duration"  in_path_confidence: "Probability"
 }
-class "EgoMotion" { id: "CL-EGO" speed: "float [m/s]"  acceleration: "float [m/s2]"  yaw_rate: "float [rad/s]"  standstill: "bool" }
-class "LanePath" { id: "CL-PATH" curvature: "float [1/m]"  curvature_rate: "float [1/m2]"  lane_width: "float [m]"  quality: "uint8" }
-class "DriverSettings" { id: "CL-SETTINGS" main_switch: "bool"  set_speed: "float [km/h]"  time_gap: "TimeGapSetting"  resume: "bool"  cancel: "bool" }
-class "AccelerationRequest" { id: "CL-AREQ" acceleration: "float [m/s2]"  jerk_limit: "float [m/s3]"  source: "string" }
-class "BrakeRequest" { id: "CL-BREQ" deceleration: "float [m/s2]"  hold: "bool"  counter: "uint8"  mac: "uint64" }
-class "TorqueRequest" { id: "CL-TREQ" wheel_torque: "float [N.m]"  counter: "uint8"  mac: "uint64" }
-class "AccDisplay" { id: "CL-DISPLAY" mode: "AccMode"  set_speed: "float [km/h]"  time_gap: "TimeGapSetting"  target_detected: "bool"  target: "TargetObject" }
+class "EgoMotion" { id: "CL-EGO" speed: "Speed"  acceleration: "Acceleration"  yaw_rate: "YawRate"  standstill: "bool" }
+class "LanePath" { id: "CL-PATH" curvature: "Curvature"  curvature_rate: "CurvatureRate"  lane_width: "Distance"  quality: "uint8" }
+class "DriverSettings" { id: "CL-SETTINGS" main_switch: "bool"  set_speed: "Speed"  time_gap: "TimeGapSetting"  resume: "bool"  cancel: "bool" }
+class "AccelerationRequest" { id: "CL-AREQ" acceleration: "Acceleration"  jerk_limit: "Jerk"  source: "string" }
+class "BrakeRequest" { id: "CL-BREQ" deceleration: "Acceleration"  hold: "bool"  counter: "uint8"  mac: "uint64" }
+class "TorqueRequest" { id: "CL-TREQ" wheel_torque: "Torque"  counter: "uint8"  mac: "uint64" }
+class "AccDisplay" { id: "CL-DISPLAY" mode: "AccMode"  set_speed: "Speed"  time_gap: "TimeGapSetting"  target_detected: "bool"  target: "TargetObject" }
 class "TakeoverRequest" { id: "CL-TOR" active: "bool"  reason: "FaultClass" }
 class "HealthStatus" { id: "CL-HEALTH" radar_ok: "bool"  camera_ok: "bool"  controller_ok: "bool"  fault: "FaultClass"  codes: "DiagnosticTroubleCode" }
-class "DiagnosticTroubleCode" { id: "CL-DTC" code: "uint32"  status: "uint8"  freeze_frame: "bytes" }
+class "DiagnosticTroubleCode" { id: "CL-DTC" code: "uint32"  status: "uint8"  freeze_frame: "FreezeFrame" }
 
 enumeration "AccMode" { id: "EN-MODE" values: ["Off", "Standby", "Cruising", "Following", "Standstill", "Overridden", "Degraded"] }
 enumeration "LaneAssignment" { id: "EN-LANE" values: ["EgoLane", "LeftLane", "RightLane", "Unknown"] }
@@ -718,13 +724,24 @@ enumeration "FaultClass" { id: "EN-FAULT" values: ["None", "RadarBlind", "Camera
 data_type "Speed" { id: "DT-SPEED" base: "float" unit: "m/s" }
 data_type "Distance" { id: "DT-DIST" base: "float" unit: "m" }
 data_type "TimeGap" { id: "DT-GAP" base: "float" unit: "s" }
+data_type "Duration" { id: "DT-DURATION" base: "uint32" unit: "ms" }
+data_type "Acceleration" { id: "DT-ACCEL" base: "float" description: "m/s², positive forward" }
+data_type "Jerk" { id: "DT-JERK" base: "float" description: "m/s³" }
+data_type "YawRate" { id: "DT-YAW" base: "float" description: "rad/s, positive to the left" }
+data_type "Curvature" { id: "DT-CURV" base: "float" description: "1/m, positive to the left" }
+data_type "CurvatureRate" { id: "DT-CURVRATE" base: "float" description: "1/m²" }
+data_type "Torque" { id: "DT-TORQUE" base: "float" description: "N·m at the wheels" }
+data_type "Pressure" { id: "DT-PRESSURE" base: "float" unit: "bar" }
+data_type "Percent" { id: "DT-PERCENT" base: "float" unit: "%" }
+data_type "Probability" { id: "DT-PROB" base: "float" description: "0 to 1" }
+data_type "FreezeFrame" { id: "DT-FREEZE" base: "bytes" description: "The signals stored with a DTC (UDS 0x19 0x04)" }
 
 association "display shows the target" { id: "AS-DISP" from: "CL-DISPLAY" to: "CL-TARGET" role: "target" kind: "association" multiplicity: "0..1" }
 association "health reports faults" { id: "AS-HLT" from: "CL-HEALTH" to: "CL-DTC" role: "codes" kind: "composition" multiplicity: "0..*" }
 
-class "VehicleDynamics" { id: "CL-VDYN" wheel_speeds: "float[4] [m/s]"  yaw_rate: "float [rad/s]"  longitudinal_acceleration: "float [m/s2]" }
+class "VehicleDynamics" { id: "CL-VDYN" wheel_speed_front_left: "Speed"  wheel_speed_front_right: "Speed"  wheel_speed_rear_left: "Speed"  wheel_speed_rear_right: "Speed"  yaw_rate: "YawRate"  longitudinal_acceleration: "Acceleration" }
 class "SwitchState" { id: "CL-SWITCH" main: "bool"  set_minus: "bool"  resume_plus: "bool"  cancel: "bool"  gap_button: "bool" }
-class "PedalState" { id: "CL-PEDALS" brake_switch: "bool"  brake_pressure: "float [bar]"  accelerator_position: "float [%]" }
+class "PedalState" { id: "CL-PEDALS" brake_switch: "bool"  brake_pressure: "Pressure"  accelerator_position: "Percent" }
 class "BodyState" { id: "CL-BODY" doors_closed: "bool"  bonnet_closed: "bool"  driver_belt: "bool" }
 class "LaneChangeEvent" { id: "CL-LANECHG" track_id: "uint8"  direction: "string"  cut_in: "bool" }
 class "OverrideEvent" { id: "CL-OVR" source: "string"  brake: "bool"  accelerator: "bool" }
@@ -766,68 +783,68 @@ logical_architecture "ACC logical architecture" {
     component "Radar sensor" {
         id: "LC-RADAR"  asil: "ASIL-B"  type: "sensor"
         description: "77 GHz FMCW radar, 4 transmitters and 4 receivers: detections clustered into objects"
-        port out "radar_objects"
-        port out "radar_status"
+        port out "radar_objects" { interface: "Object list" }
+        port out "radar_status" { interface: "Health" }
         function "Detect and cluster radar targets" { id: "LF-RADAR-DET" realizes: "SF-RADAR" latency: 45 ms period: 50 ms }
         function "Check radar blockage and alignment" { id: "LF-RADAR-BIST" realizes: "SF-PLAUS" period: 100 ms }
     }
     component "Front camera" {
         id: "LC-CAMERA"  asil: "ASIL-B"  type: "sensor"
         description: "Monocular camera behind the windscreen, 8 Mpixel, 120° and 30° fields"
-        port out "camera_objects"
-        port out "lanes"
-        port out "camera_status"
+        port out "camera_objects" { interface: "Object list" }
+        port out "lanes" { interface: "Lane path" }
+        port out "camera_status" { interface: "Health" }
         function "Detect and classify objects" { id: "LF-CAM-OBJ" realizes: "SF-CAMERA" latency: 30 ms period: 33 ms }
         function "Detect lane markings" { id: "LF-CAM-LANE" realizes: "SF-CAMERA" latency: 30 ms period: 33 ms }
         function "Detect camera blindness" { id: "LF-CAM-BLIND" realizes: "SF-PLAUS" period: 200 ms }
     }
     component "Ego motion estimator" {
         id: "LC-EGO"  asil: "ASIL-B"  type: "software"
-        port in "vehicle_dynamics"
-        port out "ego_motion"
+        port in "vehicle_dynamics" { interface: "Vehicle dynamics" }
+        port out "ego_motion" { interface: "Ego motion" }
         function "Estimate speed, acceleration and yaw rate" { id: "LF-EGO" realizes: "SF-EGO" latency: 2 ms period: 10 ms }
         function "Detect standstill" { id: "LF-EGO-STOP" realizes: "SF-EGO" period: 10 ms }
     }
     component "Sensor fusion" {
         id: "LC-FUSION"  asil: "ASIL-B"  type: "software"
         description: "Radar-camera association and multi-object tracking (interacting multiple model Kalman filters)"
-        port in "radar_objects"
-        port in "camera_objects"
-        port in "lanes"
-        port in "ego_motion"
-        port out "tracks"
-        port out "path"
+        port in "radar_objects" { interface: "Object list" }
+        port in "camera_objects" { interface: "Object list" }
+        port in "lanes" { interface: "Lane path" }
+        port in "ego_motion" { interface: "Ego motion" }
+        port out "tracks" { interface: "Tracks" }
+        port out "path" { interface: "Lane path" }
         function "Associate radar and camera objects" { id: "LF-ASSOC" realizes: "SF-FUSE" latency: 5 ms }
         function "Track objects" { id: "LF-TRACK" realizes: "SF-FUSE" latency: 8 ms }
         function "Predict the ego path" { id: "LF-PATH" realizes: "SF-PATH" latency: 3 ms }
     }
     component "Situation assessment" {
         id: "LC-SITUATION"  asil: "ASIL-B"  type: "software"
-        port in "tracks"
-        port in "path"
-        port out "target"
-        port out "lane_change"
+        port in "tracks" { interface: "Tracks" }
+        port in "path" { interface: "Lane path" }
+        port out "target" { interface: "Target" }
+        port out "lane_change" { interface: "Lane change" }
         function "Select the target" { id: "LF-SELECT" realizes: "SF-SELECT" latency: 3 ms }
         function "Detect lane changes ahead" { id: "LF-CUTIN" realizes: "SF-CUTDET" latency: 100 ms description: "Lateral crossing confirmed over three fusion cycles" }
     }
     // Driver interaction
     component "Driver input handler" {
         id: "LC-HMI-IN"  asil: "ASIL-B"  type: "software"
-        port in "switches"
-        port in "pedals"
-        port out "settings"
-        port out "override"
+        port in "switches" { interface: "Driver settings" }
+        port in "pedals" { interface: "Pedal state" }
+        port out "settings" { interface: "Driver settings" }
+        port out "override" { interface: "Override" }
         function "Read the steering wheel switches" { id: "LF-SWITCHES" realizes: "SF-SET" latency: 10 ms }
         function "Detect the brake pedal" { id: "LF-BRAKEPEDAL" realizes: "SF-OVR" latency: 5 ms description: "Brake switch and master cylinder pressure, cross-checked" }
         function "Detect accelerator override" { id: "LF-ACCELPEDAL" realizes: "SF-OVR" latency: 10 ms }
     }
     component "Driver information" {
         id: "LC-HMI-OUT"  asil: "ASIL-B"  type: "software"
-        port in "mode"
-        port in "settings"
-        port in "need"
-        port in "health"
-        port out "hmi_frames"
+        port in "mode" { interface: "ACC mode" }
+        port in "settings" { interface: "Driver settings" }
+        port in "need" { interface: "Acceleration demand" }
+        port in "health" { interface: "Health" }
+        port out "hmi_frames" { interface: "ACC display" }
         function "Compose the ACC display" { id: "LF-DISPLAY" realizes: "SF-HMI" latency: 20 ms }
         function "Raise the takeover request" { id: "LF-TOR" realizes: "SF-TOR" latency: 15 ms }
     }
@@ -835,25 +852,25 @@ logical_architecture "ACC logical architecture" {
     component "ACC mode manager" {
         id: "LC-MODE"  asil: "ASIL-B"  type: "software"
         description: "The executable mode machine 'ACC operating modes', generated as C and proven against the model"
-        port in "settings"
-        port in "override"
-        port in "health"
-        port in "target"
-        port in "body_state"
-        port out "mode"
+        port in "settings" { interface: "Driver settings" }
+        port in "override" { interface: "Override" }
+        port in "health" { interface: "Health" }
+        port in "target" { interface: "Target" }
+        port in "body_state" { interface: "Body state" }
+        port out "mode" { interface: "ACC mode" }
         function "Run the mode machine" { id: "LF-MODE" realizes: "SF-MODE" latency: 2 ms period: 10 ms }
         function "Check the engagement conditions" { id: "LF-ENGAGE" realizes: "SF-MODE" latency: 1 ms }
     }
     component "Longitudinal controller" {
         id: "LC-CTRL"  asil: "ASIL-B"  type: "software"
         description: "Speed and constant-time-gap distance control, the law simulated in physics/ACCPhysics.mo"
-        port in "settings"
-        port in "ego_motion"
-        port in "target"
-        port in "lane_change"
-        port in "mode"
-        port out "acceleration_request"
-        port out "need"
+        port in "settings" { interface: "Driver settings" }
+        port in "ego_motion" { interface: "Ego motion" }
+        port in "target" { interface: "Target" }
+        port in "lane_change" { interface: "Lane change" }
+        port in "mode" { interface: "ACC mode" }
+        port out "acceleration_request" { interface: "Acceleration demand" }
+        port out "need" { interface: "Acceleration demand" }
         function "Compute the distance to keep" { id: "LF-GAP" realizes: "SF-GAP" latency: 1 ms }
         function "Control the speed" { id: "LF-SPEEDCTL" realizes: "SF-SPEED" latency: 1 ms period: 20 ms }
         function "Control the distance" { id: "LF-DISTCTL" realizes: "SF-DIST" latency: 2 ms period: 20 ms }
@@ -864,13 +881,13 @@ logical_architecture "ACC logical architecture" {
     component "Safety monitor" {
         id: "LC-SAFETY"  asil: "ASIL-B"  type: "software"
         description: "Independent of the controller (separate lockstep core, own copy of the inputs): bounds the command and decides the safe state"
-        port in "acceleration_request"
-        port in "tracks"
-        port in "radar_status"
-        port in "camera_status"
-        port out "acceleration_command"
-        port out "health"
-        port out "fault_report"
+        port in "acceleration_request" { interface: "Acceleration demand" }
+        port in "tracks" { interface: "Tracks" }
+        port in "radar_status" { interface: "Health" }
+        port in "camera_status" { interface: "Health" }
+        port out "acceleration_command" { interface: "Acceleration demand" }
+        port out "health" { interface: "Health" }
+        port out "fault_report" { interface: "Fault report" }
         function "Enforce the acceleration envelope" { id: "LF-ENVELOPE" realizes: "SF-LIMIT" latency: 1 ms }
         function "Cross-check radar and camera" { id: "LF-PLAUS" realizes: "SF-PLAUS" latency: 10 ms }
         function "Detect faults" { id: "LF-FAULTS" realizes: "SF-PLAUS" latency: 10 ms description: "Sensor status, plausibility, controller alive and sequence counters, RAM and stack checks" }
@@ -878,9 +895,9 @@ logical_architecture "ACC logical architecture" {
     // Actuation and communication
     component "Actuator coordinator" {
         id: "LC-ACT"  asil: "ASIL-B"  type: "software"
-        port in "acceleration_command"
-        port in "mode"
-        port out "requests"
+        port in "acceleration_command" { interface: "Acceleration demand" }
+        port in "mode" { interface: "ACC mode" }
+        port out "requests" { interface: "Brake request" }
         function "Request brake deceleration" { id: "LF-BRAKEREQ" realizes: "SF-BRAKE" latency: 2 ms period: 10 ms }
         function "Request drive torque" { id: "LF-TORQUEREQ" realizes: "SF-TORQUE" latency: 2 ms period: 10 ms }
         function "Hold at standstill" { id: "LF-STANDSTILL" realizes: "SF-HOLD" latency: 2 ms description: "Hold request to the ESC; park brake request after 180 s" }
@@ -888,22 +905,22 @@ logical_architecture "ACC logical architecture" {
     component "Vehicle bus interface" {
         id: "LC-COM"  asil: "ASIL-B"  type: "software"
         description: "AUTOSAR COM stack: E2E protection, SecOC authentication, signal gateway to the chassis CAN FD"
-        port in "requests"
-        port in "hmi_frames"
-        port in "uds_response"
-        port out "vehicle_dynamics"
-        port out "switches"
-        port out "pedals"
-        port out "body_state"
-        port out "uds_request"
+        port in "requests" { interface: "Brake request" }
+        port in "hmi_frames" { interface: "ACC display" }
+        port in "uds_response" { interface: "UDS response" }
+        port out "vehicle_dynamics" { interface: "Vehicle dynamics" }
+        port out "switches" { interface: "Driver settings" }
+        port out "pedals" { interface: "Pedal state" }
+        port out "body_state" { interface: "Body state" }
+        port out "uds_request" { interface: "UDS request" }
         function "Authenticate outgoing requests" { id: "LF-MAC" realizes: "SF-BRAKE" latency: 1 ms description: "AES-128 CMAC truncated to 24 bits, 8-bit freshness" }
         function "Verify incoming frames" { id: "LF-VERIFY" realizes: "SF-EGO" latency: 1 ms description: "E2E profile 5 counters and CRC, SecOC check of the ESC frames" }
     }
     component "Diagnostic manager" {
         id: "LC-DIAG"  asil: "QM"  type: "software"
-        port in "fault_report"
-        port in "uds_request"
-        port out "uds_response"
+        port in "fault_report" { interface: "Fault report" }
+        port in "uds_request" { interface: "UDS request" }
+        port out "uds_response" { interface: "UDS response" }
         function "Store and report DTCs" { id: "LF-DTC" realizes: "SF-DIAG" }
         function "Run the alignment routines" { id: "LF-CALIB" realizes: "SF-DIAG" description: "Static target alignment of the radar (± 0.1°) and the camera" }
     }
@@ -1444,6 +1461,7 @@ trace "SF-OVR" satisfies "STK-REQ-006" {}
 trace "SF-PLAUS" satisfies "STK-REQ-007" {}
 trace "SF-LIMIT" satisfies "STK-REQ-008" { rationale: "The ISO 15622 envelope" }
 trace "LC-SAFETY" satisfies "STK-REQ-008" { rationale: "The ASIL B safety mechanism of the safety case" }
+trace "SC-ACC" satisfies "STK-REQ-008" { rationale: "The system as a whole is what is approved" }
 trace "SF-DIAG" satisfies "STK-REQ-009" {}
 trace "LC-COM" satisfies "STK-REQ-010" {}
 trace "SF-CUTDET" satisfies "STK-REQ-011" {}

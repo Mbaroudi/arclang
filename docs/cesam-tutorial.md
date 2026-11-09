@@ -361,16 +361,18 @@ and orders them by the grid:
 
 ```console
 $ arclang diagram examples/cesam/smart-lock/smart_lock.arc -f html -o /tmp/smart_lock_cesam.html --view cesam
-✓ req — 22 nodes, 18 edges
+✓ req:Stakeholder Requirements — 12 nodes, 8 edges
 ✓ msm:Lock lifecycle — 4 nodes, 4 edges
 ✓ cap — 6 nodes, 5 edges
 ✓ oab — 4 nodes, 3 edges
 ✓ sab — 8 nodes, 1 edges
 ✓ es:Resident comes home — 2 nodes, 2 edges
 ✓ es:Guest is let in — 2 nodes, 2 edges
+✓ req:Functional Requirements — 4 nodes, 2 edges
 ✓ msm:Lock modes — 4 nodes, 3 edges
 ✓ es:Credential check — 2 nodes, 1 edges
 ✓ cdb — 3 nodes, 0 edges
+✓ req:Technical Requirements — 4 nodes, 2 edges
 ✓ msm:Lock configurations — 3 nodes, 3 edges
 ✓ lab — 8 nodes, 2 edges
 ✓ es:Unlock on the boards — 3 nodes, 2 edges
@@ -378,8 +380,8 @@ $ arclang diagram examples/cesam/smart-lock/smart_lock.arc -f html -o /tmp/smart
 ```
 
 Open `/tmp/smart_lock_cesam.html` in a browser: one tab per kind of diagram, a
-list under the tab when the kind holds several (the three state machines, the
-four scenarios). The page needs no network.
+list under the tab when the kind holds several (the requirements of each of
+the three blocks, the three state machines, the four scenarios). The page needs no network.
 
 ![The lifecycle of the lock in the viewer: installation, service and maintenance, in the CESAM diagram set](images/cesam-lifecycle.webp)
 
