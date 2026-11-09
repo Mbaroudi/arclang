@@ -2385,167 +2385,37 @@
       ]
     },
     {
-      "id": "gv",
+      "id": "gv:Data",
       "kind": "gv",
-      "title": "General View",
+      "title": "General View: Data",
       "nodes": [
         {
-          "id": "EI-001",
-          "uuid": "312bf6dc-6580-5785-8e10-1482b2954350",
-          "name": "RadarTargets",
+          "id": "EN-001",
+          "uuid": "ab94f897-e2c1-5230-9dd9-2eb6ba7db0ec",
+          "name": "ThreatLevel",
           "kind": "sysml_definition",
           "compartment": [
-            "mechanism : String = \"FLOW\""
+            "None",
+            "Low",
+            "Critical"
           ],
           "properties": {
-            "metaclass": "ItemDefinition",
-            "stereotype": "item def"
+            "metaclass": "EnumerationDefinition",
+            "stereotype": "enumeration def"
           }
         },
         {
-          "id": "EI-002",
-          "uuid": "ac1c0e46-3903-586c-a905-fc9fa73418ae",
-          "name": "ThreatAssessed",
+          "id": "DT-001",
+          "uuid": "ae18659b-5af1-569e-bc39-1dbb113ed9fa",
+          "name": "BrakingForce",
           "kind": "sysml_definition",
           "compartment": [
-            "mechanism : String = \"EVENT\"",
-            "element_EN-001 : EN-001"
+            "base : String = \"float\"",
+            "unit : String = \"N\""
           ],
           "properties": {
-            "metaclass": "ItemDefinition",
-            "stereotype": "item def"
-          }
-        },
-        {
-          "id": "EI-003",
-          "uuid": "75f8423e-6b8a-5d81-bd8c-41903923c57a",
-          "name": "raw_sensor_data",
-          "kind": "sysml_definition",
-          "compartment": [
-            "mechanism : String = \"FLOW\""
-          ],
-          "properties": {
-            "metaclass": "ItemDefinition",
-            "stereotype": "item def"
-          }
-        },
-        {
-          "id": "EI-004",
-          "uuid": "7b575326-cb4f-5c6c-98a1-865a55910a27",
-          "name": "fused_data",
-          "kind": "sysml_definition",
-          "compartment": [
-            "mechanism : String = \"FLOW\""
-          ],
-          "properties": {
-            "metaclass": "ItemDefinition",
-            "stereotype": "item def"
-          }
-        },
-        {
-          "id": "EI-005",
-          "uuid": "a419804f-1883-56d9-9440-03a2929150ef",
-          "name": "tracked_objects",
-          "kind": "sysml_definition",
-          "compartment": [
-            "mechanism : String = \"FLOW\""
-          ],
-          "properties": {
-            "metaclass": "ItemDefinition",
-            "stereotype": "item def"
-          }
-        },
-        {
-          "id": "EI-006",
-          "uuid": "4db4c12e-fb6a-54cd-a3c3-bc0a4037b56c",
-          "name": "threat_level",
-          "kind": "sysml_definition",
-          "compartment": [
-            "mechanism : String = \"EVENT\"",
-            "element_EN-001 : EN-001"
-          ],
-          "properties": {
-            "metaclass": "ItemDefinition",
-            "stereotype": "item def"
-          }
-        },
-        {
-          "id": "EI-007",
-          "uuid": "462e8145-be59-5bbf-a622-f45bff6a2691",
-          "name": "vehicle_speed",
-          "kind": "sysml_definition",
-          "compartment": [
-            "mechanism : String = \"FLOW\""
-          ],
-          "properties": {
-            "metaclass": "ItemDefinition",
-            "stereotype": "item def"
-          }
-        },
-        {
-          "id": "EI-008",
-          "uuid": "27290f06-77c9-55c0-9aa3-98166aded549",
-          "name": "radar_data",
-          "kind": "sysml_definition",
-          "compartment": [
-            "mechanism : String = \"FLOW\""
-          ],
-          "properties": {
-            "metaclass": "ItemDefinition",
-            "stereotype": "item def"
-          }
-        },
-        {
-          "id": "EI-009",
-          "uuid": "9dce47c1-7e29-5829-a145-687af0f31acc",
-          "name": "camera_data",
-          "kind": "sysml_definition",
-          "compartment": [
-            "mechanism : String = \"FLOW\""
-          ],
-          "properties": {
-            "metaclass": "ItemDefinition",
-            "stereotype": "item def"
-          }
-        },
-        {
-          "id": "EI-010",
-          "uuid": "b15e9d57-2c0a-5e31-a9e9-269a0de9d3ca",
-          "name": "vehicle_state",
-          "kind": "sysml_definition",
-          "compartment": [
-            "mechanism : String = \"FLOW\""
-          ],
-          "properties": {
-            "metaclass": "ItemDefinition",
-            "stereotype": "item def"
-          }
-        },
-        {
-          "id": "EI-011",
-          "uuid": "48e8a232-8d71-505b-a255-6c182cc5cb98",
-          "name": "warning_signal",
-          "kind": "sysml_definition",
-          "compartment": [
-            "mechanism : String = \"EVENT\""
-          ],
-          "properties": {
-            "metaclass": "ItemDefinition",
-            "stereotype": "item def"
-          }
-        },
-        {
-          "id": "EI-012",
-          "uuid": "f95e6dab-327b-50ee-b03b-54ff74dcd80f",
-          "name": "brake_command",
-          "kind": "sysml_definition",
-          "compartment": [
-            "mechanism : String = \"FLOW\"",
-            "element_DT-001 : DT-001"
-          ],
-          "properties": {
-            "metaclass": "ItemDefinition",
-            "stereotype": "item def"
+            "metaclass": "AttributeDefinition",
+            "stereotype": "attribute def"
           }
         },
         {
@@ -2571,118 +2441,40 @@
           "compartment": [
             "track_id : Integer",
             "time_to_collision_s : Real",
-            "threat : EN-001"
+            "threat : ThreatLevel"
           ],
           "properties": {
             "metaclass": "ItemDefinition",
             "stereotype": "item def"
           }
-        },
+        }
+      ],
+      "edges": [
         {
-          "id": "'Automotive Emergency Braking System (AEB)'::Data::Data",
-          "uuid": "4f1b454c-1f5a-5dc4-a304-045b5d0d1d6e",
-          "name": "Data",
-          "kind": "sysml_definition",
-          "properties": {
-            "metaclass": "ItemDefinition",
-            "stereotype": "item def"
-          }
-        },
-        {
-          "id": "'Automotive Emergency Braking System (AEB)'::Data::IBrakeCommand",
-          "uuid": "6791468e-6836-5f5d-8c9e-e64708eb5ed6",
-          "name": "IBrakeCommand",
-          "kind": "sysml_definition",
-          "properties": {
-            "metaclass": "ItemDefinition",
-            "stereotype": "item def"
-          }
-        },
-        {
-          "id": "'Automotive Emergency Braking System (AEB)'::Data::ICameraData",
-          "uuid": "f147d064-49c8-550f-be0a-651dc5409bdf",
-          "name": "ICameraData",
-          "kind": "sysml_definition",
-          "properties": {
-            "metaclass": "ItemDefinition",
-            "stereotype": "item def"
-          }
-        },
-        {
-          "id": "'Automotive Emergency Braking System (AEB)'::Data::IFusedData",
-          "uuid": "4431cacd-326f-53ba-8df6-165564efc02d",
-          "name": "IFusedData",
-          "kind": "sysml_definition",
-          "properties": {
-            "metaclass": "ItemDefinition",
-            "stereotype": "item def"
-          }
-        },
-        {
-          "id": "'Automotive Emergency Braking System (AEB)'::Data::IRadarData",
-          "uuid": "e11872ce-afb3-5add-bd54-92c23f1983f7",
-          "name": "IRadarData",
-          "kind": "sysml_definition",
-          "properties": {
-            "metaclass": "ItemDefinition",
-            "stereotype": "item def"
-          }
-        },
-        {
-          "id": "'Automotive Emergency Braking System (AEB)'::Data::IThreatLevel",
-          "uuid": "1f59a8fa-6695-5f20-be82-93fb3a2e3045",
-          "name": "IThreatLevel",
-          "kind": "sysml_definition",
-          "properties": {
-            "metaclass": "ItemDefinition",
-            "stereotype": "item def"
-          }
-        },
-        {
-          "id": "'Automotive Emergency Braking System (AEB)'::Data::ITrackedObjects",
-          "uuid": "3bfb20c9-3cb3-5c9f-b45f-6abb9884a17c",
-          "name": "ITrackedObjects",
-          "kind": "sysml_definition",
-          "properties": {
-            "metaclass": "ItemDefinition",
-            "stereotype": "item def"
-          }
-        },
-        {
-          "id": "'Automotive Emergency Braking System (AEB)'::Data::IVehicleSpeed",
-          "uuid": "37f6acf8-cc28-5bae-8575-16f2fd624942",
-          "name": "IVehicleSpeed",
-          "kind": "sysml_definition",
-          "properties": {
-            "metaclass": "ItemDefinition",
-            "stereotype": "item def"
-          }
-        },
-        {
-          "id": "'Automotive Emergency Braking System (AEB)'::Data::IVehicleState",
-          "uuid": "af3d282f-03b6-5253-908c-9f281498117b",
-          "name": "IVehicleState",
-          "kind": "sysml_definition",
-          "properties": {
-            "metaclass": "ItemDefinition",
-            "stereotype": "item def"
-          }
-        },
-        {
-          "id": "'Automotive Emergency Braking System (AEB)'::Data::IWarning",
-          "uuid": "a7c6dd31-c630-5202-9fa1-4a728c438ef1",
-          "name": "IWarning",
-          "kind": "sysml_definition",
-          "properties": {
-            "metaclass": "ItemDefinition",
-            "stereotype": "item def"
-          }
-        },
+          "id": "fld:CL-002 EN-001",
+          "kind": "typing",
+          "source": "CL-002",
+          "target": "EN-001",
+          "label": "threat"
+        }
+      ]
+    },
+    {
+      "id": "gv:Emergency Braking - Operational View",
+      "kind": "gv",
+      "title": "General View: Emergency Braking - Operational View",
+      "nodes": [
         {
           "id": "OE-Vehicle",
           "uuid": "1042eafc-1543-56b6-b42e-26f326912796",
           "name": "Vehicle",
           "kind": "sysml_part",
+          "compartment": [
+            "perform MonitorEnvironment",
+            "perform DetectThreat",
+            "perform AlertDriver",
+            "perform ApplyBrakes"
+          ],
           "properties": {
             "metaclass": "PartUsage",
             "stereotype": "part"
@@ -2726,7 +2518,15 @@
             "metaclass": "PartUsage",
             "stereotype": "part"
           }
-        },
+        }
+      ],
+      "edges": []
+    },
+    {
+      "id": "gv:AEB System - Functional View",
+      "kind": "gv",
+      "title": "General View: AEB System - Functional View",
+      "nodes": [
         {
           "id": "SA-ACT-Driver",
           "uuid": "2af3bc03-bb82-58e2-aea4-013350d86b3f",
@@ -2746,7 +2546,15 @@
             "metaclass": "PartUsage",
             "stereotype": "part"
           }
-        },
+        }
+      ],
+      "edges": []
+    },
+    {
+      "id": "gv:AEB System - Component Structure",
+      "kind": "gv",
+      "title": "General View: AEB System - Component Structure",
+      "nodes": [
         {
           "id": "'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IBrakeCommand port'",
           "uuid": "c1deb47a-af43-5b9e-b074-d04ff8094f94",
@@ -2844,7 +2652,9 @@
           "kind": "sysml_part",
           "compartment": [
             "safety_level : String = \"ASIL-D\"",
-            "type : String = \"Sensor\""
+            "type : String = \"Sensor\"",
+            "out port RadarDataProvider : IRadarData port",
+            "perform Acquire radar frames"
           ],
           "properties": {
             "metaclass": "PartUsage",
@@ -2858,7 +2668,9 @@
           "kind": "sysml_part",
           "compartment": [
             "safety_level : String = \"ASIL-D\"",
-            "type : String = \"Sensor\""
+            "type : String = \"Sensor\"",
+            "out port CameraDataProvider : ICameraData port",
+            "perform Acquire camera frames"
           ],
           "properties": {
             "metaclass": "PartUsage",
@@ -2872,7 +2684,11 @@
           "kind": "sysml_part",
           "compartment": [
             "safety_level : String = \"ASIL-D\"",
-            "type : String = \"Processing\""
+            "type : String = \"Processing\"",
+            "in port RadarDataConsumer : IRadarData port",
+            "in port CameraDataConsumer : ICameraData port",
+            "out port FusedDataProvider : IFusedData port",
+            "perform Fuse sensor data"
           ],
           "properties": {
             "metaclass": "PartUsage",
@@ -2886,7 +2702,10 @@
           "kind": "sysml_part",
           "compartment": [
             "safety_level : String = \"ASIL-D\"",
-            "type : String = \"Processing\""
+            "type : String = \"Processing\"",
+            "in port FusedDataConsumer : IFusedData port",
+            "out port TrackedObjectsProvider : ITrackedObjects port",
+            "perform Track objects"
           ],
           "properties": {
             "metaclass": "PartUsage",
@@ -2900,7 +2719,13 @@
           "kind": "sysml_part",
           "compartment": [
             "safety_level : String = \"ASIL-D\"",
-            "type : String = \"Decision\""
+            "type : String = \"Decision\"",
+            "in port TrackedObjectsConsumer : ITrackedObjects port",
+            "in port VehicleStateConsumer : IVehicleState port",
+            "out port ThreatLevelProvider : IThreatLevel port",
+            "out port WarningProvider : IWarning port",
+            "perform Assess collision threat",
+            "perform Request the warning"
           ],
           "properties": {
             "metaclass": "PartUsage",
@@ -2914,7 +2739,12 @@
           "kind": "sysml_part",
           "compartment": [
             "safety_level : String = \"ASIL-D\"",
-            "type : String = \"Controller\""
+            "type : String = \"Controller\"",
+            "in port ThreatLevelConsumer : IThreatLevel port",
+            "in port VehicleSpeedConsumer : IVehicleSpeed port",
+            "out port BrakeCommandProvider : IBrakeCommand port",
+            "perform Compute braking command",
+            "perform Release on driver override"
           ],
           "properties": {
             "metaclass": "PartUsage",
@@ -2928,7 +2758,9 @@
           "kind": "sysml_part",
           "compartment": [
             "safety_level : String = \"QM\"",
-            "type : String = \"Interface\""
+            "type : String = \"Interface\"",
+            "in port WarningConsumer : IWarning port",
+            "perform Warn driver"
           ],
           "properties": {
             "metaclass": "PartUsage",
@@ -2942,7 +2774,10 @@
           "kind": "sysml_part",
           "compartment": [
             "safety_level : String = \"ASIL-B\"",
-            "type : String = \"Gateway\""
+            "type : String = \"Gateway\"",
+            "out port VehicleStateProvider : IVehicleState port",
+            "out port VehicleSpeedProvider : IVehicleSpeed port",
+            "perform Relay vehicle state"
           ],
           "properties": {
             "metaclass": "PartUsage",
@@ -2956,7 +2791,9 @@
           "kind": "sysml_part",
           "compartment": [
             "safety_level : String = \"ASIL-D\"",
-            "type : String = \"Actuator\""
+            "type : String = \"Actuator\"",
+            "in port BrakeCommandConsumer : IBrakeCommand port",
+            "perform Apply braking force"
           ],
           "properties": {
             "metaclass": "PartUsage",
@@ -2970,13 +2807,158 @@
           "kind": "sysml_part",
           "compartment": [
             "safety_level : String = \"ASIL-D\"",
-            "type : String = \"Supervisor\""
+            "type : String = \"Supervisor\"",
+            "in port FusedDataConsumer : IFusedData port",
+            "perform Monitor system health",
+            "perform Handle faults"
           ],
           "properties": {
             "metaclass": "PartUsage",
             "stereotype": "part"
           }
+        }
+      ],
+      "edges": [
+        {
+          "id": "typ:LC-RadarSensor 'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IRadarData port'",
+          "kind": "typing",
+          "source": "LC-RadarSensor",
+          "target": "'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IRadarData port'",
+          "label": ""
         },
+        {
+          "id": "typ:LC-CameraSensor 'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'ICameraData port'",
+          "kind": "typing",
+          "source": "LC-CameraSensor",
+          "target": "'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'ICameraData port'",
+          "label": ""
+        },
+        {
+          "id": "typ:LC-SensorFusion 'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IRadarData port'",
+          "kind": "typing",
+          "source": "LC-SensorFusion",
+          "target": "'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IRadarData port'",
+          "label": ""
+        },
+        {
+          "id": "typ:LC-SensorFusion 'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'ICameraData port'",
+          "kind": "typing",
+          "source": "LC-SensorFusion",
+          "target": "'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'ICameraData port'",
+          "label": ""
+        },
+        {
+          "id": "typ:LC-SensorFusion 'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IFusedData port'",
+          "kind": "typing",
+          "source": "LC-SensorFusion",
+          "target": "'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IFusedData port'",
+          "label": ""
+        },
+        {
+          "id": "typ:LC-ObjectTracker 'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IFusedData port'",
+          "kind": "typing",
+          "source": "LC-ObjectTracker",
+          "target": "'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IFusedData port'",
+          "label": ""
+        },
+        {
+          "id": "typ:LC-ObjectTracker 'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'ITrackedObjects port'",
+          "kind": "typing",
+          "source": "LC-ObjectTracker",
+          "target": "'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'ITrackedObjects port'",
+          "label": ""
+        },
+        {
+          "id": "typ:LC-ThreatAssessment 'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'ITrackedObjects port'",
+          "kind": "typing",
+          "source": "LC-ThreatAssessment",
+          "target": "'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'ITrackedObjects port'",
+          "label": ""
+        },
+        {
+          "id": "typ:LC-ThreatAssessment 'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IVehicleState port'",
+          "kind": "typing",
+          "source": "LC-ThreatAssessment",
+          "target": "'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IVehicleState port'",
+          "label": ""
+        },
+        {
+          "id": "typ:LC-ThreatAssessment 'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IThreatLevel port'",
+          "kind": "typing",
+          "source": "LC-ThreatAssessment",
+          "target": "'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IThreatLevel port'",
+          "label": ""
+        },
+        {
+          "id": "typ:LC-ThreatAssessment 'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IWarning port'",
+          "kind": "typing",
+          "source": "LC-ThreatAssessment",
+          "target": "'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IWarning port'",
+          "label": ""
+        },
+        {
+          "id": "typ:LC-BrakeController 'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IThreatLevel port'",
+          "kind": "typing",
+          "source": "LC-BrakeController",
+          "target": "'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IThreatLevel port'",
+          "label": ""
+        },
+        {
+          "id": "typ:LC-BrakeController 'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IVehicleSpeed port'",
+          "kind": "typing",
+          "source": "LC-BrakeController",
+          "target": "'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IVehicleSpeed port'",
+          "label": ""
+        },
+        {
+          "id": "typ:LC-BrakeController 'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IBrakeCommand port'",
+          "kind": "typing",
+          "source": "LC-BrakeController",
+          "target": "'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IBrakeCommand port'",
+          "label": ""
+        },
+        {
+          "id": "typ:LC-DriverInterface 'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IWarning port'",
+          "kind": "typing",
+          "source": "LC-DriverInterface",
+          "target": "'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IWarning port'",
+          "label": ""
+        },
+        {
+          "id": "typ:LC-VehicleCANGateway 'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IVehicleState port'",
+          "kind": "typing",
+          "source": "LC-VehicleCANGateway",
+          "target": "'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IVehicleState port'",
+          "label": ""
+        },
+        {
+          "id": "typ:LC-VehicleCANGateway 'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IVehicleSpeed port'",
+          "kind": "typing",
+          "source": "LC-VehicleCANGateway",
+          "target": "'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IVehicleSpeed port'",
+          "label": ""
+        },
+        {
+          "id": "typ:LC-BrakeActuator 'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IBrakeCommand port'",
+          "kind": "typing",
+          "source": "LC-BrakeActuator",
+          "target": "'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IBrakeCommand port'",
+          "label": ""
+        },
+        {
+          "id": "typ:LC-SystemSupervisor 'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IFusedData port'",
+          "kind": "typing",
+          "source": "LC-SystemSupervisor",
+          "target": "'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::'IFusedData port'",
+          "label": ""
+        }
+      ]
+    },
+    {
+      "id": "gv:AEB System - Hardware Deployment",
+      "kind": "gv",
+      "title": "General View: AEB System - Hardware Deployment",
+      "nodes": [
         {
           "id": "PN-FrontRadarECU",
           "uuid": "ab04b529-673b-5178-b24e-c5d8b8f68ea4",
@@ -3203,66 +3185,6 @@
             "metaclass": "PartUsage",
             "stereotype": "part"
           }
-        },
-        {
-          "id": "'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_RadarSensor",
-          "uuid": "e8da2e03-3a38-563c-b82a-ce5cb8badb48",
-          "name": "l_RadarSensor",
-          "kind": "sysml_part",
-          "properties": {
-            "metaclass": "PartUsage",
-            "stereotype": "part"
-          }
-        },
-        {
-          "id": "'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_SensorFusion",
-          "uuid": "b0d7e1a2-2849-5290-a32f-0d2d32824ad6",
-          "name": "l_SensorFusion",
-          "kind": "sysml_part",
-          "properties": {
-            "metaclass": "PartUsage",
-            "stereotype": "part"
-          }
-        },
-        {
-          "id": "'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_ThreatAssessment",
-          "uuid": "0c2b5039-7259-5fdf-a7e6-b23bb70fc71a",
-          "name": "l_ThreatAssessment",
-          "kind": "sysml_part",
-          "properties": {
-            "metaclass": "PartUsage",
-            "stereotype": "part"
-          }
-        },
-        {
-          "id": "'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_DriverInterface",
-          "uuid": "35514b95-92cc-5dbf-916a-8429615fc9c2",
-          "name": "l_DriverInterface",
-          "kind": "sysml_part",
-          "properties": {
-            "metaclass": "PartUsage",
-            "stereotype": "part"
-          }
-        },
-        {
-          "id": "'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_BrakeController",
-          "uuid": "6c7214f2-1052-54ba-a605-ed8e93d1e4ed",
-          "name": "l_BrakeController",
-          "kind": "sysml_part",
-          "properties": {
-            "metaclass": "PartUsage",
-            "stereotype": "part"
-          }
-        },
-        {
-          "id": "'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_BrakeActuator",
-          "uuid": "0d40bb70-453a-5294-a106-4880c8ce6eec",
-          "name": "l_BrakeActuator",
-          "kind": "sysml_part",
-          "properties": {
-            "metaclass": "PartUsage",
-            "stereotype": "part"
-          }
         }
       ],
       "edges": [
@@ -3335,48 +3257,6 @@
           "source": "PN-CANGatewayECU",
           "target": "BC-CANInterface",
           "label": ""
-        },
-        {
-          "id": "gen:'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_RadarSensor LC-RadarSensor",
-          "kind": "generalization",
-          "source": "'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_RadarSensor",
-          "target": "LC-RadarSensor",
-          "label": ""
-        },
-        {
-          "id": "gen:'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_SensorFusion LC-SensorFusion",
-          "kind": "generalization",
-          "source": "'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_SensorFusion",
-          "target": "LC-SensorFusion",
-          "label": ""
-        },
-        {
-          "id": "gen:'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_ThreatAssessment LC-ThreatAssessment",
-          "kind": "generalization",
-          "source": "'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_ThreatAssessment",
-          "target": "LC-ThreatAssessment",
-          "label": ""
-        },
-        {
-          "id": "gen:'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_DriverInterface LC-DriverInterface",
-          "kind": "generalization",
-          "source": "'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_DriverInterface",
-          "target": "LC-DriverInterface",
-          "label": ""
-        },
-        {
-          "id": "gen:'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_BrakeController LC-BrakeController",
-          "kind": "generalization",
-          "source": "'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_BrakeController",
-          "target": "LC-BrakeController",
-          "label": ""
-        },
-        {
-          "id": "gen:'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_BrakeActuator LC-BrakeActuator",
-          "kind": "generalization",
-          "source": "'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_BrakeActuator",
-          "target": "LC-BrakeActuator",
-          "label": ""
         }
       ]
     },
@@ -3426,7 +3306,104 @@
           }
         }
       ],
-      "edges": []
+      "edges": [
+        {
+          "id": "cnx:'Automotive Emergency Braking System (AEB)'::'Emergency Braking - Operational View'::DriverCommands",
+          "kind": "connection",
+          "source": "OA-ACT-001",
+          "target": "OE-Vehicle",
+          "label": "DriverCommands"
+        },
+        {
+          "id": "cnx:'Automotive Emergency Braking System (AEB)'::'Emergency Braking - Operational View'::EnvironmentData",
+          "kind": "connection",
+          "source": "OA-ACT-003",
+          "target": "OE-Vehicle",
+          "label": "EnvironmentData"
+        },
+        {
+          "id": "cnx:'Automotive Emergency Braking System (AEB)'::'Emergency Braking - Operational View'::DriverWarning",
+          "kind": "connection",
+          "source": "OE-Vehicle",
+          "target": "OA-ACT-001",
+          "label": "DriverWarning"
+        },
+        {
+          "id": "cnx:'Automotive Emergency Braking System (AEB)'::'Emergency Braking - Operational View'::PedestrianProtection",
+          "kind": "connection",
+          "source": "OE-Vehicle",
+          "target": "OA-ACT-002",
+          "label": "PedestrianProtection"
+        }
+      ]
+    },
+    {
+      "id": "afv:Emergency Braking - Operational View",
+      "kind": "afv",
+      "title": "Action Flow View: Emergency Braking - Operational View",
+      "nodes": [
+        {
+          "id": "OE-Vehicle",
+          "uuid": "1042eafc-1543-56b6-b42e-26f326912796",
+          "name": "Vehicle",
+          "kind": "sysml_part",
+          "children": [
+            {
+              "id": "OA-MonitorEnvironment",
+              "uuid": "abadb49a-4c94-55c3-af97-4aa24bb94734",
+              "name": "MonitorEnvironment",
+              "kind": "sysml_action",
+              "properties": {
+                "metaclass": "PerformActionUsage",
+                "stereotype": "perform action"
+              }
+            },
+            {
+              "id": "OA-DetectThreat",
+              "uuid": "d611c930-2939-55a9-baaa-27f22e2526e0",
+              "name": "DetectThreat",
+              "kind": "sysml_action",
+              "properties": {
+                "metaclass": "PerformActionUsage",
+                "stereotype": "perform action"
+              }
+            },
+            {
+              "id": "OA-AlertDriver",
+              "uuid": "10d073d7-4a28-5a4b-afa5-4478a558a6e0",
+              "name": "AlertDriver",
+              "kind": "sysml_action",
+              "properties": {
+                "metaclass": "PerformActionUsage",
+                "stereotype": "perform action"
+              }
+            },
+            {
+              "id": "OA-ApplyBrakes",
+              "uuid": "e49871fa-cc98-5bd5-81e4-d9ee7535d096",
+              "name": "ApplyBrakes",
+              "kind": "sysml_action",
+              "properties": {
+                "metaclass": "PerformActionUsage",
+                "stereotype": "perform action"
+              }
+            }
+          ],
+          "properties": {
+            "metaclass": "PartUsage",
+            "stereotype": "part"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "flw:'Automotive Emergency Braking System (AEB)'::'Emergency Braking - Operational View'::ThreatDetection",
+          "kind": "flow",
+          "source": "OA-MonitorEnvironment",
+          "target": "OA-DetectThreat",
+          "label": "ThreatDetection"
+        }
+      ]
     },
     {
       "id": "afv:AEB System - Functional View",

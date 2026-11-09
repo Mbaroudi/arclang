@@ -1663,6 +1663,13 @@ impl<'g> Mapper<'g> {
         if let Some(parent) = self.nodes[index].decomposes.and_then(|p| self.ids.get(&self.node_key(p)).cloned()) {
             self.line(depth + 1, &format!("parent: {}", string_literal(&parent)));
         }
+        // An activity an operational actor performs (`perform action` in its part) stands at the level, performed by it.
+        if keyword == "operational_activity" {
+            let actor = self.nodes[index].parent.filter(|&p| self.nodes[p].role == Some(Role::Actor)).and_then(|p| self.ids.get(&self.node_key(p)).cloned());
+            if let Some(actor) = actor {
+                self.line(depth + 1, &format!("performed_by: {}", string_literal(&actor)));
+            }
+        }
         self.write_ports(depth + 1, index, false);
         let subs: Vec<usize> = self.nodes[index].children.iter().copied().filter(|&c| self.nodes[c].shape == Shape::Action).collect();
         for sub in subs {
