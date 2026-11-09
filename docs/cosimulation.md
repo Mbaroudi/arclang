@@ -12,6 +12,11 @@ arclang cosim model.arc --keep build/cosim the SSP, the result and the logs kept
 arclang cosim model.arc --json             the outcomes as JSON
 ```
 
+**Online.** On [arclang.fr](https://arclang.fr/playground/), signed in, the
+**Simulate** button under the diagram runs these cases on the server too, in
+OMSimulator, in the same run as the model's simulations: their verdicts show
+in the notification and in the ArcLang Simulation log.
+
 The point is that the behavior now runs **as an FMU, under a master that
 is not ArcLang's**. The machine is exported as an FMI 2.0 co-simulation
 FMU (`export -f fmu`), its plant as another FMU (OpenModelica's, or the
