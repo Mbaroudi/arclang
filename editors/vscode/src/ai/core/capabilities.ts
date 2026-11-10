@@ -113,6 +113,12 @@ export const TOPICS: Topic[] = [
     where: { desktop: 'export, sil and schedule on this computer', online: `the export of the C runs on the server; compiling and running it (sil) needs the desktop: ${DESKTOP}`, anonymous: `the export of the C ${SIGN_IN}; compiling and running it (sil) needs the desktop: ${DESKTOP}` },
   },
   {
+    what: 'Reverse engineering: the machines a generated C implements, and the drift of the code as built from the model',
+    docs: ['docs/reverse-engineering.md'],
+    how: 'arclang recover <dir> reads the state machines back from the C the compiler generated (<model>.h and <model>.c) and writes them as ArcLang; with --check the recovered model must generate that same C, line for line, or the command fails with the lines that differ: only then is the recovery proven. arclang drift <model> <dir> compares the C as built with the model: each difference (a guard, an initial value, an equation, the time or the target of a transition) is said in the terms of the model with its line in the code, and the lines the machines do not explain are listed. Never call a recovery proven without --check, and never say the code matches the model without drift.',
+    where: { desktop: 'recover and drift on this computer', online: `recover and drift need the desktop: ${DESKTOP}`, anonymous: `recover and drift need the desktop: ${DESKTOP}` },
+  },
+  {
     what: 'Embedded targets and processor in the loop (Zephyr, Renode)',
     docs: ['embedded-targets'],
     how: 'A target package (zephyr/litex_vexriscv): arclang export -f zephyr writes a Zephyr application; arclang pil runs the C on the target\'s processor in Renode and compares it with the model.',
