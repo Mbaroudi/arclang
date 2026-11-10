@@ -35,14 +35,26 @@ OpenModelica is an external tool, looked for in this order:
 4. Docker, with the default image `openmodelica/openmodelica:v1.27.1-minimal`
    (about 290 MB compressed, 1.1 GB on disk).
 
-With Docker, ArcLang runs `docker run --rm -v <work dir>:/work -w /work
--v arclang-openmodelica-libraries:/root/.openmodelica/libraries <image> omc run.mos`.
+With Docker, ArcLang runs `docker run --rm --security-opt no-new-privileges
+--network none -v <work dir>:/work -w /work
+-v arclang-openmodelica-libraries:/root/.openmodelica/libraries:ro <image> omc run.mos`.
 The model, the sources and the script are files of the working directory:
 no model text goes through a shell, and the script names only class names
 ArcLang has checked. The minimal image has no Modelica Standard Library:
 the first run installs MSL 4.1.0 into the `arclang-openmodelica-libraries`
 volume, later runs reuse it. A run is limited to 900 s (`ARCLANG_OMC_TIMEOUT`,
 in seconds); a container that outlives it is removed.
+
+A model's Modelica can run commands where it is simulated, and a model can
+come from someone else. The container that simulates it therefore has no
+network, cannot gain privileges, and reads the library volume without
+writing it: what it reads in the working directory does not leave the
+machine, and it cannot alter the library the next model is simulated with.
+The library is installed by another container, which has the network and
+runs no file of the model. A model whose simulation needs the network (it
+fetches data while it runs) keeps it with `ARCLANG_OMC_NETWORK=on`. A local
+`omc` runs as you do, with your rights: use Docker for a model you did not
+write.
 
 Another Modelica library is used the Modelica way: the `.mo` file that needs
 it declares it, `annotation(uses(Modelica(version="4.1.0"),

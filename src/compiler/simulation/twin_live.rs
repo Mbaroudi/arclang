@@ -219,10 +219,7 @@ fn mqtt(live: &Live, topics: &[String], client_id: Option<&str>, feed: Sender<Fe
     if tls {
         super::twin_tls::client_config("mqtts://")?;
     }
-    let credentials = match (std::env::var("ARCLANG_MQTT_USERNAME"), std::env::var("ARCLANG_MQTT_PASSWORD")) {
-        (Ok(user), Ok(password)) => Some((user, password)),
-        _ => None,
-    };
+    let credentials = super::twin_credentials::mqtt();
     let client_id = client_id.map(str::to_string).unwrap_or_else(|| format!("arclang-twin-{}", std::process::id()));
     let options = Options { host, port, tls, client_id, credentials, topics: topics.to_vec() };
     let (url, topics) = (live.url.clone(), topics.join(", "));
@@ -264,6 +261,8 @@ pub fn live(result: &CompilationResult, model_path: &Path, twin: &Twin, config: 
     let spec = twin::spec_of(&twin.attributes)?;
     let live: Live = spec.data.live.clone().ok_or_else(|| format!("twin '{}' reads a file, not live data: data: {{ mqtt: \"mqtt://broker:1883\" topics: [...] }} (or opcua:, kafka:, http:)", twin.name))?;
     let base = super::cache::model_dir(model_path);
+    // The model names the address; the credentials of the environment are not its to send anywhere.
+    super::twin_credentials::guard(&live.url, &live.source)?;
     let (sender, feed): (Sender<Feed>, Receiver<Feed>) = std::sync::mpsc::channel();
     match &live.source {
         Source::Mqtt { topics, client_id } => mqtt(&live, topics, client_id.as_deref(), sender)?,

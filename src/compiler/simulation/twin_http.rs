@@ -4,7 +4,8 @@
 //! objects; only what is newer than what was already read is kept, so an API
 //! that answers with its latest hour at every call does not repeat samples.
 //!
-//! A bearer token comes from `ARCLANG_HTTP_TOKEN`, never from the model.
+//! A bearer token comes from `ARCLANG_HTTP_TOKEN`, never from the model, and
+//! goes only to a host it was said to be for (see [`super::twin_credentials`]).
 
 use super::twin_live::{now, samples_of, Feed, Status};
 use std::collections::HashMap;
@@ -50,7 +51,7 @@ pub fn follow(url: &str, sampling: f64, feed: Sender<Feed>) -> Result<(), String
         .user_agent(concat!("arclang/", env!("CARGO_PKG_VERSION")))
         .build()
         .map_err(|e| format!("HTTP: {e}"))?;
-    let token = std::env::var("ARCLANG_HTTP_TOKEN").ok().filter(|t| !t.is_empty());
+    let token = super::twin_credentials::http_token();
     let url = url.to_string();
     std::thread::spawn(move || {
         let mut connected = false;

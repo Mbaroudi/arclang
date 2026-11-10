@@ -121,9 +121,9 @@ async fn session(url: &str, columns: &HashMap<NodeId, String>, security: Securit
         Ok(client) => client,
         Err(errors) => return errors.join("; "),
     };
-    let identity = match (std::env::var("ARCLANG_OPCUA_USERNAME"), std::env::var("ARCLANG_OPCUA_PASSWORD")) {
-        (Ok(user), Ok(password)) => IdentityToken::UserName(user, Password::new(password)),
-        _ => IdentityToken::Anonymous,
+    let identity = match super::twin_credentials::opcua() {
+        Some((user, password)) => IdentityToken::UserName(user, Password::new(password)),
+        None => IdentityToken::Anonymous,
     };
     let target = reachable(url).await;
     let endpoint = (target.as_str(), policy, mode, UserTokenPolicy::anonymous());
