@@ -1,6 +1,6 @@
 # ArcLang — Arcadia-as-Code
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: BSL 1.1](https://img.shields.io/badge/License-BSL_1.1-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.70%2B-blue.svg)](https://www.rust-lang.org)
 
 **A textual modeling language for the [Arcadia](https://mbse-capella.org/arcadia.html) method, with a strict compiler written in Rust.**
@@ -266,7 +266,7 @@ the long-term goal.
   (`voltage * current <= power`, `frame / bandwidth < 1 ms`). A violated constraint is a warning at compile time and a
   blocker in the production gate; `arclang check` prints each verdict with
   both evaluated sides. See `examples/features/timing-constraints/timing_constraints.arc`.
-- **Industrial governance**: MIT-licensed; dependency audit (RustSec) on
+- **Industrial governance**: source-available (BSL 1.1); dependency audit (RustSec) on
   every CI run; releases ship binaries + `SHA256SUMS` + GitHub build
   provenance attestations; language stability policy in
   `docs/VERSIONING.md`; tool-qualification support kit (ISO 26262-8 §11
@@ -573,4 +573,8 @@ stay green.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Business Source License 1.1 — see [LICENSE](LICENSE). The source is public;
+use outside production (individuals, teaching, research, evaluation, open
+source projects) is free; production use by a company needs a commercial
+license from Vernish Services (contact@arclang.fr). Each version becomes MIT
+four years after its release. Versions up to 4.12.0 remain MIT.
