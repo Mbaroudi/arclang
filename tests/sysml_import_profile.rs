@@ -51,10 +51,13 @@ fn the_timing_example_comes_back_with_its_types_quantities_and_constraints() {
     assert_has(&source, "is: \"Periodic task\"");
     // A link typed by a type, with its attributes.
     assert_has(&source, "is: \"CAN FD bus\"\n        load: 600 kbps");
-    // Constraints: sums unfolded by the export, `max` over a chain folded back.
-    assert_has(&source, "assert: ((\"SF-DET\".latency + \"SF-EST\".latency) + \"SF-CMD\".latency) <= (\"FC-LKA\".latency_budget * 0.8)");
-    assert_has(&source, "assert: max(\"FC-LKA\", wcet) <= (\"Capture frame\".frame_period * 1.1)");
-    assert_has(&source, "assert: (ChassisCAN.load / ChassisCAN.bandwidth) <= 0.4");
+    // Constraints come back as written: an aggregate over a chain still
+    // follows the chain, and nothing is parenthesised that was not.
+    assert_has(&source, "assert: sum(\"FC-LKA\", latency) <= \"FC-LKA\".latency_budget * 0.8");
+    assert_has(&source, "assert: sum(\"FC-LKA\", wcet) <= \"FC-LKA\".latency_budget");
+    assert_has(&source, "assert: max(\"FC-LKA\", wcet) <= \"Capture frame\".frame_period * 1.1");
+    assert_has(&source, "assert: ChassisCAN.load / ChassisCAN.bandwidth <= 0.4");
+    assert_has(&source, "assert: \"SF-DET\".wcet <= \"SF-DET\".period * 1.1");
     // The chain involves its steps.
     assert_has(&source, "involves: [\"SF-DET\", \"SF-EST\", \"SF-CMD\"]");
 }

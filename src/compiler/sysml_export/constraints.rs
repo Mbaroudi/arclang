@@ -1,7 +1,9 @@
 //! Constraints as asserted SysML expressions over the attributes of the
 //! exported usages: `"SF-1".latency + "SF-2".latency <= 50 ms` becomes
 //! `assert constraint { 'SF-1'.latency + 'SF-2'.latency <= 50 [ms] }`, an
-//! aggregate over a chain the expression over its members.
+//! aggregate over a chain the library function over its members
+//! (`NumericalFunctions::sum(('SF-1'.latency, 'SF-2'.latency))`), so that it
+//! is read back as the aggregate and still follows the chain.
 
 use super::{text, Exporter};
 use crate::compiler::constraint::{Expr, Scope};
@@ -25,8 +27,15 @@ fn expression(e: &mut Exporter<'_>, expr: &Expr, scope: &Scope, top: bool) -> Re
         Expr::Call { function, args } => {
             let Some(Expr::Ref(collection)) = args.first() else { return Err(format!("{function}() without a collection")) };
             let members = scope.operand_members(collection)?;
+            if members.is_empty() {
+                return Err(format!("{function}() over '{collection}', which has no member with attributes"));
+            }
             if function == "count" {
-                return Ok(members.len().to_string());
+                let mut counted = Vec::new();
+                for member in members {
+                    counted.push(path(e, member)?);
+                }
+                return Ok(format!("SequenceFunctions::size(({}))", counted.join(", ")));
             }
             let Some(Expr::Ref(attribute)) = args.get(1) else { return Err(format!("{function}() without an attribute")) };
             let mut paths = Vec::new();
@@ -34,7 +43,7 @@ fn expression(e: &mut Exporter<'_>, expr: &Expr, scope: &Scope, top: bool) -> Re
                 paths.push(format!("{}.{}", path(e, member)?, text::name(attribute)));
             }
             match function.as_str() {
-                "sum" => format!("({})", paths.join(" + ")),
+                "sum" => format!("NumericalFunctions::sum(({}))", paths.join(", ")),
                 "min" | "max" => {
                     let mut folded = paths[0].clone();
                     for path in &paths[1..] {

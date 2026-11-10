@@ -32,10 +32,20 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
         metadata def Path;
         metadata def Fmea;
         metadata def Interface;
-        metadata def Trace;
+        metadata def Trace {
+            attribute rationale : String [0..1];
+        }
         metadata def Association;
         metadata def Iterate;
         metadata def Invariant;
+        metadata def IoBinding;
+        metadata def Twin;
+        metadata def Rule;
+        metadata def Stakeholder;
+        metadata def Region;
+        metadata def Beside;
+        metadata def Named;
+        metadata def Interaction;
     }
     private import ArcadiaProfile::*;
     doc /* Detects an imminent collision, warns the driver and brakes autonomously */
@@ -151,12 +161,12 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
         dependency involves from 'OC-001' to 'OA-ACT-002';
         dependency involves from 'OC-001' to 'OA-ACT-003';
         dependency involves from 'OC-001' to 'OE-Vehicle';
-        connection DriverCommands connect 'OA-ACT-001' to 'OE-Vehicle'.'OA-MonitorEnvironment';
-        connection EnvironmentData connect 'OA-ACT-003' to 'OE-Vehicle'.'OA-MonitorEnvironment';
+        #Interaction connection DriverCommands connect 'OA-ACT-001' to 'OE-Vehicle'.'OA-MonitorEnvironment';
+        #Interaction connection EnvironmentData connect 'OA-ACT-003' to 'OE-Vehicle'.'OA-MonitorEnvironment';
         flow ThreatDetection from 'OE-Vehicle'.'OA-MonitorEnvironment' to 'OE-Vehicle'.'OA-DetectThreat';
-        connection DriverWarning connect 'OE-Vehicle'.'OA-AlertDriver' to 'OA-ACT-001';
-        connection BrakingAction connect 'OE-Vehicle'.'OA-ApplyBrakes' to 'OE-Vehicle';
-        connection PedestrianProtection connect 'OE-Vehicle'.'OA-ApplyBrakes' to 'OA-ACT-002';
+        #Interaction connection DriverWarning connect 'OE-Vehicle'.'OA-AlertDriver' to 'OA-ACT-001';
+        #Interaction connection BrakingAction connect 'OE-Vehicle'.'OA-ApplyBrakes' to 'OE-Vehicle';
+        #Interaction connection PedestrianProtection connect 'OE-Vehicle'.'OA-ApplyBrakes' to 'OA-ACT-002';
     }
     #SA package 'AEB System - Functional View' {
         action <'SF-AcquireSensorData'> AcquireSensorData {
@@ -325,6 +335,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
             attribute type : String = "Sensor";
             out port RadarDataProvider : 'IRadarData port';
             perform action 'Acquire radar frames';
+            dependency realizes from 'LC-RadarSensor'::'Acquire radar frames' to 'AEB System - Functional View'::'SF-AcquireSensorData';
         }
         part <'LC-CameraSensor'> CameraSensor {
             doc /* Front-facing camera */
@@ -332,6 +343,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
             attribute type : String = "Sensor";
             out port CameraDataProvider : 'ICameraData port';
             perform action 'Acquire camera frames';
+            dependency realizes from 'LC-CameraSensor'::'Acquire camera frames' to 'AEB System - Functional View'::'SF-AcquireSensorData';
         }
         part <'LC-SensorFusion'> SensorFusion {
             doc /* Multi-sensor data fusion */
@@ -341,6 +353,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
             in port CameraDataConsumer : 'ICameraData port';
             out port FusedDataProvider : 'IFusedData port';
             perform action 'Fuse sensor data';
+            dependency realizes from 'LC-SensorFusion'::'Fuse sensor data' to 'AEB System - Functional View'::'SF-FuseData';
         }
         part <'LC-ObjectTracker'> ObjectTracker {
             doc /* Object tracking and motion prediction */
@@ -349,6 +362,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
             in port FusedDataConsumer : 'IFusedData port';
             out port TrackedObjectsProvider : 'ITrackedObjects port';
             perform action 'Track objects';
+            dependency realizes from 'LC-ObjectTracker'::'Track objects' to 'AEB System - Functional View'::'SF-TrackObjects';
         }
         part <'LC-ThreatAssessment'> ThreatAssessment {
             doc /* Collision risk assessment */
@@ -359,7 +373,9 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
             out port ThreatLevelProvider : 'IThreatLevel port';
             out port WarningProvider : 'IWarning port';
             perform action 'Assess collision threat';
+            dependency realizes from 'LC-ThreatAssessment'::'Assess collision threat' to 'AEB System - Functional View'::'SF-AssessThreat';
             perform action 'Request the warning';
+            dependency realizes from 'LC-ThreatAssessment'::'Request the warning' to 'AEB System - Functional View'::'SF-GenerateWarning';
         }
         part <'LC-BrakeController'> BrakeController {
             doc /* Emergency brake control */
@@ -369,6 +385,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
             in port VehicleSpeedConsumer : 'IVehicleSpeed port';
             out port BrakeCommandProvider : 'IBrakeCommand port';
             perform action 'Compute braking command';
+            dependency realizes from 'LC-BrakeController'::'Compute braking command' to 'AEB System - Functional View'::'SF-ComputeBrakingForce';
             perform action 'Release on driver override' {
                 doc /* Accelerator kick-down cancels the autonomous braking */
             }
@@ -379,6 +396,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
             attribute type : String = "Interface";
             in port WarningConsumer : 'IWarning port';
             perform action 'Warn driver';
+            dependency realizes from 'LC-DriverInterface'::'Warn driver' to 'AEB System - Functional View'::'SF-GenerateWarning';
         }
         part <'LC-VehicleCANGateway'> VehicleCANGateway {
             doc /* Interface to the vehicle CAN bus: speed, pedals, steering */
@@ -387,6 +405,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
             out port VehicleStateProvider : 'IVehicleState port';
             out port VehicleSpeedProvider : 'IVehicleSpeed port';
             perform action 'Relay vehicle state';
+            dependency realizes from 'LC-VehicleCANGateway'::'Relay vehicle state' to 'AEB System - Functional View'::'SF-MonitorVehicleState';
         }
         part <'LC-BrakeActuator'> BrakeActuator {
             doc /* Brake actuation on the hydraulic unit */
@@ -394,6 +413,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
             attribute type : String = "Actuator";
             in port BrakeCommandConsumer : 'IBrakeCommand port';
             perform action 'Apply braking force';
+            dependency realizes from 'LC-BrakeActuator'::'Apply braking force' to 'AEB System - Functional View'::'SF-ComputeBrakingForce';
         }
         part <'LC-SystemSupervisor'> SystemSupervisor {
             doc /* Health monitoring of the sensors and the controller */
@@ -401,6 +421,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
             attribute type : String = "Supervisor";
             in port FusedDataConsumer : 'IFusedData port';
             perform action 'Monitor system health';
+            dependency realizes from 'LC-SystemSupervisor'::'Monitor system health' to 'AEB System - Functional View'::'SF-MonitorSystemHealth';
             perform action 'Handle faults' {
                 doc /* Switch the AEB off and request a takeover */
             }
@@ -721,23 +742,23 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
         }
     }
     assert constraint <'CST-001'> 'Braking chain within budget' {
-        ('AEB System - Functional View'::'SF-AcquireSensorData'.latency + 'AEB System - Functional View'::'SF-FuseData'.latency + 'AEB System - Functional View'::'SF-TrackObjects'.latency + 'AEB System - Functional View'::'SF-AssessThreat'.latency + 'AEB System - Functional View'::'SF-ComputeBrakingForce'.latency) <= 'AEB System - Functional View'::'FC-001'.latency_budget
+        NumericalFunctions::sum(('AEB System - Functional View'::'SF-AcquireSensorData'.latency, 'AEB System - Functional View'::'SF-FuseData'.latency, 'AEB System - Functional View'::'SF-TrackObjects'.latency, 'AEB System - Functional View'::'SF-AssessThreat'.latency, 'AEB System - Functional View'::'SF-ComputeBrakingForce'.latency)) <= 'AEB System - Functional View'::'FC-001'.latency_budget
     }
-    satisfy 'Safety Requirements'::'REQ-AEB-001' by 'AEB System - Component Structure'::'LC-RadarSensor';
-    satisfy 'Safety Requirements'::'REQ-AEB-001' by 'AEB System - Component Structure'::'LC-CameraSensor';
-    satisfy 'Safety Requirements'::'REQ-AEB-002' by 'AEB System - Component Structure'::'LC-SensorFusion';
-    satisfy 'Safety Requirements'::'REQ-AEB-003' by 'AEB System - Component Structure'::'LC-ObjectTracker';
-    satisfy 'Safety Requirements'::'REQ-AEB-003' by 'AEB System - Component Structure'::'LC-ThreatAssessment';
-    satisfy 'Safety Requirements'::'REQ-AEB-004' by 'AEB System - Component Structure'::'LC-BrakeController';
-    satisfy 'Safety Requirements'::'REQ-AEB-004' by 'AEB System - Component Structure'::'LC-BrakeActuator';
-    satisfy 'Safety Requirements'::'REQ-AEB-005' by 'AEB System - Component Structure'::'LC-DriverInterface';
-    satisfy 'Safety Requirements'::'REQ-AEB-006' by 'AEB System - Component Structure'::'LC-VehicleCANGateway';
-    satisfy 'Safety Requirements'::'REQ-AEB-006' by 'AEB System - Component Structure'::'LC-BrakeController';
-    satisfy 'Safety Requirements'::'REQ-AEB-007' by 'AEB System - Component Structure'::'LC-SystemSupervisor';
-    #Trace dependency realizes from 'AEB System - Functional View'::'SF-AcquireSensorData' to 'Emergency Braking - Operational View'::'OE-Vehicle'::'OA-MonitorEnvironment';
-    #Trace dependency realizes from 'AEB System - Functional View'::'SF-AssessThreat' to 'Emergency Braking - Operational View'::'OE-Vehicle'::'OA-DetectThreat';
-    #Trace dependency realizes from 'AEB System - Functional View'::'SF-GenerateWarning' to 'Emergency Braking - Operational View'::'OE-Vehicle'::'OA-AlertDriver';
-    #Trace dependency realizes from 'AEB System - Functional View'::'SF-ComputeBrakingForce' to 'Emergency Braking - Operational View'::'OE-Vehicle'::'OA-ApplyBrakes';
+    satisfy 'Safety Requirements'::'REQ-AEB-001' by 'AEB System - Component Structure'::'LC-RadarSensor' { @Trace { rationale = "150 m long-range radar detection"; } }
+    satisfy 'Safety Requirements'::'REQ-AEB-001' by 'AEB System - Component Structure'::'LC-CameraSensor' { @Trace { rationale = "Visual obstacle confirmation"; } }
+    satisfy 'Safety Requirements'::'REQ-AEB-002' by 'AEB System - Component Structure'::'LC-SensorFusion' { @Trace { rationale = "Fuses radar and camera within the latency budget"; } }
+    satisfy 'Safety Requirements'::'REQ-AEB-003' by 'AEB System - Component Structure'::'LC-ObjectTracker' { @Trace { rationale = "Consistent tracks are the input of the time to collision"; } }
+    satisfy 'Safety Requirements'::'REQ-AEB-003' by 'AEB System - Component Structure'::'LC-ThreatAssessment' { @Trace { rationale = "Computes the time to collision of every tracked object"; } }
+    satisfy 'Safety Requirements'::'REQ-AEB-004' by 'AEB System - Component Structure'::'LC-BrakeController' { @Trace { rationale = "Commands full braking force on a critical threat"; } }
+    satisfy 'Safety Requirements'::'REQ-AEB-004' by 'AEB System - Component Structure'::'LC-BrakeActuator' { @Trace { rationale = "Builds up the full brake pressure within the budget"; } }
+    satisfy 'Safety Requirements'::'REQ-AEB-005' by 'AEB System - Component Structure'::'LC-DriverInterface' { @Trace { rationale = "Issues the visual and audio warnings"; } }
+    satisfy 'Safety Requirements'::'REQ-AEB-006' by 'AEB System - Component Structure'::'LC-VehicleCANGateway' { @Trace { rationale = "Relays the accelerator pedal state to the brake controller"; } }
+    satisfy 'Safety Requirements'::'REQ-AEB-006' by 'AEB System - Component Structure'::'LC-BrakeController' { @Trace { rationale = "Releases the braking on the kick-down"; } }
+    satisfy 'Safety Requirements'::'REQ-AEB-007' by 'AEB System - Component Structure'::'LC-SystemSupervisor' { @Trace { rationale = "Monitors the sensors and the controller, requests the takeover"; } }
+    dependency realizes from 'AEB System - Functional View'::'SF-AcquireSensorData' to 'Emergency Braking - Operational View'::'OE-Vehicle'::'OA-MonitorEnvironment' { @Trace { rationale = "Sensor acquisition realizes environment monitoring"; } }
+    dependency realizes from 'AEB System - Functional View'::'SF-AssessThreat' to 'Emergency Braking - Operational View'::'OE-Vehicle'::'OA-DetectThreat' { @Trace { rationale = "Threat assessment realizes threat detection"; } }
+    dependency realizes from 'AEB System - Functional View'::'SF-GenerateWarning' to 'Emergency Braking - Operational View'::'OE-Vehicle'::'OA-AlertDriver' { @Trace { rationale = "The warning realizes the driver alert"; } }
+    dependency realizes from 'AEB System - Functional View'::'SF-ComputeBrakingForce' to 'Emergency Braking - Operational View'::'OE-Vehicle'::'OA-ApplyBrakes' { @Trace { rationale = "Braking computation realizes brake application"; } }
     view 'Braking chain' {
         attribute 'view' : String = "lab";
         expose 'AEB System - Component Structure'::'LC-SensorFusion';

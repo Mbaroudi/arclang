@@ -314,6 +314,9 @@ suspect: a warning of `check` on the trace, a blocker of the gate, until it
 is reviewed again (`--review --from A --to B`, or the quick fix in VS Code).
 `arclang trace model.arc --suspects` lists them. A trace without
 `reviewed:` is not watched; a stamp that is not two fingerprints is an error.
+A quantity counts by its value, not by the unit it is written in: `85 %`
+and `85 percent`, `20 °C` and `293.15 K` are the same end, so a model that
+went to SysML v2 and back, where units have other names, keeps its reviews.
 
 A test case's `verifies:` is watched the same way: `--review` writes on the
 case one entry per requirement it verifies (`reviewed: ["REQ-RANGE 751d6c02

@@ -29,7 +29,11 @@ fn a_model_without_header_or_name_is_the_package_model() {
 #[test]
 fn a_trace_is_a_dependency_with_the_trace_metadata() {
     let text = flagship();
-    assert!(text.contains("#Trace dependency realizes from "), "trace realizes");
+    // A trace that says something carries the metadata in its body, with what it says.
+    assert!(text.contains("    dependency realizes from 'AEB System - Functional View'::'SF-AcquireSensorData' to 'Emergency Braking - Operational View'::'OE-Vehicle'::'OA-MonitorEnvironment' { @Trace { rationale = "), "trace realizes: {text}");
+    // One that says nothing but its ends is told by the prefix.
+    let bare = exported("system_analysis \"SA\" {\n  requirement \"REQ-1\" { description: \"x\" }\n  function \"F\" { id: \"SF-1\" }\n}\ntrace \"SF-1\" implements \"REQ-1\" { }\n");
+    assert!(bare.lines().any(|l| l.trim_start().starts_with("#Trace dependency implements from ")), "{bare}");
     assert!(!text.lines().any(|l| l.trim_start().starts_with("dependency realizes from 'SF-")), "a realizes trace is not an attribute");
 }
 

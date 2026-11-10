@@ -258,8 +258,9 @@ fn the_entry_transition_of_a_region_is_its_initial_state() {
 }
 ";
     let imported = imported(text);
-    assert_has(&imported.source, "state \"on\" { id: \"on\" }\n        initial: \"off\"");
-    assert_has(&imported.source, "state \"normal\" { id: \"normal\" }\n        initial: \"normal\"");
+    // The states of a parallel state are its regions, each with its own initial state.
+    assert_has(&imported.source, "    region \"operating\" {\n        initial: \"off\"\n        state \"off\" { id: \"off\" }\n        state \"on\" { id: \"on\" }\n        transition \"off\" -> \"on\" {  }\n    }");
+    assert_has(&imported.source, "    region \"health\" {\n        initial: \"normal\"\n        state \"normal\" { id: \"normal\" }\n    }");
     assert!(!imported.counts.contains_key("transitions to states not written (left out)"), "{:?}", imported.counts);
 }
 

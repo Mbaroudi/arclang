@@ -33,7 +33,7 @@ pub(super) fn register(e: &mut Exporter<'_>) {
     for machine in &model.state_machines {
         let id = if machine.id.is_empty() { machine.name.clone() } else { machine.id.clone() };
         e.register(PACKAGE, &id, &[&machine.name]);
-        register_states(e, &machine.name, vec![text::name(&id)], &machine.states, &names);
+        register_states(e, &machine.name, vec![text::name(&id)], &machine.states, &machine.regions, &names);
     }
     for scenario in &model.scenarios {
         let id = if scenario.id.is_empty() { scenario.name.clone() } else { scenario.id.clone() };
@@ -42,15 +42,31 @@ pub(super) fn register(e: &mut Exporter<'_>) {
     super::relations::register(e);
 }
 
-fn register_states(e: &mut Exporter<'_>, machine: &str, path: Vec<String>, states: &[State], names: &HashMap<&str, usize>) {
+fn register_states(e: &mut Exporter<'_>, machine: &str, path: Vec<String>, states: &[State], regions: &[Region], names: &HashMap<&str, usize>) {
     for state in states {
         let mut segments = path.clone();
+        // A state of a region is written in it: the region is on its path.
+        if let Some(region) = region_of(regions, state) {
+            segments.push(text::name(region_id(region)));
+        }
         segments.push(text::name(state_id(state)));
         let qualified = format!("{machine}.{}", state.name);
         let unique = if names.get(state.name.as_str()) == Some(&1) { state.name.as_str() } else { "" };
         e.register_at(PACKAGE, segments.clone(), &state.id, &[&qualified, unique]);
-        register_states(e, machine, segments, &state.sub_states, names);
+        register_states(e, machine, segments, &state.sub_states, &state.regions, names);
     }
+}
+
+/// What a region is declared by: its `id:` when it is written, else its name
+/// (the id the parser gives it, `<machine>.<name>`, is not written anywhere).
+fn region_id(region: &Region) -> &str {
+    region.attributes.get("id").and_then(|id| id.as_string()).unwrap_or(&region.name)
+}
+
+/// The region a state is written in, when it is in one: the states of a region
+/// are in the list of its machine (or of its state) too.
+fn region_of<'a>(regions: &'a [Region], state: &State) -> Option<&'a Region> {
+    regions.iter().find(|region| region.states.iter().any(|inner| inner.name == state.name && inner.id == state.id))
 }
 
 pub(super) fn write(e: &mut Exporter<'_>) {
@@ -70,73 +86,171 @@ pub(super) fn write(e: &mut Exporter<'_>) {
 
 fn state_machine(e: &mut Exporter<'_>, machine: &StateMachine) {
     let id = if machine.id.is_empty() { machine.name.clone() } else { machine.id.clone() };
-    e.block(&format!("state {}", text::declared(&id, &machine.name)), |e| {
+    e.block(&format!("state {}{}", text::declared(&id, &machine.name), parallel(&machine.regions)), |e| {
         e.header("StateMachine", &machine.attributes, &[]);
-        let root = Root { name: text::name(&id), states: &machine.states };
-        states(e, &root, &machine.states, &machine.initial_state, &machine.transitions);
+        let root = Root { name: text::name(&id), states: &machine.states, regions: &machine.regions };
+        let level = Level { states: &machine.states, regions: &machine.regions, initial: &machine.initial_state };
+        states(e, &root, &level, &written_here(&machine.transitions, &machine.states, &machine.regions));
     });
     if let Some(owner) = machine.attributes.get("owner").and_then(|o| o.as_string()) {
         dependency(e, "owner", &id, owner);
     }
 }
 
-/// The states of one region: the entry to its initial state, each state
-/// (its sub-states inside), the transitions between them.
-/// The machine a region is in: its name and its top states.
+/// The machine a region is in: its name, its top states and its regions.
 struct Root<'a> {
     name: String,
     states: &'a [State],
+    regions: &'a [Region],
 }
 
-fn states(e: &mut Exporter<'_>, root: &Root<'_>, list: &[State], initial: &str, transitions: &[Transition]) {
+/// What a machine, a state or a region holds: its states, the regions some of
+/// them are written in, and the state it is entered by.
+struct Level<'a> {
+    states: &'a [State],
+    regions: &'a [Region],
+    initial: &'a str,
+}
+
+/// A machine or a state that holds regions is in all of them at once: SysML v2
+/// says it `parallel`, and each region is a state of it.
+fn parallel(regions: &[Region]) -> &'static str {
+    if regions.is_empty() {
+        ""
+    } else {
+        " parallel"
+    }
+}
+
+/// The transitions written at one level, out of the list that level gives. A
+/// machine lists those of its regions and of its composite states too, a region
+/// those of its states; each is written where the model writes it: written in
+/// both, a transition would be two for whoever reads the file.
+fn written_here<'a>(transitions: &'a [Transition], states: &'a [State], regions: &'a [Region]) -> Vec<&'a Transition> {
+    fn below<'a>(states: &'a [State], regions: &'a [Region], all: &mut Vec<&'a Transition>) {
+        for state in states {
+            all.extend(&state.transitions);
+            below(&state.sub_states, &state.regions, all);
+        }
+        // The states of a region are in `states` too: what remains is what the
+        // region writes itself.
+        for region in regions {
+            all.extend(written_here(&region.transitions, &region.states, &[]));
+        }
+    }
+    let same = |a: &Transition, b: &Transition| a.id == b.id && a.from == b.from && a.to == b.to && a.trigger == b.trigger && a.guard == b.guard && a.action == b.action && a.timing == b.timing && a.priority == b.priority && a.attributes == b.attributes;
+    let mut nested = Vec::new();
+    below(states, regions, &mut nested);
+    transitions
+        .iter()
+        .filter(|transition| match nested.iter().position(|inner| same(inner, transition)) {
+            Some(written) => {
+                nested.swap_remove(written);
+                false
+            }
+            None => true,
+        })
+        .collect()
+}
+
+/// One level of a machine: its regions (each a state of a parallel state, with
+/// its own entry), the entry to its initial state, each state (its sub-states
+/// inside), the transitions between them.
+///
+/// SysML v2 allows no transition and no succession directly in a parallel
+/// state. A transition the model writes beside the regions (from a state of one
+/// to a state of another) is written in the region it leaves, marked `@Beside`
+/// and with both ends named from the machine: read back, it is beside them again.
+fn states(e: &mut Exporter<'_>, root: &Root<'_>, level: &Level<'_>, transitions: &[&Transition]) {
+    let leaves = |region: &Region, transition: &Transition| path_to(&region.states, &[], &transition.from).is_some();
+    for region in level.regions {
+        e.block(&format!("#Region state {}", text::declared(region_id(region), &region.name)), |e| {
+            e.header("Region", &region.attributes, &["initial"]);
+            let inner = Level { states: &region.states, regions: &[], initial: &region.initial };
+            let own = written_here(&region.transitions, &region.states, &[]);
+            states(e, root, &inner, &own);
+            let beside = transitions.iter().filter(|transition| leaves(region, transition));
+            for (n, transition) in beside.enumerate() {
+                match (from_machine(root, &transition.from), from_machine(root, &transition.to)) {
+                    (Some(from), Some(to)) => self::transition(e, own.len() + n + 1, transition, &from, &to, true),
+                    _ => e.line(&format!("// transition {} -> {}: a state is not in this machine", transition.from, transition.to)),
+                }
+            }
+        });
+    }
+    let transitions: Vec<&Transition> = transitions.iter().copied().filter(|transition| !level.regions.iter().any(|region| leaves(region, transition))).collect();
+    // The states written beside the regions, or all of them when there is none.
+    let list: Vec<&State> = level.states.iter().filter(|state| region_of(level.regions, state).is_none()).collect();
     let names: HashMap<&str, &str> = list.iter().flat_map(|s| [(s.name.as_str(), state_id(s)), (state_id(s), state_id(s))]).collect();
-    if let Some(initial) = names.get(initial) {
+    // A parallel state is entered by each of its regions: it has no entry of its own.
+    if let Some(initial) = names.get(level.initial).filter(|_| level.regions.is_empty()) {
         e.line(&format!("entry; then {};", text::name(initial)));
     }
     for state in list {
         let metadata = if state.kind == StateKind::Mode { "#Mode " } else { "" };
-        e.block(&format!("{metadata}state {}", text::declared(state_id(state), &state.name)), |e| {
+        e.block(&format!("{metadata}state {}{}", text::declared(state_id(state), &state.name), parallel(&state.regions)), |e| {
             e.header("State", &state.attributes, &[]);
-            for (key, actions) in [("entry_actions", &state.entry_actions), ("exit_actions", &state.exit_actions)] {
+            // The modes a configuration realizes are states named `Machine.State`:
+            // text, as `during` and `context` are, where another element's `realizes` is a dependency.
+            let realized = super::relations::list(&state.attributes, "realizes");
+            for (key, actions) in [("realizes", &realized), ("entry_actions", &state.entry_actions), ("exit_actions", &state.exit_actions)] {
                 if !actions.is_empty() {
                     let items: Vec<String> = actions.iter().map(|a| text::string(a)).collect();
                     e.line(&format!("attribute {key} : String [*] = ({}{});", items.join(", "), if items.len() == 1 { "," } else { "" }));
                 }
             }
             if !state.sub_states.is_empty() {
-                states(e, root, &state.sub_states, &state.initial, &state.transitions);
+                let inner = Level { states: &state.sub_states, regions: &state.regions, initial: &state.initial };
+                states(e, root, &inner, &state.transitions.iter().collect::<Vec<_>>());
             }
         });
     }
     for (n, transition) in transitions.iter().enumerate() {
-        let (Some(from), Some(to)) = (path_to(list, &transition.from).or_else(|| from_machine(root, &transition.from)), path_to(list, &transition.to).or_else(|| from_machine(root, &transition.to))) else {
+        let end = |reference: &str| path_to(level.states, level.regions, reference).or_else(|| from_machine(root, reference));
+        let (Some(from), Some(to)) = (end(&transition.from), end(&transition.to)) else {
             e.line(&format!("// transition {} -> {}: a state is not in this region", transition.from, transition.to));
             continue;
         };
-        let id = if transition.id.is_empty() { format!("t{}", n + 1) } else { transition.id.clone() };
-        let mut attributes = transition.attributes.clone();
-        for (key, value) in [("trigger", Some(&transition.trigger)), ("guard", transition.guard.as_ref()), ("action", transition.action.as_ref()), ("timing", transition.timing.as_ref())] {
-            if let Some(value) = value.filter(|v| !v.is_empty()) {
-                attributes.entry(key.to_string()).or_insert(AttributeValue::String(value.clone()));
-            }
-        }
-        e.block(&format!("transition {} first {from} then {to}", text::name(&id)), |e| e.header("Transition", &attributes, &[]));
+        self::transition(e, n + 1, transition, &from, &to, false);
     }
 }
 
-/// A state of this region or nested in one of its states, by id or name:
-/// `A` or `A.B` (a feature chain), the path that names it from the region.
-fn path_to(list: &[State], reference: &str) -> Option<String> {
-    if let Some(state) = list.iter().find(|s| s.name == reference || state_id(s) == reference) {
-        return Some(text::name(state_id(state)));
+/// A transition between two states named from where it is written: the `n`th
+/// there when it has no id of its own. What it says (its trigger, its guard,
+/// its action, its timing) is its attributes.
+fn transition(e: &mut Exporter<'_>, n: usize, transition: &Transition, from: &str, to: &str, beside: bool) {
+    let id = if transition.id.is_empty() { format!("t{n}") } else { transition.id.clone() };
+    let mut attributes = transition.attributes.clone();
+    for (key, value) in [("trigger", Some(&transition.trigger)), ("guard", transition.guard.as_ref()), ("action", transition.action.as_ref()), ("timing", transition.timing.as_ref())] {
+        if let Some(value) = value.filter(|v| !v.is_empty()) {
+            attributes.entry(key.to_string()).or_insert(AttributeValue::String(value.clone()));
+        }
     }
-    list.iter().find_map(|s| path_to(&s.sub_states, reference).map(|inner| format!("{}.{inner}", text::name(state_id(s)))))
+    e.block(&format!("transition {} first {from} then {to}", text::name(&id)), |e| {
+        if beside {
+            e.line("@Beside;");
+        }
+        e.header("Transition", &attributes, &[]);
+    });
+}
+
+/// A state of this level or nested in one of its states, by id or name: `A`,
+/// `A.B` or `Region.A` (a feature chain), the path that names it from here.
+fn path_to(list: &[State], regions: &[Region], reference: &str) -> Option<String> {
+    let named = |state: &State| match region_of(regions, state) {
+        Some(region) => format!("{}.{}", text::name(region_id(region)), text::name(state_id(state))),
+        None => text::name(state_id(state)),
+    };
+    if let Some(state) = list.iter().find(|s| s.name == reference || state_id(s) == reference) {
+        return Some(named(state));
+    }
+    list.iter().find_map(|s| path_to(&s.sub_states, &s.regions, reference).map(|inner| format!("{}.{inner}", named(s))))
 }
 
 /// A state of an enclosing region: the chain from the machine, which every
 /// region sees (`M.A.B`).
 fn from_machine(root: &Root<'_>, reference: &str) -> Option<String> {
-    path_to(root.states, reference).map(|path| format!("{}.{path}", root.name))
+    path_to(root.states, root.regions, reference).map(|path| format!("{}.{path}", root.name))
 }
 
 fn occurrence(e: &mut Exporter<'_>, scenario: &Scenario) {

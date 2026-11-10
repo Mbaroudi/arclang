@@ -72,6 +72,16 @@ fn line(metamodel: &Metamodel, kind: &str, key: &str, value: &AttributeValue, un
     format!("attribute {name} : {ty} = {literal};")
 }
 
+/// An attribute of a declaration that is all attributes (an I/O binding, a
+/// twin, a rule): every key is written, a reference key as the text it is
+/// (`verifies`, `machine`), a block as its ArcLang source.
+pub fn declared(metamodel: &Metamodel, kind: &str, key: &str, value: &AttributeValue, units: &mut BTreeSet<&'static str>) -> String {
+    match value {
+        AttributeValue::Map(_) => format!("attribute {} : String = {};", text::name(key), text::string(&value.source())),
+        value => line(metamodel, kind, key, value, units),
+    }
+}
+
 /// A block of nested attributes: a map, one attribute per key; a list of
 /// maps, one block per item, named `point_1`, `point_2`... in order.
 fn block(name: &str, value: &AttributeValue, units: &mut BTreeSet<&'static str>) -> String {
@@ -111,7 +121,7 @@ fn block(name: &str, value: &AttributeValue, units: &mut BTreeSet<&'static str>)
 }
 
 /// The type and literal of a value the metamodel does not type.
-fn scalar(value: &AttributeValue, units: &mut BTreeSet<&'static str>) -> (String, String) {
+pub(super) fn scalar(value: &AttributeValue, units: &mut BTreeSet<&'static str>) -> (String, String) {
     match value {
         AttributeValue::Integer(i) => ("Integer".to_string(), i.to_string()),
         AttributeValue::Number(n) => ("Real".to_string(), text::number(*n)),

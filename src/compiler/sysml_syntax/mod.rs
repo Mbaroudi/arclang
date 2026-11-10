@@ -38,6 +38,8 @@ pub struct Declaration {
     pub owner: Option<usize>,
     pub direction: Option<&'static str>,
     pub is_abstract: bool,
+    /// `state S parallel`: its states are concurrent regions.
+    pub is_parallel: bool,
     /// `: T` — names as written.
     pub typed_by: Vec<String>,
     /// `:> S`
@@ -314,13 +316,23 @@ impl Reader {
         if head.take_word("expose") || head.take_word("filter") {
             return Ok(None);
         }
-        // `@Safety;`: a metadata usage annotating the namespace it is in.
+        // `@Safety;`: a metadata usage annotating the declaration it is in.
+        // `@Trace { rationale = "..."; }`: one that says something.
         if head.take_symbol("@") {
             let definition = head.path()?;
             self.finish(&head)?;
             let owner = owner.ok_or("metadata outside a declaration")?;
-            self.annotate(owner, vec![definition]);
-            return Ok(None);
+            return Ok(self.annotate(owner, vec![definition]));
+        }
+        // `rationale = "...";` in a metadata usage: the value it gives to an
+        // attribute of its definition.
+        if owner.is_some_and(|o| self.declarations[o].metaclass == "MetadataUsage") {
+            head.take_word("ref");
+            head.take_word("attribute");
+            declaration.metaclass = "ReferenceUsage";
+            self.named(&mut head, &mut declaration)?;
+            self.finish(&head)?;
+            return Ok(Some(self.push(declaration, owner)));
         }
         // `#OA package ...`: prefix metadata, usages of metadata definitions
         // owned by the declaration they annotate.
@@ -399,7 +411,7 @@ impl Reader {
             declaration.membership = "FramedConcernMembership";
             declaration.references = vec![head.path()?];
         } else if head.take_word("subject") {
-            // `subject = 'Layer'::'LC-1';` / `subject v : Vehicle;`: what a requirement is about.
+            // `subject default = 'Layer'::'LC-1';` / `subject = …;` / `subject v : Vehicle;`: what a requirement is about.
             declaration.metaclass = "ReferenceUsage";
             declaration.membership = "SubjectMembership";
             self.named(&mut head, &mut declaration)?;
@@ -473,6 +485,9 @@ impl Reader {
                 declaration.metaclass = "EventOccurrenceUsage";
             }
             self.named(&mut head, &mut declaration)?;
+            if matches!(declaration.metaclass, "StateUsage" | "StateDefinition") {
+                declaration.is_parallel = head.take_word("parallel");
+            }
             // An enumeration is a variation: abstract, its values the variants.
             declaration.is_abstract |= declaration.metaclass == "EnumerationDefinition";
         } else if is_end || is_symbol(head.peek(), ":>>") {
@@ -528,13 +543,16 @@ impl Reader {
     }
 
     /// The prefix metadata of a declaration, as metadata usages it owns.
-    fn annotate(&mut self, declared: usize, metadata: Vec<String>) {
+    /// Returns the last of them: the one a body would belong to.
+    fn annotate(&mut self, declared: usize, metadata: Vec<String>) -> Option<usize> {
         // A relationship is no namespace: its metadata annotate it.
         let membership = if self.declarations[declared].metaclass == "Dependency" { "Annotation" } else { "OwningMembership" };
+        let mut last = None;
         for definition in metadata {
             let usage = Declaration { metaclass: "MetadataUsage", membership, typed_by: vec![definition], ..Declaration::default() };
-            self.push(usage, Some(declared));
+            last = Some(self.push(usage, Some(declared)));
         }
+        last
     }
 
     /// `<'short'> name` of a connector written with its own keyword.

@@ -28,20 +28,59 @@ pub(super) fn dependency(e: &mut Exporter<'_>, key: &str, from: &str, to: &str) 
 }
 
 /// `#Trace dependency realizes from A to B;`: a trace, told by its metadata
-/// from the reference attribute of the same key.
-fn trace_dependency(e: &mut Exporter<'_>, key: &str, from: &str, to: &str) {
+/// from the reference attribute of the same key. One that says something
+/// carries the metadata in its body, with what it says.
+fn trace_dependency(e: &mut Exporter<'_>, key: &str, from: &str, to: &str, said: &str) {
+    let prefix = if said == ";" { "#Trace " } else { "" };
     match (e.reference(from), e.reference(to)) {
-        (Some(source), Some(target)) => e.line(&format!("#Trace dependency {} from {source} to {target};", text::name(key))),
+        (Some(source), Some(target)) => e.line(&format!("{prefix}dependency {} from {source} to {target}{said}", text::name(key))),
         _ => e.line(&format!("// trace {from} {key} {to}: an end is not exported")),
     }
 }
 
+/// What a trace says besides its ends is not said by its ends.
+const ENDS_OF_A_TRACE: [&str; 2] = ["is", "trace_type"];
+
+/// The keys the traces of the model say something under, with the type of
+/// what they say: the attributes of the `Trace` metadata definition.
+pub(super) fn said_by_traces(model: &Model) -> Vec<(String, String)> {
+    let mut keys: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+    let mut units = std::collections::BTreeSet::new();
+    for trace in model.traces.iter().chain(model.operational_analysis.iter().flat_map(|oa| oa.traces.iter())) {
+        for (key, value) in &trace.attributes {
+            if !ENDS_OF_A_TRACE.contains(&key.as_str()) {
+                keys.entry(key.clone()).or_insert_with(|| super::attributes::scalar(value, &mut units).0);
+            }
+        }
+    }
+    keys.into_iter().collect()
+}
+
+/// What a trace says besides its ends (why it holds, the change it was
+/// reviewed against): `{ @Trace { rationale = "..."; } }`, an annotation a
+/// relationship can carry, or `;` when it says nothing.
+fn said(e: &mut Exporter<'_>, trace: &Trace) -> String {
+    // What its type gives it unchanged is the type's, not the trace's.
+    let given = e.inherited(&trace.attributes).map(|i| i.attributes).unwrap_or_default();
+    let mut keys: Vec<&String> = trace.attributes.iter().filter(|(k, v)| !ENDS_OF_A_TRACE.contains(&k.as_str()) && given.get(*k) != Some(*v)).map(|(k, _)| k).collect();
+    if keys.is_empty() {
+        return ";".to_string();
+    }
+    keys.sort();
+    let values: Vec<String> = keys.iter().map(|key| format!("{} = {};", text::name(key), super::attributes::scalar(&trace.attributes[*key], &mut e.units).1)).collect();
+    format!(" {{ @Trace {{ {} }} }}", values.join(" "))
+}
+
 /// `allocate` of the usage of `from` to the usage of `to`.
 pub(super) fn allocation(e: &mut Exporter<'_>, from: &str, to: &str) {
+    allocation_saying(e, from, to, ";")
+}
+
+fn allocation_saying(e: &mut Exporter<'_>, from: &str, to: &str, said: &str) {
     match (e.feature(from), e.feature(to)) {
-        (Some(source), Some(target)) => e.line(&format!("allocate {source} to {target};")),
+        (Some(source), Some(target)) => e.line(&format!("allocate {source} to {target}{said}")),
         // An end no feature chain reaches (a variant): a dependency, by name.
-        _ => trace_dependency(e, "allocates", from, to),
+        _ => trace_dependency(e, "allocates", from, to, said),
     }
 }
 
@@ -49,27 +88,39 @@ pub(super) fn allocation(e: &mut Exporter<'_>, from: &str, to: &str) {
 /// (`allocation : 'Software deployment' allocate a to b;`).
 fn typed_allocation(e: &mut Exporter<'_>, trace: &Trace) {
     let typing = e.typing(&trace.attributes);
+    let said = said(e, trace);
     if typing.is_empty() {
-        return allocation(e, &trace.from, &trace.to);
+        return allocation_saying(e, &trace.from, &trace.to, &said);
     }
     match (e.feature(&trace.from), e.feature(&trace.to)) {
-        (Some(source), Some(target)) => e.line(&format!("allocation{typing} allocate {source} to {target};")),
-        _ => trace_dependency(e, "allocates", &trace.from, &trace.to),
+        (Some(source), Some(target)) => e.line(&format!("allocation{typing} allocate {source} to {target}{said}")),
+        _ => trace_dependency(e, "allocates", &trace.from, &trace.to, &said),
     }
 }
 
 /// A requirement: its id as short name, its title as name, its text as doc;
-/// what it is about as its `subject`, the concerns it addresses `frame`d,
+/// what it is about as the default of its `subject`, the concerns it addresses `frame`d,
 /// its constraints `require`d and `assume`d, each its expression as text.
+/// One written by its name with an `id` (`requirement "Hover endurance" { id: "REQ-1" }`)
+/// carries `#Named`: its name is its name, where the name of another is its title.
+/// The configurations it applies to are dependencies named `applies_to`.
 pub(super) fn requirement(e: &mut Exporter<'_>, requirement: &Requirement) {
     let attributes = &requirement.attributes;
     let id = id_of(attributes, &requirement.id).to_string();
-    let title = attributes.get("title").and_then(|t| t.as_string()).unwrap_or(&id).to_string();
-    e.block(&format!("requirement {}", text::declared(&id, &title)), |e| {
+    let is_named = requirement.id != id;
+    let title = attributes.get("title").and_then(|t| t.as_string());
+    let display = if is_named { requirement.id.as_str() } else { title.unwrap_or(&id) };
+    let prefix = if is_named { "#Named " } else { "" };
+    e.block(&format!("{prefix}requirement {}", text::declared(&id, display)), |e| {
         e.header("Requirement", attributes, &["title", "frames", "subject", "require", "assume"]);
+        if let Some(title) = title.filter(|_| is_named) {
+            e.line(&format!("attribute title : String = {};", text::string(title)));
+        }
         if let Some(subject) = attributes.get("subject").and_then(|s| s.as_string()) {
             match e.reference(subject) {
-                Some(target) => e.line(&format!("subject = {target};")),
+                // A default, not a binding: `satisfy R by X` binds the subject of R, and a
+                // subject already bound cannot be ("Cannot override a binding feature value").
+                Some(target) => e.line(&format!("subject default = {target};")),
                 None => e.line(&format!("// subject {subject}: not exported")),
             }
         }
@@ -85,19 +136,23 @@ pub(super) fn requirement(e: &mut Exporter<'_>, requirement: &Requirement) {
             }
         }
     });
+    for configuration in list(attributes, "applies_to") {
+        dependency(e, "applies_to", &id, &configuration);
+    }
 }
 
-/// A concern: its id as short name, its name as name, its text as doc.
-/// A stakeholder (CESAM stakeholder analysis): a part definition, its
-/// attributes kept by the header.
+/// A stakeholder (CESAM stakeholder analysis): a part definition carrying
+/// `#Stakeholder`, which tells it from a component, its attributes kept by
+/// the header.
 pub(super) fn stakeholder(e: &mut Exporter<'_>, stakeholder: &Stakeholder) {
     let id = id_of(&stakeholder.attributes, &stakeholder.id).to_string();
     let name = stakeholder.attributes.get("name").and_then(|t| t.as_string()).unwrap_or(&stakeholder.id).to_string();
-    e.block(&format!("part def {}", text::declared(&id, &name)), |e| {
+    e.block(&format!("#Stakeholder part def {}", text::declared(&id, &name)), |e| {
         e.header("Stakeholder", &stakeholder.attributes, &[]);
     });
 }
 
+/// A concern: its id as short name, its name as name, its text as doc.
 pub(super) fn concern(e: &mut Exporter<'_>, concern: &Concern) {
     let id = id_of(&concern.attributes, &concern.id).to_string();
     let name = concern.attributes.get("name").and_then(|t| t.as_string()).unwrap_or(&concern.id).to_string();
@@ -199,12 +254,18 @@ fn traces(e: &mut Exporter<'_>) {
         match trace.trace_type.as_str() {
             // A `satisfy` is of a requirement, by a feature; anything else
             // that "satisfies" is a dependency of that name.
-            "satisfies" => match (is_requirement(model, &trace.to).then(|| e.reference(&trace.to)).flatten(), e.feature(&trace.from)) {
-                (Some(requirement), Some(by)) => e.line(&format!("satisfy {requirement} by {by};")),
-                _ => trace_dependency(e, "satisfies", &trace.from, &trace.to),
-            },
+            "satisfies" => {
+                let said = said(e, trace);
+                match (is_requirement(model, &trace.to).then(|| e.reference(&trace.to)).flatten(), e.feature(&trace.from)) {
+                    (Some(requirement), Some(by)) => e.line(&format!("satisfy {requirement} by {by}{said}")),
+                    _ => trace_dependency(e, "satisfies", &trace.from, &trace.to, &said),
+                }
+            }
             "allocates" => typed_allocation(e, trace),
-            kind => trace_dependency(e, kind, &trace.from, &trace.to),
+            kind => {
+                let said = said(e, trace);
+                trace_dependency(e, kind, &trace.from, &trace.to, &said)
+            }
         }
     }
 }

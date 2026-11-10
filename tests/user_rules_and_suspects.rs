@@ -156,6 +156,64 @@ fn a_reviewed_trace_turns_suspect_when_an_end_changes() {
     assert!(!compile(&again).unwrap().warnings.iter().any(|w| w.starts_with("suspect:")));
 }
 
+/// The model with both traces reviewed, as `arclang trace --review` writes them.
+fn reviewed(model: &str) -> String {
+    let result = compile(model).unwrap();
+    let graph = elements::build(&result.ast, &result.semantic_model);
+    result.ast.traces.iter().fold(model.to_string(), |text, trace| {
+        let stamp = suspect::stamp(&graph, trace).unwrap();
+        source_edit::set_trace_attribute(&text, &trace.from, &trace.trace_type, &trace.to, "reviewed", &source_edit::string_literal(&stamp)).unwrap()
+    })
+}
+
+fn suspect_lines(text: &str) -> Vec<String> {
+    compile(text).unwrap().warnings.into_iter().filter(|w| w.starts_with("suspect:")).collect()
+}
+
+#[test]
+fn a_quantity_counts_for_what_it_measures_not_for_how_it_is_written() {
+    let model = MODEL.replace("mass: 450 kg voltage: 400 V", "mass: 450 kg voltage: 400 V ambient: 20 °C efficiency: 85 % rate: 100 Mbps");
+    let text = reviewed(&model);
+    assert!(suspect_lines(&text).is_empty());
+
+    // The same values as another tool writes them back: nothing changed.
+    let respelled = text.replace("20 °C", "293.15 K").replace("85 %", "85 percent").replace("100 Mbps", "100 Mbit/s").replace("450 kg", "0.45 t");
+    assert_ne!(respelled, text);
+    assert!(suspect_lines(&respelled).is_empty(), "{:?}", suspect_lines(&respelled));
+
+    // Another value is a change, in whatever unit.
+    for (was, is) in [("20 °C", "21 °C"), ("20 °C", "20 K"), ("85 %", "0.85"), ("85 %", "86 percent"), ("100 Mbps", "100 kbps")] {
+        let lines = suspect_lines(&text.replace(was, is));
+        assert_eq!(lines.len(), 1, "{was} -> {is}: {lines:?}");
+        assert!(lines[0].contains("'PN-BATT' changed since the trace was reviewed"), "{}", lines[0]);
+    }
+}
+
+#[test]
+fn a_review_written_by_an_earlier_version_still_stands() {
+    use sha2::{Digest, Sha256};
+    // What `reviewed:` held before quantities counted for their value: the unit as written.
+    let as_written = |element: &elements::ElementRecord| -> String {
+        let mut hash = Sha256::new();
+        hash.update(element.kind.as_bytes());
+        hash.update([0]);
+        hash.update(element.name.as_bytes());
+        hash.update([0]);
+        hash.update(elements::attributes_json(&element.attributes).to_string().as_bytes());
+        hash.finalize().iter().take(4).map(|b| format!("{b:02x}")).collect()
+    };
+    let result = compile(MODEL).unwrap();
+    let graph = elements::build(&result.ast, &result.semantic_model);
+    let (battery, range) = (suspect::end(&graph, "PN-BATT").unwrap(), suspect::end(&graph, "REQ-RANGE").unwrap());
+    let earlier = format!("{} {}", as_written(battery), as_written(range));
+    assert_ne!(earlier, format!("{} {}", suspect::fingerprint(battery), suspect::fingerprint(range)), "the battery holds quantities");
+    let text = source_edit::set_trace_attribute(MODEL, "PN-BATT", "satisfies", "REQ-RANGE", "reviewed", &source_edit::string_literal(&earlier)).unwrap();
+    assert!(suspect_lines(&text).is_empty(), "{:?}", suspect_lines(&text));
+    // It still sees a change, and the unit it was written with is part of what it holds.
+    assert_eq!(suspect_lines(&text.replace("mass: 450 kg", "mass: 470 kg")).len(), 1);
+    assert_eq!(suspect_lines(&text.replace("mass: 450 kg", "mass: 0.45 t")).len(), 1);
+}
+
 #[test]
 fn a_hand_written_stamp_is_refused() {
     let text = MODEL.replace("trace \"PN-CHG\" satisfies \"REQ-CHARGE\"", "trace \"PN-CHG\" satisfies \"REQ-CHARGE\" { reviewed: \"yes\" }");
