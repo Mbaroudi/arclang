@@ -47,8 +47,9 @@ that stage, as the cache keeps it, in one of these states:
   matches the model, its sources, the case and the target);
 - **fail** or **error**: a fresh verdict that fails, or a run in error;
 - **stale**: a verdict whose key no longer matches: the model, its Modelica
-  sources, the generated C or VHDL, the case, the target package, the
-  measurements or the twin changed since the run;
+  sources, the generated C or VHDL, the case, the plant it closes its loop
+  on, a machine wired upstream of the case's (for the logic and the SoC),
+  the target package, the measurements or the twin changed since the run;
 - **missing**: never run.
 
 The requirement's state at a stage is the worst over its cases, in the

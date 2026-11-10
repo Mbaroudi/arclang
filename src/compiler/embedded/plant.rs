@@ -43,6 +43,64 @@ impl Device for reference::Runner<'_> {
     }
 }
 
+/// The files of the plant a case closes its loop on, as its `execute:
+/// { plant: { sources: [...] } }` or `fmu:` writes them, relative to the model.
+pub fn files(test: &crate::compiler::ast::TestCase) -> Vec<String> {
+    use crate::compiler::ast::AttributeValue;
+    let Some(AttributeValue::Map(execute)) = test.attributes.get("execute") else { return Vec::new() };
+    let Some(AttributeValue::Map(plant)) = execute.get("plant") else { return Vec::new() };
+    let mut files = Vec::new();
+    match plant.get("sources") {
+        Some(AttributeValue::List(items)) => files.extend(items.iter().filter_map(|i| i.as_string().map(str::to_string))),
+        Some(AttributeValue::String(one)) => files.push(one.clone()),
+        _ => {}
+    }
+    if let Some(fmu) = plant.get("fmu").and_then(|v| v.as_string()) {
+        files.push(fmu.to_string());
+    }
+    files
+}
+
+/// The Modelica class a case's plant names (`plant: { model: "..." }`).
+fn class_of(test: &crate::compiler::ast::TestCase) -> Option<&str> {
+    use crate::compiler::ast::AttributeValue;
+    let Some(AttributeValue::Map(execute)) = test.attributes.get("execute") else { return None };
+    let Some(AttributeValue::Map(plant)) = execute.get("plant") else { return None };
+    plant.get("model").and_then(|v| v.as_string())
+}
+
+/// Whether a Modelica plant reads the model's own Modelica, which
+/// OpenModelica loads with its sources: its class is in the model's
+/// package, or one of its sources names the package.
+fn reads_package(class: &str, sources: &[Vec<u8>], package: &str) -> bool {
+    class.strip_prefix(package).is_some_and(|rest| rest.starts_with('.')) || sources.iter().any(|text| String::from_utf8_lossy(text).contains(package))
+}
+
+/// What a verdict obtained in the loop of a case's plant depends on, beyond
+/// the case and the code: each file of the plant as it is beside the model
+/// (one that cannot be read is `missing`, another key, not an error), and
+/// the model's own Modelica when the plant reads it. Nothing for a case
+/// without a plant: its verdict does not follow the physics of another's.
+pub fn evidence(ast: &crate::compiler::ast::Model, test: &crate::compiler::ast::TestCase, base: &Path, field: &mut dyn FnMut(&str, &[u8])) {
+    let mut texts = Vec::new();
+    for file in files(test) {
+        field("plant", file.as_bytes());
+        match crate::compiler::simulation::cache::read_bytes(&base.join(&file)) {
+            Some(content) => {
+                field("content", &content);
+                texts.push(content);
+            }
+            None => field("missing", b""),
+        }
+    }
+    let Some(class) = class_of(test) else { return };
+    if let Ok(export) = crate::compiler::modelica::export(ast) {
+        if reads_package(class, &texts, &export.package) {
+            field("modelica", export.text.as_bytes());
+        }
+    }
+}
+
 /// A loop run: the vectors as the plant filled them (the batch stages
 /// replay them), the device's rows, and the plant's outputs at each step.
 pub struct Run {
@@ -159,8 +217,9 @@ impl Plants {
     }
 
     /// What the FMU of a Modelica plant depends on: the model, its sources as
-    /// they are, the wires.
-    fn key(base: &Path, spec: &Spec) -> Result<String, String> {
+    /// they are, the wires, and the model's own Modelica (`package`, its
+    /// name and text, when the model exports) if the plant reads it.
+    fn key(base: &Path, spec: &Spec, package: Option<(&str, &str)>) -> Result<String, String> {
         use sha2::{Digest, Sha256};
         let mut hash = Sha256::new();
         let mut field = |label: &str, bytes: &[u8]| {
@@ -168,12 +227,19 @@ impl Plants {
             hash.update((bytes.len() as u64).to_le_bytes());
             hash.update(bytes);
         };
-        field("format", b"arclang-plant-fmu-2");
+        field("format", b"arclang-plant-fmu-3");
         field("model", spec.label().as_bytes());
+        let mut texts = Vec::new();
         for source in &spec.sources {
             let text = std::fs::read(base.join(source)).map_err(|e| format!("plant: source '{source}' cannot be read: {e}"))?;
             field("source", source.as_bytes());
             field("text", &text);
+            texts.push(text);
+        }
+        if let Some((name, text)) = package {
+            if reads_package(spec.model.as_deref().unwrap_or_default(), &texts, name) {
+                field("modelica", text.as_bytes());
+            }
         }
         for (target, _) in &spec.inputs {
             field("input", target.as_bytes());
@@ -197,11 +263,14 @@ impl Plants {
             return Ok(path);
         }
         let model = spec.model.as_deref().unwrap_or_default();
-        let cached = Self::cache_dir(base).join(format!("{}.fmu", Self::key(base, spec)?));
+        // The FMU is built with the model's own Modelica loaded: one built for another is not this one.
+        let export = crate::compiler::modelica::export(ast);
+        let package = export.as_ref().ok().map(|e| (e.package.as_str(), e.text.as_str()));
+        let cached = Self::cache_dir(base).join(format!("{}.fmu", Self::key(base, spec, package)?));
         if cached.exists() {
             return Ok(cached);
         }
-        let export = crate::compiler::modelica::export(ast).map_err(|e| format!("the model does not export to Modelica: {e}"))?;
+        let export = export.map_err(|e| format!("the model does not export to Modelica: {e}"))?;
         // The plant's own `input` variables are the FMU's inputs: no wrapper binding.
         let inputs: Vec<String> = spec.inputs.iter().map(|(t, _)| t.clone()).collect();
         let variables: Vec<String> = spec.outputs.iter().map(|(_, v)| v.clone()).collect();
@@ -448,6 +517,50 @@ test_case "TC-LOOP" {
         assert_eq!(run.plant[20][0], run.table.rows[20][temperature]);
         let replay = reference::run(&p, &run.vectors, case.step_us);
         assert_eq!(replay.rows, run.table.rows);
+    }
+
+    #[test]
+    fn the_fmu_of_a_plant_follows_the_model_s_modelica_when_the_plant_reads_it() {
+        let ast = compiled(MODEL);
+        let p = plan::plan(&ast).unwrap();
+        let bindings = binding::resolve_all(&ast, &p).unwrap();
+        let case = super::super::case::read(&ast.test_cases[0], &p, &bindings).unwrap().unwrap();
+        let spec = case.plant.as_ref().unwrap();
+        let base = std::env::temp_dir().join(format!("arclang-plant-key-{}", std::process::id()));
+        std::fs::create_dir_all(base.join("physics")).unwrap();
+        let room = base.join("physics/Room.mo");
+        let key = |package: &str| Plants::key(&base, spec, Some(("Loop", package))).unwrap();
+
+        // Physics of its own: the FMU is the same whatever the model exports.
+        std::fs::write(&room, "package Physics model Room Real T; end Room; end Physics;").unwrap();
+        let alone = key("package Loop end Loop;");
+        assert_eq!(key("package Loop constant Real k = 2; end Loop;"), alone);
+        assert_eq!(Plants::key(&base, spec, None).unwrap(), alone, "a model that does not export");
+
+        // Physics that reads a constant of the model: another export, another FMU.
+        std::fs::write(&room, "package Physics model Room Real T = Loop.k; end Room; end Physics;").unwrap();
+        let reading = key("package Loop constant Real k = 1; end Loop;");
+        assert_ne!(reading, alone, "the source changed");
+        assert_ne!(key("package Loop constant Real k = 2; end Loop;"), reading);
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn the_evidence_of_a_case_carries_its_plant_s_files_as_they_are() {
+        let ast = compiled(MODEL);
+        let base = std::env::temp_dir().join(format!("arclang-plant-evidence-{}", std::process::id()));
+        std::fs::create_dir_all(base.join("physics")).unwrap();
+        let read = |base: &Path| {
+            let mut fields = Vec::new();
+            evidence(&ast, &ast.test_cases[0], base, &mut |label, bytes| fields.push((label.to_string(), bytes.to_vec())));
+            fields
+        };
+        // The file is not there: said, not an error (the stage that runs says why it cannot).
+        assert_eq!(read(&base), vec![("plant".to_string(), b"physics/Room.mo".to_vec()), ("missing".to_string(), Vec::new())]);
+        std::fs::write(base.join("physics/Room.mo"), "model Room end Room;").unwrap();
+        assert_eq!(read(&base), vec![("plant".to_string(), b"physics/Room.mo".to_vec()), ("content".to_string(), b"model Room end Room;".to_vec())]);
+        assert_eq!(files(&ast.test_cases[0]), vec!["physics/Room.mo"]);
+        let _ = std::fs::remove_dir_all(&base);
     }
 
     #[test]

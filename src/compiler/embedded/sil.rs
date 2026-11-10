@@ -99,12 +99,14 @@ pub struct Options {
 }
 
 /// Bumped when the meaning of a cached SIL verdict changes.
-const CACHE_FORMAT: &str = "arclang-sil-cache-1";
+const CACHE_FORMAT: &str = "arclang-sil-cache-2";
 
 /// The hash of what the SIL verdict of a case depends on: every generated
-/// file, the case's `execute:` and its expectations. Any change of the model
-/// that changes the C, or of the generator, makes the cached verdict stale.
-pub fn cache_key(ast: &Model, test: &TestCase) -> Result<String, String> {
+/// file, the case's `execute:`, its expectations, and the plant it closes
+/// its loop on (`plant::evidence`: its files as they are in `base`, the
+/// model's directory). Any change of the model that changes the C, of the
+/// generator, or of the physics of the loop makes the cached verdict stale.
+pub fn cache_key(ast: &Model, test: &TestCase, base: &Path) -> Result<String, String> {
     use sha2::{Digest, Sha256};
     let (files, _) = super::export(ast)?;
     let mut hash = Sha256::new();
@@ -128,6 +130,7 @@ pub fn cache_key(ast: &Model, test: &TestCase) -> Result<String, String> {
     for expect in crate::compiler::simulation::expects_of(&test.attributes) {
         field("expects", expect.as_bytes());
     }
+    super::plant::evidence(ast, test, base, &mut field);
     Ok(hash.finalize().iter().map(|b| format!("{b:02x}")).collect())
 }
 
@@ -169,13 +172,14 @@ pub fn cached_outcome(runs: &[&Outcome], key: String) -> crate::compiler::simula
 /// (`.arclang/sim-cache/`), where `check`, `gate` and the tables read them.
 pub fn cache(ast: &Model, model_path: &Path, outcomes: &[Outcome]) -> Result<Vec<PathBuf>, String> {
     let dir = crate::compiler::simulation::cache::dir(model_path);
+    let base = crate::compiler::simulation::cache::model_dir(model_path);
     let mut written = Vec::new();
     for test in cases(ast) {
         let runs: Vec<&Outcome> = outcomes.iter().filter(|o| o.test_case == test.id).collect();
         if runs.is_empty() {
             continue;
         }
-        let outcome = cached_outcome(&runs, cache_key(ast, test)?);
+        let outcome = cached_outcome(&runs, cache_key(ast, test, &base)?);
         written.push(crate::compiler::simulation::cache::write(&dir, &outcome)?);
     }
     Ok(written)
@@ -653,6 +657,13 @@ fn without(table: &Table, columns: &[String]) -> Table {
     }
 }
 
+/// Whether two values of a run agree within a tolerance. A value that is
+/// not a number agrees with nothing, not even with another: a run that
+/// gives one is not evidence that the implementation follows the model.
+pub fn agree(x: f64, y: f64, tolerance: f64) -> bool {
+    x == y || (x - y).abs() <= tolerance
+}
+
 pub fn compare(model: &Table, c: &Table, tolerance: f64) -> BackToBack {
     let mut max_difference: f64 = 0.0;
     let mut first_mismatch = None;
@@ -663,7 +674,7 @@ pub fn compare(model: &Table, c: &Table, tolerance: f64) -> BackToBack {
         for (n, (x, y)) in a.iter().zip(b).enumerate() {
             let d = (x - y).abs();
             max_difference = max_difference.max(d);
-            if d > tolerance && first_mismatch.is_none() {
+            if !agree(*x, *y, tolerance) && first_mismatch.is_none() {
                 let t = k as f64 * model.period_us as f64 / 1e6;
                 first_mismatch = Some(format!("at {t} s (step {k}), {}: model {x}, C {y}", model.names[n]));
             }
@@ -995,4 +1006,33 @@ pub fn run_with(ast: &Model, options: &Options, plants: &mut super::plant::Plant
     std::fs::create_dir_all(&options.work).map_err(|e| format!("cannot make {}: {e}", options.work.display()))?;
     let mut builds = Builds { binaries: HashMap::new() };
     Ok(selected.into_iter().map(|t| run_case(t, &plan, &bindings, &mut builds, options, ast, plants)).collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn table(rows: Vec<Vec<f64>>) -> Table {
+        Table { names: vec!["m.x".to_string()], period_us: 1000, rows, units: Default::default() }
+    }
+
+    #[test]
+    fn two_runs_agree_within_the_tolerance() {
+        let read = compare(&table(vec![vec![1.0], vec![2.0]]), &table(vec![vec![1.0], vec![2.0 + 1e-12]]), 1e-9);
+        assert_eq!(read.first_mismatch, None);
+        let read = compare(&table(vec![vec![1.0], vec![2.0]]), &table(vec![vec![1.0], vec![2.5]]), 1e-9);
+        assert_eq!(read.first_mismatch.as_deref(), Some("at 0.001 s (step 1), m.x: model 2, C 2.5"));
+    }
+
+    #[test]
+    fn a_value_that_is_not_a_number_agrees_with_nothing() {
+        // `NaN > tolerance` is false: the comparison must not read it as agreement.
+        for (model, c) in [(1.0, f64::NAN), (f64::NAN, 1.0), (f64::NAN, f64::NAN), (1.0, f64::INFINITY), (f64::INFINITY, f64::NEG_INFINITY)] {
+            let read = compare(&table(vec![vec![model]]), &table(vec![vec![c]]), 1e-9);
+            assert!(read.first_mismatch.is_some(), "model {model}, C {c}: {read:?}");
+        }
+        // The same infinity on both sides is the same value.
+        assert!(agree(f64::INFINITY, f64::INFINITY, 0.0));
+        assert!(!agree(f64::NAN, f64::NAN, f64::INFINITY));
+    }
 }
