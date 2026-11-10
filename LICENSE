@@ -5,33 +5,32 @@ Parameters
 Licensor:             Vernish Services
 
 Licensed Work:        ArcLang, from version 4.13.0.
-                      The Licensed Work is (c) 2025 Vernish Services.
-                      Versions 4.12.0 and earlier were published under the
-                      MIT License and remain available under it.
+                      The Licensed Work is (c) 2025-2026 Vernish Services.
 
-Additional Use Grant: You may make use of the Licensed Work, provided that
-                      you do not make Production Use of it.
+Additional Use Grant: You may make Production Use of the Licensed Work
+                      without a commercial license only in the following
+                      cases:
+
+                      (a) as an individual, for your personal projects;
+
+                      (b) as a school, university or public research
+                          institution, for teaching and research;
+
+                      (c) as a legal entity, to evaluate the Licensed Work
+                          during a single period of ninety days.
 
                       "Production Use" means use of the Licensed Work by a
                       legal entity, or on its behalf, to specify, verify,
                       document or exchange the architecture of a system that
                       the entity or its customers develop, manufacture,
-                      operate or certify, other than for evaluation, testing,
-                      development of the Licensed Work itself, training,
-                      teaching or research.
+                      operate or certify. Evaluating or testing the Licensed
+                      Work itself, contributing to it, learning or teaching
+                      its use, and research are not Production Use.
 
-                      Without limiting the above, the following uses are
-                      permitted without a commercial license: use by an
-                      individual for personal projects; use by schools,
-                      universities and public research institutions for
-                      teaching and research; use to evaluate the Licensed
-                      Work for up to ninety days; and use in a project that
-                      is itself distributed under a license approved by the
-                      Open Source Initiative.
-
-                      Models written in the ArcLang language are the property
-                      of their authors. Nothing in this License restricts the
-                      models, their format, or what you do with them.
+                      The output of the Licensed Work (models, diagrams,
+                      tables, reports, generated code and exports) belongs
+                      to whoever produced it and is not subject to this
+                      License.
 
 Change Date:          Four years from the date the Licensed Work is first
                       publicly distributed under this License, for each

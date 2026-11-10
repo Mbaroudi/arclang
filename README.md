@@ -574,7 +574,8 @@ stay green.
 ## License
 
 Business Source License 1.1 — see [LICENSE](LICENSE). The source is public;
-use outside production (individuals, teaching, research, evaluation, open
-source projects) is free; production use by a company needs a commercial
+use outside production is free, as is production use by individuals, by
+schools and research institutions, and for a ninety-day evaluation; production use by a company needs a commercial
 license from Vernish Services (contact@arclang.fr). Each version becomes MIT
-four years after its release. Versions up to 4.12.0 remain MIT.
+four years after its release. Versions up to 4.12.0 remain MIT. The models
+and everything the compiler produces are yours, the license says so.
