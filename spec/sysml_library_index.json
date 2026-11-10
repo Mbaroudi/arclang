@@ -444,6 +444,15 @@
       ]
     },
     {
+      "qualifiedName": "NumericalFunctions::sum",
+      "metaclass": "Function",
+      "name": "sum",
+      "shortName": null,
+      "roles": [
+        "function"
+      ]
+    },
+    {
       "qualifiedName": "SI::'bit per second'",
       "metaclass": "AttributeUsage",
       "name": "bit per second",
@@ -828,6 +837,15 @@
       "shortName": null,
       "roles": [
         "type"
+      ]
+    },
+    {
+      "qualifiedName": "SequenceFunctions::size",
+      "metaclass": "Function",
+      "name": "size",
+      "shortName": null,
+      "roles": [
+        "function"
       ]
     }
   ]

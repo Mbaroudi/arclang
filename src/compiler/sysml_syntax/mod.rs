@@ -331,6 +331,12 @@ impl Reader {
             head.take_word("attribute");
             declaration.metaclass = "ReferenceUsage";
             self.named(&mut head, &mut declaration)?;
+            // It declares nothing: it redefines the attribute it names
+            // (`rationale = ...` is `:>> rationale = ...`), which is where
+            // its name comes from.
+            if declaration.redefines.is_empty() {
+                declaration.redefines.extend(declaration.name.take());
+            }
             self.finish(&head)?;
             return Ok(Some(self.push(declaration, owner)));
         }
