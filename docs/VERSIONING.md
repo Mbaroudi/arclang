@@ -39,6 +39,28 @@ The current language version is the `LANGUAGE_VERSION` constant of
   that names no configuration. An attribute spelled almost like one the
   compiler reads (`verdit:`) is a `metamodel:` warning, not an error.
 
+### Verdicts and comparisons
+
+A verdict is expected to tighten between versions, never to loosen.
+
+- **Cached verdicts.** The key of a cached verdict carries the format of
+  its stage. When a version changes what a verdict depends on or how it is
+  judged, the format changes and every verdict cached by an earlier version
+  reads as stale once: the gate says inconclusive and names the command to
+  run again. The version after 4.12 does so for every stage (simulation,
+  twin, SIL, co-simulation, PIL, HDL, SoC): the keys of the embedded stages
+  now follow the plant a case closes its loop on and the machines wired
+  upstream, and expectations are compared as below.
+- **Comparisons.** In `expects:`, `constraint` and `rules`, two values are
+  equal within 1e-9 of their scale (the larger of the two, the terms of a
+  difference, the level a signal reached), no longer within 1e-9 of
+  `max(|a|, |b|, 1)`: quantities under a nanosecond or a nanofarad are no
+  longer all equal (`1.5 ns <= 1 ns` used to hold). A value that is not a
+  finite number holds no expectation; in a constraint or a rule it is an
+  error. A model that relied on the old absolute tolerance to compare a
+  value with zero writes its tolerance (`within`), or compares at the scale
+  it means.
+
 ## Identity stability guarantee
 
 Element UUIDs are UUIDv5 in the fixed ArcLang namespace

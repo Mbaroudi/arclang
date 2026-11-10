@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 /// Bumped when the meaning of a cached verdict changes.
-const FORMAT: &str = "arclang-sim-cache-1";
+const FORMAT: &str = "arclang-sim-cache-2";
 
 thread_local! {
     /// Files given in place of the file system (the browser: the workbench

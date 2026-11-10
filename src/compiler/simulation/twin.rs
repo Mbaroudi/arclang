@@ -838,7 +838,7 @@ pub fn cache_key(result: &CompilationResult, model_path: &Path, twin: &Twin) -> 
         hash.update((bytes.len() as u64).to_le_bytes());
         hash.update(bytes);
     };
-    field("twin", b"1");
+    field("twin", b"2");
     field("package", export.text.as_bytes());
     for source in &spec.sources {
         field("source", source.as_bytes());

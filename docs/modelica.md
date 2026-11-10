@@ -465,6 +465,20 @@ compared in SI units. When OpenModelica gives the unit of a variable (from
 `<model>_init.xml`), the comparison is dimension-checked: `final(distance) >= 300 s`
 or `>= 300` with no unit is an **error** verdict, not a fail.
 
+Results are numerical, so two values are equal when they differ by less
+than 1e-9 **of their scale**, never by an absolute amount: the scale of a
+reading is the largest level its signal reached, that of a number its own
+value, that of a sum or a difference the larger of its terms, that of a
+product the product of its factors' and that of a quotient the dividend's
+over the divisor's (a divisor counts at its scale, not at the level it
+happens to end on). So `final(x) <= 1 ns` fails on 1.5 ns (a nanosecond is
+not zero), and `final(v) == 0 V` holds on the 1e-12 V a 12 V signal settles at, but not on
+a signal that never left 1e-9 V. Write `within` (`== 0 V within 1 mV`) when
+the tolerance is the requirement's. A value that is **not a number** (the
+run diverged, something divided by zero: `NaN`, an infinity) holds no
+expectation, not even `!=`: the value is reported with the margin `not a
+number`, and `min` and `max` of a series holding a `NaN` are not a number.
+
 Verdicts:
 
 | Verdict | When | Cached | Gate |
@@ -478,7 +492,8 @@ The cache is `.arclang/sim-cache/<test case id>.json` beside the model: the
 verdict, the evaluated values, the OpenModelica log and version, and the key
 (SHA-256 of the generated package, every source file and the case: backend,
 model, configuration, times, tolerance, intervals, expectations). Any change
-to one makes the cached verdict stale. The cache may be committed as
+to one makes the cached verdict stale, as does a version of ArcLang that
+judges expectations otherwise (see [VERSIONING](VERSIONING.md)). The cache may be committed as
 evidence; `arclang gate` in CI then needs no OpenModelica, and fails when the
 evidence is stale.
 
