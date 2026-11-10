@@ -45,6 +45,8 @@
     state: { fill: '#EEF0F2', stroke: '#4A545E', label: 'State', glyph: 'none', round: 14 },
     initial_state: { fill: '#18222D', stroke: '#18222D', label: 'Initial state', glyph: 'none' },
     junction: { fill: '#1F4E8C', stroke: '#1F4E8C', label: 'Junction', glyph: 'none' },
+    region: { fill: '#FFFFFF', stroke: '#66717D', label: 'Region', glyph: 'none' },
+    pseudo_state: { fill: '#18222D', stroke: '#18222D', label: 'Pseudo-state', glyph: 'none' },
     lifeline: { fill: '#EEF0F2', stroke: '#66717D', label: 'Participant', glyph: 'box' },
     mission: { fill: '#FFE9B8', stroke: '#9A6400', label: 'Mission', glyph: 'mission', round: 16 },
     operational_capability: { fill: '#F3E8D3', stroke: '#8A6A2E', label: 'Operational capability', glyph: 'capability', round: 16 },
@@ -153,7 +155,7 @@
     const themed = theme && theme.node(kind, view || currentView);
     if (themed) return { ...base, fill: themed.fill, stroke: themed.stroke, text: themed.text, dash: themed.dash };
     // A notation mark (start of a machine, a junction) is drawn in ink.
-    if (theme && (kind === 'initial_state' || kind === 'junction')) return { ...base, fill: theme.text, stroke: theme.text };
+    if (theme && (kind === 'initial_state' || kind === 'junction' || kind === 'pseudo_state')) return { ...base, fill: theme.text, stroke: theme.text };
     return base;
   }
 
@@ -252,6 +254,42 @@
     return `<g class="av-port" data-id="${esc(port.id)}"><title>${esc(tip)}</title>${body}</g>`;
   }
 
+  /** What each pseudo-state is called, for its tooltip and the legend. */
+  const PSEUDO_LABEL = {
+    choice: 'Choice', junction: 'Junction', fork: 'Fork', join: 'Join', shallow_history: 'History', deep_history: 'Deep history',
+    entry_point: 'Entry point', exit_point: 'Exit point', terminate: 'Terminate',
+  };
+
+  /** The mark of a pseudo-state: a diamond (choice), a bar (fork, join), a dot (junction), a ring with H or H* (history), a ring (entry point), a crossed ring (exit point), a cross (terminate). */
+  function pseudoState(node, arc, x, y, name, style) {
+    const pseudo = (arc.properties || {}).pseudo || '';
+    const w = node.width;
+    const h = node.height;
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+    const r = Math.min(w, h) / 2;
+    const paper = ink('background');
+    const d = r * 0.5;
+    const cross = `<path d="M${num(cx - d)} ${num(cy - d)} L${num(cx + d)} ${num(cy + d)} M${num(cx + d)} ${num(cy - d)} L${num(cx - d)} ${num(cy + d)}" stroke="${style.stroke}" stroke-width="1.8" fill="none"/>`;
+    let shape;
+    if (pseudo === 'fork' || pseudo === 'join') {
+      shape = `<rect class="av-shape" x="${num(x)}" y="${num(y)}" width="${num(w)}" height="${num(h)}" rx="2" fill="${style.fill}" stroke="${style.stroke}"/>`;
+    } else if (pseudo === 'choice') {
+      shape = `<path class="av-shape" d="M${num(cx)} ${num(y)} L${num(x + w)} ${num(cy)} L${num(cx)} ${num(y + h)} L${num(x)} ${num(cy)} Z" fill="${paper}" stroke="${style.stroke}" stroke-width="1.4"/>`;
+    } else if (pseudo === 'junction') {
+      shape = `<circle class="av-shape" cx="${num(cx)}" cy="${num(cy)}" r="${num(r)}" fill="${style.fill}" stroke="${style.stroke}"/>`;
+    } else if (pseudo === 'terminate') {
+      shape = `<circle class="av-shape" cx="${num(cx)}" cy="${num(cy)}" r="${num(r)}" fill="#000" fill-opacity="0" stroke="none"/><path d="M${num(x + 3)} ${num(y + 3)} L${num(x + w - 3)} ${num(y + h - 3)} M${num(x + w - 3)} ${num(y + 3)} L${num(x + 3)} ${num(y + h - 3)}" stroke="${style.stroke}" stroke-width="2.2" fill="none"/>`;
+    } else {
+      const ring = `<circle class="av-shape" cx="${num(cx)}" cy="${num(cy)}" r="${num(r - 1)}" fill="${paper}" stroke="${style.stroke}" stroke-width="1.4"/>`;
+      const letter = pseudo === 'shallow_history' ? 'H' : pseudo === 'deep_history' ? 'H*' : '';
+      shape = ring + (letter ? `<text x="${num(cx)}" y="${num(cy + 4)}" text-anchor="middle" font-size="11" font-weight="700" fill="${style.stroke}">${letter}</text>` : '') + (pseudo === 'exit_point' ? cross : '');
+    }
+    // Its name is read beside the mark: a choice or a fork is told from the next by it.
+    const label = name ? `<text x="${num(cx)}" y="${num(y + h + 12)}" text-anchor="middle" font-size="10" fill="${ink('muted')}">${esc(name)}</text>` : '';
+    return `<g class="av-node av-pseudo" data-id="${esc(node.id)}" data-kind="pseudo_state" data-pseudo="${esc(pseudo)}"><title>${esc(PSEUDO_LABEL[pseudo] || style.label)}: ${esc(name)}</title>${shape}${label}</g>`;
+  }
+
   function drawNode(node, ox, oy, out, origins) {
     const arc = node.arc || {};
     const style = nodeStyle(arc.kind);
@@ -274,6 +312,19 @@
         ? `<rect x="${num(x + 4)}" y="${num(y + 4)}" width="${num(node.width)}" height="${num(node.height)}" rx="6" fill="${ink('background')}" stroke="${line}"/><rect class="av-shape" x="${num(x)}" y="${num(y)}" width="${num(node.width)}" height="${num(node.height)}" rx="6" fill="${ink('background')}" stroke="${line}" stroke-width="1.2"/><text x="${num(x + node.width / 2)}" y="${num(y + node.height / 2 - 2)}" text-anchor="middle" font-size="12" font-weight="600" fill="${text}">${esc(name)}</text><text x="${num(x + node.width / 2)}" y="${num(y + node.height / 2 + 12)}" text-anchor="middle" font-size="9.5" font-style="italic" fill="${muted}">${esc(arc.folded)} inside</text>`
         : `<rect class="av-shape" x="${num(x)}" y="${num(y)}" width="${num(node.width)}" height="${num(node.height)}" rx="6" fill="#000" fill-opacity="0" stroke="${line}" stroke-width="1" stroke-dasharray="5 3"/>${name ? `<text x="${num(x + 8)}" y="${num(y + 15)}" font-size="10.5" font-weight="600" fill="${muted}">${esc(name)}</text>` : ''}`;
       out.push(`<g class="av-node av-group${arc.collapsed ? ' is-collapsed' : ''}" data-id="${esc(node.id)}" data-kind="diagram_group">${tip}${shape}</g>`);
+      return;
+    }
+    // A region of a machine or of a state: a dashed frame with its name,
+    // around what runs beside the other regions.
+    if (arc.kind === 'region') {
+      const line = ink('muted');
+      out.push(`<g class="av-node av-region" data-id="${esc(node.id)}" data-kind="region"><title>Region: ${esc(name)}</title><rect class="av-shape" x="${num(x)}" y="${num(y)}" width="${num(node.width)}" height="${num(node.height)}" rx="4" fill="#000" fill-opacity="0" stroke="${line}" stroke-width="1" stroke-dasharray="6 4"/><text x="${num(x + 8)}" y="${num(y + 15)}" font-size="10.5" font-style="italic" fill="${muted}">${esc(name)}</text></g>`);
+      for (const child of node.children || []) drawNode(child, x, y, out, origins);
+      return;
+    }
+    // A pseudo-state, drawn as its UML mark.
+    if (arc.kind === 'pseudo_state') {
+      out.push(pseudoState(node, arc, x, y, name, style));
       return;
     }
     // A notation mark: a dot where a machine starts or an exchange meets.

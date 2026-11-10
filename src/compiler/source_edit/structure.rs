@@ -277,6 +277,50 @@ fn one_more(shorter: &[Value], longer: &[Value]) -> bool {
         })
 }
 
+/// The syntax tree lists what a region declares twice: in the region, and in
+/// the flat list of what holds the region (its states among the states of
+/// the machine or of the state, its transitions among those of the machine),
+/// which every check reads. A declaration added to a region, or removed from
+/// one, therefore shows at two places; the second, when it changed by the
+/// same one declaration, is the mirror of the first and not another change.
+fn without_mirrors(found: &mut Vec<(String, Option<&Value>, Option<&Value>)>, added: bool) {
+    let by_one = |old: &Option<&Value>, new: &Option<&Value>| match (old, new) {
+        (Some(Value::Array(old)), Some(Value::Array(new))) => {
+            if added {
+                one_more(old, new)
+            } else {
+                one_more(new, old)
+            }
+        }
+        _ => false,
+    };
+    let mirrors: Vec<String> = found
+        .iter()
+        .filter(|(_, old, new)| by_one(old, new))
+        .filter_map(|(path, _, _)| {
+            let (owner, rest) = path.rsplit_once("/regions/")?;
+            let (_, list) = rest.split_once('/')?;
+            let machine = || {
+                let at = owner.find("/state_machines/")? + "/state_machines/".len();
+                let index: String = owner[at..].chars().take_while(char::is_ascii_digit).collect();
+                Some(format!("{}{index}", &owner[..at]))
+            };
+            match list {
+                // In the machine's states, or in the sub-states of the state that holds the region.
+                "states" if owner.rsplit('/').nth(1) == Some("state_machines") => Some(vec![format!("{owner}/states")]),
+                "states" => Some(vec![format!("{owner}/sub_states")]),
+                "transitions" => Some(vec![format!("{}/transitions", machine()?)]),
+                _ => None,
+            }
+        })
+        .flatten()
+        .collect();
+    if mirrors.is_empty() {
+        return;
+    }
+    found.retain(|(path, old, new)| !(mirrors.contains(path) && by_one(old, new)));
+}
+
 /// The edited tree must be the original with one declaration added
 /// (`added`) or removed, and nothing else touched.
 fn verify_one_declaration(original: &str, edited: &str, added: bool) -> Result<(), EditError> {
@@ -285,6 +329,7 @@ fn verify_one_declaration(original: &str, edited: &str, added: bool) -> Result<(
     let mut found = Vec::new();
     changed(&before, &after, String::new(), &mut found);
     let what = if added { "add" } else { "remove" };
+    without_mirrors(&mut found, added);
     let (path, old, new) = match found.as_slice() {
         [] => return Err(EditError::Unsafe(format!("it would {what} nothing"))),
         [only] => only,

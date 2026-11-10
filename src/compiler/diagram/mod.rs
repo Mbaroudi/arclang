@@ -253,8 +253,14 @@ pub enum NodeKind {
     DeployedComponent,
     State,
     Mode,
-    /// Pseudo-state marking where a machine starts.
+    /// Pseudo-state marking where a machine, a region or a composite state starts.
     InitialState,
+    /// A region of a machine or of a state: what runs beside its sibling regions.
+    Region,
+    /// A pseudo-state the machine passes through; its `pseudo` property says
+    /// which (`choice`, `junction`, `fork`, `join`, `shallow_history`,
+    /// `deep_history`, `entry_point`, `exit_point`, `terminate`).
+    PseudoState,
     /// Where an exchange between more than two ends meets (`ends: [...]`).
     Junction,
     /// A participant of a scenario.
