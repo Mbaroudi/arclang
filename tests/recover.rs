@@ -202,3 +202,61 @@ fn the_command_recovers_proves_and_says_what_it_does_not_cover() {
     let nothing = arclang(&["recover", dir.path().to_str().unwrap()]);
     assert!(!nothing.status.success() && text(&nothing).contains("holds no header the compiler generated"), "{}", text(&nothing));
 }
+
+/// The C and the logic of an example in a fresh directory: (the directory, the header of the machines, the logic).
+fn exported_with_logic(example: &str) -> (tempfile::TempDir, std::path::PathBuf, std::path::PathBuf) {
+    let dir = tempfile::tempdir().unwrap();
+    let model = Path::new(env!("CARGO_MANIFEST_DIR")).join(example);
+    let (c, hdl) = (dir.path().join("c"), dir.path().join("hdl"));
+    for (format, to) in [("c", &c), ("vhdl", &hdl)] {
+        let exported = arclang(&["export", model.to_str().unwrap(), "-f", format, "-o", to.to_str().unwrap()]);
+        assert!(exported.status.success(), "{example} -f {format}");
+    }
+    let header = std::fs::read_dir(&c).unwrap().flatten().map(|e| e.path()).find(|p| p.extension().is_some_and(|e| e == "h") && std::fs::read_to_string(p).unwrap().contains("/* state_machine \"")).unwrap();
+    (dir, header, hdl)
+}
+
+#[test]
+fn the_logic_of_a_model_is_proven_by_generating_its_vhdl_again() {
+    let text = |output: &std::process::Output| format!("{}{}", String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr));
+    // Every example that generates VHDL: a block that computes, a machine with regions, one with every pseudo-state.
+    for example in ["examples/automotive/speed-monitor/speed_monitor.arc", "examples/energy/battery-charger/battery_charger.arc", "examples/automotive/power-window/power_window.arc"] {
+        let (dir, header, hdl) = exported_with_logic(example);
+        let out = dir.path().join("recovered.arc");
+        let proven = arclang(&["recover", header.to_str().unwrap(), "--hdl", hdl.to_str().unwrap(), "--check", "-o", out.to_str().unwrap()]);
+        assert!(proven.status.success(), "{example}: {}", text(&proven));
+        assert!(text(&proven).contains("Proven: the recovered model generates the 8 file(s) of the logic"), "{example}: {}", text(&proven));
+        // The recovered model says what the logic needs, and the compiler takes it.
+        let recovered = std::fs::read_to_string(&out).unwrap();
+        assert!(recovered.contains("kind: \"fpga\"") && recovered.contains("owner: \""), "{recovered}");
+        assert!(arclang(&["check", out.to_str().unwrap()]).status.success());
+    }
+}
+
+#[test]
+fn the_ranges_and_constants_of_the_logic_come_back_and_a_changed_vhdl_is_not_proven() {
+    let text = |output: &std::process::Output| format!("{}{}", String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr));
+    let (dir, header, hdl) = exported_with_logic("examples/energy/battery-charger/battery_charger.arc");
+    let out = dir.path().join("recovered.arc");
+    assert!(arclang(&["recover", header.to_str().unwrap(), "--hdl", hdl.to_str().unwrap(), "-o", out.to_str().unwrap()]).status.success());
+    let recovered = std::fs::read_to_string(&out).unwrap();
+    // A declared range, a constant, a derived range (not written: the compiler derives it again).
+    for written in ["\"in voltage: Real [V] range 0 V .. 60 V\"", "\"const v_absorption: Real [V] = 54.6 V\"", "\"target: Real [A] = 0 A\""] {
+        assert!(recovered.contains(written), "{written}\n{recovered}");
+    }
+
+    // One statement of the VHDL changed by hand: the logic is no longer what the model generates.
+    let vhdl = hdl.join("battery_charger_charger.vhd");
+    let edited = std::fs::read_to_string(&vhdl).unwrap().replacen("enter_one(3); -- Charging.Bulk", "enter_one(4); -- Charging.Bulk", 1);
+    std::fs::write(&vhdl, edited).unwrap();
+    let refused = arclang(&["recover", header.to_str().unwrap(), "--hdl", hdl.to_str().unwrap(), "--check", "-o", out.to_str().unwrap()]);
+    assert!(!refused.status.success(), "{}", text(&refused));
+    assert!(text(&refused).contains("Not proven: 1 of the 8 file(s) of the logic differ") && text(&refused).contains("enter_one(4); -- Charging.Bulk"), "{}", text(&refused));
+
+    // A register map of an earlier compiler does not say the ranges: refused, with the reason.
+    let map = hdl.join("battery_charger_charger_regs.json");
+    let old = regex::Regex::new(r#", "range": \[[^\]]*\], "origin": "[a-z0-9]+", "bits": \d+"#).unwrap().replace_all(&std::fs::read_to_string(&map).unwrap(), "").into_owned();
+    std::fs::write(&map, old).unwrap();
+    let earlier = arclang(&["recover", header.to_str().unwrap(), "--hdl", hdl.to_str().unwrap()]);
+    assert!(!earlier.status.success() && text(&earlier).contains("was written by an earlier compiler"), "{}", text(&earlier));
+}

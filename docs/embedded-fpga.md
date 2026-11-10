@@ -231,7 +231,7 @@ For each allocated machine `<model>_<machine>` (`battery_charger_charger`):
 | `arclang_fx_pkg.vhd` | the fixed-point and saturating integer arithmetic, the C reference's helpers bit for bit |
 | `<block>.vhd` | the entity of the machine |
 | `<block>_wb.vhd` | its Wishbone wrapper, the registers below |
-| `<block>_regs.json`, `<block>_csr.csv` | the register map, as JSON and as LiteX `csr.csv` lines |
+| `<block>_regs.json`, `<block>_csr.csv` | the register map, as JSON and as LiteX `csr.csv` lines; in the JSON each variable has its `format`, the `range` its word was sized for, the `origin` of that range (`declared`, `set`, `constant`, `derived`) and its `bits` |
 | `<block>_hw.h` | the C driver |
 
 VHDL-2008, `ieee.numeric_std` only, synthesisable, no vendor primitive

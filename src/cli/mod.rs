@@ -584,6 +584,13 @@ pub enum Commands {
         /// Prove the recovery: the recovered model must generate the C it was read from
         #[clap(long)]
         check: bool,
+
+        /// The programmable logic of the same model: the directory `arclang
+        /// export -f vhdl` wrote. The machines it computes are sized from
+        /// its register maps, and --check proves them too: the recovered
+        /// model must generate every file of the logic as it was read
+        #[clap(long, value_name = "DIR")]
+        hdl: Option<PathBuf>,
     },
 
     /// What the code as built implements against what the model says. The
@@ -1408,7 +1415,7 @@ impl CliRunner {
             Commands::Partition { input, target, device, clock, machine, dry_run, json } => partition::run(&input, partition::Options { target, device, clock_mhz: clock, machine, dry_run, json }),
             Commands::Schedule { input, target, wcet, prove, cycles, keep, json } => schedule::run(&input, schedule::Options { target, wcet, prove, cycles, keep, json }),
             Commands::Soc { input, test, bitstream, board, no_sim, gate_level, port, keep, json } => self.run_soc(&input, test, bitstream || board.is_some(), board, !no_sim && port.is_none(), gate_level, port, keep, json),
-            Commands::Recover { input, output, check } => self.run_recover(&input, output.as_deref(), check),
+            Commands::Recover { input, output, check, hdl } => self.run_recover(&input, output.as_deref(), check, hdl.as_deref()),
             Commands::Drift { model, code, hdl, json } => self.run_drift(&model, &code, hdl.as_deref(), json),
             Commands::Realize { input, requirement, up_to, dry_run, keep_going, board, json } => realize::run(&input, realize::Options { requirement, up_to, dry_run, keep_going, board, json }),
             Commands::Twin { input, twin, json, list, live, for_seconds } => {
@@ -2159,7 +2166,7 @@ impl CliRunner {
         }
     }
 
-    fn run_recover(&self, input: &std::path::Path, output: Option<&std::path::Path>, check: bool) -> Result<(), CliError> {
+    fn run_recover(&self, input: &std::path::Path, output: Option<&std::path::Path>, check: bool, hdl: Option<&std::path::Path>) -> Result<(), CliError> {
         use crate::compiler::recover;
         let (header_path, code_path) = Self::generated_c(input)?;
         let header = std::fs::read_to_string(&header_path).map_err(CliError::Io)?;
@@ -2167,7 +2174,21 @@ impl CliRunner {
         let name = |path: &std::path::Path| path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         let (header_name, code_name) = (name(&header_path), name(&code_path));
         let generated = recover::Generated { header_name: &header_name, header: &header, code_name: &code_name, code: &code };
-        let recovered = recover::from_generated_c(&generated).map_err(CliError::Compilation)?;
+        let mut recovered = recover::from_generated_c(&generated).map_err(CliError::Compilation)?;
+        // The machines the logic computes, sized as its register maps say.
+        if let Some(dir) = hdl {
+            let mut maps = Vec::new();
+            let mut names: Vec<PathBuf> = std::fs::read_dir(dir).map_err(CliError::Io)?.flatten().map(|entry| entry.path()).filter(|path| path.file_name().is_some_and(|n| n.to_string_lossy().ends_with("_regs.json"))).collect();
+            names.sort();
+            for path in &names {
+                let text = std::fs::read_to_string(path).map_err(CliError::Io)?;
+                maps.push(recover::logic::read_map(&text, &path.display().to_string()).map_err(CliError::Compilation)?);
+            }
+            if maps.is_empty() {
+                return Err(CliError::Compilation(format!("{} holds no register map (`<block>_regs.json`): --hdl takes the directory `arclang export -f vhdl` wrote", dir.display())));
+            }
+            recover::logic::apply(&mut recovered, &maps).map_err(CliError::Compilation)?;
+        }
         let source = recover::to_arclang(&recovered, &generated);
         match output {
             Some(path) => {
@@ -2193,7 +2214,30 @@ impl CliRunner {
         }
         if outcome.proven() {
             eprintln!("✓ Proven: the recovered model generates {header_name} and {code_name} as they were read");
-            return Ok(());
+            let Some(dir) = hdl else { return Ok(()) };
+            // The logic: every file the recovered model generates for it, against the file read.
+            let read = |name: &str| std::fs::read_to_string(dir.join(name)).ok();
+            let compared = recover::logic::check(&source, &read).map_err(|error| CliError::Compilation(format!("the logic is not proven: {error}")))?;
+            let unlike: Vec<&recover::drift::FileDrift> = compared.iter().filter(|file| file.missing || file.differs()).collect();
+            if unlike.is_empty() {
+                eprintln!("✓ Proven: the recovered model generates the {} file(s) of the logic in {} as they were read", compared.len(), dir.display());
+                return Ok(());
+            }
+            eprintln!("✗ Not proven: {} of the {} file(s) of the logic differ from what the recovered model generates", unlike.len(), compared.len());
+            for file in unlike {
+                if file.missing {
+                    eprintln!("  {}: not in {}", file.file, dir.display());
+                    continue;
+                }
+                eprintln!("  {}:{}: {} line(s) read where the recovered model generates {}", file.file, file.line, file.built.len(), file.generated.len());
+                for line in file.built.iter().take(3) {
+                    eprintln!("    read:        {}", line.trim());
+                }
+                for line in file.generated.iter().take(3) {
+                    eprintln!("    regenerated: {}", line.trim());
+                }
+            }
+            return Err(CliError::Compilation("the recovered model is not the logic".to_string()));
         }
         if let Some(error) = &outcome.error {
             eprintln!("✗ Not proven: {error}");
