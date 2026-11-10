@@ -27,6 +27,9 @@
     const entries = new Map(); // `${graph}\n${element}` -> <button>
     const key = (graph, id) => `${graph}\n${id}`;
 
+    // The mark of where a machine, a region or a state starts is notation, not an element to go to.
+    const listed = (nodes) => nodes.filter((node) => node.kind !== 'initial_state');
+
     const item = (graph, node) => {
       const style = nodeStyle(node.kind);
       const swatch = el('span', { class: 'arcviz-swatch', 'aria-hidden': 'true' });
@@ -39,7 +42,8 @@
         onclick: () => goTo(graph, node.id),
       }, [swatch, el('span', { text: node.name || style.label })]);
       entries.set(key(graph, node.id), button);
-      const children = node.children.length > 0 ? [el('ul', {}, node.children.map((child) => item(graph, child)))] : [];
+      const inside = listed(node.children);
+      const children = inside.length > 0 ? [el('ul', {}, inside.map((child) => item(graph, child)))] : [];
       return el('li', {}, [button, ...children]);
     };
 
@@ -47,7 +51,7 @@
       el('h3', { class: 'arcviz-tree-title', text: 'Model' }),
       ...model.outline().map((entry) => {
         const count = entries.size;
-        const list = el('ul', {}, entry.nodes.map((node) => item(entry.graph, node)));
+        const list = el('ul', {}, listed(entry.nodes).map((node) => item(entry.graph, node)));
         const summary = el('summary', {}, [
           el('span', { text: placeLabel(entry) }),
           el('span', { class: 'arcviz-count', text: String(entries.size - count) }),
