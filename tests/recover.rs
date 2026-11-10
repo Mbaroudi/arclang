@@ -64,6 +64,20 @@ fn a_file_the_compiler_did_not_generate_is_refused() {
     assert!(error.contains("not a header the compiler generated"), "{error}");
 }
 
+#[test]
+fn every_example_that_generates_c_is_recovered_and_proven() {
+    for example in [
+        "examples/energy/battery-charger/battery_charger.arc",
+        "examples/automotive/power-window/power_window.arc",
+        "examples/capella/in-flight-entertainment/in_flight_entertainment.arc",
+        "examples/automotive/acc-stop-and-go/acc_stop_and_go.arc",
+        "examples/defense/isr-drone/isr_drone.arc",
+    ] {
+        let (source, _, check) = recovered(example);
+        assert!(check.proven(), "{example}: {check:#?}\n{}", source.lines().take(40).collect::<Vec<_>>().join("\n"));
+    }
+}
+
 /// How far the recovery goes on every example with machines; run with
 /// `cargo test --test recover -- --ignored --nocapture`.
 #[test]
@@ -150,13 +164,39 @@ fn the_command_recovers_proves_and_says_what_it_does_not_cover() {
     assert_eq!(recovered.matches("region \"Region ").count(), 2, "{recovered}");
     assert!(recovered.contains("initial: \"FanOff\"") && recovered.contains("transition \"Precharge\" -> \"Bulk\" { timing: 200 ms }"), "{recovered}");
 
-    // A machine with pseudo-states: recovered as far as the reader goes, and not called proven.
+    // A machine with every pseudo-state: each comes back with its kind and its transitions, proven.
     let c = dir.path().join("window");
     let model = root.join("examples/automotive/power-window/power_window.arc");
     assert!(arclang(&["export", model.to_str().unwrap(), "-f", "c", "-o", c.to_str().unwrap()]).status.success());
-    let window = arclang(&["recover", c.join("power_window.h").to_str().unwrap(), "--check", "-o", dir.path().join("window.arc").to_str().unwrap()]);
-    assert!(!window.status.success(), "{}", text(&window));
-    assert!(text(&window).contains("has pseudo-states (") && text(&window).contains("Not proven"), "{}", text(&window));
+    let window_file = dir.path().join("window.arc");
+    let window = arclang(&["recover", c.join("power_window.h").to_str().unwrap(), "--check", "-o", window_file.to_str().unwrap()]);
+    assert!(window.status.success(), "{}", text(&window));
+    let recovered = std::fs::read_to_string(&window_file).unwrap();
+    for written in [
+        // a choice and its branches, the last one taken when no other holds
+        "transition \"Stopped\" -> \"Decide\" { trigger: \"auto\" }",
+        "transition \"Decide\" -> \"Moving\" { guard: \"position < 50\" }",
+        "transition \"Decide\" -> \"Down\" { guard: \"else\" }",
+        // a junction, its branches chosen before it fires
+        "transition \"Gate\" -> \"Active\" { guard: \"position <= 100\" }",
+        "transition \"Gate\" -> \"Fault\" { guard: \"else\" }",
+        // a fork into two histories, a join of two states, a terminate
+        "transition \"Wake\" -> \"Resume\" {}",
+        "transition \"Wake\" -> \"Monitor\" {}",
+        "transition \"Pinched\" -> \"Both\" { trigger: \"shutdown\" }",
+        "transition \"Stopped\" -> \"Both\" { trigger: \"shutdown\" }",
+        "transition \"Both\" -> \"Off\" {}",
+        "transition \"Fault\" -> \"Dead\" { trigger: \"fatal\" }",
+    ] {
+        assert!(recovered.contains(written), "{written}\n{recovered}");
+    }
+
+    // A file whose comment and code disagree is not proven, and the command fails.
+    let code = c.join("power_window.c");
+    let lying = std::fs::read_to_string(&code).unwrap().replace("/* transition Fault -> Dead */", "/* transition Fault -> Off */");
+    std::fs::write(&code, lying).unwrap();
+    let refused = arclang(&["recover", c.join("power_window.h").to_str().unwrap(), "--check", "-o", window_file.to_str().unwrap()]);
+    assert!(!refused.status.success() && text(&refused).contains("Not proven"), "{}", text(&refused));
 
     // A directory with no generated C.
     let nothing = arclang(&["recover", dir.path().to_str().unwrap()]);

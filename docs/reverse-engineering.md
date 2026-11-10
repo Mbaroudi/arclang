@@ -26,6 +26,8 @@ two files. Without `-o` the recovered model is printed.
 | the machines, their states and the order of the states | the names as the model writes them |
 | where a machine starts, and where a composite state does | the units of the variables |
 | the regions of a machine or of a state, their states and where each starts | the kind of a pseudo-state |
+| the transitions through a pseudo-state: the branches of a choice or of a junction with their guards, the targets of a fork, the sources of a join, an entry by history, a terminate | the `id` of a transition |
+| the level each transition is written at (the order the code numbers them in) | a composite state that names no initial state |
 | the source and the target of each transition | the text of each equation |
 | its guard (`in->v_speed > st->v_on_above` is `speed > on_above`) | the text of each action and condition in prose |
 | the time after which it fires, or the time it has to fire | the name of each event |
@@ -57,18 +59,26 @@ code still computes with `0.25`.
   not the file the code was generated from.
 - **The step period**: it comes from the `io_binding` of the model, which
   the machines' C does not hold. It is read and reported, not proven.
-- **Not read yet**: the transitions through pseudo-states (histories,
-  junctions, choices, forks and joins: the pseudo-states themselves come
-  back with their kind), internal transitions. A machine that has them is
-  recovered as far as the reader goes, a note says so, and `--check` does
-  not call it proven.
+- **Not read**: a transition whose function enters no state and ends
+  nothing. The reader leaves it out and says so in a note; the C then
+  differs, and `--check` fails. None of the examples has one.
 - **Other code**: C written by hand or by another generator, VHDL, and the
   rest of the model (requirements, architecture, bindings) are not read.
 
 A region is read in the code: a transition exits the states of the region
 it is in, and the states a machine or a state enters together are where its
-regions start.
+regions start. A transition through a pseudo-state is read in the body of
+its function: the `if / else if` of a choice, the `switch` of a junction
+whose branch was chosen before it fired, the states and histories a fork
+enters, the states a join waits for.
 
-Of the 27 examples of the repository that generate C, 25 are recovered and
+The recovered model is not always written as the original was: a target
+written `Up` may come back as `Moving`, the state that holds it, when `Up`
+is where `Moving` starts. Both generate the same C; it is what `--check`
+proves.
+
+The 27 examples of the repository that generate C are all recovered and
 proven (`cargo test --test recover -- --ignored --nocapture` prints the
-survey); the two others have pseudo-states.
+survey), among them the power window (regions, a choice, a junction, a
+fork, a join, both histories, a terminate) and the in-flight entertainment
+model imported from Capella (five machines).

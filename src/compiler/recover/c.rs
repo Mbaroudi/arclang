@@ -4,6 +4,7 @@
 //! is what this reader relies on; a file it does not recognise is refused,
 //! and a construct it does not read is a note, never a guess.
 
+use super::fire;
 use super::{Generated, Machine, Recovered, Region, State, Transition, Variable};
 use regex::Regex;
 use std::collections::BTreeMap;
@@ -25,6 +26,10 @@ struct Names {
     actions: BTreeMap<String, String>,
     /// `v_<ident>` → the index of the variable.
     variables: BTreeMap<String, usize>,
+    /// The events in the order the code numbers them: the order the model first names them in.
+    events: Vec<String>,
+    /// The conditions in prose, in the order the code declares them: the order the model first names them in.
+    condition_order: Vec<String>,
     /// `bud_<ident>` → the ends of the transition it is the budget of, as the model names them, and its time as written.
     budgets: BTreeMap<String, (String, String, String)>,
 }
@@ -59,6 +64,7 @@ fn header(generated: &Generated, prefix: &str, recovered: &mut Recovered, names:
     let machine_line = re(r#"^/\* state_machine "(.+)" \*/$"#);
     let closing = re(&format!(r"^\}} {prefix}_(\w+)_(inputs|outputs|state);$"));
     let condition = re(r#"^\s*bool cond_(\w+); /\* condition "(.+)": whether"#);
+    let event = re(r#"^#define \w+_EV_\w+ \d+U /\* event "(.+)" \*/$"#);
     let action = re(r#"^\s*uint8_t act_(\w+); /\* action "(.+)": times run"#);
     let state = re(r"^\s*bool st_\w+; /\* state (.+): active after the step \*/");
     let budget = re(r"^\s*bool bud_(\w+); /\* budget (.+) of transition (.+) -> (.+): its source active longer than it \*/");
@@ -70,6 +76,10 @@ fn header(generated: &Generated, prefix: &str, recovered: &mut Recovered, names:
         if let Some(found) = machine_line.captures(line) {
             recovered.machines.push(Machine { name: found[1].to_string(), line: at + 1, ..Machine::default() });
             names.push(Names::default());
+            continue;
+        }
+        if let (Some(found), Some(names)) = (event.captures(line), names.last_mut()) {
+            names.events.push(found[1].to_string());
             continue;
         }
         if line == "typedef struct {" {
@@ -99,6 +109,7 @@ fn header(generated: &Generated, prefix: &str, recovered: &mut Recovered, names:
         for &(number, field) in &body {
             if let Some(found) = condition.captures(field) {
                 names.conditions.insert(found[1].to_string(), found[2].to_string());
+                names.condition_order.push(found[2].to_string());
             } else if let Some(found) = action.captures(field) {
                 names.actions.insert(found[1].to_string(), found[2].to_string());
             } else if let Some(found) = budget.captures(field) {
@@ -119,6 +130,11 @@ fn header(generated: &Generated, prefix: &str, recovered: &mut Recovered, names:
 #[derive(Default, Clone)]
 struct Alternative {
     from: usize,
+    /// Every state that must be active (several for a join).
+    sources: Vec<usize>,
+    /// The value `alternative` takes and the condition it takes it under
+    /// (`else` for the branch taken when no other holds): the branches of a junction.
+    choices: Vec<(usize, Option<String>)>,
     guard: Option<String>,
     after_us: Option<u64>,
     /// The time as the comment above the block spells it.
@@ -155,6 +171,8 @@ fn code(generated: &Generated, prefix: &str, machine: &mut Machine, names: &Name
 
     let section_of = re(r#"^/\* ---- state_machine "(.+)" ---- \*/$"#);
     let pseudo = re(r"^\s+(\d+): .+ \(pseudo-state: (\w+), never active\)$");
+    let no_initial = re(r"^/\* note: (.+) has no initial state: its first, .+, is entered \*/$");
+    let mut without_initial: Vec<String> = Vec::new();
     let mut own_section = false;
     let mut current = String::new();
     let mut in_step = false;
@@ -163,6 +181,17 @@ fn code(generated: &Generated, prefix: &str, machine: &mut Machine, names: &Name
     // fire index → (line, actions, the states it enters)
     let mut fires: BTreeMap<usize, (usize, Vec<String>, Vec<usize>)> = BTreeMap::new();
     let mut fire: Option<usize> = None;
+    // fire index → the lines of its body, and the ends its comment names
+    let mut bodies: BTreeMap<usize, Vec<&str>> = BTreeMap::new();
+    let mut named: BTreeMap<usize, (String, String)> = BTreeMap::new();
+    let transition_comment = re(r"^/\* transition (?:(\S+) \()?(.+?) -> (.+?)\)? \*/$");
+    let mut ids: BTreeMap<usize, String> = BTreeMap::new();
+    let mut pending_id: Option<String> = None;
+    let mut pending_transition: Option<(String, String)> = None;
+    // Whether each state is where its parent starts, when the code has that table.
+    let starts_table = re(&format!(r"^\s*static const bool {id}_starts\[\d+\] = \{{ (.+) \}};$"));
+    let mut is_start: Vec<bool> = Vec::new();
+    let all_active = re(r"st->active\[(\d+)\]");
     let mut trigger: Option<String> = None;
     let mut pending_event: Option<String> = None;
     let mut alternatives: BTreeMap<usize, Alternative> = BTreeMap::new();
@@ -189,6 +218,20 @@ fn code(generated: &Generated, prefix: &str, machine: &mut Machine, names: &Name
             pending_event = Some(name[1].to_string());
             continue;
         }
+        // The generator says when a composite state names no initial state.
+        if let Some(state) = no_initial.captures(line).filter(|_| own_section) {
+            without_initial.push(state[1].to_string());
+            continue;
+        }
+        if let Some(ends) = transition_comment.captures(line) {
+            pending_id = ends.get(1).map(|id| id.as_str().to_string());
+            pending_transition = Some((ends[2].to_string(), ends[3].to_string()));
+            continue;
+        }
+        if let Some(table) = starts_table.captures(line) {
+            is_start = table[1].split(", ").map(|flag| flag == "true").collect();
+            continue;
+        }
         if let Some(name) = function.captures(line) {
             current = name[1].to_string();
             in_step = false;
@@ -196,6 +239,9 @@ fn code(generated: &Generated, prefix: &str, machine: &mut Machine, names: &Name
             fire = current.strip_prefix(&format!("{id}_fire_")).and_then(|n| n.parse().ok());
             if let Some(n) = fire {
                 fires.insert(n, (at + 1, Vec::new(), Vec::new()));
+                bodies.insert(n, Vec::new());
+                named.extend(pending_transition.take().map(|ends| (n, ends)));
+                ids.extend(pending_id.take().map(|id| (n, id)));
             }
             trigger = if current.starts_with(&format!("{id}_on_")) { pending_event.take() } else { None };
             section = "";
@@ -240,6 +286,7 @@ fn code(generated: &Generated, prefix: &str, machine: &mut Machine, names: &Name
             }
             "start" => start.extend(enter.captures(line).and_then(|e| e[1].parse::<usize>().ok())),
             _ if fire.is_some() => {
+                bodies.entry(fire.unwrap_or_default()).or_default().push(line);
                 let entry = fires.get_mut(&fire.unwrap_or_default()).expect("the fire function being read");
                 if let Some(range) = exit.captures(line) {
                     if let (Ok(lo), Ok(hi)) = (range[1].parse(), range[2].parse()) {
@@ -295,15 +342,26 @@ fn code(generated: &Generated, prefix: &str, machine: &mut Machine, names: &Name
                 if line.contains("uint8_t alt_") {
                     continue;
                 }
+                let trimmed = line.trim();
                 if let Some(state) = timed.captures(line) {
-                    open = Alternative { from: state[1].parse().unwrap_or_default(), guard: None, after_us: state[2].parse().ok(), written: timed_text.clone() };
-                } else if let Some(state) = active.captures(line) {
-                    open = Alternative { from: state[1].parse().unwrap_or_default(), guard: None, after_us: None, written: None };
+                    let from = state[1].parse().unwrap_or_default();
+                    open = Alternative { from, sources: vec![from], after_us: state[2].parse().ok(), written: timed_text.clone(), ..Alternative::default() };
+                } else if trimmed.starts_with("if (st->active[") && !trimmed.contains("alt_") && trimmed.ends_with('{') && all_active.find_iter(trimmed).map(|m| m.end()).last().is_some_and(|end| trimmed[end..].starts_with(") {") || trimmed[end..].starts_with(" && st->active")) {
+                    // One state, or every state of a join.
+                    let sources: Vec<usize> = all_active.captures_iter(trimmed).filter_map(|s| s[1].parse().ok()).collect();
+                    open = Alternative { from: sources.first().copied().unwrap_or_default(), sources, ..Alternative::default() };
+                } else if trimmed == "else {" {
+                    open.guard = Some("else".to_string());
+                } else if let Some(other) = trimmed.strip_prefix("else if (").and_then(|rest| rest.strip_suffix(") {")) {
+                    open.guard = Some(other.to_string());
                 } else if let Some(choice) = chosen.captures(line) {
-                    if &choice[2] != "1" {
-                        notes.push(format!("{}:{}: state_machine \"{}\": a transition with several branches (a junction or a choice), which this reader does not recover", generated.code_name, at + 1, machine.name));
+                    let index = choice[1].parse().unwrap_or_default();
+                    let value = choice[2].parse().unwrap_or_default();
+                    let known = alternatives.entry(index).or_insert_with(|| open.clone());
+                    if value <= 1 {
+                        *known = open.clone();
                     }
-                    alternatives.insert(choice[1].parse().unwrap_or_default(), open.clone());
+                    known.choices.push((value, open.guard.clone()));
                 } else if let Some(transition) = fired.captures(line) {
                     if let Some(alternative) = alternatives.get(&transition[2].parse().unwrap_or_default()) {
                         found.push((transition[1].parse().unwrap_or_default(), trigger.clone(), alternative.clone()));
@@ -315,52 +373,214 @@ fn code(generated: &Generated, prefix: &str, machine: &mut Machine, names: &Name
         }
     }
 
-    // Where the machine starts, and where each composite state does: a state
-    // entered right after the one that holds it.
+    // The body of each transition, as what it does in order.
+    let action_text = |line: &str| act.captures(line).map(|found| names.actions.get(&found[1]).cloned().unwrap_or_else(|| found[1].replace('_', " ")));
+    let reader = fire::Reader::new(&id, &action_text);
+    // The lines between the braces of the function.
+    let steps: BTreeMap<usize, Vec<fire::Step>> = bodies
+        .iter()
+        .map(|(index, lines)| {
+            let first = lines.iter().position(|line| line.trim() == "{").map_or(0, |at| at + 1);
+            let last = lines.iter().rposition(|line| line.trim() == "}").unwrap_or(lines.len());
+            (*index, reader.steps(&lines[first.min(last)..last]))
+        })
+        .collect();
+    // The state the comment of a transition names as its target, when it is one of the machine.
+    let target_named: BTreeMap<usize, usize> = named.iter().filter_map(|(index, (_, to))| Some((*index, machine.states.iter().position(|s| &s.path == to)?))).collect();
+    let pseudo_kind = |machine: &Machine, state: usize| machine.states.get(state).and_then(|s| s.pseudo.clone());
+    found.sort_by_key(|(index, _, _)| *index);
+
+    // Where the machine starts, and where each composite state does. The code
+    // has a table of it when it enters states by default; otherwise it is the
+    // state entered right after the one that holds it, first where a
+    // transition names that state as its target.
     machine.initial = start.first().copied();
-    let mut sequences: Vec<&Vec<usize>> = vec![&start];
-    sequences.extend(fires.values().map(|(_, _, entered)| entered));
     let mut starts: Vec<(usize, String)> = Vec::new();
-    for entered in sequences {
-        for pair in entered.windows(2) {
-            let (Some(outer), Some(inner)) = (machine.states.get(pair[0]), machine.states.get(pair[1])) else { continue };
-            if let Some(leaf) = inner.path.strip_prefix(&format!("{}.", outer.path)).filter(|leaf| !leaf.contains('.')) {
-                starts.push((pair[0], leaf.to_string()));
+    if is_start.is_empty() {
+        let mut ways: Vec<Vec<usize>> = vec![start.clone()];
+        let simple = |index: &usize| target_named.get(index).is_none_or(|&target| pseudo_kind(machine, target).is_none());
+        for (index, body) in steps.iter().filter(|(index, _)| simple(index)) {
+            let entered = fire::entered(body);
+            let from = target_named.get(index).and_then(|target| entered.iter().position(|s| s == target)).unwrap_or(0);
+            ways.push(entered[from.min(entered.len())..].to_vec());
+        }
+        ways.extend(steps.iter().filter(|(index, _)| !simple(index)).flat_map(|(_, body)| fire::sequences(body)));
+        for entered in &ways {
+            for pair in entered.windows(2) {
+                let (Some(outer), Some(inner)) = (machine.states.get(pair[0]), machine.states.get(pair[1])) else { continue };
+                if let Some(leaf) = inner.path.strip_prefix(&format!("{}.", outer.path)).filter(|leaf| !leaf.contains('.')) {
+                    starts.push((pair[0], leaf.to_string()));
+                }
+            }
+        }
+    } else {
+        for (state, _) in is_start.iter().enumerate().filter(|(_, starts)| **starts) {
+            let Some(path) = machine.states.get(state).map(|s| s.path.clone()) else { continue };
+            if let Some((outer, leaf)) = path.rsplit_once('.') {
+                starts.extend(machine.states.iter().position(|s| s.path == outer).map(|owner| (owner, leaf.to_string())));
             }
         }
     }
     for (state, leaf) in starts {
-        machine.states[state].initial.get_or_insert(leaf);
+        if !without_initial.contains(&machine.states[state].path) {
+            machine.states[state].initial.get_or_insert(leaf);
+        }
     }
-    found.sort_by_key(|(index, _, _)| *index);
 
-    regions(machine, &start, &fires, &exits, &found, notes);
-    let kinds: std::collections::BTreeSet<&str> = machine.states.iter().filter_map(|s| s.pseudo.as_deref()).collect();
-    if !kinds.is_empty() {
-        notes.push(format!(
-            "state_machine \"{}\" has pseudo-states ({}): they are recovered as states of their kind, the transitions through them are not read yet, and its recovery will not be proven",
-            machine.name,
-            kinds.into_iter().collect::<Vec<_>>().join(", ")
-        ));
-    }
+    let mut ways: Vec<Vec<usize>> = vec![start.clone()];
+    ways.extend(steps.values().flat_map(|body| fire::sequences(body)));
+    let exits: BTreeMap<usize, (usize, usize)> = steps.iter().filter_map(|(index, body)| Some((*index, fire::first_exit(body)?))).collect();
+    regions(machine, &ways, &exits, &found, notes);
+
+    // Whether a state is where what holds it starts.
+    let starts_its_parent = |machine: &Machine, state: usize| -> bool {
+        if let Some(known) = is_start.get(state) {
+            return *known;
+        }
+        let Some(path) = machine.states.get(state).map(|s| s.path.as_str()) else { return false };
+        machine.regions.iter().any(|r| r.initial == Some(state))
+            || path.rsplit_once('.').is_some_and(|(outer, leaf)| machine.states.iter().any(|s| s.path == outer && s.initial.as_deref() == Some(leaf)))
+    };
+    // The state the steps go to: the history they enter by, else the deepest
+    // state entered that is not where its parent starts, else the first.
+    let target_of = |machine: &Machine, body: &[fire::Step]| -> Option<usize> {
+        if let [history] = fire::histories(body).as_slice() {
+            return Some(*history);
+        }
+        let entered = fire::entered(body);
+        let first = *entered.first()?;
+        Some(entered[1..].iter().rev().copied().find(|&state| !starts_its_parent(machine, state)).unwrap_or(first))
+    };
+    let condition_text = |machine: &Machine, condition: &Option<String>| match condition.as_deref() {
+        None => None,
+        Some("else" | "true") => Some("else".to_string()),
+        Some(written) => Some(expression(written, machine, names)),
+    };
+
+    let mut transitions: Vec<Transition> = Vec::new();
     for (index, trigger, alternative) in found {
-        let Some((line, actions, entered)) = fires.get(&index) else { continue };
-        let Some(&to) = entered.first() else {
-            notes.push(format!("{}:{line}: state_machine \"{}\": a transition that enters no state (an internal transition), not recovered", generated.code_name, machine.name));
+        let (Some(body), Some((line, _, _))) = (steps.get(&index), fires.get(&index)) else { continue };
+        let time_text = alternative.after_us.zip(alternative.written.clone()).filter(|(time, written)| same_time(written, *time)).map(|(_, written)| written);
+        let through = target_named.get(&index).copied().and_then(|target| Some((target, pseudo_kind(machine, target)?)));
+        let Some((pseudo, kind)) = through else {
+            // From a state to a state.
+            let entered = fire::entered(body);
+            let Some(to) = target_named.get(&index).copied().filter(|target| entered.contains(target)).or_else(|| target_of(machine, body)) else {
+                notes.push(format!("{}:{line}: state_machine \"{}\": a transition that enters no state (an internal transition), not recovered", generated.code_name, machine.name));
+                continue;
+            };
+            transitions.push(Transition {
+                from: alternative.from,
+                to,
+                trigger,
+                guard: condition_text(machine, &alternative.guard).filter(|g| g != "else"),
+                after_us: alternative.after_us,
+                budget_us: None,
+                time_text,
+                actions: fire::actions(body),
+                id: ids.get(&index).cloned(),
+                exits: fire::first_exit(body),
+                owner: None,
+                region: None,
+                line: *line,
+            });
             continue;
         };
-        machine.transitions.push(Transition {
-            from: alternative.from,
-            to,
-            trigger,
-            guard: alternative.guard.as_deref().map(|guard| expression(guard, machine, names)),
-            after_us: alternative.after_us,
-            budget_us: None,
-            time_text: alternative.after_us.zip(alternative.written.clone()).filter(|(time, written)| same_time(written, *time)).map(|(_, written)| written),
-            actions: actions.clone(),
-            line: *line,
-        });
+        // Into a pseudo-state: one transition from each source (a join has several)...
+        let guard = if kind == "junction" { None } else { condition_text(machine, &alternative.guard).filter(|g| g != "else") };
+        for &from in &alternative.sources {
+            transitions.push(Transition {
+                from,
+                to: pseudo,
+                trigger: trigger.clone(),
+                guard: guard.clone(),
+                after_us: alternative.after_us,
+                budget_us: None,
+                time_text: time_text.clone(),
+                actions: fire::actions(body),
+                id: ids.get(&index).cloned(),
+                exits: fire::first_exit(body),
+                owner: None,
+                region: None,
+                line: *line,
+            });
+        }
+        // ...and the transitions that leave the pseudo-state, read once.
+        let mut leaving: Vec<(Option<String>, Option<usize>, Vec<String>)> = Vec::new();
+        match kind.as_str() {
+            "choice" => match body.iter().find_map(|step| if let fire::Step::Choice(branches) = step { Some(branches) } else { None }) {
+                Some(branches) => {
+                    for (rank, (condition, branch)) in branches.iter().enumerate() {
+                        // The last `else` repeats the first branch: it is the code's way out, not a transition.
+                        if condition.is_none() && rank + 1 == branches.len() {
+                            continue;
+                        }
+                        leaving.push((condition_text(machine, condition), target_of(machine, branch), fire::actions(branch)));
+                    }
+                }
+                None => leaving.push((None, target_of(machine, body), Vec::new())),
+            },
+            "junction" => match body.iter().find_map(|step| if let fire::Step::Switch(cases) = step { Some(cases) } else { None }) {
+                Some(cases) => {
+                    for (value, branch) in cases {
+                        let condition = alternative.choices.iter().find(|(chosen, _)| chosen == value).and_then(|(_, condition)| condition.clone());
+                        leaving.push((condition_text(machine, &condition), target_of(machine, branch), fire::actions(branch)));
+                    }
+                }
+                None => leaving.push((condition_text(machine, &alternative.guard), target_of(machine, body), Vec::new())),
+            },
+            "fork" => {
+                // Each target: a history entered by, or a state entered that holds none of the others.
+                let entered = fire::entered(body);
+                let histories = fire::histories(body);
+                let holds = |outer: usize, inner: usize| machine.states.get(outer).zip(machine.states.get(inner)).is_some_and(|(o, i)| i.path.starts_with(&format!("{}.", o.path)));
+                let plain = entered.iter().copied().filter(|&state| !entered.iter().chain(&histories).any(|&other| holds(state, other)) && !starts_its_parent(machine, state));
+                for target in histories.iter().copied().chain(plain) {
+                    leaving.push((None, Some(target), Vec::new()));
+                }
+            }
+            "join" | "entry_point" | "exit_point" => leaving.push((None, target_of(machine, body), Vec::new())),
+            _ => {}
+        }
+        for (guard, to, actions) in leaving {
+            let Some(to) = to else {
+                notes.push(format!("{}:{line}: state_machine \"{}\": a branch of the {kind} '{}' enters no state, not recovered", generated.code_name, machine.name, machine.states[pseudo].path));
+                continue;
+            };
+            if !transitions.iter().any(|t| t.from == pseudo && t.to == to && t.guard == guard) {
+                transitions.push(Transition { from: pseudo, to, trigger: None, guard, after_us: None, budget_us: None, time_text: None, actions, id: None, exits: fire::first_exit(body), owner: None, region: None, line: *line });
+            }
+        }
     }
+    // The code numbers the transitions into a join after all the others; the
+    // model wrote them where their event is first named. They go back before
+    // the first transition of a later event, so that the events keep their order.
+    let rank = |t: &Transition| t.trigger.as_ref().and_then(|name| names.events.iter().position(|event| event == name));
+    let joins: Vec<usize> = machine.states.iter().enumerate().filter(|(_, s)| s.pseudo.as_deref() == Some("join")).map(|(index, _)| index).collect();
+    for join in joins {
+        let (group, mut others): (Vec<Transition>, Vec<Transition>) = transitions.into_iter().partition(|t| t.to == join || t.from == join);
+        let event = group.iter().filter_map(rank).min();
+        let at = event.and_then(|event| others.iter().position(|t| rank(t).is_some_and(|other| other > event))).unwrap_or(others.len());
+        others.splice(at..at, group);
+        transitions = others;
+    }
+    // The transitions that leave a choice or a junction were read with the
+    // transition that reaches it; the model may write them elsewhere. The
+    // code declares the conditions in the order the model first names them:
+    // a group that names one goes back before the first transition of a later one.
+    let condition_rank = |t: &Transition| t.guard.as_ref().and_then(|text| names.condition_order.iter().position(|condition| condition == text));
+    let branching: Vec<usize> = machine.states.iter().enumerate().filter(|(_, s)| matches!(s.pseudo.as_deref(), Some("choice" | "junction"))).map(|(index, _)| index).collect();
+    for pseudo in branching {
+        let Some(natural) = transitions.iter().position(|t| t.from == pseudo) else { continue };
+        let (group, mut others): (Vec<Transition>, Vec<Transition>) = transitions.into_iter().partition(|t| t.from == pseudo);
+        let rank = group.iter().filter_map(condition_rank).min();
+        let natural = natural.min(others.len());
+        let at = rank.and_then(|rank| others.iter().position(|t| condition_rank(t).is_some_and(|other| other > rank))).map_or(natural, |before| before.min(natural));
+        others.splice(at..at, group);
+        transitions = others;
+    }
+    place(machine, &mut transitions);
+    machine.transitions = transitions;
     // A budget is the time a transition has to leave its source: it is the
     // budget of the transition from that state to the state its name says.
     for (from, time, (_, to, written)) in budgets {
@@ -382,8 +602,7 @@ fn code(generated: &Generated, prefix: &str, machine: &mut Machine, names: &Name
 /// start of the machine, or when the state that holds them is entered).
 fn regions(
     machine: &mut Machine,
-    start: &[usize],
-    fires: &BTreeMap<usize, (usize, Vec<String>, Vec<usize>)>,
+    ways: &[Vec<usize>],
     exits: &BTreeMap<usize, (usize, usize)>,
     found: &[(usize, Option<String>, Alternative)],
     notes: &mut Vec<String>,
@@ -397,7 +616,7 @@ fn regions(
     };
     // The states entered together, by what holds them.
     let mut entered_together: BTreeMap<Option<usize>, Vec<usize>> = BTreeMap::new();
-    for sequence in std::iter::once(start).chain(fires.values().map(|(_, _, entered)| entered.as_slice())) {
+    for sequence in ways {
         let mut by_owner: BTreeMap<Option<usize>, Vec<usize>> = BTreeMap::new();
         for &state in sequence {
             if let Some(owner) = parent(state) {
@@ -453,6 +672,59 @@ fn regions(
         if let Some(owner) = region.owner {
             machine.states[owner].initial = None;
         }
+    }
+}
+
+/// Where each transition is written. The model is written depth first: a
+/// state, the states it holds with their transitions, then its own
+/// transitions; and the code numbers the transitions in that order. So a
+/// transition is written with its source, as deep as the order of the code
+/// allows: where a transition must come after one of an outer level, it is
+/// one of that outer level too (the model wrote it there, though its source
+/// is deeper).
+fn place(machine: &Machine, transitions: &mut [Transition]) {
+    let parent = |state: usize| -> Option<usize> {
+        let (outer, _) = machine.states.get(state)?.path.rsplit_once('.')?;
+        machine.states.iter().position(|s| s.path == outer)
+    };
+    // The levels a transition from `source` can be written at, the deepest first.
+    let levels = |source: usize| -> Vec<(Option<usize>, Option<usize>)> {
+        let mut found = Vec::new();
+        let mut inside = source;
+        loop {
+            let owner = parent(inside);
+            if let Some(region) = machine.regions.iter().position(|r| r.owner == owner && (r.first..=r.last).contains(&inside)) {
+                found.push((owner, Some(region)));
+            }
+            found.push((owner, None));
+            match owner {
+                Some(outer) => inside = outer,
+                None => return found,
+            }
+        }
+    };
+    // Where a level's own transitions come in the text: after the states it
+    // holds, which are after the states that hold it.
+    let key = |(owner, region): (Option<usize>, Option<usize>)| -> Vec<(usize, u8)> {
+        let mut path: Vec<(usize, u8)> = Vec::new();
+        let mut at = owner;
+        while let Some(state) = at {
+            path.push((state, 0));
+            at = parent(state);
+        }
+        path.reverse();
+        path.push(match region.and_then(|r| machine.regions.get(r)) {
+            Some(region) => (region.last, 1),
+            None => (usize::MAX, 0),
+        });
+        path
+    };
+    let mut before: Vec<(usize, u8)> = Vec::new();
+    for transition in transitions.iter_mut() {
+        let candidates = levels(transition.from);
+        let chosen = candidates.iter().copied().find(|level| key(*level) >= before).unwrap_or((None, None));
+        (transition.owner, transition.region) = chosen;
+        before = key(chosen);
     }
 }
 
