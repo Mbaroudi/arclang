@@ -617,6 +617,20 @@ pub enum Commands {
         /// Print the result as JSON
         #[clap(long)]
         json: bool,
+
+        /// Prove, or refute, that the C as built does what the model's C
+        /// does: one step of each from any state and for any inputs, every
+        /// field of the state and of the outputs compared (CBMC and
+        /// Bitwuzla, in ArcLang's formal image: tools/embedded/formal).
+        /// Two codes written differently that do the same are proven the
+        /// same; two that do not come with the state and the inputs that
+        /// tell them apart
+        #[clap(long)]
+        prove: bool,
+
+        /// With --prove: the seconds the solver is given (default 300)
+        #[clap(long, value_name = "SECONDS", default_value_t = 300)]
+        timeout: u64,
     },
 
     /// Climb the realization ladder (docs/realization.md): for each
@@ -1416,7 +1430,7 @@ impl CliRunner {
             Commands::Schedule { input, target, wcet, prove, cycles, keep, json } => schedule::run(&input, schedule::Options { target, wcet, prove, cycles, keep, json }),
             Commands::Soc { input, test, bitstream, board, no_sim, gate_level, port, keep, json } => self.run_soc(&input, test, bitstream || board.is_some(), board, !no_sim && port.is_none(), gate_level, port, keep, json),
             Commands::Recover { input, output, check, hdl } => self.run_recover(&input, output.as_deref(), check, hdl.as_deref()),
-            Commands::Drift { model, code, hdl, json } => self.run_drift(&model, &code, hdl.as_deref(), json),
+            Commands::Drift { model, code, hdl, json, prove, timeout } => self.run_drift(&model, &code, hdl.as_deref(), json, prove.then_some(timeout)),
             Commands::Realize { input, requirement, up_to, dry_run, keep_going, board, json } => realize::run(&input, realize::Options { requirement, up_to, dry_run, keep_going, board, json }),
             Commands::Twin { input, twin, json, list, live, for_seconds } => {
                 if live {
@@ -2075,7 +2089,7 @@ impl CliRunner {
         Ok((header, code))
     }
 
-    fn run_drift(&self, model: &std::path::Path, code: &std::path::Path, hdl: Option<&std::path::Path>, json: bool) -> Result<(), CliError> {
+    fn run_drift(&self, model: &std::path::Path, code: &std::path::Path, hdl: Option<&std::path::Path>, json: bool, prove: Option<u64>) -> Result<(), CliError> {
         use crate::compiler::recover;
         let design = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(model).map_err(|e| CliError::Compilation(e.to_string()))?;
         let (header_path, code_path) = Self::generated_c(code)?;
@@ -2109,8 +2123,27 @@ impl CliRunner {
             }
             drift.files.extend(compared);
         }
+        // The proof: whatever the text of the code, does one step of it do what one step of the model's code does?
+        let equivalence = match prove {
+            None => None,
+            Some(seconds) => {
+                let (header, code) = (c_files.iter().find(|(name, _)| name == &header_name), c_files.iter().find(|(name, _)| name == &code_name));
+                let (Some((_, header)), Some((_, code))) = (header, code) else {
+                    return Err(CliError::Compilation(format!("the model generates no {header_name} and {code_name} to prove the code against")));
+                };
+                let generated = recover::Generated { header_name: &header_name, header, code_name: &code_name, code };
+                let work = std::env::temp_dir().join(format!("arclang-equivalence-{}-{}", std::process::id(), crate::compiler::simulation::tool::run_number()));
+                let outcome = recover::equivalence::prove(&generated, &built, &work, seconds).map_err(CliError::Compilation)?;
+                let _ = std::fs::remove_dir_all(&work);
+                Some(outcome)
+            }
+        };
         if json {
-            println!("{}", serde_json::to_string_pretty(&drift).map_err(|e| CliError::Compilation(e.to_string()))?);
+            let mut value = serde_json::to_value(&drift).map_err(|e| CliError::Compilation(e.to_string()))?;
+            if let (Some(outcome), Some(object)) = (&equivalence, value.as_object_mut()) {
+                object.insert("equivalence".to_string(), serde_json::to_value(outcome).map_err(|e| CliError::Compilation(e.to_string()))?);
+            }
+            println!("{}", serde_json::to_string_pretty(&value).map_err(|e| CliError::Compilation(e.to_string()))?);
         } else {
             println!("Drift of {} and {} against {}", header_path.display(), code_path.display(), model.display());
             let compared = drift.files.iter().filter(|file| !file.missing).count();
@@ -2153,8 +2186,26 @@ impl CliRunner {
             for file in drift.files.iter().filter(|file| file.missing) {
                 println!("  note: {} is not among the files as built: not compared", file.file);
             }
+            match &equivalence {
+                None => {}
+                Some(recover::equivalence::Equivalence::Proven { comparisons, seconds }) => {
+                    println!("✓ Proven equivalent ({seconds:.1} s): from any state and for any inputs, one step of the code as built gives the state and the outputs one step of the model's code gives ({comparisons} fields compared)");
+                }
+                Some(recover::equivalence::Equivalence::Different { witness, seconds }) => {
+                    println!("✗ Not equivalent ({seconds:.1} s): a state and inputs from which one step of the code as built does not give what the model's code gives:");
+                    for (field, value) in witness {
+                        println!("    {field} = {value}");
+                    }
+                }
+                Some(recover::equivalence::Equivalence::Unknown { reason }) => println!("  ? Equivalence neither proven nor refuted: {reason}"),
+            }
         }
-        if drift.none() {
+        // A proof of equivalence is the last word on the machines' code: it
+        // was edited, and it does the same. Without it, a difference is a drift.
+        let proven = matches!(equivalence, Some(recover::equivalence::Equivalence::Proven { .. }));
+        let refuted = matches!(equivalence, Some(recover::equivalence::Equivalence::Different { .. }));
+        let other_files = drift.files.iter().any(|file| file.differs());
+        if (drift.none() || (proven && !other_files)) && !refuted {
             Ok(())
         } else {
             let files = drift.files.iter().filter(|file| file.differs()).count();

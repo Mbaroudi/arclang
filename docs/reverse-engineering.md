@@ -185,3 +185,66 @@ Not compared: anything the C does not hold (see above), and code the
 compiler did not generate. A drift needs the code the model generates to
 compare with; C or VHDL written by hand has no such reference, and reading
 a model out of it is another problem than this one.
+
+## Proving that two codes do the same
+
+`drift` says where the C as built differs from the model's C. It cannot say
+that two codes written differently do the same: a temporary variable, a
+comparison turned round, a loop unrolled are differences of text. `--prove`
+answers that question:
+
+```console
+$ arclang drift speed_monitor.arc c/ --prove
+  state_machine "Overspeed warning"
+    ✗ the guard of transition Normal -> Warning is `on_above < speed` in the code; the model says `speed > on_above` (speed_monitor.c:150)
+✓ Proven equivalent (0.6 s): from any state and for any inputs, one step of the code as built gives the state and the outputs one step of the model's code gives (19 fields compared)
+```
+
+One step of the code as built and one step of the model's code are run from
+the same state, any state, with the same inputs, any inputs; every field of
+the state and of the outputs is compared after the step, the floating-point
+values bit for bit. If nothing makes a field differ, each step of one is a
+step of the other, and so is every run. CBMC translates the two programs
+and the comparison to one formula, every loop unwound to its bound (which is
+checked); Bitwuzla decides it.
+
+- `unsat`: **proven equivalent**. The text of the code may differ; the
+  command succeeds.
+- `sat`: **not equivalent**, with the state and the inputs from which one
+  step differs:
+
+  ```console
+  ✗ Not equivalent (0.8 s): a state and inputs from which one step of the code as built does not give what the model's code gives:
+      inputs.overspeed_warning.v_speed = 0
+      state.overspeed_warning.v_on_above = 0
+      state.overspeed_warning_started = false
+      ...
+  ```
+
+  (the guard had become `>=`: at the threshold, the code as built warns and
+  the model does not.)
+- anything else (the time limit of `--timeout`, 300 s by default, or a tool
+  that failed): **neither proven nor refuted**, said as such, never as a
+  proof.
+
+What the proof is of, exactly: the two step functions, for the structures of
+the header, which must be the same in both codes (a code with another
+interface is not compared). The starting state is any value of the state
+structure, reachable or not, but for one condition: a shallow history names
+a state of its machine or none. Two codes that differ only from a state no
+run reaches are reported as not equivalent. The I/O glue and the host files
+are not part of it.
+
+How far it goes today, on the code the model generates itself (so the
+answer is known): the speed monitor (floating-point blocks) is proven in
+about a second, the level crossing (sixteen events a step) in half a
+minute, the battery charger (regions, a PID, timed transitions, sixteen
+events) in a minute and a half. The power window (regions, both histories, every
+pseudo-state, sixteen events a step) gets no answer within 300 s: it is
+reported as neither proven nor refuted. The cost grows with the number of
+events one step can take.
+
+The tools are not on a usual computer: `tools/embedded/formal` builds an
+image with CBMC (from its source, version 6.4.1) on top of the FPGA image,
+which holds Bitwuzla. `ARCLANG_CBMC` and `ARCLANG_BITWUZLA` name the tools
+when they are elsewhere.

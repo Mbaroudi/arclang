@@ -100,6 +100,14 @@ jobs:
       - name: Run the FPGA tests, the GHDL runs and the synthesis included
         run: tools/embedded/fpga/run.sh cargo test --release --test embedded_fpga -- --include-ignored
 
+      # The proof that a C as built does what the model's C does: CBMC, built
+      # on top of the FPGA image, which holds Bitwuzla (tools/embedded/formal).
+      - name: Build the formal image
+        run: docker build -t arclang-embedded-formal:1 tools/embedded/formal
+
+      - name: Run the equivalence proofs
+        run: tools/embedded/formal/run.sh cargo test --release --test equivalence -- --include-ignored
+
   # The processor and the logic together: a LiteX SoC (VexRiscv, Zephyr, the
   # generated blocks) simulated cycle by cycle in Verilator, and the same SoC
   # built into one bitstream for the ULX3S. The system image takes Zephyr

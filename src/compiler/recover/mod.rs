@@ -23,6 +23,7 @@
 
 mod c;
 pub mod drift;
+pub mod equivalence;
 mod fire;
 pub mod logic;
 mod write;
