@@ -820,6 +820,54 @@ pub fn build_router_with(workspace: systems_modeling::Workspace) -> Router {
         .layer(axum::middleware::map_response(systems_modeling::json_errors))
 }
 
+/// Whether a request's host names this machine: `localhost` or a loopback
+/// address, with or without a port.
+fn names_this_machine(host: &str) -> bool {
+    let host = host.trim();
+    let name = match host.strip_prefix('[') {
+        Some(bracketed) => bracketed.split(']').next().unwrap_or(""),
+        None => host.rsplit_once(':').map_or(host, |(name, _)| name),
+    };
+    let name = name.trim_end_matches('.');
+    name.eq_ignore_ascii_case("localhost") || name.parse::<std::net::IpAddr>().is_ok_and(|address| address.is_loopback())
+}
+
+/// The hosts a request is addressed to: its `Host` header, and the authority
+/// of its target when it carries one (HTTP/2, absolute form).
+fn hosts_of(request: &axum::extract::Request) -> Vec<String> {
+    let header = request.headers().get_all(header::HOST).iter().map(|value| value.to_str().unwrap_or("").to_string());
+    let authority = request.uri().authority().map(|authority| authority.as_str().to_string());
+    header.chain(authority).collect()
+}
+
+/// A server without users answers anyone who reaches it, and listens on the
+/// loopback interface only. A page of another site still reaches it through
+/// the browser of whoever runs it, by giving its own name this machine's
+/// address (DNS rebinding): the browser then lets the page read the models.
+/// Such a request names the site as its host. Without users, only a request
+/// addressed to this machine under its own name is served; with users, the
+/// token is what protects, and the server may stand behind another name.
+async fn addressed_to_this_machine(State(open): State<bool>, request: axum::extract::Request, next: axum::middleware::Next) -> Response {
+    let Some(stranger) = hosts_of(&request).into_iter().find(|host| open && !names_this_machine(host)) else {
+        return next.run(request).await;
+    };
+    let shown: String = stranger.chars().filter(|c| c.is_ascii_graphic()).take(80).collect();
+    let body = Json(serde_json::json!({
+        "success": false,
+        "error": format!(
+            "this server has no users and answers only requests addressed to this machine (localhost, 127.0.0.1), not to '{shown}': declare a token (--token-file, ARCLANG_API_TOKEN) or users (--users-file) to serve it under another name"
+        ),
+    }));
+    (StatusCode::FORBIDDEN, body).into_response()
+}
+
+/// The router `arclang serve` listens with: the API, served under another
+/// name than this machine's only when the workspace has users.
+pub fn build_local_router(workspace: systems_modeling::Workspace) -> Router {
+    let open = !workspace.access.requires_token();
+    build_router_with(workspace).layer(axum::middleware::from_fn_with_state(open, addressed_to_this_machine))
+}
+
 pub async fn serve(port: u16, workspace: systems_modeling::Workspace) -> Result<(), Box<dyn std::error::Error>> {
     let cors = CorsLayer::new()
         .allow_origin("http://localhost:3002".parse::<HeaderValue>().unwrap())
@@ -827,7 +875,7 @@ pub async fn serve(port: u16, workspace: systems_modeling::Workspace) -> Result<
         .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION])
         .allow_credentials(true);
 
-    let app = build_router_with(workspace)
+    let app = build_local_router(workspace)
         .layer(cors)
         .layer(TraceLayer::new_for_http());
 

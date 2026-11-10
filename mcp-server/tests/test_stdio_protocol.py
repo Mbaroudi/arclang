@@ -136,3 +136,45 @@ def test_a_failed_call_is_marked_as_an_error_over_stdio(workspace, model):
     finally:
         process.kill()
         process.wait()
+
+
+def test_a_path_outside_the_workspace_is_refused_over_stdio(workspace, model, tmp_path_factory):
+    """The server as a client starts it: its workspace and one other directory named."""
+    named = tmp_path_factory.mktemp("exports")
+    elsewhere = tmp_path_factory.mktemp("elsewhere")
+    process = subprocess.Popen(
+        [sys.executable, "-m", "arclang_mcp.server"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        env={**os.environ, "ARCLANG_MCP_ROOTS": str(named)},
+    )
+    try:
+        client = Client(process)
+        client.request(
+            "initialize",
+            {
+                "protocolVersion": PROTOCOL_VERSION,
+                "capabilities": {},
+                "clientInfo": {"name": "test", "version": "0"},
+            },
+        )
+        client.notify("notifications/initialized")
+
+        def compile_to(target) -> dict:
+            arguments = {"model_path": "braking.arc", "output_path": str(target)}
+            return client.request("tools/call", {"name": "arclang_compile", "arguments": arguments})
+
+        refused = compile_to(elsewhere / "m.json")
+        assert refused.get("isError") is True, refused
+        assert "is outside the workspace" in refused["content"][0]["text"]
+        assert "ARCLANG_MCP_ROOTS" in refused["content"][0]["text"]
+        assert not (elsewhere / "m.json").exists()
+
+        written = compile_to(named / "m.json")
+        assert not written.get("isError"), written
+        assert json.loads((named / "m.json").read_text())
+    finally:
+        process.kill()
+        process.wait()

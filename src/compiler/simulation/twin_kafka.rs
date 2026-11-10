@@ -48,8 +48,7 @@ pub fn column(topic: &str, key: Option<&[u8]>) -> String {
 }
 
 fn sasl(mechanism: &str) -> Option<SaslConfig> {
-    let set = |name: &str| std::env::var(name).ok().filter(|v| !v.is_empty());
-    let (Some(user), Some(password)) = (set("ARCLANG_KAFKA_USERNAME"), set("ARCLANG_KAFKA_PASSWORD")) else { return None };
+    let (user, password) = super::twin_credentials::kafka()?;
     let credentials = Credentials::new(user, password);
     Some(match mechanism {
         "scram-sha-256" => SaslConfig::ScramSha256(credentials),

@@ -31,6 +31,8 @@ pub mod sweep;
 pub mod tool;
 pub mod twin;
 #[cfg(feature = "native")]
+pub mod twin_credentials;
+#[cfg(feature = "native")]
 pub mod twin_live;
 #[cfg(feature = "native")]
 pub mod twin_http;

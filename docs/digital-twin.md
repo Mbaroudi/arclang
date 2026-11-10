@@ -106,8 +106,9 @@ Only the columns the twin reads (those of `drives:` and `compares:`) are kept.
 
 **The broker.** `mqtt://host[:port]` (1883 by default), or `mqtts://` for TLS
 (8883). The credentials are never written in the model: set
-`ARCLANG_MQTT_USERNAME` and `ARCLANG_MQTT_PASSWORD`. `client_id` names the
-client. When the broker cannot be reached, the twin says so and tries again
+`ARCLANG_MQTT_USERNAME` and `ARCLANG_MQTT_PASSWORD`, and name the broker in
+`ARCLANG_TWIN_HOSTS` (see [Where the credentials go](#where-the-credentials-go)).
+`client_id` names the client. When the broker cannot be reached, the twin says so and tries again
 every two seconds.
 
 **Record.** With `record:`, every sample received is appended to a CSV:
@@ -158,7 +159,8 @@ ArcLang's certificate (`own/cert.der`).
 
 **Identity.** The session is anonymous, unless `ARCLANG_OPCUA_USERNAME` and
 `ARCLANG_OPCUA_PASSWORD` are set: credentials are never written in the
-model. When the server cannot be reached, or the session is lost, the twin
+model, and go only to a server named in `ARCLANG_TWIN_HOSTS`
+(see [Where the credentials go](#where-the-credentials-go)). When the server cannot be reached, or the session is lost, the twin
 says so and opens a new session every two seconds.
 
 When the server's host name gives several addresses (`localhost` is often
@@ -193,7 +195,9 @@ no `time` in the message, the instant is the message's own Kafka timestamp.
 
 `kafkas://` connects over TLS and checks the broker's certificate against
 the system's trusted roots. A user and a password come from
-`ARCLANG_KAFKA_USERNAME` and `ARCLANG_KAFKA_PASSWORD`, never from the model.
+`ARCLANG_KAFKA_USERNAME` and `ARCLANG_KAFKA_PASSWORD`, never from the model,
+and go only to brokers named in `ARCLANG_TWIN_HOSTS`
+(see [Where the credentials go](#where-the-credentials-go)).
 The mechanism is `sasl:` `"plain"` (the default), `"scram-sha-256"` or
 `"scram-sha-512"`; a broker that turns the user down is reported as
 *refused*. When the broker stops answering, the twin says so within a few
@@ -215,8 +219,10 @@ data: {
 is a JSON object, as an MQTT message's, or a list of them. Only what is
 newer than what was already read is kept, column by column. An API that
 answers its latest hour at every call therefore adds only the new samples.
-A bearer token comes from `ARCLANG_HTTP_TOKEN`, never from the model. A 401
-or a 403 is reported as *refused*.
+A bearer token comes from `ARCLANG_HTTP_TOKEN`, never from the model, and
+goes only to a host named in `ARCLANG_TWIN_HOSTS`
+(see [Where the credentials go](#where-the-credentials-go)). A 401 or a 403
+is reported as *refused*.
 
 **What live means here.** By default (`advance: "window"`), the twin runs
 the model again over the window at every refresh: the verdict comes at most
@@ -250,6 +256,30 @@ On the heat pump's day, both ways give the same verdict to the last digit.
 
 The model is still not driven by a control loop of its own: the twin
 watches, it does not command.
+
+## Where the credentials go
+
+The model names the address of its live data; the credentials come from the
+environment and belong to one service. A model received from someone else
+can name another address. The credentials of the environment are therefore
+sent only to this machine (`localhost`, `127.0.0.1`, `::1`), or to a host
+named in `ARCLANG_TWIN_HOSTS`:
+
+```sh
+export ARCLANG_HTTP_TOKEN=...            # the token of the API
+export ARCLANG_TWIN_HOSTS=api.example.com
+arclang twin house.arc --live
+```
+
+`ARCLANG_TWIN_HOSTS` is a list separated by commas. An entry is a host
+(`plc.plant.example`), every host under a domain (`*.plant.example`), or
+`*` for any host, which is the behaviour of 4.12 and before. Ports are not
+part of it. For Kafka, every broker of the address is named.
+
+When credentials are set and the model names a host that is not in the
+list, `arclang twin --live` stops before it connects and says which
+variable to set; the message never prints the credentials. Without
+credentials in the environment, any address is followed as before.
 
 ## Online
 

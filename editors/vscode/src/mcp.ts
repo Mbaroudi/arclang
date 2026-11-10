@@ -5,6 +5,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { binary, workspaceTrusted } from './cli';
 import { splitCommand } from './pure/arc';
+import { mcpEnvironment } from './pure/mcp-env';
 
 function onPath(name: string): string | null {
   const names = process.platform === 'win32' ? [`${name}.exe`, `${name}.cmd`, `${name}.bat`, name] : [name];
@@ -31,6 +32,8 @@ export function registerMcpProvider(context: vscode.ExtensionContext): void {
       if (event.affectsConfiguration('arclang.mcp') || event.affectsConfiguration('arclang.binary')) changed.fire();
     }),
     vscode.workspace.onDidGrantWorkspaceTrust(() => changed.fire()),
+    // The server keeps to the folders that are open: it is started again when they change.
+    vscode.workspace.onDidChangeWorkspaceFolders(() => changed.fire()),
     vscode.lm.registerMcpServerDefinitionProvider('arclang.mcp', {
       onDidChangeMcpServerDefinitions: changed.event,
       provideMcpServerDefinitions() {
@@ -41,8 +44,8 @@ export function registerMcpProvider(context: vscode.ExtensionContext): void {
         const command = configured[0] ?? onPath('arclang-mcp');
         if (!command) return [];
         const args = [...configured.slice(1), ...extraArgs];
-        const env: Record<string, string> = {};
-        if (path.isAbsolute(binary())) env.ARCLANG_BINARY = binary();
+        const folders = (vscode.workspace.workspaceFolders ?? []).filter((folder) => folder.uri.scheme === 'file').map((folder) => folder.uri.fsPath);
+        const env = mcpEnvironment({ folders, binary: path.isAbsolute(binary()) ? binary() : null, inherited: process.env, delimiter: path.delimiter });
         return [new vscode.McpStdioServerDefinition('ArcLang', command, args, env, context.extension.packageJSON.version)];
       },
     }),

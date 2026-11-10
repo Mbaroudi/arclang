@@ -184,6 +184,12 @@ the long-term goal.
     hold a secret. A reader who writes gets 403. Tokens are 24 characters
     at least; only their SHA-256 is kept in memory, compared in full and
     against every user. The server listens on the loopback interface only.
+    Without a token or users, it answers only requests addressed to this
+    machine (`localhost`, `127.0.0.1`, `[::1]`): a request that names
+    another host gets 403, so that a web page cannot read the models
+    through your browser by pointing its own name at your machine (DNS
+    rebinding). Declare a token or users to serve it under another name,
+    behind a proxy for instance.
   - **Writes, opt-in.** `arclang serve --allow-write --history model.arc`
     (a token is mandatory) accepts `POST /projects/{id}/commits` with
     `{"description", "previousCommit", "change": [...]}`. A change can:

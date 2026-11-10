@@ -95,10 +95,18 @@ claude mcp add --env ARCLANG_WORKSPACE=/path/to/your/models arclang -- arclang-m
 
 | Variable | Meaning | Default |
 |---|---|---|
-| `ARCLANG_WORKSPACE` | Directory relative paths are resolved from | current directory |
+| `ARCLANG_WORKSPACE` | Directory the server works in; relative paths are resolved from it | current directory |
+| `ARCLANG_MCP_ROOTS` | Other directories the server may read and write in, separated like `PATH`; `*` is any path | unset: the workspace only |
 | `ARCLANG_BINARY` | Path of the compiler | `arclang` on the `PATH` |
 | `ANTHROPIC_API_KEY` | Lets the generation tools ask a Claude model | unset: templates only |
 | `TYPESAFE_API_KEY` | Needed by `arclang_review` with `send: true` | unset |
+
+A tool given a path outside the workspace and outside `ARCLANG_MCP_ROOTS` refuses
+it and says so: an agent can be asked for any path by what it read, and the
+server does not write where you did not send it. To export next to your
+models and to another folder, name that folder:
+`ARCLANG_MCP_ROOTS=/path/to/exports`. In VS Code the extension starts the
+server on the folders that are open.
 
 Timeouts and the model can be written in `<workspace>/.arclang-mcp.toml`. The
 compiler's path cannot: a workspace may be a cloned repository, and it must not
