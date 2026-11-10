@@ -119,7 +119,7 @@ fn header(generated: &Generated, prefix: &str, recovered: &mut Recovered, names:
             } else if let Some(found) = input.captures(field).filter(|_| &end[2] == "inputs").or_else(|| kept.captures(field).filter(|_| &end[2] == "state")) {
                 let ty = c_type(&found[1]).ok_or_else(|| format!("{}:{number}: a variable of type `{}`, which the generator does not write", generated.header_name, &found[1]))?;
                 names.variables.insert(found[2].to_string(), machine.variables.len());
-                machine.variables.push(Variable { name: found[3].to_string(), ty, unit: found.get(4).map(|u| u.as_str().to_string()), input: &end[2] == "inputs", initial: None, from: None, line: number });
+                machine.variables.push(Variable { name: found[3].to_string(), ty, unit: found.get(4).map(|u| u.as_str().to_string()), input: &end[2] == "inputs", initial: None, initial_line: None, from: None, line: number });
             }
         }
     }
@@ -136,6 +136,7 @@ struct Alternative {
     /// (`else` for the branch taken when no other holds): the branches of a junction.
     choices: Vec<(usize, Option<String>)>,
     guard: Option<String>,
+    guard_line: Option<usize>,
     after_us: Option<u64>,
     /// The time as the comment above the block spells it.
     written: Option<String>,
@@ -270,6 +271,7 @@ fn code(generated: &Generated, prefix: &str, machine: &mut Machine, names: &Name
             if let Some(value) = initial.captures(line) {
                 if let Some(&index) = names.variables.get(&value[1]) {
                     machine.variables[index].initial = Some(value[2].to_string());
+                    machine.variables[index].initial_line = Some(at + 1);
                 }
             }
             continue;
@@ -324,7 +326,10 @@ fn code(generated: &Generated, prefix: &str, machine: &mut Machine, names: &Name
                     }
                     if section == "equations" {
                         // The statement under the comment is what computes it.
-                        machine.equations.extend(held_comment.take());
+                        if let Some(text) = held_comment.take() {
+                            machine.equations.push(text);
+                            machine.equation_code.push((at + 1, line.trim().to_string()));
+                        }
                         continue;
                     }
                     if section == "activities" {
@@ -368,6 +373,7 @@ fn code(generated: &Generated, prefix: &str, machine: &mut Machine, names: &Name
                     }
                 } else if let Some(guard) = condition.captures(line).filter(|g| !g[1].starts_with("(alt_")) {
                     open.guard = Some(guard[1].to_string());
+                    open.guard_line = Some(at + 1);
                 }
             }
         }
@@ -474,6 +480,7 @@ fn code(generated: &Generated, prefix: &str, machine: &mut Machine, names: &Name
                 to,
                 trigger,
                 guard: condition_text(machine, &alternative.guard).filter(|g| g != "else"),
+                guard_line: alternative.guard_line,
                 after_us: alternative.after_us,
                 budget_us: None,
                 time_text,
@@ -494,6 +501,7 @@ fn code(generated: &Generated, prefix: &str, machine: &mut Machine, names: &Name
                 to: pseudo,
                 trigger: trigger.clone(),
                 guard: guard.clone(),
+                guard_line: alternative.guard_line,
                 after_us: alternative.after_us,
                 budget_us: None,
                 time_text: time_text.clone(),
@@ -548,7 +556,7 @@ fn code(generated: &Generated, prefix: &str, machine: &mut Machine, names: &Name
                 continue;
             };
             if !transitions.iter().any(|t| t.from == pseudo && t.to == to && t.guard == guard) {
-                transitions.push(Transition { from: pseudo, to, trigger: None, guard, after_us: None, budget_us: None, time_text: None, actions, id: None, exits: fire::first_exit(body), owner: None, region: None, line: *line });
+                transitions.push(Transition { from: pseudo, to, trigger: None, guard, guard_line: None, after_us: None, budget_us: None, time_text: None, actions, id: None, exits: fire::first_exit(body), owner: None, region: None, line: *line });
             }
         }
     }

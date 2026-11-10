@@ -22,6 +22,7 @@
 //! join, history, terminate) is read in the body of its function (`fire.rs`).
 
 mod c;
+pub mod drift;
 mod fire;
 mod write;
 
@@ -42,8 +43,9 @@ pub struct Variable {
     pub ty: &'static str,
     pub unit: Option<String>,
     pub input: bool,
-    /// The initial value, as the C writes it.
+    /// The initial value, as the C writes it, and the line that sets it.
     pub initial: Option<String>,
+    pub initial_line: Option<usize>,
     /// `from "Machine".variable`, for an input read from another machine.
     pub from: Option<(String, String)>,
     pub line: usize,
@@ -68,6 +70,8 @@ pub struct Transition {
     pub to: usize,
     pub trigger: Option<String>,
     pub guard: Option<String>,
+    /// The line of the condition the guard was read in.
+    pub guard_line: Option<usize>,
     /// The time after which it fires, in microseconds.
     pub after_us: Option<u64>,
     /// The time it has to leave its source once it may, in microseconds.
@@ -114,6 +118,8 @@ pub struct Machine {
     pub regions: Vec<Region>,
     /// The equations, as the generator's comments write them.
     pub equations: Vec<String>,
+    /// The statement that computes each equation, with its line.
+    pub equation_code: Vec<(usize, String)>,
     pub line: usize,
 }
 

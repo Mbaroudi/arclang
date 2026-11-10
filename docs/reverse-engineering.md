@@ -82,3 +82,49 @@ proven (`cargo test --test recover -- --ignored --nocapture` prints the
 survey), among them the power window (regions, a choice, a junction, a
 fork, a join, both histories, a terminate) and the in-flight entertainment
 model imported from Capella (five machines).
+
+## Drift: the code as built against the model
+
+`arclang drift <model> <code>` says whether the C as built is still the
+model, and where it is not. `<code>` is given as for `recover`.
+
+```console
+$ arclang drift speed_monitor.arc c/
+Drift of c/speed_monitor.h and c/speed_monitor.c against speed_monitor.arc
+✓ No drift: the code is, byte for byte, the code the model generates
+```
+
+After three edits by hand in `c/speed_monitor.c` (a guard, an initial
+value, the statement of an equation):
+
+```console
+$ arclang drift speed_monitor.arc c/
+Drift of c/speed_monitor.h and c/speed_monitor.c against speed_monitor.arc
+  state_machine "Wheel speed filter"
+    ✗ equation `filtered = filtered + 0.25 * (raw - filtered)` is computed in the code as `st->v_filtered = (st->v_filtered + (0.3 * (in->v_raw - st->v_filtered)));`; the model generates `st->v_filtered = (st->v_filtered + (0.25 * (in->v_raw - st->v_filtered)));` (speed_monitor.c:60)
+  state_machine "Overspeed warning"
+    ✗ variable 'on_above' starts at `135.0` in the code; the model says `130.0` (speed_monitor.c:189)
+    ✗ the guard of transition Normal -> Warning is `speed >= on_above` in the code; the model says `speed > on_above` (speed_monitor.c:150)
+Error: Compilation error: the code has drifted from the model: 3 difference(s) in its machines, 0 line(s) they do not explain
+```
+
+The command fails when there is a difference; `--json` prints the same
+findings with their machine, file and line.
+
+How it compares. The model generates its C; the machines are recovered from
+that C and from the C as built, by the same reader, and compared: the
+machines, their variables with their initial values and their wiring, their
+equations (by the statement that computes each), their states with their
+actions, their regions, their transitions with their guard, time and
+actions. Reading both sides the same way keeps a difference of writing (a
+target named by the state that holds it, a region named by its rank) from
+being reported as one of behaviour.
+
+What a comparison of machines cannot see is then looked for in the code
+itself: the C as built is compared with the C its own recovered machines
+generate, and the lines they do not explain are listed. This is where a
+helper edited by hand shows (`speed_monitor.c:18: r = hi;`), and a comment
+that no longer says what its statement does is reported as such.
+
+Not compared: the I/O glue and the host files beside the machines' C, and
+anything the C does not hold (see above).
