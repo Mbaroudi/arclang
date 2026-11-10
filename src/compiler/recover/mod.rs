@@ -15,12 +15,14 @@
 //! Where it differs, the difference is reported, never papered over.
 //!
 //! What the generated C does not hold cannot be recovered and is listed in
-//! the notes: the regions of a machine (their states are there, their
-//! grouping is not), whether a variable is `out` or `const`, the range of a
-//! variable. A region is recovered with its states and where it starts; its
-//! name is not in the code, and it is named by its rank.
+//! the notes: the name of a region, whether a variable is `out` or `const`,
+//! the range of a variable, the priority of a transition. A region is recovered with its
+//! states and where it starts; its name is not in the code, and it is named
+//! by its rank. A transition through a pseudo-state (choice, junction, fork,
+//! join, history, terminate) is read in the body of its function (`fire.rs`).
 
 mod c;
+mod fire;
 mod write;
 
 use std::collections::BTreeMap;
@@ -74,6 +76,14 @@ pub struct Transition {
     /// when it is the time the code counts.
     pub time_text: Option<String>,
     pub actions: Vec<String>,
+    /// Its `id`, when the code names it by one.
+    pub id: Option<String>,
+    /// The first and the last state it exits.
+    pub exits: Option<(usize, usize)>,
+    /// Where it is written: in the state `owner` (`None`: in the machine),
+    /// and in which of its regions (`None`: beside them, or there is none).
+    pub owner: Option<usize>,
+    pub region: Option<usize>,
     pub line: usize,
 }
 

@@ -68,6 +68,10 @@ fn write_level(out: &mut String, machine: &Machine, prefix: &str, depth: usize) 
             write_states(out, machine, prefix, depth + 1, Some((region.first, region.last)));
             out.push_str(&format!("{pad}}}\n"));
         }
+        // A transition of this level that is in no region: beside them.
+        for transition in machine.transitions.iter().filter(|t| t.owner == owner && t.region.is_none()) {
+            out.push_str(&format!("{pad}{}\n", write_transition(machine, transition, prefix)));
+        }
         return;
     }
     write_states(out, machine, prefix, depth, None);
@@ -105,8 +109,10 @@ fn write_states(out: &mut String, machine: &Machine, prefix: &str, depth: usize,
             out.push_str(&format!("{pad}state {} {{\n{inside}{pad}}}\n", quoted(name)));
         }
     }
-    // A transition is written at the level of its source.
-    for transition in machine.transitions.iter().filter(|t| here.iter().any(|(index, _)| *index == t.from)) {
+    // The transitions of this level, or of this region of it.
+    let owner = prefix.strip_suffix('.').and_then(|path| machine.states.iter().position(|s| s.path == path));
+    let region = range.and_then(|(first, last)| machine.regions.iter().position(|r| r.owner == owner && r.first == first && r.last == last));
+    for transition in machine.transitions.iter().filter(|t| t.owner == owner && t.region == region) {
         out.push_str(&format!("{pad}{}\n", write_transition(machine, transition, prefix)));
     }
 }
@@ -123,6 +129,9 @@ fn named(machine: &Machine, state: usize, prefix: &str) -> String {
 
 fn write_transition(machine: &Machine, transition: &Transition, prefix: &str) -> String {
     let mut said: Vec<String> = Vec::new();
+    if let Some(id) = &transition.id {
+        said.push(format!("id: {}", quoted(id)));
+    }
     if let Some(trigger) = &transition.trigger {
         said.push(format!("trigger: {}", quoted(trigger)));
     }
