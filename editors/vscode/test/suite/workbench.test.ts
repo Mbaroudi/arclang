@@ -87,8 +87,19 @@ suite('ArcLang workbench', () => {
       // What `arclang verify` does in a terminal: a verdict in the cache, the text untouched.
       const cache = path.join(path.dirname(document.uri.fsPath), '.arclang', 'sim-cache');
       fs.mkdirSync(cache, { recursive: true });
-      fs.writeFileSync(path.join(cache, 'TC-1.json'), '{}');
-      assert.ok(await until(() => told > 0, 10000), 'the views are told');
+      // The watcher of a folder starts a moment after it is asked for (and
+      // tells nothing of what was written before): the verdict is written
+      // again, as a later run would, until the views are told.
+      let runs = 0;
+      let written = 0;
+      const heard = await until(() => {
+        if (told === 0 && Date.now() - written >= 1000) {
+          written = Date.now();
+          fs.writeFileSync(path.join(cache, 'TC-1.json'), JSON.stringify({ run: ++runs }));
+        }
+        return told > 0;
+      }, 30000);
+      assert.ok(heard, `the views are told (${runs} verdicts written)`);
       assert.notEqual(await snapshotOf(document), first, 'the snapshot is computed again');
     } finally {
       for (const subscription of subscriptions) subscription.dispose();
