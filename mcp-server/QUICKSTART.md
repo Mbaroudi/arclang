@@ -85,3 +85,4 @@ break the model.
 | `arclang_suggest_architecture` answers "No suggestion" | It asks a Claude model: set `ANTHROPIC_API_KEY` |
 | `arclang_review` with `send: true` fails | It needs `TYPESAFE_API_KEY` |
 | A relative path is not found | Paths are resolved from `ARCLANG_WORKSPACE` |
+| A path "is outside the workspace" | The server keeps to `ARCLANG_WORKSPACE`; name another directory in `ARCLANG_MCP_ROOTS` |

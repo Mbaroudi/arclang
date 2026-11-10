@@ -86,9 +86,19 @@ compiler this server is written for (`MINIMUM_COMPILER_VERSION` in
 ## Paths
 
 A relative path is resolved from the workspace (`ARCLANG_WORKSPACE`, else the
-current directory); `~` is expanded; an absolute path is used as given. The
-server runs with the rights of the user who started it and reads or writes
-where that user can: it is a local tool, not a sandbox.
+current directory); `~` is expanded. Every path a tool is given, to read or to
+write, goes through `resolve_path` (`tools/common.py`), and is refused when it
+leads outside the workspace and outside the directories named in
+`ARCLANG_MCP_ROOTS` (separated like `PATH`; `*` there is any path). Where a
+path leads is judged with `..` and links followed, so neither is a way out.
+
+The paths come from an agent, and what the agent read (a model received from
+someone, a document, a web page) can ask it for any path: a tool that writes
+must not be led to a file elsewhere on the machine. This bounds the paths the
+tools are given, and nothing more: the server and the compiler it runs keep
+the rights of the user who started them (a model can still import a file by
+its path, and a simulation runs what the model says). It is a local tool, not
+a sandbox.
 
 ## Tests
 

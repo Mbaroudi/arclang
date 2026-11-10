@@ -4,6 +4,7 @@ What every tool group shares: path resolution and the shape of a report.
 
 import difflib
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -12,13 +13,44 @@ from ..compiler.wrapper import Run
 MODEL_PATH = {"type": "string", "description": "Path to the .arc model file"}
 
 
+# The other directories the server works in, separated like PATH; `*` is any path.
+ROOTS = "ARCLANG_MCP_ROOTS"
+ANYWHERE = "*"
+
+
+def allowed_roots(workspace_root: Path) -> Optional[List[Path]]:
+    """The workspace and the directories named in ARCLANG_MCP_ROOTS; None when any path is."""
+    named = [entry.strip() for entry in os.environ.get(ROOTS, "").split(os.pathsep)]
+    if ANYWHERE in named:
+        return None
+    return [workspace_root.resolve()] + [
+        Path(entry).expanduser().resolve() for entry in named if entry
+    ]
+
+
 def resolve_path(workspace_root: Path, path: str) -> Path:
-    """An absolute path as given; a relative one from the workspace root; `~` expanded."""
+    """A relative path from the workspace root, `~` expanded; refused outside the roots.
+
+    The agent gives the paths, and what it read (a model, a document, a page) can ask it
+    for any of them: the server reads and writes under the workspace and under the
+    directories it was told, and nowhere else. The place is judged where the path leads,
+    links and `..` followed; the path is returned as it was written.
+    """
     if not path.strip():
         # "" would be the workspace itself: `format --write` on it rewrites every file.
         raise InvalidArguments("a path must not be empty")
     expanded = Path(path).expanduser()
-    return expanded if expanded.is_absolute() else workspace_root.resolve() / expanded
+    target = expanded if expanded.is_absolute() else workspace_root.resolve() / expanded
+    roots = allowed_roots(workspace_root)
+    if roots is not None:
+        leads_to = target.resolve()
+        if not any(leads_to == root or root in leads_to.parents for root in roots):
+            raise InvalidArguments(
+                f"'{path}' is outside the workspace ({roots[0]}): the server reads and writes "
+                f"under the workspace and under the directories named in {ROOTS} "
+                f"(separated by '{os.pathsep}'; '{ANYWHERE}' is any path)"
+            )
+    return target
 
 
 def schema(properties: Dict[str, Any], *required: str) -> Dict[str, Any]:
