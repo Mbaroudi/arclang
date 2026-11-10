@@ -22,6 +22,7 @@
 //! join, history, terminate) is read in the body of its function (`fire.rs`).
 
 mod c;
+pub mod correspondence;
 pub mod drift;
 pub mod equivalence;
 mod fire;
@@ -42,6 +43,8 @@ pub enum Source {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Variable {
     pub name: String,
+    /// Its name in the C: the field is `v_<ident>`.
+    pub ident: String,
     pub ty: &'static str,
     pub unit: Option<String>,
     pub input: bool,

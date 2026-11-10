@@ -41,6 +41,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
         metadata def IoBinding;
         metadata def Twin;
         metadata def Rule;
+        metadata def Correspondence;
         metadata def Stakeholder;
         metadata def Region;
         metadata def Beside;

@@ -248,3 +248,127 @@ The tools are not on a usual computer: `tools/embedded/formal` builds an
 image with CBMC (from its source, version 6.4.1) on top of the FPGA image,
 which holds Bitwuzla. `ARCLANG_CBMC` and `ARCLANG_BITWUZLA` name the tools
 when they are elsewhere.
+
+## Code written by hand: a correspondence, and its proof
+
+The code above is the code the compiler generated, or a copy of it someone
+edited: the model's own structures are in it. A sketch written by hand has
+none of them. What ties it to a machine of the model is written down, in a
+`correspondence`, and proven by `arclang prove`:
+
+```
+state_machine "Debounced button" {
+    variables: ["in button: Boolean", "led: Boolean = false"]
+    initial: "Low"
+    state Low {}
+    state Rising {}
+    state High { entry: "led := true" }
+    state Falling {}
+    transition Low -> Rising { guard: "button" }
+    transition Rising -> High { guard: "button" timing: 50 ms }
+    ...
+}
+
+correspondence "Debounce sketch" {
+    machine: "Debounced button"
+    source: "debounce.ino"
+    period: 10 ms
+    reads: ["digitalRead(BUTTON) is button"]
+    writes: ["digitalWrite(LED) is led"]
+    state: [
+        "stable == 0 && counting == 0 is in Low",
+        "stable == 0 && counting == 1 is in Rising",
+        "stable == 1 && counting == 0 is in High",
+        "stable == 1 && counting == 1 is in Falling",
+        "millis() - since is time in Rising",
+        "millis() - since is time in Falling",
+        "stable == 1 is led"
+    ]
+    invariant: ["stable == 0 || stable == 1", "counting == 0 || counting == 1"]
+}
+```
+
+- `source`: the file of the code (or a list of them), beside the model.
+- `period`: the time of one `loop()`, which is one step of the machine.
+- `reads`: the pin each input of the machine is read from.
+- `writes`: the pin each output is written to; the level last written is
+  the value of the variable.
+- `state`: an expression of the code on the left, what it is in the model on
+  the right: `in <State>` (the expression holds exactly when the state is
+  active), `time in <State>` (the expression, in milliseconds, is the time
+  the state has been held, while it is active), or a variable of the machine.
+- `invariant`: what always holds of the code's own variables. It is proven
+  with the rest, not taken on trust.
+- `int`: the bits of an `int` on the board, `16` on an AVR board (the Uno,
+  the Nano, the Mega) or `32` (the default). A product that fits in 32 bits
+  and overflows in 16 is another behaviour, and another proof.
+
+```
+$ arclang prove debounce.arc
+✓ Proven (1.5 s) correspondence "Debounce sketch": debounce.ino is state_machine "Debounced button"
+    for one loop() a step of 10 ms, an int of 32 bits, the pins the correspondence names, and the C subset of the Arduino language
+```
+
+The proof has two parts, each asked of CBMC and Bitwuzla as the equivalence
+above:
+
+- **start**: after `setup()` and one `loop()` run at any time, and after the
+  machine's start and one step with the same inputs, every line of the
+  correspondence holds;
+- **step**: from *any* state of the code and *any* state of the machine for
+  which every line holds, one `loop()` and one step with the same inputs
+  leave two states for which every line holds.
+
+Both proven, every line holds after every `loop()` of every run, whatever
+the inputs: the pins the sketch drives are the outputs of the machine, for
+ever. That is the whole claim, and it is not a test: no run is sampled.
+
+One refuted, the command fails and names the lines that do not hold after
+it:
+
+```
+✗ Refuted correspondence "Debounce sketch": debounce.ino is state_machine "Debounced button"
+    from two states that correspond, one loop() and one step can leave two that do not
+    does not hold after it: digitalWrite(LED) is led
+    does not hold after it: stable == 0 && counting == 1 is in Rising
+    does not hold after it: stable == 1 && counting == 0 is in High
+    does not hold after it: stable == 1 is led
+```
+
+(the model here waits 40 ms where the sketch waits 50: the machine is in
+`High` with the lamp lit while the sketch still counts.)
+
+A refuted step does not always mean the code is wrong. The step is asked
+from any two states the lines allow, reachable or not: a correspondence that
+says too little allows states no run reaches, and the proof fails from
+them. The remedy is to say more (how a variable of the code relates to the
+output, an `invariant`), never to trust the result less: a correspondence
+is only ever proven when it holds from every state it allows.
+
+A pin the code reads or writes that the correspondence does not name is
+never passed over: the proof is refuted on the line "the code reads and
+writes only the pins the correspondence names". A `loop()` whose `delay()`s
+add up to another time than the period is refuted the same way. A variable
+of the machine that no line speaks of does not fail the proof, since
+nothing was claimed of it; it is named under the answer ("the proof says
+nothing of this variable of the machine"), so that a proof is never read as
+covering more than it does. A loop of the code the
+bound does not cover, a function with no body, the time limit: neither
+proven nor refuted, said as such.
+
+What the proof takes as given, and prints with its answer:
+
+- one `loop()` is one step of `period`: `millis()` is constant within a
+  `loop()` and advances by the period between two; the time the statements
+  themselves take is not counted. A sketch whose `loop()` takes another
+  time on the board is another machine;
+- an input has one value in a step, read by the code and by the machine;
+- the code is the C subset of the Arduino language: `pinMode`,
+  `digitalRead`, `analogRead`, `digitalWrite`, `millis`, `delay`. Interrupts,
+  the serial port, libraries and C++ classes are not read;
+- the machine is the C the model generates, the same that runs in `sil`.
+
+`--correspondence <name>` proves one of several, `--keep <dir>` keeps the
+files of the proof (`proof.c`, the model's C, the code), `--json` gives the
+outcomes to a tool. The declaration is exported to SysML v2 as a
+`#Correspondence` part and read back as written.

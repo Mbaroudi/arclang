@@ -28,7 +28,7 @@ use std::collections::{BTreeSet, HashMap};
 /// SysML cannot tell by itself.
 pub const PROFILE: &[&str] = &[
     "OA", "SA", "LA", "PA", "EPBS", "Actor", "Entity", "Node", "Behavior", "Hardware", "Mission", "Capability", "Chain", "Link", "Hazard", "Security", "PrimaryAsset", "Threat", "SecurityScales", "Configuration",
-    "Mode", "Class", "PhysicalPort", "ExchangeItem", "Path", "Fmea", "Interface", "Trace", "Association", "Iterate", "Invariant", "IoBinding", "Twin", "Rule", "Stakeholder", "Region", "Beside", "Named", "Interaction",
+    "Mode", "Class", "PhysicalPort", "ExchangeItem", "Path", "Fmea", "Interface", "Trace", "Association", "Iterate", "Invariant", "IoBinding", "Twin", "Rule", "Correspondence", "Stakeholder", "Region", "Beside", "Named", "Interaction",
 ];
 
 /// The SysML v2 text of a model.

@@ -1,7 +1,7 @@
 //! What ArcLang declares and SysML v2 has no notion of: the I/O binding of
 //! a state machine, the twin of a model, a rule of the project. Each is a
 //! `part` of the package `Extensions` carrying its metadata (`#IoBinding`,
-//! `#Twin`, `#Rule`), and everything it says is an attribute, what it names
+//! `#Twin`, `#Rule`, `#Correspondence`), and everything it says is an attribute, what it names
 //! included (the machine of a binding, the requirements of a twin): another
 //! tool reads a part with attributes and nothing it would take for
 //! structure or for a trace; the import reads the declaration back as
@@ -16,11 +16,11 @@ use std::collections::HashMap;
 pub const PACKAGE: &str = "Extensions";
 
 /// The metadata of each declaration, as the profile names them.
-pub const METADATA: [&str; 3] = ["IoBinding", "Twin", "Rule"];
+pub const METADATA: [&str; 4] = ["IoBinding", "Twin", "Rule", "Correspondence"];
 
 pub(super) fn write(e: &mut Exporter<'_>) {
     let model = e.model;
-    if model.io_bindings.is_empty() && model.twins.is_empty() && model.rules.is_empty() {
+    if model.io_bindings.is_empty() && model.twins.is_empty() && model.rules.is_empty() && model.correspondences.is_empty() {
         return;
     }
     e.block(&format!("package {PACKAGE}"), |e| {
@@ -33,6 +33,10 @@ pub(super) fn write(e: &mut Exporter<'_>) {
         for rule in &model.rules {
             let id = rule.attributes.get("id").and_then(|v| v.as_string()).unwrap_or("");
             declaration(e, "Rule", id, &rule.name, &rule.attributes);
+        }
+        for correspondence in &model.correspondences {
+            let id = correspondence.attributes.get("id").and_then(|v| v.as_string()).unwrap_or("");
+            declaration(e, "Correspondence", id, &correspondence.name, &correspondence.attributes);
         }
     });
 }
