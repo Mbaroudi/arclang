@@ -27,6 +27,9 @@ compiler when the site is built.
 - [embedded-c.md](embedded-c.md): the state machines as portable C99, the
   I/O interface and its bindings, software in the loop against the model
   (`arclang export -f c`, `arclang sil`).
+- [reverse-engineering.md](reverse-engineering.md): the machines a
+  generated C implements, read back as ArcLang and proven by generating the
+  same C again (`arclang recover`).
 - [cosimulation.md](cosimulation.md): the executed cases as a standard FMI
   co-simulation in OMSimulator, the behavior's FMU, its plant's and its
   inputs in an SSP package, judged against the model (`arclang cosim`).
