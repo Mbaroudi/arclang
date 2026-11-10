@@ -121,6 +121,11 @@ pub fn map(plan: &Plan, m: &MachinePlan, fx: &MachineFixed) -> Map {
     }
 }
 
+/// A number as JSON has it; a range without an end (never for a sized word) as null.
+fn json_number(value: f64) -> String {
+    if value.is_finite() { format!("{value}") } else { "null".to_string() }
+}
+
 fn json_string(s: &str) -> String {
     serde_json::to_string(s).expect("a string")
 }
@@ -134,7 +139,17 @@ pub fn json(map: &Map, m: &MachinePlan, fx: &MachineFixed) -> String {
         .iter()
         .map(|r| {
             let format = match r.reg {
-                Reg::In(i) | Reg::Var(i) => format!(", \"format\": {}", json_string(&fx.vars[i].label())),
+                // The range the word was sized for, and where it comes from
+                // (declared, set by a format, a constant's value, derived):
+                // with the format, what the logic of the variable depends on.
+                Reg::In(i) | Reg::Var(i) => format!(
+                    ", \"format\": {}, \"range\": [{}, {}], \"origin\": {}, \"bits\": {}",
+                    json_string(&fx.vars[i].label()),
+                    json_number(fx.vars[i].range.0),
+                    json_number(fx.vars[i].range.1),
+                    json_string(fx.vars[i].origin),
+                    fx.vars[i].width
+                ),
                 _ => String::new(),
             };
             format!(

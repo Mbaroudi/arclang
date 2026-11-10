@@ -24,6 +24,7 @@
 mod c;
 pub mod drift;
 mod fire;
+pub mod logic;
 mod write;
 
 use std::collections::BTreeMap;
@@ -48,6 +49,8 @@ pub struct Variable {
     pub initial_line: Option<usize>,
     /// `from "Machine".variable`, for an input read from another machine.
     pub from: Option<(String, String)>,
+    /// How its word is sized, when the machine is computed by programmable logic.
+    pub sized: Option<logic::Sized>,
     pub line: usize,
 }
 
@@ -110,6 +113,8 @@ pub struct Machine {
     pub name: String,
     /// The identifier of the machine in the C (`overspeed_warning`).
     pub ident: String,
+    /// The machine is computed by programmable logic (a register map says so).
+    pub in_logic: bool,
     pub variables: Vec<Variable>,
     pub states: Vec<State>,
     pub initial: Option<usize>,

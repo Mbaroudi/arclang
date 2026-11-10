@@ -22,12 +22,30 @@ pub(super) fn model(recovered: &Recovered, generated: &Generated) -> String {
         out.push('\n');
         write_machine(&mut out, machine, generated);
     }
+    // The machines of the logic are those of a node of kind "fpga": the
+    // files do not name it, each machine gets one of its own.
+    let in_logic: Vec<&Machine> = recovered.machines.iter().filter(|m| m.in_logic).collect();
+    if !in_logic.is_empty() {
+        out.push_str("\nphysical_architecture \"Recovered hardware\" {\n");
+        for machine in in_logic {
+            out.push_str(&format!("    node {} {{\n        kind: \"fpga\"\n        behavior_component {} {{}}\n    }}\n", quoted(&format!("Logic of {}", machine.name)), quoted(&component(machine))));
+        }
+        out.push_str("}\n");
+    }
     out
+}
+
+/// The component a machine of the logic is the behaviour of.
+fn component(machine: &Machine) -> String {
+    format!("{} logic", machine.name)
 }
 
 fn write_machine(out: &mut String, machine: &Machine, generated: &Generated) {
     out.push_str(&format!("// {}:{}\n", generated.header_name, machine.line));
     out.push_str(&format!("state_machine {} {{\n", quoted(&machine.name)));
+    if machine.in_logic {
+        out.push_str(&format!("    owner: {}\n", quoted(&component(machine))));
+    }
     if !machine.variables.is_empty() {
         out.push_str("    variables: [\n");
         let lines: Vec<String> = machine.variables.iter().map(|v| format!("        {}", quoted(&variable(v)))).collect();
@@ -164,12 +182,22 @@ fn duration(microseconds: u64) -> String {
 /// `in raw: Real [km/h]`, `filtered: Real [km/h] = 0 km/h`.
 fn variable(variable: &Variable) -> String {
     let mut text = String::new();
+    let sized = variable.sized.as_ref();
     if variable.input {
         text.push_str("in ");
+    } else if sized.is_some_and(|s| s.origin == "constant") {
+        text.push_str("const ");
     }
     text.push_str(&format!("{}: {}", variable.name, variable.ty));
     if let Some(unit) = &variable.unit {
         text.push_str(&format!(" [{unit}]"));
+    }
+    // The range a word was sized for, or the format it was set to: the logic follows them.
+    let unit = variable.unit.as_deref().map(|u| format!(" {u}")).unwrap_or_default();
+    match sized {
+        Some(s) if s.origin == "declared" => text.push_str(&format!(" range {}{unit} .. {}{unit}", s.range.0, s.range.1)),
+        Some(s) if s.origin == "set" => text.push_str(&format!(" format {}", s.format)),
+        _ => {}
     }
     if let Some((machine, name)) = &variable.from {
         text.push_str(&format!(" from \"{machine}\".{name}"));

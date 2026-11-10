@@ -83,6 +83,43 @@ survey), among them the power window (regions, a choice, a junction, a
 fork, a join, both histories, a terminate) and the in-flight entertainment
 model imported from Capella (five machines).
 
+## The programmable logic
+
+The VHDL the compiler generates follows the same machines as the C, in
+fixed point: its words are sized from the range of each variable, which the
+C does not hold. The register map written beside the VHDL
+(`<block>_regs.json`) says, for each variable, its format, the range it was
+sized for and where that range comes from (declared, set by a format, the
+value of a constant, derived). With `--hdl`, the machines recovered from the
+C say what the logic needs, and the proof is the same as for the C:
+
+```console
+$ arclang export battery_charger.arc -f c -o c/
+$ arclang export battery_charger.arc -f vhdl -o hdl/
+$ arclang recover c/battery_charger.h --hdl hdl/ --check -o recovered.arc
+✓ Proven: the recovered model generates battery_charger.h and battery_charger.c as they were read
+✓ Proven: the recovered model generates the 8 file(s) of the logic in hdl/ as they were read
+```
+
+The eight files are the VHDL of the machine, its Wishbone wrapper, the
+fixed-point package, the register map (JSON and CSV), the driver and the
+fixed-point C. The recovered model then declares `range 0 V .. 60 V` on a
+variable whose range was declared, `const` on a constant, nothing on a
+variable whose range the compiler derives, and gives each machine of the
+logic a node of kind `fpga`. A statement of the VHDL changed by hand makes
+`--check` fail, with the file and the line.
+
+The logic is read with the C of the same model: the machines are read in the
+C, the VHDL is proven against them. What the files of the logic do not
+hold is not recovered: the device and the clock of the node, its name. A
+word narrower than 32 bits, sized by a `resolution`, is not proven (a note
+says so). A register map written before this version does not say the
+ranges, and is refused with that reason: export the logic again.
+
+The three examples of the repository that generate VHDL (the speed
+monitor's filter, the battery charger, the power window with every
+pseudo-state) are proven, C and logic.
+
 ## Drift: the code as built against the model
 
 `arclang drift <model> <code>` says whether the C as built is still the

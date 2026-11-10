@@ -119,7 +119,7 @@ fn header(generated: &Generated, prefix: &str, recovered: &mut Recovered, names:
             } else if let Some(found) = input.captures(field).filter(|_| &end[2] == "inputs").or_else(|| kept.captures(field).filter(|_| &end[2] == "state")) {
                 let ty = c_type(&found[1]).ok_or_else(|| format!("{}:{number}: a variable of type `{}`, which the generator does not write", generated.header_name, &found[1]))?;
                 names.variables.insert(found[2].to_string(), machine.variables.len());
-                machine.variables.push(Variable { name: found[3].to_string(), ty, unit: found.get(4).map(|u| u.as_str().to_string()), input: &end[2] == "inputs", initial: None, initial_line: None, from: None, line: number });
+                machine.variables.push(Variable { name: found[3].to_string(), ty, unit: found.get(4).map(|u| u.as_str().to_string()), input: &end[2] == "inputs", initial: None, initial_line: None, from: None, sized: None, line: number });
             }
         }
     }
