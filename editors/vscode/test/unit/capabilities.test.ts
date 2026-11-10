@@ -82,7 +82,7 @@ test('every document of the repository is a topic of the guide, by its page or i
 // arclang --help, the commands a user runs (not the internal ones: build, sync, plugin, explorer, repl, clean, info, review).
 const CLI = ['check', 'transition', 'rules', 'format', 'new', 'trace', 'gate', 'diff', 'history', 'merge', 'restore', 'baseline', 'ci',
   'report', 'sarif', 'impact', 'debug', 'verify', 'cosim', 'sil', 'pil', 'hdl', 'soc', 'partition', 'schedule', 'realize', 'twin',
-  'document', 'export', 'import', 'safety', 'serve', 'lsp', 'set', 'rename', 'workbench', 'edit', 'table', 'metamodel', 'diagram'];
+  'document', 'export', 'import', 'safety', 'serve', 'lsp', 'set', 'rename', 'workbench', 'edit', 'table', 'metamodel', 'diagram', 'recover', 'drift'];
 
 test('every command of the command line is in the guide', () => {
   const guide = capabilitiesGuide('desktop');
