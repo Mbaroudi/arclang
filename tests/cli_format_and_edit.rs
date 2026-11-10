@@ -171,3 +171,35 @@ fn rename_changes_the_name_on_the_declaration_line_when_identity_survives() {
     assert!(stderr(&refused).contains("identity"), "{}", stderr(&refused));
     assert_eq!(std::fs::read_to_string(&path).unwrap(), expected);
 }
+
+/// What a region declares is listed twice in the syntax tree (in the region,
+/// and in the flat lists of the machine): one declaration added to a region
+/// is one declaration, not two changes.
+#[test]
+fn a_state_a_start_and_a_transition_are_added_inside_a_region() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("door.arc");
+    std::fs::write(
+        &path,
+        "model \"M\" { version: \"1.0.0\" }\nstate_machine \"Door\" {\n    id: \"SM-DOOR\"\n    region \"Lock\" {\n        initial: \"Locked\"\n        state Locked {}\n    }\n    region \"Leaf\" {\n        initial: \"Closed\"\n        state Closed {}\n    }\n}\n",
+    )
+    .unwrap();
+    let file = path.to_str().unwrap();
+    for request in [
+        r#"{"op":"add","keyword":"state","name":"Unlocked","container":"Lock"}"#,
+        r#"{"op":"add_raw","declaration":"transition Locked -> Unlocked { trigger: \"key\" }","container":"Lock"}"#,
+        r#"{"op":"add","keyword":"state","name":"Which","container":"Leaf","attributes":[["kind","\"choice\""]]}"#,
+    ] {
+        let output = arclang(&["edit", file, "--request", request, "--write"]);
+        assert!(output.status.success(), "{request}: {}{}", stdout(&output), stderr(&output));
+    }
+    let text = std::fs::read_to_string(&path).unwrap();
+    let lock = &text[text.find("region \"Lock\"").unwrap()..text.find("region \"Leaf\"").unwrap()];
+    assert!(lock.contains("state \"Unlocked\" {}") && lock.contains("transition Locked -> Unlocked"), "{text}");
+    assert!(text[text.find("region \"Leaf\"").unwrap()..].contains("kind: \"choice\""), "{text}");
+    assert!(arclang(&["check", file]).status.success(), "{text}");
+    // Removing it again is one declaration too.
+    let output = arclang(&["edit", file, "--request", r#"{"op":"remove","element":"Door.Which"}"#, "--write"]);
+    assert!(output.status.success(), "{}{}", stdout(&output), stderr(&output));
+    assert!(!std::fs::read_to_string(&path).unwrap().contains("Which"));
+}

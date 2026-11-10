@@ -1554,3 +1554,79 @@ diagram "Elsewhere" {
     // The whole view is still there, untouched.
     assert_eq!(names(&view(&set, ViewKind::Lab).nodes), ["Perception", "Decision", "Actuation"]);
 }
+
+/// A machine as it runs: two regions in parallel, a composite state with its
+/// own start, a choice, a timed transition and an activity.
+const REGIONS: &str = r#"
+model "M" { version: "1.0.0" }
+state_machine "Charger" {
+    id: "SM-CHG"
+    region "Charge" {
+        initial: "Idle"
+        state Idle {}
+        state Charging {
+            initial: "Precharge"
+            state Precharge {}
+            state Bulk {}
+            transition Precharge -> Bulk { timing: 200 ms }
+        }
+        state "Which" { kind: "choice" }
+        state "Stop" { kind: "terminate" }
+        transition Idle -> Charging { trigger: "plug" }
+        transition Charging -> "Which" { trigger: "done" }
+        transition "Which" -> Idle { guard: "ok" }
+        transition "Which" -> "Stop" { guard: "else" }
+    }
+    region "Cooling" {
+        initial: "FanOff"
+        state FanOff {}
+        state FanOn { do: "drive fan" }
+        transition FanOff -> FanOn { trigger: "hot" }
+    }
+}
+"#;
+
+#[test]
+fn the_regions_of_a_machine_are_drawn_each_with_its_states_and_its_start() {
+    let set = diagrams_of(REGIONS);
+    let charger = diagram(&set, "msm:Charger");
+    assert!(set.diagnostics.is_empty(), "{:?}", set.diagnostics);
+    assert!(charger.validate().is_empty(), "{:?}", charger.validate());
+
+    // Two regions at the top, and nothing beside them.
+    let top: Vec<(&str, NodeKind)> = charger.nodes.iter().map(|n| (n.name.as_str(), n.kind)).collect();
+    assert_eq!(top, [("Charge", NodeKind::Region), ("Cooling", NodeKind::Region)]);
+    let cooling = &charger.nodes[1];
+    let names: Vec<&str> = cooling.children.iter().filter(|n| n.kind == NodeKind::State).map(|n| n.name.as_str()).collect();
+    assert_eq!(names, ["FanOff", "FanOn"]);
+
+    // Each region starts where it says, and so does the composite state.
+    let starts = |container: &arclang::compiler::diagram::Node| -> Vec<String> {
+        container
+            .children
+            .iter()
+            .filter(|n| n.kind == NodeKind::InitialState)
+            .flat_map(|mark| charger.edges.iter().filter(move |e| e.source == mark.id).map(|e| e.target.clone()))
+            .collect()
+    };
+    assert_eq!(starts(&charger.nodes[0]), [find(&charger.nodes, "Idle").unwrap().id.clone()]);
+    assert_eq!(starts(cooling), [find(&charger.nodes, "FanOff").unwrap().id.clone()]);
+    let charging = find(&charger.nodes, "Charging").unwrap();
+    assert_eq!(starts(charging), [find(&charger.nodes, "Precharge").unwrap().id.clone()]);
+
+    // A state keeps the identity it had before regions were drawn.
+    assert_eq!(find(&charger.nodes, "Idle").unwrap().id, "Charger.Idle");
+}
+
+#[test]
+fn a_pseudo_state_a_timed_transition_and_an_activity_are_shown_as_what_they_are() {
+    let set = diagrams_of(REGIONS);
+    let charger = diagram(&set, "msm:Charger");
+    let which = find(&charger.nodes, "Which").unwrap();
+    assert_eq!(which.kind, NodeKind::PseudoState);
+    assert_eq!(which.properties.get("pseudo").map(String::as_str), Some("choice"));
+    assert_eq!(find(&charger.nodes, "Stop").unwrap().properties.get("pseudo").map(String::as_str), Some("terminate"));
+    assert_eq!(find(&charger.nodes, "FanOn").unwrap().properties.get("do").map(String::as_str), Some("drive fan"));
+    let timed = charger.edges.iter().find(|e| e.id == "tr:Precharge -> Bulk").expect("the timed transition");
+    assert_eq!(timed.label, "after 200 ms");
+}

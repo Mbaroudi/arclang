@@ -38,6 +38,10 @@ const COMPARTMENT_CHAR_WIDTH: f64 = 6.2;
 const VERDICT_ROOM: f64 = 14.0;
 /// Diameter of the filled disc marking a machine's initial state.
 const INITIAL_STATE_SIZE: f64 = 18.0;
+const PSEUDO_BAR_LENGTH: f64 = 72.0;
+const PSEUDO_BAR_THICKNESS: f64 = 8.0;
+const PSEUDO_CHOICE_SIZE: f64 = 30.0;
+const PSEUDO_RING_SIZE: f64 = 26.0;
 const COMPONENT_PORT_SIZE: f64 = 12.0;
 const FUNCTION_PORT_SIZE: f64 = 8.0;
 const PORT_PITCH: f64 = 20.0;
@@ -210,6 +214,15 @@ fn elk_node(node: &Node, wired: &HashSet<&str>) -> Value {
     };
     let (width, height) = if node.kind == NodeKind::InitialState || node.kind == NodeKind::Junction {
         (INITIAL_STATE_SIZE, INITIAL_STATE_SIZE)
+    } else if node.kind == NodeKind::PseudoState {
+        // A notation mark, not a box: a bar for a fork or a join, a diamond
+        // for a choice, a disc or a ring for the others.
+        match node.properties.get("pseudo").map(String::as_str) {
+            Some("fork" | "join") => (PSEUDO_BAR_LENGTH, PSEUDO_BAR_THICKNESS),
+            Some("choice") => (PSEUDO_CHOICE_SIZE, PSEUDO_CHOICE_SIZE),
+            Some("junction") => (INITIAL_STATE_SIZE, INITIAL_STATE_SIZE),
+            _ => (PSEUDO_RING_SIZE, PSEUDO_RING_SIZE),
+        }
     } else if node.kind == NodeKind::Note {
         let widest_line = node.compartment.iter().map(|line| text_width(line, COMPARTMENT_CHAR_WIDTH)).fold(0.0, f64::max);
         (

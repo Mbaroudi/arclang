@@ -8,6 +8,8 @@ import {
   connectTargetKinds,
   connectToolFor,
   createRequest,
+  PALETTE,
+  regionDrawn,
   elementTree,
   ElementRecord,
   graphContainerOf,
@@ -277,4 +279,30 @@ test('a model with nothing to run step by step is told so, not that it does not 
   assert.doesNotMatch(simulated.text, /compile/);
   assert.equal(simulated.action, 'Run simulations', 'a model verified by simulation is offered its simulations');
   assert.equal(nothingToRun(false).action, null);
+});
+
+test('the tools of a machine write pseudo-states with their kind and declare in the selected region', () => {
+  const drawn = regionDrawn;
+  const create = createRequest;
+  const tool = (id: string) => PALETTE.msm.find((t) => t.id === id)!;
+  assert.deepEqual(create(tool('choice'), { view: 'msm', name: 'Which', selected: null, graphContainer: 'SM-1' }), {
+    op: 'add', keyword: 'state', name: 'Which', attributes: [['kind', '"choice"']], container: 'SM-1',
+  });
+  assert.deepEqual(create(tool('region'), { view: 'msm', name: 'Cooling', selected: { id: 'Charger.Charging', kind: 'State' }, graphContainer: 'SM-1' }), {
+    op: 'add', keyword: 'region', name: 'Cooling', container: 'Charger.Charging',
+  });
+  // Every pseudo-state the compiler runs has its tool.
+  for (const kind of ['choice', 'junction', 'fork', 'join', 'shallow_history', 'deep_history', 'entry_point', 'exit_point', 'terminate']) {
+    assert.deepEqual(tool(kind).attributes, [['kind', JSON.stringify(kind)]], kind);
+  }
+  // A region drawn is where a state goes; a state drawn is not a region.
+  const graph = {
+    id: 'msm:Charger', arc: { view: 'msm', title: 'Charger' },
+    children: [{ id: 'Charger.(region Cooling)', arc: { kind: 'region', properties: { region: 'SM-CHG.Cooling' } }, children: [{ id: 'Charger.FanOff', arc: { kind: 'state' } }] }],
+  };
+  const region = drawn(graph, 'Charger.(region Cooling)');
+  assert.deepEqual(region, { id: 'SM-CHG.Cooling', kind: 'Region' });
+  assert.equal(drawn(graph, 'Charger.FanOff'), null);
+  assert.equal(drawn(graph, null), null);
+  assert.deepEqual(create(tool('state'), { view: 'msm', name: 'FanOn', selected: region, graphContainer: 'SM-1' }), { op: 'add', keyword: 'state', name: 'FanOn', container: 'SM-CHG.Cooling' });
 });

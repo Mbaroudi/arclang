@@ -2,7 +2,7 @@
 // row with the palette rail, the canvas and the properties drawer, then one
 // status line. Everything shown comes from the last snapshot the host sent;
 // every change goes back to the host as `arclang edit` requests.
-import { connectTargetKinds, connectToolFor, EditRequest, RelationshipRecord, fragmentRequest, invariantRequest, nextRequirementId, noteRequest, requirementRequests, Tool, VIEWPOINTS, ElementRecord, graphContainerOf, lifelineElement, Metamodel, Snapshot, ToWebview, ViewerEdge } from '../src/pure/workbench';
+import { regionDrawn, connectTargetKinds, connectToolFor, EditRequest, RelationshipRecord, fragmentRequest, invariantRequest, nextRequirementId, noteRequest, requirementRequests, Tool, VIEWPOINTS, ElementRecord, graphContainerOf, lifelineElement, Metamodel, Snapshot, ToWebview, ViewerEdge } from '../src/pure/workbench';
 import { SemanticBrowser } from './browser';
 import { button, clear, el, inlinePrompt } from './dom';
 import type { ViewerApi, ViewerPosition, ViewerSelection } from './globals';
@@ -111,7 +111,8 @@ const notationUi = installNotation({
 });
 
 const palette = new Palette(left, {
-  selected: () => (state.selected ? { id: state.selected.id, kind: state.selected.kind } : null),
+  // A selected region is where a new state goes, though it is no element of the model's list.
+  selected: () => (state.selected ? { id: state.selected.id, kind: state.selected.kind } : regionDrawn(currentGraph(), state.selectedDrawing)),
   submit,
   hint: (text) => showMode(text),
   error: (text) => showToast(`Refused: ${text}`, 'error'),

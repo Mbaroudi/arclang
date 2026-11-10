@@ -1523,6 +1523,9 @@ pub fn library_probe() -> String {
     for (index, function) in ["max", "min"].iter().enumerate() {
         out.push_str(&format!("    attribute call{} = DataFunctions::{}(1, 2);\n", index + 1, function));
     }
+    // The aggregates of a constraint over a chain (`sum(chain, attribute)`, `count(chain)`).
+    out.push_str("    attribute call3 = NumericalFunctions::sum((1, 2));\n");
+    out.push_str("    attribute call4 = SequenceFunctions::size((1, 2));\n");
     out.push_str("    package ArcLangUnits {\n");
     for import in ["MeasurementReferences", "ISQ", "SI"] {
         out.push_str(&format!("        private import {}::*;\n", import));
