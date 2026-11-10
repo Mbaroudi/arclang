@@ -75,6 +75,11 @@ pub struct Model {
     /// checked by `embedded::binding`, used by the generated C glue.
     #[serde(default)]
     pub io_bindings: Vec<IoBinding>,
+    /// How code written by hand relates to a machine of the model
+    /// (`correspondence "Sketch" { ... }`), proven by `arclang prove`
+    /// (`recover::correspondence`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub correspondences: Vec<CorrespondenceDecl>,
     /// `refine "<id>" { ... }`: what this model adds to elements declared
     /// elsewhere (an imported file); applied once the files are merged.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -87,6 +92,13 @@ pub struct Model {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IoBinding {
     pub id: String,
+    pub name: String,
+    pub attributes: HashMap<String, AttributeValue>,
+}
+
+/// `correspondence "Name" { machine: "M" source: "sketch.ino" reads: [...] writes: [...] state: [...] }`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CorrespondenceDecl {
     pub name: String,
     pub attributes: HashMap<String, AttributeValue>,
 }
@@ -136,6 +148,7 @@ impl Model {
             diagrams: Vec::new(),
             tables: Vec::new(), // tables hook
             io_bindings: Vec::new(),
+            correspondences: Vec::new(),
             refinements: Vec::new(),
         }
     }
@@ -181,6 +194,7 @@ impl Model {
             diagrams,
             tables,
             io_bindings,
+            correspondences,
             refinements,
         } = other;
         for (key, value) in attributes {
@@ -213,6 +227,7 @@ impl Model {
         self.diagrams.extend(diagrams);
         self.tables.extend(tables); // tables hook
         self.io_bindings.extend(io_bindings);
+        self.correspondences.extend(correspondences);
         self.refinements.extend(refinements);
     }
 

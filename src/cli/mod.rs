@@ -593,6 +593,34 @@ pub enum Commands {
         hdl: Option<PathBuf>,
     },
 
+    /// Prove that code written by hand is a machine of the model, as each
+    /// `correspondence` of the model says it is: after `setup()` and one
+    /// `loop()` the code and the model correspond, and from any two states
+    /// that correspond one `loop()` and one step leave two that correspond.
+    /// The sources are read beside the model. CBMC and Bitwuzla decide (in
+    /// ArcLang's formal image: tools/embedded/formal). Fails unless every
+    /// correspondence is proven.
+    Prove {
+        #[clap(value_parser)]
+        model: PathBuf,
+
+        /// Only this correspondence
+        #[clap(long, value_name = "NAME")]
+        correspondence: Option<String>,
+
+        /// The seconds the solver is given for each obligation (default 300)
+        #[clap(long, value_name = "SECONDS", default_value_t = 300)]
+        timeout: u64,
+
+        /// Keep the files of the proof in this directory
+        #[clap(long, value_name = "DIR")]
+        keep: Option<PathBuf>,
+
+        /// Print the result as JSON
+        #[clap(long)]
+        json: bool,
+    },
+
     /// What the code as built implements against what the model says. The
     /// machines are read back from the C as built (as `recover` reads them)
     /// and from the C the model generates, and compared: each difference is
@@ -1429,6 +1457,7 @@ impl CliRunner {
             Commands::Partition { input, target, device, clock, machine, dry_run, json } => partition::run(&input, partition::Options { target, device, clock_mhz: clock, machine, dry_run, json }),
             Commands::Schedule { input, target, wcet, prove, cycles, keep, json } => schedule::run(&input, schedule::Options { target, wcet, prove, cycles, keep, json }),
             Commands::Soc { input, test, bitstream, board, no_sim, gate_level, port, keep, json } => self.run_soc(&input, test, bitstream || board.is_some(), board, !no_sim && port.is_none(), gate_level, port, keep, json),
+            Commands::Prove { model, correspondence, timeout, keep, json } => self.run_prove(&model, correspondence.as_deref(), timeout, keep, json),
             Commands::Recover { input, output, check, hdl } => self.run_recover(&input, output.as_deref(), check, hdl.as_deref()),
             Commands::Drift { model, code, hdl, json, prove, timeout } => self.run_drift(&model, &code, hdl.as_deref(), json, prove.then_some(timeout)),
             Commands::Realize { input, requirement, up_to, dry_run, keep_going, board, json } => realize::run(&input, realize::Options { requirement, up_to, dry_run, keep_going, board, json }),
@@ -2087,6 +2116,56 @@ impl CliRunner {
             }
         }
         Ok((header, code))
+    }
+
+    fn run_prove(&self, model: &std::path::Path, only: Option<&str>, seconds: u64, keep: Option<PathBuf>, json: bool) -> Result<(), CliError> {
+        use crate::compiler::recover::correspondence::{self, Outcome};
+        let compiled = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(model).map_err(|e| CliError::Compilation(e.to_string()))?;
+        let base = model.parent().map(std::path::Path::to_path_buf).unwrap_or_default();
+        let work = keep.clone().unwrap_or_else(|| std::env::temp_dir().join(format!("arclang-prove-{}-{}", std::process::id(), crate::compiler::simulation::tool::run_number())));
+        let outcomes = correspondence::prove(&compiled.ast, &base, only, &work, seconds).map_err(CliError::Compilation);
+        if keep.is_none() {
+            let _ = std::fs::remove_dir_all(&work);
+        }
+        let outcomes = outcomes?;
+        if json {
+            let rows: Vec<serde_json::Value> = outcomes.iter().map(|(c, outcome)| serde_json::json!({ "correspondence": c.name, "machine": c.machine, "sources": c.sources, "outcome": outcome })).collect();
+            println!("{}", serde_json::to_string_pretty(&rows).map_err(|e| CliError::Compilation(e.to_string()))?);
+        } else {
+            println!("Proof of {}", model.display());
+            for (c, outcome) in &outcomes {
+                let of = format!("correspondence \"{}\": {} is state_machine \"{}\"", c.name, c.sources.join(", "), c.machine);
+                match outcome {
+                    Outcome::Proven { seconds, period_us, int_bits, unrelated } => {
+                        println!("✓ Proven ({seconds:.1} s) {of}");
+                        println!("    for one loop() a step of {} ms, an int of {int_bits} bits, the pins the correspondence names, and the C subset of the Arduino language", period_us / 1000);
+                        if !unrelated.is_empty() {
+                            println!("    the proof says nothing of {} of the machine: no line of the correspondence speaks of {}", if unrelated.len() == 1 { "this variable" } else { "these variables" }, unrelated.join(", "));
+                        }
+                    }
+                    Outcome::Refuted { obligation, lines, seconds } => {
+                        println!("✗ Refuted ({seconds:.1} s) {of}");
+                        println!("    {}", match obligation.as_str() {
+                            "start" => "after setup() and one loop(), and after init and one step, the code and the model do not correspond",
+                            _ => "from two states that correspond, one loop() and one step can leave two that do not",
+                        });
+                        if lines.is_empty() {
+                            println!("    no line of the correspondence fails alone: the proof could not say which");
+                        }
+                        for line in lines {
+                            println!("    does not hold after it: {line}");
+                        }
+                    }
+                    Outcome::Unknown { reason } => println!("? Neither proven nor refuted: {of}\n    {reason}"),
+                }
+            }
+        }
+        let unproven = outcomes.iter().filter(|(_, outcome)| !matches!(outcome, Outcome::Proven { .. })).count();
+        if unproven == 0 {
+            Ok(())
+        } else {
+            Err(CliError::Compilation(format!("{unproven} of {} correspondence(s) not proven", outcomes.len())))
+        }
     }
 
     fn run_drift(&self, model: &std::path::Path, code: &std::path::Path, hdl: Option<&std::path::Path>, json: bool, prove: Option<u64>) -> Result<(), CliError> {

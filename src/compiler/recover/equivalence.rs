@@ -189,56 +189,89 @@ pub fn prove(generated: &Generated, built: &Generated, work: &Path, seconds: u64
         std::fs::write(&path, text).map_err(|e| format!("cannot write {}: {e}", path.display()))?;
     }
     let started = std::time::Instant::now();
-    let how = "run in ArcLang's formal image: tools/embedded/formal/run.sh";
-    // CBMC: the two programs and the comparison as one formula.
-    let cbmc = tool("ARCLANG_CBMC", "cbmc");
-    let unwind = harness.unwind.to_string();
-    let translated = Command::new(&cbmc)
-        .args(["harness.c", "gen.c", "built.c", "--no-standard-checks", "--unwind", &unwind, "--unwinding-assertions", "--smt2", "--outfile", "equivalence.smt2"])
-        .current_dir(work)
-        .output()
-        .map_err(|e| format!("cannot run '{cbmc}': {e} ({how})"))?;
-    if !work.join("equivalence.smt2").is_file() {
-        let said = format!("{}{}", String::from_utf8_lossy(&translated.stdout), String::from_utf8_lossy(&translated.stderr));
-        let tail: Vec<&str> = said.lines().filter(|l| !l.trim().is_empty()).rev().take(8).collect();
-        return Ok(Equivalence::Unknown { reason: format!("CBMC could not translate the code as built:\n{}", tail.into_iter().rev().collect::<Vec<_>>().join("\n")) });
-    }
-    // Bitwuzla: is there a state and inputs for which a comparison fails?
-    let bitwuzla = tool("ARCLANG_BITWUZLA", "bitwuzla");
-    let limit = format!("{}", seconds.saturating_mul(1000));
-    let answer = Command::new(&bitwuzla).args(["-t", &limit, "equivalence.smt2"]).current_dir(work).output().map_err(|e| format!("cannot run '{bitwuzla}': {e} ({how})"))?;
-    let said = String::from_utf8_lossy(&answer.stdout).into_owned();
+    let answer = decide(work, &["harness.c", "gen.c", "built.c"], &[], harness.unwind, seconds)?;
     let elapsed = started.elapsed().as_secs_f64();
-    match said.lines().next().map(str::trim) {
-        Some("unsat") => Ok(Equivalence::Proven { comparisons: harness.comparisons, seconds: elapsed }),
-        Some("sat") => {
-            // A comparison that fails, or a loop that runs past its bound from
-            // a state no machine has? The same question without the bound's check.
-            let _ = std::fs::remove_file(work.join("equivalence.smt2"));
-            let _ = Command::new(&cbmc)
-                .args(["harness.c", "gen.c", "built.c", "--no-standard-checks", "--unwind", &unwind, "--no-unwinding-assertions", "--smt2", "--outfile", "equivalence.smt2"])
-                .current_dir(work)
-                .output();
-            let within = Command::new(&bitwuzla).args(["-t", &limit, "equivalence.smt2"]).current_dir(work).output().map_err(|e| format!("cannot run '{bitwuzla}': {e} ({how})"))?;
-            let within_said = String::from_utf8_lossy(&within.stdout).into_owned();
-            let elapsed = started.elapsed().as_secs_f64();
-            match within_said.lines().next().map(str::trim) {
-                Some("sat") => Ok(Equivalence::Different { witness: witness(&within_said, generated.header), seconds: elapsed }),
-                Some("unsat") => Ok(Equivalence::Unknown {
-                    reason: format!(
-                        "the two codes agree from every state whose loops end within {} passes, but from some state a loop of one of them runs longer (a count or an index the state holds out of its range): the proof does not cover those states",
-                        harness.unwind
-                    ),
-                }),
-                _ => Ok(Equivalence::Unknown { reason: format!("no answer within {seconds} s") }),
-            }
+    Ok(match answer {
+        Answer::Unsat => Equivalence::Proven { comparisons: harness.comparisons, seconds: elapsed },
+        Answer::Sat(model) => Equivalence::Different { witness: witness(&model, generated.header), seconds: elapsed },
+        Answer::BeyondBound => Equivalence::Unknown {
+            reason: format!(
+                "the two codes agree from every state whose loops end within {} passes, but from some state a loop of one of them runs longer (a count or an index the state holds out of its range): the proof does not cover those states",
+                harness.unwind
+            ),
+        },
+        Answer::Unknown(reason) => Equivalence::Unknown { reason },
+    })
+}
+
+/// What the tools answer to one question.
+pub(super) enum Answer {
+    /// No state and no inputs make a check fail: the proof.
+    Unsat,
+    /// Some do: what the solver says of them.
+    Sat(String),
+    /// The checks hold wherever the loops end within their bound, and from
+    /// some state a loop does not.
+    BeyondBound,
+    /// No answer: why.
+    Unknown(String),
+}
+
+/// Put the C files of `work` and their checks to the tools: CBMC translates
+/// them to one formula (every loop unwound `unwind` times, which is checked),
+/// Bitwuzla decides it within `seconds`.
+pub(super) fn decide(work: &Path, sources: &[&str], flags: &[&str], unwind: usize, seconds: u64) -> Result<Answer, String> {
+    let how = "run in ArcLang's formal image: tools/embedded/formal/run.sh";
+    let cbmc = tool("ARCLANG_CBMC", "cbmc");
+    let bitwuzla = tool("ARCLANG_BITWUZLA", "bitwuzla");
+    let unwind = unwind.to_string();
+    let limit = format!("{}", seconds.saturating_mul(1000));
+    let formula = work.join("equivalence.smt2");
+    let asked = |bound: &str| -> Result<Result<String, String>, String> {
+        let _ = std::fs::remove_file(&formula);
+        let translated = Command::new(&cbmc)
+            .args(sources)
+            .args(flags)
+            .args(["--no-standard-checks", "--unwind", &unwind, bound, "--smt2", "--outfile", "equivalence.smt2"])
+            .current_dir(work)
+            .output()
+            .map_err(|e| format!("cannot run '{cbmc}': {e} ({how})"))?;
+        let said = format!("{}{}", String::from_utf8_lossy(&translated.stdout), String::from_utf8_lossy(&translated.stderr));
+        // A function CBMC has no body for is one it lets do anything and
+        // return anything: its effects would be missed.
+        let no_body = Regex::new(r"no body for (?:function|callee) (\w+)").expect("a pattern of the runner");
+        let missing: Vec<String> = no_body.captures_iter(&said).map(|f| f[1].to_string()).collect::<std::collections::BTreeSet<_>>().into_iter().collect();
+        if !missing.is_empty() {
+            return Ok(Err(format!("the code calls {}, which this proof has no stand-in for", missing.join(", "))));
         }
-        other => Ok(Equivalence::Unknown {
-            reason: match other {
-                Some("unknown") | None => format!("no answer within {seconds} s"),
-                Some(text) => format!("Bitwuzla answered `{text}`"),
-            },
-        }),
+        if !formula.is_file() {
+            let tail: Vec<&str> = said.lines().filter(|l| !l.trim().is_empty()).rev().take(8).collect();
+            return Ok(Err(format!("CBMC could not translate the code:\n{}", tail.into_iter().rev().collect::<Vec<_>>().join("\n"))));
+        }
+        let answer = Command::new(&bitwuzla).args(["-t", &limit, "equivalence.smt2"]).current_dir(work).output().map_err(|e| format!("cannot run '{bitwuzla}': {e} ({how})"))?;
+        Ok(Ok(String::from_utf8_lossy(&answer.stdout).into_owned()))
+    };
+    let first = match asked("--unwinding-assertions")? {
+        Ok(said) => said,
+        Err(reason) => return Ok(Answer::Unknown(reason)),
+    };
+    match first.lines().next().map(str::trim) {
+        Some("unsat") => Ok(Answer::Unsat),
+        Some("sat") => {
+            // A check that fails, or a loop that runs past its bound from a
+            // state out of range? The same question without the bound's check.
+            let within = match asked("--no-unwinding-assertions")? {
+                Ok(said) => said,
+                Err(reason) => return Ok(Answer::Unknown(reason)),
+            };
+            Ok(match within.lines().next().map(str::trim) {
+                Some("sat") => Answer::Sat(within),
+                Some("unsat") => Answer::BeyondBound,
+                _ => Answer::Unknown(format!("no answer within {seconds} s")),
+            })
+        }
+        Some("unknown") | None => Ok(Answer::Unknown(format!("no answer within {seconds} s"))),
+        Some(text) => Ok(Answer::Unknown(format!("Bitwuzla answered `{text}`"))),
     }
 }
 

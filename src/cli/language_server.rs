@@ -460,6 +460,7 @@ const TOP_LEVEL: &[&str] = &[
     "data_type", "exchange_item", "test_case", "constraint", "type", "diagram", "note", "configuration",
     "table", // tables hook
     "io_binding",
+    "correspondence",
 ];
 fn inside(keyword: &str) -> &'static [&'static str] {
     match keyword {
