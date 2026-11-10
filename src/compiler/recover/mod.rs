@@ -17,7 +17,8 @@
 //! What the generated C does not hold cannot be recovered and is listed in
 //! the notes: the regions of a machine (their states are there, their
 //! grouping is not), whether a variable is `out` or `const`, the range of a
-//! variable.
+//! variable. A region is recovered with its states and where it starts; its
+//! name is not in the code, and it is named by its rank.
 
 mod c;
 mod write;
@@ -55,6 +56,8 @@ pub struct State {
     pub activity: Vec<String>,
     /// The sub-state entered with it, when it has some.
     pub initial: Option<String>,
+    /// The kind of pseudo-state it is (`choice`, `deep_history`...), when it is one.
+    pub pseudo: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -74,6 +77,20 @@ pub struct Transition {
     pub line: usize,
 }
 
+/// A region of a machine or of a state: the states that run beside those of
+/// its sibling regions. Its extent is read in the code (what a transition of
+/// the region exits); its name is not in the code.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Region {
+    /// The state that holds it; `None` for a region of the machine.
+    pub owner: Option<usize>,
+    /// The first and the last state of the region, by index.
+    pub first: usize,
+    pub last: usize,
+    /// The state the region starts in.
+    pub initial: Option<usize>,
+}
+
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Machine {
     pub name: String,
@@ -83,6 +100,8 @@ pub struct Machine {
     pub states: Vec<State>,
     pub initial: Option<usize>,
     pub transitions: Vec<Transition>,
+    /// The regions, in the order of their states.
+    pub regions: Vec<Region>,
     /// The equations, as the generator's comments write them.
     pub equations: Vec<String>,
     pub line: usize,

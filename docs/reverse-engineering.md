@@ -12,7 +12,7 @@ Recovered model "SpeedMonitor" from c/speed_monitor.h and c/speed_monitor.c
   state_machine "Wheel speed filter": 1 state(s), 0 transition(s), 3 variable(s), 2 equation(s)
   state_machine "Overspeed warning": 2 state(s), 2 transition(s), 3 variable(s), 0 equation(s)
   Output: recovered.arc
-  note: not in the code: the regions of a machine (its states are recovered, not their grouping), whether a variable is `out` or `const`, the range of a variable
+  note: not in the code: the name of a region (named here by its rank), whether a variable is `out` or `const`, the range of a variable, the priority of a transition
 ✓ Proven: the recovered model generates speed_monitor.h and speed_monitor.c as they were read
 ```
 
@@ -25,6 +25,7 @@ two files. Without `-o` the recovered model is printed.
 |---|---|
 | the machines, their states and the order of the states | the names as the model writes them |
 | where a machine starts, and where a composite state does | the units of the variables |
+| the regions of a machine or of a state, their states and where each starts | the kind of a pseudo-state |
 | the source and the target of each transition | the text of each equation |
 | its guard (`in->v_speed > st->v_on_above` is `speed > on_above`) | the text of each action and condition in prose |
 | the time after which it fires, or the time it has to fire | the name of each event |
@@ -50,19 +51,24 @@ code still computes with `0.25`.
 ## What is not recovered
 
 - **What the C does not hold**: whether a variable is `out` or `const`, the
-  range of a variable, the names of the regions. The recovered model
+  range of a variable, the priority of a transition, the names of the
+  regions (a region is named by its rank: `region "Region 1"`). The recovered model
   generates the same C without them; it is the model the code implements,
   not the file the code was generated from.
 - **The step period**: it comes from the `io_binding` of the model, which
   the machines' C does not hold. It is read and reported, not proven.
-- **Not read yet**: the regions of a machine or of a state (the states are
-  recovered, their grouping is not), histories, junctions, choices, forks
-  and joins, internal transitions. A machine that has them is recovered as
-  far as the reader goes, a note says so, and `--check` does not call it
-  proven.
+- **Not read yet**: the transitions through pseudo-states (histories,
+  junctions, choices, forks and joins: the pseudo-states themselves come
+  back with their kind), internal transitions. A machine that has them is
+  recovered as far as the reader goes, a note says so, and `--check` does
+  not call it proven.
 - **Other code**: C written by hand or by another generator, VHDL, and the
   rest of the model (requirements, architecture, bindings) are not read.
 
-Of the 27 examples of the repository that generate C, 24 are recovered and
+A region is read in the code: a transition exits the states of the region
+it is in, and the states a machine or a state enters together are where its
+regions start.
+
+Of the 27 examples of the repository that generate C, 25 are recovered and
 proven (`cargo test --test recover -- --ignored --nocapture` prints the
-survey); the three others have regions or histories.
+survey); the two others have pseudo-states.

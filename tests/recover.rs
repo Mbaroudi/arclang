@@ -139,13 +139,24 @@ fn the_command_recovers_proves_and_says_what_it_does_not_cover() {
     let drifted = arclang(&["recover", c.to_str().unwrap()]);
     assert!(text(&drifted).contains("guard: \"speed >= on_above\""), "the guard is read in the code: {}", text(&drifted));
 
-    // A machine with regions: recovered as far as the reader goes, and not called proven.
+    // A machine with regions: its regions come back with their states and their starts, proven.
     let c = dir.path().join("charger");
     let model = root.join("examples/energy/battery-charger/battery_charger.arc");
     assert!(arclang(&["export", model.to_str().unwrap(), "-f", "c", "-o", c.to_str().unwrap()]).status.success());
-    let regions = arclang(&["recover", c.to_str().unwrap(), "--check", "-o", dir.path().join("charger.arc").to_str().unwrap()]);
-    assert!(!regions.status.success(), "{}", text(&regions));
-    assert!(text(&regions).contains("it has regions, which this reader does not recover yet") && text(&regions).contains("Not proven"), "{}", text(&regions));
+    let charger = dir.path().join("charger.arc");
+    let regions = arclang(&["recover", c.join("battery_charger.h").to_str().unwrap(), "--check", "-o", charger.to_str().unwrap()]);
+    assert!(regions.status.success(), "{}", text(&regions));
+    let recovered = std::fs::read_to_string(&charger).unwrap();
+    assert_eq!(recovered.matches("region \"Region ").count(), 2, "{recovered}");
+    assert!(recovered.contains("initial: \"FanOff\"") && recovered.contains("transition \"Precharge\" -> \"Bulk\" { timing: 200 ms }"), "{recovered}");
+
+    // A machine with pseudo-states: recovered as far as the reader goes, and not called proven.
+    let c = dir.path().join("window");
+    let model = root.join("examples/automotive/power-window/power_window.arc");
+    assert!(arclang(&["export", model.to_str().unwrap(), "-f", "c", "-o", c.to_str().unwrap()]).status.success());
+    let window = arclang(&["recover", c.join("power_window.h").to_str().unwrap(), "--check", "-o", dir.path().join("window.arc").to_str().unwrap()]);
+    assert!(!window.status.success(), "{}", text(&window));
+    assert!(text(&window).contains("has pseudo-states (") && text(&window).contains("Not proven"), "{}", text(&window));
 
     // A directory with no generated C.
     let nothing = arclang(&["recover", dir.path().to_str().unwrap()]);
