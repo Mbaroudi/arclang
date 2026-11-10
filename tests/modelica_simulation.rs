@@ -635,7 +635,7 @@ fn openmodelica_checks_the_snapshots_a_case_names() {
     let (_dir, model) = demo_copy();
     let text = std::fs::read_to_string(&model).unwrap();
     // The pack is full at the start; it is not still full an hour later.
-    let node = "        auxiliary_load: 2.5 kW\n";
+    let node = "        auxiliary_load: 400 W\n";
     assert!(text.contains(node));
     let text = text.replacen(node, &format!("{node}        snapshot \"Charged\" {{ at: 0 s soc: 1 }}\n        snapshot \"Still full\" {{ at: 1 h soc: 1 }}\n"), 1);
     let case = "    expects: [\"final(vehicleBody.distance) >= 300 km\", \"min(\\\"PN-BATT\\\".soc) >= 0.1\"]\n}";

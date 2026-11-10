@@ -7,7 +7,6 @@
 
 use super::semantic::{SemanticModel, ComponentInfo};
 use super::CompilerError;
-use std::collections::HashMap;
 
 pub fn generate_terraform_databricks(
     model: &SemanticModel,
@@ -381,7 +380,7 @@ data "databricks_node_type" "smallest" {
     output
 }
 
-fn generate_jobs_and_workflows(model: &SemanticModel, _config: &TerraformConfig) -> String {
+fn generate_jobs_and_workflows(_model: &SemanticModel, _config: &TerraformConfig) -> String {
     let mut output = String::new();
     output.push_str(
 r#"# ═══════════════════════════════════════════════════════════════════════════
@@ -475,7 +474,7 @@ resource "databricks_job" "data_migration" {
     output
 }
 
-fn generate_storage_resources(model: &SemanticModel, config: &TerraformConfig) -> String {
+fn generate_storage_resources(_model: &SemanticModel, config: &TerraformConfig) -> String {
     let mut output = String::new();
     
     if !matches!(config.cloud_provider, CloudProvider::AWS) {
@@ -711,7 +710,7 @@ resource "databricks_system_schema" "audit_logs" {
     output
 }
 
-fn generate_monitoring_resources(model: &SemanticModel, config: &TerraformConfig) -> String {
+fn generate_monitoring_resources(_model: &SemanticModel, config: &TerraformConfig) -> String {
     if !config.enable_monitoring {
         return String::new();
     }

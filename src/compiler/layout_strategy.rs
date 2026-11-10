@@ -8,7 +8,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 
 use crate::compiler::semantic_analyzer::{
-    ArcadiaPhase, ElementClassification, ElementType, SemanticContext,
+    ArcadiaPhase, ElementClassification, SemanticContext,
 };
 
 /// Layout strategy trait - all strategies must implement this

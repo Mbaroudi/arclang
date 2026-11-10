@@ -261,3 +261,31 @@ fn an_arclang_model_exports_through_capella() {
     let again = pivot::read(&machines.pivot, Path::new(".")).unwrap();
     assert_eq!(script(&again).unwrap(), machines.script);
 }
+
+#[test]
+fn a_text_with_a_quote_stays_one_matlab_text() {
+    use arclang::compiler::simulink_connector::export;
+    let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/examples/automotive/remote-start/remote_start_architecture.arc"));
+    let result = arclang::Compiler::new(arclang::CompilerConfig::default()).compile_file(path).unwrap();
+    let exported = arclang::compiler::capella_export::export(&result.ast, "remote_start");
+    let model = Model::from_strings(&[("remote_start.capella", exported.capella.as_str()), ("remote_start.aird", exported.aird.as_str())]).unwrap();
+    let machines = export::export(&model, Strategy::StateMachines, &[], &Options::default()).unwrap();
+    let mut pivot = pivot::read(&machines.pivot, Path::new(".")).unwrap();
+    let hostile = "driver's request'); system('touch owned'); disp('\nsystem('second line')";
+    let mut written = 0;
+    for o in &mut pivot.objs {
+        for field in [&mut o.description, &mut o.condition, &mut o.event, &mut o.entry, &mut o.id] {
+            if field.as_deref().is_some_and(|text| !text.is_empty()) {
+                *field = Some(hostile.to_string());
+                written += 1;
+            }
+        }
+    }
+    assert!(written > 0, "the model has texts to write");
+    let script = script(&pivot).unwrap();
+    assert!(script.contains("driver''s request''); system(''touch owned''); disp('' system(''second line'')"), "{script}");
+    for line in script.lines() {
+        assert!(line.matches('\'').count() % 2 == 0, "a quote is left open: {line}");
+        assert!(!line.trim_start().starts_with("system("), "a text became a statement: {line}");
+    }
+}

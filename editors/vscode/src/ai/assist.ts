@@ -328,6 +328,20 @@ export async function runAsk(
   }
 }
 
+/** The files of the session's proposal that would replace a file already there with another content, by path. */
+export async function replacedFiles(sessionId: string): Promise<string[]> {
+  const live = sessions.get(sessionId);
+  const replaced: string[] = [];
+  if (!live?.proposal) return replaced;
+  const folder = vscode.Uri.joinPath(live.document.uri, '..');
+  for (const file of live.proposal.files ?? []) {
+    const existing = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(folder, ...file.path.split('/'))).then((b) => new TextDecoder().decode(b), () => null);
+    const content = file.content.endsWith('\n') ? file.content : `${file.content}\n`;
+    if (existing !== null && existing !== content) replaced.push(file.path);
+  }
+  return replaced;
+}
+
 /** Apply the session's proposal to the document: one undoable edit, checked again on the text as it is now. */
 export async function applySession(sessionId: string): Promise<{ ok: boolean; error?: string; files?: WrittenFile[] }> {
   const live = sessions.get(sessionId);

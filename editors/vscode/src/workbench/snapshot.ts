@@ -14,6 +14,11 @@ interface Cached {
 
 const cache = new Map<string, Cached>();
 const pending = new Map<string, Promise<Snapshot>>();
+/** The folders whose verdicts are watched, and how one more is (set once the refresh is registered). */
+const watched = new Map<string, vscode.Disposable>();
+let watchVerdicts: (folder: string) => void = () => undefined;
+/** Documents whose verdicts changed while their snapshot was being computed. */
+const overtaken = new Set<string>();
 const emitter = new vscode.EventEmitter<vscode.Uri>();
 
 /** Fires when a document's snapshot changed. */
@@ -50,11 +55,14 @@ export function snapshotOf(document: vscode.TextDocument): Promise<Snapshot> {
   const running = pending.get(key);
   if (running) return running;
   const version = document.version;
+  overtaken.delete(key);
+  if (document.uri.scheme === 'file') watchVerdicts(path.dirname(document.uri.fsPath));
   // Every outcome is cached for the version, a refusal too: the views refresh
   // when a snapshot arrives, and one that is never cached is asked again, and again.
   const work = (async () => {
     const snapshot = await compute(document);
-    cache.set(key, { version, snapshot });
+    // Verdicts written meanwhile are not in it: it is given, not kept.
+    if (!overtaken.delete(key)) cache.set(key, { version, snapshot });
     return snapshot;
   })();
   pending.set(key, work);
@@ -92,10 +100,48 @@ export async function metamodelJson(): Promise<Metamodel | null> {
   return value;
 }
 
+/**
+ * The verdicts a command wrote beside a model (`.arclang/sim-cache`, by a
+ * simulation, a SIL or an HDL run in a terminal) change what the gate and the
+ * requirements say of it, though its text did not change: the snapshots of the
+ * documents of that folder are forgotten and their views told.
+ */
+function verdictsChanged(folder: string): void {
+  for (const document of vscode.workspace.textDocuments) {
+    if (!isModelDocument(document) || document.uri.scheme !== 'file' || path.dirname(document.uri.fsPath) !== folder) continue;
+    const key = document.uri.toString();
+    if (pending.has(key)) overtaken.add(key);
+    if (cache.delete(key) || pending.has(key)) emitter.fire(document.uri);
+  }
+}
+
 /** Recompute snapshots as documents change, after a short pause in typing. */
 export function registerSnapshotRefresh(context: vscode.ExtensionContext, delayMs = 400): void {
   const timers = new Map<string, NodeJS.Timeout>();
+  const settle = new Map<string, NodeJS.Timeout>();
+  // A run writes several verdicts: the views are told once it has.
+  const changedIn = (folder: string) => () => {
+    const previous = settle.get(folder);
+    if (previous) clearTimeout(previous);
+    settle.set(folder, setTimeout(() => {
+      settle.delete(folder);
+      verdictsChanged(folder);
+    }, delayMs));
+  };
+  // The folder of each model a snapshot was asked for is watched, in a
+  // workspace folder or not.
+  watchVerdicts = (folder: string) => {
+    if (watched.has(folder)) return;
+    const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.file(folder), '.arclang/sim-cache/**'));
+    const changed = changedIn(folder);
+    watched.set(folder, vscode.Disposable.from(watcher, watcher.onDidChange(changed), watcher.onDidCreate(changed), watcher.onDidDelete(changed)));
+  };
   context.subscriptions.push(
+    new vscode.Disposable(() => {
+      watchVerdicts = () => undefined;
+      for (const watcher of watched.values()) watcher.dispose();
+      watched.clear();
+    }),
     vscode.workspace.onDidChangeTextDocument((event) => {
       if (!isModelDocument(event.document)) return;
       const key = event.document.uri.toString();

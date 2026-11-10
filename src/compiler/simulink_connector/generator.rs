@@ -26,7 +26,7 @@ pub fn script(pivot: &Pivot) -> Result<String, String> {
     if !errors.is_empty() {
         return Err(std::iter::once("Model validation failed:".to_string()).chain(errors).collect::<Vec<_>>().join("\n"));
     }
-    let mut generator = Generator { p: pivot.clone(), sb: String::new(), visited: Vec::new(), used: Vec::new() };
+    let mut generator = Generator { p: between_quotes(pivot), sb: String::new(), visited: Vec::new(), used: Vec::new() };
     for root in pivot.roots.clone() {
         match generator.p[root].kind {
             Kind::Project => generator.project(root)?,
@@ -45,6 +45,41 @@ struct Generator {
     visited: Vec<usize>,
     /// The variables put in the base workspace, as a Java `HashSet` keeps them.
     used: Vec<String>,
+}
+
+/// The pivot with every text the script writes between quotes made a text
+/// MATLAB reads as one: a quote doubled, a line break a space. A description
+/// such as `driver's request`, or one that closes its quote and goes on,
+/// would otherwise end the string and be run as statements. Names are not
+/// touched: the script writes them normalized.
+fn between_quotes(pivot: &Pivot) -> Pivot {
+    fn safe(text: &mut Option<String>) {
+        if let Some(text) = text {
+            *text = quoted_text(text);
+        }
+    }
+    fn safe_value(value: &mut Value) {
+        match value {
+            Value::Primitive(spec) => safe(spec),
+            Value::Multiple(values) => values.iter_mut().for_each(safe_value),
+            Value::Other => {}
+        }
+    }
+    let mut pivot = pivot.clone();
+    for o in &mut pivot.objs {
+        for field in [&mut o.id, &mut o.description, &mut o.source, &mut o.file_name, &mut o.event, &mut o.condition, &mut o.action, &mut o.comment, &mut o.entry, &mut o.during, &mut o.exit, &mut o.initial_value, &mut o.unit] {
+            safe(field);
+        }
+        for (key, value) in &mut o.params {
+            *key = quoted_text(key);
+            safe_value(value);
+        }
+    }
+    pivot
+}
+
+fn quoted_text(text: &str) -> String {
+    text.replace('\'', "''").replace(['\r', '\n'], " ")
 }
 
 fn quote(text: &str) -> String {
@@ -830,7 +865,7 @@ impl Generator {
         };
         self.say(format!("myVar = Stateflow.{class}(ch);"));
         let o = self.p[symbol].clone();
-        self.say(format!("myVar.Name = '{}';", text(&o.name)));
+        self.say(format!("myVar.Name = '{}';", quoted_text(&text(&o.name))));
         self.say(format!("myVar.Scope = '{}';", o.scope));
         if !empty(&o.description) {
             self.say(format!("myVar.Description = '{}';", text(&o.description)));

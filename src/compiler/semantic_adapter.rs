@@ -16,7 +16,7 @@ impl SemanticAdapter {
         let mut relationships = Vec::new();
         
         // Convert components to semantic elements
-        for (idx, comp) in model.components.iter().enumerate() {
+        for comp in model.components.iter() {
             let element_type = Self::infer_capella_type(comp, dimension);
             let layer = Self::infer_layer(dimension);
             

@@ -182,7 +182,6 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
         Some(e) => epbs::write(&context, e, &project_id),
         None => El::new("ownedArchitectures", "epbs:EPBSArchitecture", &derived(&format!("{project_id}:epbs"))).attr("name", "EPBS Architecture"),
     };
-    let epbs_id = epbs_el.id().to_string();
     // A level realizes the one above it when both are there.
     let kept = |level: &str| match model.attributes.get("capella_levels") {
         Some(crate::compiler::ast::AttributeValue::List(levels)) => levels.iter().any(|l| l.as_string() == Some(level)),

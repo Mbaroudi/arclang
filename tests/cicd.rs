@@ -510,7 +510,7 @@ fn slow(repo: &Repo) {
 fn a_new_blocker_fails_the_report_and_matches_its_goldens() {
     let repo = Repo::with_model();
     repo.branch("slow", slow);
-    let (md, out) = report(&repo, &["--out-dir", "out", "--output", "out/report.md", "--note", "Pictures: see the artifact."]);
+    let (_md, out) = report(&repo, &["--out-dir", "out", "--output", "out/report.md", "--note", "Pictures: see the artifact."]);
     assert_eq!(out.status.code(), Some(1), "a new blocker is a non-zero exit: {}", text(&out));
     let md = std::fs::read_to_string(repo.file("out/report.md")).unwrap();
     assert!(md.starts_with("<!-- arclang-pr-report -->\n"), "the hidden marker is first");

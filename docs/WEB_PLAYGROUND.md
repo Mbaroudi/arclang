@@ -93,7 +93,7 @@ in the wasm; the work is the export and the glue):
 | `impact` and `diff` | 1 day each: both take two models; the diff needs the old text (VS Code's git is absent in the browser: compare with the saved copy) |
 | exports (ReqIF, C headers, Protobuf, HTML dossier, Mermaid, PlantUML, json/yaml/xml) | 0.5 day for the ones the snapshot already renders (`exports: true`), 1 day for the rest |
 | `diagram -f html` standalone page | 0.5 day: not needed, the workbench replaces it (the command opens the workbench) |
-| Capella import (`.capella`, XMI) | 2 days: needs a zip/deflate in the worker, and `capella_importer` on text |
+| Capella import (`.capella`, XMI) | 2 days: needs a zip/deflate in the worker, and the Capella import on text |
 | `verify` | not feasible as is: it runs external tools (simulation, SAT); a server tier |
 | PowerPoint and image exports of the workbench | 1 day: needs `zlib.deflateRawSync`, replace by `fflate` (MIT, 8 kB) |
 | Models of several files (`import "..."`) | 1.5 days: the wasm needs a virtual file resolver fed by `vscode.workspace.fs` |

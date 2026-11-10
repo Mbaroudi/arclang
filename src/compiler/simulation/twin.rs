@@ -896,7 +896,7 @@ pub fn cache(result: &CompilationResult, model_path: &Path, twin: &Twin, outcome
 
 pub(crate) fn work_dir() -> Result<PathBuf, String> {
     let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.subsec_nanos()).unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!("arclang-twin-{}-{nanos}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("arclang-twin-{}-{nanos}-{}", std::process::id(), super::tool::run_number()));
     std::fs::create_dir_all(dir.join("sources")).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
     Ok(dir)
 }

@@ -24,6 +24,9 @@ pub struct PlantUMLModel {
     pub packages: HashMap<String, Vec<String>>,
 }
 
+/// The arrows of a relation, the longest first.
+const ARROWS: [&str; 4] = ["-->", "..>", "->", ".>"];
+
 pub struct PlantUMLImporter;
 
 impl PlantUMLImporter {
@@ -46,7 +49,7 @@ impl PlantUMLImporter {
                 continue;
             } else if trimmed.starts_with("@enduml") {
                 break;
-            } else if trimmed.contains("start") || trimmed.contains("stop") {
+            } else if trimmed == "start" || trimmed == "stop" {
                 diagram_type = "activity".to_string();
             } else if trimmed.starts_with("package ") || trimmed.starts_with("node ") || 
                       trimmed.starts_with("cloud") || trimmed.starts_with("database ") ||
@@ -60,7 +63,15 @@ impl PlantUMLImporter {
                 if let Some(activity) = self.parse_activity(trimmed, &mut component_id_counter) {
                     components.push(activity);
                 }
+            } else if ARROWS.iter().any(|arrow| trimmed.contains(arrow)) {
+                if let Some(rel) = self.parse_relation(trimmed) {
+                    relations.push(rel);
+                }
             } else if trimmed.contains("[") && trimmed.contains("]") {
+                let declared = self.extract_component_name(trimmed);
+                if components.iter().any(|c: &PlantUMLComponent| c.name == declared) {
+                    continue;
+                }
                 if let Some(comp) = self.parse_component(trimmed, &current_package, &mut component_id_counter) {
                     if let Some(ref pkg) = current_package {
                         if let Some(components_list) = packages.get_mut(pkg) {
@@ -69,13 +80,19 @@ impl PlantUMLImporter {
                     }
                     components.push(comp);
                 }
-            } else if trimmed.contains("-->") || trimmed.contains("->") {
-                if let Some(rel) = self.parse_relation(trimmed) {
-                    relations.push(rel);
-                }
             }
         }
         
+        // A component a relation names without declaring it is one all the same.
+        for relation in &relations {
+            for name in [&relation.from, &relation.to] {
+                if !name.is_empty() && !components.iter().any(|c| &c.name == name || &c.id == name) {
+                    components.push(PlantUMLComponent { id: format!("LC-{:03}", component_id_counter), name: name.clone(), component_type: "Logical".to_string(), parent: None });
+                    component_id_counter += 1;
+                }
+            }
+        }
+
         Ok(PlantUMLModel {
             diagram_type,
             components,
@@ -151,13 +168,7 @@ impl PlantUMLImporter {
     }
     
     fn parse_relation(&self, line: &str) -> Option<PlantUMLRelation> {
-        let arrow = if line.contains("-->") {
-            "-->"
-        } else if line.contains("->") {
-            "->"
-        } else {
-            return None;
-        };
+        let arrow = *ARROWS.iter().find(|arrow| line.contains(*arrow))?;
         
         let parts: Vec<&str> = line.split(arrow).collect();
         if parts.len() != 2 {
@@ -165,7 +176,10 @@ impl PlantUMLImporter {
         }
         
         let from = self.extract_component_name(parts[0].trim());
-        let to = self.extract_component_name(parts[1].trim());
+        // What follows the target is the label of the arrow (`A --> B : powers`).
+        let target = parts[1].trim();
+        let target = if target.starts_with('[') { target } else { target.split(':').next().unwrap_or(target) };
+        let to = self.extract_component_name(target);
         
         Some(PlantUMLRelation {
             from,
@@ -269,4 +283,22 @@ pub fn import_plantuml(content: &str) -> Result<String, CompilerError> {
     
     let generator = PlantUMLArcLangGenerator::new();
     generator.generate(&model)
+}
+
+#[cfg(test)]
+mod start_stop_tests {
+    use super::PlantUMLImporter;
+
+    #[test]
+    fn a_component_named_with_start_or_stop_is_a_component() {
+        let model = PlantUMLImporter::new().import("@startuml\n[Starter motor]\n[Stop lamp]\n[Starter motor] --> [Stop lamp]\n@enduml\n").unwrap();
+        assert_eq!(model.diagram_type, "component");
+        assert_eq!(model.components.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), ["Starter motor", "Stop lamp"]);
+        assert_eq!(model.relations.len(), 1);
+        let dotted = PlantUMLImporter::new().import("@startuml\n[Stop lamp] ..> [Body ECU] : reports\nA --> B : powers\n@enduml\n").unwrap();
+        assert_eq!(dotted.components.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), ["Stop lamp", "Body ECU", "A", "B"]);
+        assert_eq!(dotted.relations.iter().map(|r| (r.from.as_str(), r.to.as_str())).collect::<Vec<_>>(), [("Stop lamp", "Body ECU"), ("A", "B")]);
+        let activity = PlantUMLImporter::new().import("@startuml\nstart\n:Read sensor;\nstop\n@enduml\n").unwrap();
+        assert_eq!(activity.diagram_type, "activity");
+    }
 }

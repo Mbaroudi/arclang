@@ -40,6 +40,18 @@ jobs:
       - name: Run doc tests
         run: cargo test --doc
 
+      # The compiler, the tests and the benches compile without a warning.
+      # What the test step built is not built again: cargo prints the
+      # warnings it kept.
+      - name: No compiler warning
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cargo build --all-targets 2>&1 | tee build.log
+          if grep -q '^warning' build.log; then
+            echo "::error::the build has compiler warnings"
+            exit 1
+          fi
+
   # The embedded chain's checks that need cppcheck (MISRA addon) and fmpy,
   # pinned in tools/embedded/Dockerfile: run in that image.
   embedded:
@@ -357,6 +369,7 @@ jobs:
 # NOTE (v3 honesty policy): the previous workflow ran `cargo clippy -- -D
 # warnings`, cargo-tarpaulin coverage, and a "safety analysis" job that
 # uploaded PDF/CSV artifacts the CLI never produced. They are removed until
-# they can actually pass: clippy cleanup is tracked for M2+, coverage will
+# they can actually pass: the build is free of compiler warnings and CI keeps
+# it so; clippy cleanup is tracked for M2+, coverage will
 # return with cargo-llvm-cov, and safety reports will return when
 # `arclang safety --report` is implemented for real.

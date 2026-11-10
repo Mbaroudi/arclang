@@ -37,7 +37,7 @@ const LAYER_FORMS: &[(&str, &str, Option<&str>)] = &[
 ];
 
 /// Where a created element is declared.
-enum Place {
+pub(super) enum Place {
     Layer { keyword: &'static str, name: Option<String> },
     /// Inside an element, by each way the text may know it.
     Inside(Vec<String>),

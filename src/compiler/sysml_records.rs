@@ -300,7 +300,7 @@ impl<'d> Builder<'d> {
     fn bounds(&mut self, index: usize, object: &mut Map<String, Value>) {
         let Some((lower, upper)) = self.declarations[index].bounds else { return };
         let range_id = self.ids[index].clone();
-        let mut literal = |builder: &mut Builder, role: &str, value: Option<u64>| -> String {
+        let literal = |builder: &mut Builder, role: &str, value: Option<u64>| -> String {
             let id = element_uuid("sysml-expression", &format!("{}|{}", range_id, role));
             let membership = element_uuid("sysml-relationship", &format!("OwningMembership|{}|{}", range_id, role));
             let (metaclass, value) = match value {
