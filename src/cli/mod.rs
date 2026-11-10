@@ -601,6 +601,12 @@ pub enum Commands {
         #[clap(value_parser)]
         code: PathBuf,
 
+        /// The VHDL as built too: the directory `arclang export -f vhdl` wrote
+        /// (the VHDL, the register map, the driver, the fixed-point C), each
+        /// file against the one the model generates
+        #[clap(long, value_name = "DIR")]
+        hdl: Option<PathBuf>,
+
         /// Print the result as JSON
         #[clap(long)]
         json: bool,
@@ -1403,7 +1409,7 @@ impl CliRunner {
             Commands::Schedule { input, target, wcet, prove, cycles, keep, json } => schedule::run(&input, schedule::Options { target, wcet, prove, cycles, keep, json }),
             Commands::Soc { input, test, bitstream, board, no_sim, gate_level, port, keep, json } => self.run_soc(&input, test, bitstream || board.is_some(), board, !no_sim && port.is_none(), gate_level, port, keep, json),
             Commands::Recover { input, output, check } => self.run_recover(&input, output.as_deref(), check),
-            Commands::Drift { model, code, json } => self.run_drift(&model, &code, json),
+            Commands::Drift { model, code, hdl, json } => self.run_drift(&model, &code, hdl.as_deref(), json),
             Commands::Realize { input, requirement, up_to, dry_run, keep_going, board, json } => realize::run(&input, realize::Options { requirement, up_to, dry_run, keep_going, board, json }),
             Commands::Twin { input, twin, json, list, live, for_seconds } => {
                 if live {
@@ -2062,7 +2068,7 @@ impl CliRunner {
         Ok((header, code))
     }
 
-    fn run_drift(&self, model: &std::path::Path, code: &std::path::Path, json: bool) -> Result<(), CliError> {
+    fn run_drift(&self, model: &std::path::Path, code: &std::path::Path, hdl: Option<&std::path::Path>, json: bool) -> Result<(), CliError> {
         use crate::compiler::recover;
         let design = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(model).map_err(|e| CliError::Compilation(e.to_string()))?;
         let (header_path, code_path) = Self::generated_c(code)?;
@@ -2071,13 +2077,40 @@ impl CliRunner {
         let name = |path: &std::path::Path| path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         let (header_name, code_name) = (name(&header_path), name(&code_path));
         let built = recover::Generated { header_name: &header_name, header: &header, code_name: &code_name, code: &source };
-        let drift = recover::drift::drift(&design.ast, &built).map_err(CliError::Compilation)?;
+        let mut drift = recover::drift::drift(&design.ast, &built).map_err(CliError::Compilation)?;
+        // The other files of the export, beside the machines': the I/O
+        // interface, the glue of each binding, the host implementation.
+        let beside = |dir: &std::path::Path| {
+            let dir = dir.to_path_buf();
+            move |name: &str| std::fs::read_to_string(dir.join(name)).ok()
+        };
+        let code_dir = header_path.parent().map(std::path::Path::to_path_buf).unwrap_or_default();
+        let (c_files, _) = crate::compiler::embedded::export(&design.ast).map_err(CliError::Compilation)?;
+        drift.files = recover::drift::files(&c_files, &[header_name.as_str(), code_name.as_str()], &beside(&code_dir));
+        // The programmable logic, when its directory is given: every file the model generates for it.
+        if let Some(dir) = hdl {
+            if !dir.is_dir() {
+                return Err(CliError::Compilation(format!("{} is not a directory: --hdl takes the directory `arclang export -f vhdl` wrote", dir.display())));
+            }
+            let (hdl_files, _) = crate::compiler::embedded::hdl::export(&design.ast).map_err(|e| CliError::Compilation(format!("the model generates no VHDL to compare with: {e}")))?;
+            let mut compared = recover::drift::files(&hdl_files, &[], &beside(dir));
+            if compared.iter().all(|file| file.missing) {
+                return Err(CliError::Compilation(format!("{} holds none of the files the model generates for the logic ({})", dir.display(), hdl_files.iter().map(|(name, _)| name.as_str()).collect::<Vec<_>>().join(", "))));
+            }
+            for file in &mut compared {
+                file.file = dir.join(&file.file).display().to_string();
+            }
+            drift.files.extend(compared);
+        }
         if json {
             println!("{}", serde_json::to_string_pretty(&drift).map_err(|e| CliError::Compilation(e.to_string()))?);
         } else {
             println!("Drift of {} and {} against {}", header_path.display(), code_path.display(), model.display());
-            if drift.identical {
-                println!("✓ No drift: the code is, byte for byte, the code the model generates");
+            let compared = drift.files.iter().filter(|file| !file.missing).count();
+            if drift.identical && drift.none() {
+                println!("✓ No drift: the machines' code is, byte for byte, the code the model generates{}", if compared > 0 { format!(", and so are the {compared} other file(s) compared") } else { String::new() });
+            } else if drift.identical {
+                println!("  The machines' code is, byte for byte, the code the model generates.");
             } else if drift.none() {
                 println!("✓ No drift: the machines of the code are those of the model, and every line of the code is explained by them");
             }
@@ -2100,15 +2133,29 @@ impl CliRunner {
                 for (file, line, text) in &drift.unexplained {
                     println!("    {file}:{line}: {text}");
                 }
-                if drift.unexplained_lines > drift.unexplained.len() {
-                    println!("    ... ({} more)", drift.unexplained_lines - drift.unexplained.len());
+            }
+            for file in drift.files.iter().filter(|file| file.differs()) {
+                println!("    ✗ {}:{}: {} line(s) of the file as built where the model generates {}", file.file, file.line, file.built.len(), file.generated.len());
+                for line in &file.built {
+                    println!("        built: {line}");
                 }
+                for line in &file.generated {
+                    println!("        model: {line}");
+                }
+            }
+            for file in drift.files.iter().filter(|file| file.missing) {
+                println!("  note: {} is not among the files as built: not compared", file.file);
             }
         }
         if drift.none() {
             Ok(())
         } else {
-            Err(CliError::Compilation(format!("the code has drifted from the model: {} difference(s) in its machines, {} line(s) they do not explain", drift.findings.len(), drift.unexplained_lines)))
+            let files = drift.files.iter().filter(|file| file.differs()).count();
+            Err(CliError::Compilation(format!(
+                "the code has drifted from the model: {} difference(s) in its machines, {} line(s) they do not explain, {files} other file(s) that differ",
+                drift.findings.len(),
+                drift.unexplained_lines
+            )))
         }
     }
 

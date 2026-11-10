@@ -35,7 +35,7 @@ fn the_code_the_model_generates_has_not_drifted() {
     let (_dir, model, c) = built(SPEED_MONITOR);
     let same = arclang(&["drift", model.to_str().unwrap(), c.to_str().unwrap()]);
     assert!(same.status.success(), "{}", text(&same));
-    assert!(text(&same).contains("No drift: the code is, byte for byte, the code the model generates"), "{}", text(&same));
+    assert!(text(&same).contains("No drift: the machines' code is, byte for byte, the code the model generates"), "{}", text(&same));
 }
 
 #[test]
@@ -108,4 +108,56 @@ fn every_example_is_without_drift_from_its_own_code() {
         let same = arclang(&["drift", model.to_str().unwrap(), header.to_str().unwrap()]);
         assert!(same.status.success(), "{example}: {}", text(&same));
     }
+}
+
+#[test]
+fn every_file_the_model_generates_is_compared_the_io_layer_and_the_vhdl_too() {
+    let (dir, model, c) = built(SPEED_MONITOR);
+    let hdl = dir.path().join("hdl");
+    let exported = arclang(&["export", model.to_str().unwrap(), "-f", "vhdl", "-o", hdl.to_str().unwrap()]);
+    assert!(exported.status.success(), "{}", text(&exported));
+
+    // Untouched: the machines, the I/O layer, the host files and the logic are the model's.
+    let same = arclang(&["drift", model.to_str().unwrap(), c.to_str().unwrap(), "--hdl", hdl.to_str().unwrap()]);
+    assert!(same.status.success(), "{}", text(&same));
+    assert!(text(&same).contains("byte for byte, the code the model generates, and so are the 11 other file(s) compared"), "{}", text(&same));
+
+    // A line of the host I/O and a line of the VHDL changed by hand, one more added.
+    edit(&c.join("host/arclang_io_host.c"), "        gpio_out[k] = false;", "        gpio_out[k] = true;");
+    edit(&hdl.join("speed_monitor_wheel_speed_filter.vhd"), "        ready <= '1';", "        ready <= '0';\n        -- patched on the bench");
+    let drifted = arclang(&["drift", model.to_str().unwrap(), c.to_str().unwrap(), "--hdl", hdl.to_str().unwrap()]);
+    let said = text(&drifted);
+    assert!(!drifted.status.success(), "{said}");
+    assert!(said.contains("The machines' code is, byte for byte, the code the model generates."), "{said}");
+    assert!(said.contains("host/arclang_io_host.c:39: 1 line(s) of the file as built where the model generates 1") && said.contains("built:         gpio_out[k] = true;") && said.contains("model:         gpio_out[k] = false;"), "{said}");
+    assert!(said.contains("speed_monitor_wheel_speed_filter.vhd:76: 2 line(s) of the file as built where the model generates 1") && said.contains("-- patched on the bench"), "{said}");
+    assert!(said.contains("0 difference(s) in its machines, 0 line(s) they do not explain, 2 other file(s) that differ"), "{said}");
+
+    // A file that is not there is said, and is not a drift.
+    std::fs::remove_file(c.join("host/arclang_io_host.h")).unwrap();
+    let json = arclang(&["drift", model.to_str().unwrap(), c.to_str().unwrap(), "--json"]);
+    let value: serde_json::Value = serde_json::from_slice(&json.stdout).expect("JSON");
+    let files = value["files"].as_array().unwrap();
+    assert!(files.iter().any(|f| f["file"] == "host/arclang_io_host.h" && f["missing"] == true), "{value}");
+    assert!(files.iter().any(|f| f["file"] == "host/arclang_io_host.c" && f["line"] == 39), "{value}");
+
+    // A directory that holds none of the logic's files is refused.
+    let wrong = arclang(&["drift", model.to_str().unwrap(), c.to_str().unwrap(), "--hdl", dir.path().to_str().unwrap()]);
+    assert!(!wrong.status.success() && text(&wrong).contains("holds none of the files the model generates for the logic"), "{}", text(&wrong));
+}
+
+#[test]
+fn every_line_the_machines_do_not_explain_is_listed() {
+    let (_dir, model, c) = built(SPEED_MONITOR);
+    let code = c.join("speed_monitor.c");
+    // Eight statements of the helper and of the bookkeeping changed: none is a machine's.
+    let before = std::fs::read_to_string(&code).unwrap();
+    let after = before.replace("        r = lo;", "        r = hi;").replace("st->in_state[k]++;", "st->in_state[k] += 2U;").replace("st->in_state[s] = 0U;", "st->in_state[s] = 1U;").replace("    (void)s;", "    (void)s; (void)0;");
+    let changed = before.lines().zip(after.lines()).filter(|(a, b)| a != b).count();
+    assert!(changed > 5, "more lines than the earlier limit of five: {changed}");
+    std::fs::write(&code, after).unwrap();
+    let json = arclang(&["drift", model.to_str().unwrap(), c.to_str().unwrap(), "--json"]);
+    let value: serde_json::Value = serde_json::from_slice(&json.stdout).expect("JSON");
+    assert_eq!(value["unexplained_lines"], changed, "{value}");
+    assert_eq!(value["unexplained"].as_array().unwrap().len(), changed, "{value}");
 }

@@ -126,5 +126,25 @@ generate, and the lines they do not explain are listed. This is where a
 helper edited by hand shows (`speed_monitor.c:18: r = hi;`), and a comment
 that no longer says what its statement does is reported as such.
 
-Not compared: the I/O glue and the host files beside the machines' C, and
-anything the C does not hold (see above).
+Every other file the model generates is compared too, whole, with the file
+as built: the I/O interface, the glue of each binding and the host
+implementation beside the machines' C, and, with `--hdl <dir>`, the files of
+the programmable logic (`arclang export -f vhdl`: the VHDL, the register
+map, the driver, the fixed-point C). For these files the difference is
+shown as lines, the file as built against what the model generates, not in
+the terms of the model:
+
+```console
+    ✗ hdl/speed_monitor_wheel_speed_filter.vhd:76: 2 line(s) of the file as built where the model generates 1
+        built:         ready <= '0';
+        built:         -- patched on the bench
+        model:         ready <= '1';
+```
+
+A generated file that is not among the files as built is said, and is not a
+drift. Every line found is listed: there is no limit.
+
+Not compared: anything the C does not hold (see above), and code the
+compiler did not generate. A drift needs the code the model generates to
+compare with; C or VHDL written by hand has no such reference, and reading
+a model out of it is another problem than this one.

@@ -14,7 +14,7 @@
 //! generate, and every line they do not explain is reported (the body of an
 //! action changed by hand, a helper edited).
 
-use super::{check, from_generated_c, to_arclang, Generated, Machine, Recovered, Transition};
+use super::{check_showing, from_generated_c, to_arclang, Generated, Machine, Recovered, Transition};
 use crate::compiler::ast::Model;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -39,11 +39,61 @@ pub struct Drift {
     pub unexplained: Vec<(String, usize, String)>,
     /// How many such lines there are in all.
     pub unexplained_lines: usize,
+    /// The other files the model generates (the I/O interface, the glue of
+    /// each binding, the host implementation, the VHDL), each against the
+    /// file as built.
+    pub files: Vec<FileDrift>,
+}
+
+/// A generated file against the same file as built.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct FileDrift {
+    pub file: String,
+    /// The file is not among the files as built: it was not compared.
+    pub missing: bool,
+    /// Where the two files part, 1-based; 0 when they are the same.
+    pub line: usize,
+    /// The lines of the file as built between what the two files share at
+    /// their start and at their end, and the lines the model generates there.
+    pub built: Vec<String>,
+    pub generated: Vec<String>,
+}
+
+impl FileDrift {
+    pub fn differs(&self) -> bool {
+        !self.missing && self.line > 0
+    }
+}
+
+/// Each generated file (but those in `apart`) against the file `read` gives
+/// for its name. The two files are compared whole: what they share at their
+/// start and at their end is left out, the rest is the difference.
+pub fn files(generated: &[(String, String)], apart: &[&str], read: &dyn Fn(&str) -> Option<String>) -> Vec<FileDrift> {
+    generated
+        .iter()
+        .filter(|(name, _)| !apart.contains(&name.as_str()))
+        .map(|(name, text)| {
+            let Some(built) = read(name) else {
+                return FileDrift { file: name.clone(), missing: true, line: 0, built: Vec::new(), generated: Vec::new() };
+            };
+            let (mine, theirs): (Vec<&str>, Vec<&str>) = (built.lines().collect(), text.lines().collect());
+            let head = mine.iter().zip(&theirs).take_while(|(a, b)| a == b).count();
+            let tail = mine[head..].iter().rev().zip(theirs[head..].iter().rev()).take_while(|(a, b)| a == b).count();
+            let same = head == mine.len() && head == theirs.len();
+            FileDrift {
+                file: name.clone(),
+                missing: false,
+                line: if same { 0 } else { head + 1 },
+                built: mine[head..mine.len() - tail].iter().map(|line| line.to_string()).collect(),
+                generated: theirs[head..theirs.len() - tail].iter().map(|line| line.to_string()).collect(),
+            }
+        })
+        .collect()
 }
 
 impl Drift {
     pub fn none(&self) -> bool {
-        self.identical || (self.findings.is_empty() && self.unexplained_lines == 0)
+        (self.identical || (self.findings.is_empty() && self.unexplained_lines == 0)) && !self.files.iter().any(FileDrift::differs)
     }
 }
 
@@ -83,7 +133,7 @@ pub fn drift(design: &Model, built: &Generated) -> Result<Drift, String> {
     }
 
     // What the machines do not say: the code against what its own machines generate.
-    let own = check(&to_arclang(&as_built, built), built);
+    let own = check_showing(&to_arclang(&as_built, built), built, usize::MAX);
     if let Some(error) = own.error {
         drift.findings.push(Finding { machine: String::new(), what: format!("the machines read in the code cannot be generated again to look further ({error})"), file: None, line: None });
     }
