@@ -586,6 +586,26 @@ pub enum Commands {
         check: bool,
     },
 
+    /// What the code as built implements against what the model says. The
+    /// machines are read back from the C as built (as `recover` reads them)
+    /// and from the C the model generates, and compared: each difference is
+    /// said in the terms of the model, with its line in the code. Lines of
+    /// the code that its machines do not explain are listed too. Fails when
+    /// there is a difference.
+    Drift {
+        /// The model as designed
+        #[clap(value_parser)]
+        model: PathBuf,
+
+        /// The C as built: a directory holding `<model>.h` and `<model>.c`, or one of the two
+        #[clap(value_parser)]
+        code: PathBuf,
+
+        /// Print the result as JSON
+        #[clap(long)]
+        json: bool,
+    },
+
     /// Climb the realization ladder (docs/realization.md): for each
     /// requirement, run in order what each stage is missing or stale
     /// (verify, sil, pil, hdl, soc, twin), read the ladder back after each
@@ -1383,6 +1403,7 @@ impl CliRunner {
             Commands::Schedule { input, target, wcet, prove, cycles, keep, json } => schedule::run(&input, schedule::Options { target, wcet, prove, cycles, keep, json }),
             Commands::Soc { input, test, bitstream, board, no_sim, gate_level, port, keep, json } => self.run_soc(&input, test, bitstream || board.is_some(), board, !no_sim && port.is_none(), gate_level, port, keep, json),
             Commands::Recover { input, output, check } => self.run_recover(&input, output.as_deref(), check),
+            Commands::Drift { model, code, json } => self.run_drift(&model, &code, json),
             Commands::Realize { input, requirement, up_to, dry_run, keep_going, board, json } => realize::run(&input, realize::Options { requirement, up_to, dry_run, keep_going, board, json }),
             Commands::Twin { input, twin, json, list, live, for_seconds } => {
                 if live {
@@ -2039,6 +2060,56 @@ impl CliRunner {
             }
         }
         Ok((header, code))
+    }
+
+    fn run_drift(&self, model: &std::path::Path, code: &std::path::Path, json: bool) -> Result<(), CliError> {
+        use crate::compiler::recover;
+        let design = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(model).map_err(|e| CliError::Compilation(e.to_string()))?;
+        let (header_path, code_path) = Self::generated_c(code)?;
+        let header = std::fs::read_to_string(&header_path).map_err(CliError::Io)?;
+        let source = std::fs::read_to_string(&code_path).map_err(CliError::Io)?;
+        let name = |path: &std::path::Path| path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let (header_name, code_name) = (name(&header_path), name(&code_path));
+        let built = recover::Generated { header_name: &header_name, header: &header, code_name: &code_name, code: &source };
+        let drift = recover::drift::drift(&design.ast, &built).map_err(CliError::Compilation)?;
+        if json {
+            println!("{}", serde_json::to_string_pretty(&drift).map_err(|e| CliError::Compilation(e.to_string()))?);
+        } else {
+            println!("Drift of {} and {} against {}", header_path.display(), code_path.display(), model.display());
+            if drift.identical {
+                println!("✓ No drift: the code is, byte for byte, the code the model generates");
+            } else if drift.none() {
+                println!("✓ No drift: the machines of the code are those of the model, and every line of the code is explained by them");
+            }
+            let mut machine = None;
+            for finding in &drift.findings {
+                if machine != Some(&finding.machine) {
+                    machine = Some(&finding.machine);
+                    if !finding.machine.is_empty() {
+                        println!("  state_machine \"{}\"", finding.machine);
+                    }
+                }
+                let place = match (&finding.file, finding.line) {
+                    (Some(file), Some(line)) => format!(" ({file}:{line})"),
+                    _ => String::new(),
+                };
+                println!("    ✗ {}{place}", finding.what);
+            }
+            if drift.unexplained_lines > 0 {
+                println!("  {} line(s) of the code are not what its machines generate (edited by hand, or a comment that does not say what the code does):", drift.unexplained_lines);
+                for (file, line, text) in &drift.unexplained {
+                    println!("    {file}:{line}: {text}");
+                }
+                if drift.unexplained_lines > drift.unexplained.len() {
+                    println!("    ... ({} more)", drift.unexplained_lines - drift.unexplained.len());
+                }
+            }
+        }
+        if drift.none() {
+            Ok(())
+        } else {
+            Err(CliError::Compilation(format!("the code has drifted from the model: {} difference(s) in its machines, {} line(s) they do not explain", drift.findings.len(), drift.unexplained_lines)))
+        }
     }
 
     fn run_recover(&self, input: &std::path::Path, output: Option<&std::path::Path>, check: bool) -> Result<(), CliError> {
