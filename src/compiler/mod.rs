@@ -38,6 +38,7 @@ pub mod semantic_adapter;
 pub mod capella_metamodel;
 pub mod codegen;
 pub mod yaml;
+pub mod recover;
 pub mod refine;
 pub mod capella_xmi;
 pub mod capella_export;
