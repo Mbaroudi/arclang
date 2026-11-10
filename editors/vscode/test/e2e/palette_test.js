@@ -25,8 +25,8 @@ const rows = []; const report = (view, tool, ok, detail) => { rows.push({ view, 
   }
   async function answerPrompt(text) { const input = page.locator('.wb-prompt input').first(); await input.waitFor({ timeout: 3000 }); await input.fill(text); await input.press('Enter'); }
   async function waitResult(before) { for (let i = 0; i < 40 && (await resultsCount()) === before; i++) await page.waitForTimeout(150); await page.waitForTimeout(700); return lastResult(); }
-  async function useTool(view, label, { select, connect, name }) {
-    await reset(); const g = await showLayer(view); if (!g) return report(view, label, false, 'view absent');
+  async function useTool(view, label, { select, connect, name, keep }) {
+    if (!keep) await reset(); const g = await showLayer(view); if (!g) return report(view, label, false, 'view absent');
     await page.keyboard.press('Escape');
     if (select) { if (!(await clickNode(select))) return report(view, label, false, `cannot select ${select}`); }
     const tool = page.locator('.wb-tool', { hasText: new RegExp(`^.?${label}`) }).filter({ hasText: label }).first();
@@ -87,6 +87,24 @@ const rows = []; const report = (view, tool, ok, detail) => { rows.push({ view, 
   await useTool('msm', 'State', { name: 'Degraded' });
   await useTool('msm', 'Mode', { name: 'Maintenance' });
   await useTool('msm', 'Transition', { connect: [states[0]?.id, states[1]?.id], name: 'fault cleared' });
+  // The pseudo-states the compiler runs, each written as a state with its kind.
+  for (const [label, kind] of [['Choice', 'choice'], ['Junction', 'junction'], ['Fork', 'fork'], ['Join', 'join'], ['History', 'shallow_history'], ['Deep history', 'deep_history'], ['Entry point', 'entry_point'], ['Exit point', 'exit_point'], ['Terminate', 'terminate']]) {
+    await useTool('msm', label, { name: `P ${kind}` });
+    const text = await source();
+    const at = text.indexOf(`"P ${kind}"`);
+    if (!text.slice(at, at + 80).includes(`kind: "${kind}"`)) report('msm', `${label} kind`, false, `kind: "${kind}" not written`);
+  }
+  // A region, then a state declared in it by selecting its frame.
+  await useTool('msm', 'Region', { name: 'Cooling' });
+  const machine = (await snapshot()).diagrams.graphs.find((g) => g.arc.view === 'msm');
+  const frame = (machine?.children || []).find((n) => n.arc.kind === 'region');
+  if (!frame) report('msm', 'Region drawn', false, 'no region in the diagram');
+  else {
+    await useTool('msm', 'State', { select: frame.id, name: 'FanOff', keep: true });
+    const text = await source();
+    const region = text.slice(text.indexOf('region "Cooling"'));
+    report('msm', 'State in a region', /^region "Cooling" \{[^}]*state "FanOff"/.test(region), 'declared inside the region');
+  }
   const graph = (await snapshot()).diagrams.graphs.find((g) => g.arc.view === 'es');
   const lifelines = (graph?.children || []).map((n) => n.id);
   await useTool('es', 'Message', { connect: [lifelines[0], lifelines[1]], name: 'status request' });

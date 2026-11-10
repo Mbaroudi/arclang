@@ -513,6 +513,8 @@ export interface Tool {
   kind: ToolKind;
   /** create: the declaration keyword (`component`, `port out`). */
   keyword?: string;
+  /** create: attributes the declaration is written with, as ArcLang source (`kind: "choice"` for a pseudo-state). */
+  attributes?: [string, string][];
   /** create: declared inside the selected element when its kind is one of these, else in the layer (or at the top level). */
   containerKinds?: string[];
   /** create: must be declared inside one of `containerKinds` (never in the layer). */
@@ -533,6 +535,21 @@ export interface Tool {
 
 const PORTED = ['SystemFunction', 'LogicalFunction', 'PhysicalFunction', 'SystemComponent', 'SystemActor', 'LogicalComponent', 'BehaviorComponent', 'PhysicalNode', 'Actor'];
 const FUNCTION_KINDS = ['SystemFunction', 'LogicalFunction', 'PhysicalFunction', 'OperationalActivity'];
+
+/** Where a state, a mode or a pseudo-state is declared when it is selected: a state, or a region. */
+const IN_A_MACHINE = ['State', 'Region'];
+/** The pseudo-states of a machine, as the compiler reads `kind:`, with the name of each tool. */
+export const PSEUDO_STATES: [string, string][] = [
+  ['choice', 'Choice'],
+  ['junction', 'Junction'],
+  ['fork', 'Fork'],
+  ['join', 'Join'],
+  ['shallow_history', 'History'],
+  ['deep_history', 'Deep history'],
+  ['entry_point', 'Entry point'],
+  ['exit_point', 'Exit point'],
+  ['terminate', 'Terminate'],
+];
 
 export const PALETTE: Record<string, Tool[]> = {
   oab: [
@@ -590,9 +607,13 @@ export const PALETTE: Record<string, Tool[]> = {
     { id: 'note', label: 'Note', kind: 'create', special: 'note' },
   ],
   msm: [
-    { id: 'state', label: 'State', kind: 'create', keyword: 'state', inGraph: true, containerKinds: ['State'] },
-    { id: 'mode', label: 'Mode', kind: 'create', keyword: 'mode', inGraph: true, containerKinds: ['State'] },
+    { id: 'state', label: 'State', kind: 'create', keyword: 'state', inGraph: true, containerKinds: IN_A_MACHINE },
+    { id: 'mode', label: 'Mode', kind: 'create', keyword: 'mode', inGraph: true, containerKinds: IN_A_MACHINE },
     { id: 'transition', label: 'Transition', kind: 'connect', connect: 'transition', endKinds: ['State'] },
+    // What runs beside the rest: a region of the machine, or of the selected state.
+    { id: 'region', label: 'Region', kind: 'create', keyword: 'region', inGraph: true, containerKinds: ['State'] },
+    // The pseudo-states the machine passes through: states written with their kind.
+    ...PSEUDO_STATES.map(([kind, label]): Tool => ({ id: kind, label, kind: 'create', keyword: 'state', inGraph: true, containerKinds: IN_A_MACHINE, attributes: [['kind', JSON.stringify(kind)]] })),
   ],
   es: [
     { id: 'message', label: 'Message', kind: 'connect', connect: 'message' },
@@ -629,6 +650,26 @@ export interface CreateContext {
   graphContainer?: string | null;
 }
 
+/**
+ * The region drawn under `drawingId`, as what a new state is declared in: a
+ * region is no element of the model's list, the diagram carries the id the
+ * compiler gives it. Null when the drawing is not a region.
+ */
+export function regionDrawn(graph: ViewerGraph | null, drawingId: string | null): { id: string; kind: 'Region' } | null {
+  if (!graph || !drawingId) return null;
+  const find = (nodes: ViewerNode[] | undefined): ViewerNode | null => {
+    for (const node of nodes ?? []) {
+      if (node.id === drawingId) return node;
+      const inside = find(node.children);
+      if (inside) return inside;
+    }
+    return null;
+  };
+  const node = find(graph.children);
+  const id = node?.arc.kind === 'region' ? node.arc.properties?.region : null;
+  return typeof id === 'string' && id ? { id, kind: 'Region' } : null;
+}
+
 /** Where a created element goes: inside the selected element, in the layer, or at the top. */
 export function createRequest(tool: Tool, context: CreateContext): EditRequest | { error: string } {
   if (!tool.keyword) return { error: `${tool.label} creates nothing` };
@@ -638,10 +679,11 @@ export function createRequest(tool: Tool, context: CreateContext): EditRequest |
   if (tool.needsContainer && !container) {
     return { error: `${tool.label}: select ${(tool.containerKinds ?? []).join(', ')} first` };
   }
-  if (container) return { op: 'add', keyword: tool.keyword, name, container };
+  const attributes = tool.attributes?.length ? { attributes: tool.attributes } : {};
+  if (container) return { op: 'add', keyword: tool.keyword, name, ...attributes, container };
   if (tool.inGraph) {
     if (!context.graphContainer) return { error: `${tool.label}: this diagram is not about one state machine or scenario` };
-    return { op: 'add', keyword: tool.keyword, name, container: context.graphContainer };
+    return { op: 'add', keyword: tool.keyword, name, ...attributes, container: context.graphContainer };
   }
   if (tool.topLevel) return { op: 'add', keyword: tool.keyword, name, top_level: true };
   const layer = LAYER_OF_VIEW[context.view];

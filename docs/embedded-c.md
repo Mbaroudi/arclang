@@ -382,6 +382,17 @@ different triggers or with more than one outgoing transition, a fork whose
 targets share a region, a junction or a choice without an outgoing
 transition, transitions that go round through pseudo-states.
 
+The diagram of a machine (`msm:<machine>`) draws what the machine runs: each
+region as a dashed frame with its name and where it starts, the start of a
+composite state inside it, a choice as a diamond, a fork or a join as a bar,
+a junction as a dot, a history as a ring marked H (H* when deep), an entry
+or an exit point as a ring (crossed for the exit), a terminate as a cross,
+and a timed transition as `after 200 ms` on its line. In the VS Code
+workbench the palette of that diagram has a tool for each (Region, Choice,
+Junction, Fork, Join, History, Deep history, Entry point, Exit point,
+Terminate): a state, a mode or a pseudo-state is declared in the selected
+state or region, else in the machine.
+
 In the C, a history is a field of the machine's state (`hist_<n>` for a
 shallow one, `deep_<n>[]` for a deep one), kept when its owner is exited;
 exits run over a range of the state table, last state first; every other
