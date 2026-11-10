@@ -41,6 +41,8 @@ fn a_sketch_is_proven_to_be_the_machine_its_correspondence_says() {
         ("thermostat", "thermostat.ino is state_machine \"Thermostat\""),
         ("toggle", "toggle.ino is state_machine \"Lamp\""),
         ("debounce", "debounce.ino is state_machine \"Debounced button\""),
+        // Two inputs, two outputs and a timer the model counts in a variable.
+        ("door", "door.ino is state_machine \"Door lock\""),
     ] {
         let (proven, output) = proof(name, &[], &[]);
         assert!(proven && output.contains("✓ Proven") && output.contains(said), "{name}: {output}");
@@ -57,6 +59,9 @@ fn a_model_that_is_not_what_the_sketch_does_is_refuted() {
     let (proven, output) = proof("debounce", &[("transition Rising -> High { guard: \"button\" timing: 50 ms }", "transition Rising -> High { guard: \"button\" timing: 40 ms }")], &[]);
     assert!(!proven && output.contains("✗ Refuted") && output.contains("one loop() and one step can leave two that do not"), "{output}");
     assert!(output.contains("does not hold after it: stable == 1 && counting == 0 is in High"), "{output}");
+    // The case that shows it: at 40 ms the model is in High, the sketch still counts.
+    assert!(output.contains("with button = 1") && output.contains("`stable == 1 && counting == 0` and `in High`: before 0 and 0, after 0 and 1  <- differ"), "{output}");
+    assert!(output.contains("`millis() - since` and `time in Rising`: before 40 and 40, after 50 and -"), "{output}");
 }
 
 #[test]
@@ -115,4 +120,72 @@ fn a_variable_no_line_speaks_of_is_said_with_the_proof() {
     // The lamp is no longer related: what is left is proven, and the proof says what it leaves out.
     let (proven, output) = proof("thermostat", &[("writes: [\"digitalWrite(HEATER) is heater\"]", "writes: [\"digitalWrite(HEATER) is in Heating\"]")], &[]);
     assert!(proven && output.contains("the proof says nothing of this variable of the machine: no line of the correspondence speaks of heater"), "{output}");
+}
+
+/// A proposer that gives, turn after turn, the answers written for it, and
+/// keeps each prompt it was given: (its command, the directory of its files).
+fn proposer(answers: &[String]) -> (String, tempfile::TempDir) {
+    let dir = tempfile::tempdir().unwrap();
+    for (turn, answer) in answers.iter().enumerate() {
+        std::fs::write(dir.path().join(format!("answer-{turn}")), answer).unwrap();
+    }
+    let at = dir.path().display();
+    let command = format!("n=$(cat '{at}/count' 2>/dev/null || echo 0); echo $((n+1)) > '{at}/count'; cat > '{at}/prompt-'$n; cat '{at}/answer-'$n");
+    (command, dir)
+}
+
+#[test]
+#[ignore = "needs CBMC and Bitwuzla: tools/embedded/formal/run.sh cargo test --test correspondence -- --include-ignored"]
+fn a_proposed_model_is_written_only_once_proven_and_what_is_refuted_goes_back_to_the_proposer() {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sketches");
+    let right = std::fs::read_to_string(fixtures.join("toggle.arc")).unwrap();
+    // A table that says too little: neither how the lamp follows `lit`, nor what the variables can be.
+    let poor = right.replacen(",\n        \"lit == 1 is led\"", "", 1).replacen("    invariant: [\"lit == 0 || lit == 1\", \"was == 0 || was == 1\"]\n", "", 1);
+    assert_ne!(poor, right);
+    let fenced = |model: &str| format!("Here is the model.\n```arclang\n{model}```\n");
+    let work = tempfile::tempdir().unwrap();
+    let sketch = work.path().join("toggle.ino");
+    std::fs::copy(fixtures.join("toggle.ino"), &sketch).unwrap();
+    let recovered = work.path().join("toggle.arc");
+
+    // The poor table first, the right one next: proven at the second turn.
+    let (command, files) = proposer(&[fenced(&poor), fenced(&right)]);
+    let asked = arclang(&["recover", sketch.to_str().unwrap(), "--propose", "--with", &command, "--timeout", "1200"]);
+    let said = text(&asked);
+    assert!(asked.status.success() && said.contains("✓ Proven") && said.contains("toggle.ino is state_machine \"Lamp\""), "{said}");
+    // The second prompt holds the sketch and the lines the proof refuted.
+    let again = std::fs::read_to_string(files.path().join("prompt-1")).unwrap();
+    assert!(again.contains("int lit = 0;") && again.contains("STEP is refuted") && again.contains("- digitalWrite(LED) is led"), "{again}");
+    assert!(again.contains("A case that shows it") && again.contains("<- differ"), "{again}");
+    // What is written is the proven model, and `arclang prove` replays its proof with no proposer.
+    let written = std::fs::read_to_string(&recovered).unwrap();
+    assert!(written.starts_with("// Recovered from toggle.ino: proposed by") && written.contains("\"lit == 1 is led\""), "{written}");
+    let replayed = arclang(&["prove", recovered.to_str().unwrap(), "--timeout", "1200"]);
+    assert!(replayed.status.success(), "{}", text(&replayed));
+
+    // A proposer that never gets it right: the command fails and writes nothing.
+    std::fs::remove_file(&recovered).unwrap();
+    let (command, _files) = proposer(&[fenced(&poor), "I cannot.".to_string()]);
+    let asked = arclang(&["recover", sketch.to_str().unwrap(), "--propose", "--with", &command, "--turns", "2", "--timeout", "1200"]);
+    let said = text(&asked);
+    assert!(!asked.status.success() && said.contains("no model of toggle.ino was proven in 2 turn(s); nothing is written"), "{said}");
+    assert!(!recovered.exists());
+}
+
+#[test]
+fn proposing_without_a_proposer_says_what_is_missing() {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sketches");
+    let asked = std::process::Command::new(env!("CARGO_BIN_EXE_arclang")).args(["recover", fixtures.join("toggle.ino").to_str().unwrap(), "--propose", "-o", "/dev/null"]).env_remove("ARCLANG_PROPOSER").output().unwrap();
+    assert!(!asked.status.success() && text(&asked).contains("--propose needs a proposer"), "{}", text(&asked));
+}
+
+#[test]
+#[ignore = "needs CBMC and Bitwuzla: tools/embedded/formal/run.sh cargo test --test correspondence -- --include-ignored"]
+fn the_machine_steps_at_the_period_of_the_correspondence() {
+    // A loop() of 20 ms and a time of 500 ms: 25 steps, whatever period the model's C takes by default.
+    let (proven, output) = proof("blinker", &[], &[]);
+    assert!(proven && output.contains("for one loop() a step of 20 ms"), "{output}");
+    // The sketch changes after 400 ms: refuted.
+    let (proven, output) = proof("blinker", &[], &[("millis() - changed >= 500", "millis() - changed >= 400")]);
+    assert!(!proven && output.contains("✗ Refuted"), "{output}");
 }

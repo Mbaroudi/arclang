@@ -109,7 +109,8 @@ jobs:
         run: tools/embedded/formal/run.sh cargo test --release --test equivalence -- --include-ignored
 
       # The proof that code written by hand is a machine of the model
-      # (`arclang prove`): three Arduino sketches, right and wrong.
+      # (`arclang prove`): Arduino sketches, right and wrong, and the loop
+      # of `recover --propose` with a proposer that answers from files.
       - name: Run the correspondence proofs
         run: tools/embedded/formal/run.sh cargo test --release --test correspondence -- --include-ignored
 

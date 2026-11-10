@@ -4,6 +4,7 @@ pub mod diagram_service;
 pub mod edit;
 pub mod table; // tables hook
 mod partition;
+mod propose;
 mod realize; // realization hook
 mod schedule;
 pub mod impact; // impact hook
@@ -591,6 +592,31 @@ pub enum Commands {
         /// model must generate every file of the logic as it was read
         #[clap(long, value_name = "DIR")]
         hdl: Option<PathBuf>,
+
+        /// The input is code written by hand (an Arduino sketch): a proposer
+        /// (--with) proposes a state machine and its correspondence, the
+        /// proof of `arclang prove` judges, and what it refutes goes back to
+        /// the proposer. The model is written only once it is proven
+        #[clap(long)]
+        propose: bool,
+
+        /// With --propose: the command that proposes. It reads the prompt
+        /// (the sketch included) on its input and prints its answer; any AI
+        /// with a command line does. ARCLANG_PROPOSER names it otherwise
+        #[clap(long, value_name = "COMMAND")]
+        with: Option<String>,
+
+        /// With --propose: how many answers the proposer may give
+        #[clap(long, default_value_t = 4)]
+        turns: usize,
+
+        /// With --propose: the time one proof may take, in seconds
+        #[clap(long, default_value_t = 300)]
+        timeout: u64,
+
+        /// With --propose: keep each answer and the files of its proof in this directory
+        #[clap(long, value_name = "DIR")]
+        keep: Option<PathBuf>,
     },
 
     /// Prove that code written by hand is a machine of the model, as each
@@ -1458,7 +1484,8 @@ impl CliRunner {
             Commands::Schedule { input, target, wcet, prove, cycles, keep, json } => schedule::run(&input, schedule::Options { target, wcet, prove, cycles, keep, json }),
             Commands::Soc { input, test, bitstream, board, no_sim, gate_level, port, keep, json } => self.run_soc(&input, test, bitstream || board.is_some(), board, !no_sim && port.is_none(), gate_level, port, keep, json),
             Commands::Prove { model, correspondence, timeout, keep, json } => self.run_prove(&model, correspondence.as_deref(), timeout, keep, json),
-            Commands::Recover { input, output, check, hdl } => self.run_recover(&input, output.as_deref(), check, hdl.as_deref()),
+            Commands::Recover { input, output, propose: true, with, turns, timeout, keep, .. } => propose::run(&input, propose::Options { with, turns, timeout, output, keep }),
+            Commands::Recover { input, output, check, hdl, .. } => self.run_recover(&input, output.as_deref(), check, hdl.as_deref()),
             Commands::Drift { model, code, hdl, json, prove, timeout } => self.run_drift(&model, &code, hdl.as_deref(), json, prove.then_some(timeout)),
             Commands::Realize { input, requirement, up_to, dry_run, keep_going, board, json } => realize::run(&input, realize::Options { requirement, up_to, dry_run, keep_going, board, json }),
             Commands::Twin { input, twin, json, list, live, for_seconds } => {
@@ -2143,7 +2170,7 @@ impl CliRunner {
                             println!("    the proof says nothing of {} of the machine: no line of the correspondence speaks of {}", if unrelated.len() == 1 { "this variable" } else { "these variables" }, unrelated.join(", "));
                         }
                     }
-                    Outcome::Refuted { obligation, lines, seconds } => {
+                    Outcome::Refuted { obligation, lines, case, seconds } => {
                         println!("✗ Refuted ({seconds:.1} s) {of}");
                         println!("    {}", match obligation.as_str() {
                             "start" => "after setup() and one loop(), and after init and one step, the code and the model do not correspond",
@@ -2154,6 +2181,12 @@ impl CliRunner {
                         }
                         for line in lines {
                             println!("    does not hold after it: {line}");
+                        }
+                        if let Some(case) = case {
+                            println!("    a case that shows it (the code's side and the model's side of each line):");
+                            for line in case.said() {
+                                println!("      {line}");
+                            }
                         }
                     }
                     Outcome::Unknown { reason } => println!("? Neither proven nor refuted: {of}\n    {reason}"),

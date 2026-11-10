@@ -149,7 +149,8 @@ pub enum Outcome {
     /// One does not: which (`start` or `step`), and the lines of the
     /// correspondence that do not hold after it (none: the code read or
     /// wrote a pin the correspondence does not name).
-    Refuted { obligation: String, lines: Vec<String>, seconds: f64 },
+    /// `case`: a case that shows it, when one could be read.
+    Refuted { obligation: String, lines: Vec<String>, case: Option<Case>, seconds: f64 },
     /// No answer: why.
     Unknown { reason: String },
 }
@@ -195,6 +196,23 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
             Term::TimeIn(state) => {
                 let index = state_index(state)?;
                 format!("(!s->{id}.active[{index}] || ((unsigned long)({sketch}) == (unsigned long)s->{id}.in_state[{index}] * {period_ms}UL))")
+            }
+        })
+    };
+
+    // The two sides of a line as numbers, for the case that refutes a proof
+    // (the time in a state that is not active is -1).
+    let sides = |sketch: &str, model: &Term| -> Result<(String, String), String> {
+        Ok(match model {
+            Term::Variable(name) => {
+                let v = variable(name)?;
+                let read = if v.input { format!("arclang_inputs->{id}.v_{}", v.ident) } else { format!("s.{id}.v_{}", v.ident) };
+                if v.ty == "Boolean" { (format!("(({sketch}) != 0)"), format!("({read} != 0)")) } else { (format!("({sketch})"), read) }
+            }
+            Term::In(state) => (format!("(({sketch}) != 0)"), format!("(s.{id}.active[{}] != 0)", state_index(state)?)),
+            Term::TimeIn(state) => {
+                let index = state_index(state)?;
+                (format!("({sketch})"), format!("(s.{id}.active[{index}] ? (long long)s.{id}.in_state[{index}] * {period_ms}LL : -1LL)"))
             }
         })
     };
@@ -249,12 +267,38 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
         ("!arclang_unnamed".to_string(), UNNAMED.to_string()),
         (format!("(arclang_delayed == 0UL || arclang_delayed == {period_ms}UL)"), DELAYS.to_string()),
     ];
+    // What a refuting case shows: (the code's side as written and as C, the model's side as written and as C).
+    let mut shown: Vec<(String, String, String, String)> = Vec::new();
     for (rank, (pin, model_side)) in correspondence.writes.iter().enumerate() {
-        lines.push((relate(&format!("arclang_level_{rank}"), model_side)?, format!("digitalWrite({pin}) is {}", said(model_side))));
+        let level = format!("arclang_level_{rank}");
+        lines.push((relate(&level, model_side)?, format!("digitalWrite({pin}) is {}", said(model_side))));
+        let (code, model) = sides(&level, model_side)?;
+        shown.push((format!("the level of {pin}"), code, said(model_side), model));
     }
     for (sketch_side, model_side) in &correspondence.state {
         lines.push((relate(sketch_side, model_side)?, format!("{sketch_side} is {}", said(model_side))));
+        let (code, model) = sides(sketch_side, model_side)?;
+        shown.push((sketch_side.clone(), code, said(model_side), model));
     }
+    let mut inputs_shown: Vec<(String, String)> = Vec::new();
+    for (_, _, name) in &correspondence.reads {
+        let v = variable(name)?;
+        inputs_shown.push((name.clone(), if v.ty == "Boolean" { format!("(in.{id}.v_{} != 0)", v.ident) } else { format!("in.{id}.v_{}", v.ident) }));
+    }
+    let record = |moment: &str| -> String {
+        let mut text = String::from("#ifdef ARCLANG_WITNESS\n");
+        for (rank, (_, code, _, model)) in shown.iter().enumerate() {
+            text.push_str(&format!("    long long arclang_w{moment}c_{rank} = (long long)({code}); long long arclang_w{moment}m_{rank} = (long long)({model});\n"));
+        }
+        if moment == "b" {
+            for (rank, (_, read)) in inputs_shown.iter().enumerate() {
+                text.push_str(&format!("    long long arclang_wi_{rank} = (long long)({read});\n"));
+            }
+        }
+        text.push_str("#endif\n");
+        text
+    };
+    let (before, after) = (record("b"), record("a"));
     for invariant in &correspondence.invariants {
         lines.push((format!("(({invariant}) != 0)"), format!("invariant: {invariant}")));
     }
@@ -270,9 +314,17 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
         c.push_str(&format!("    __CPROVER_assume({assumption});\n"));
     }
     c.push_str(&format!(
-        "#ifdef ARCLANG_START\n    /* start: after setup() and one loop(), and after init and one step, the two correspond */\n    setup();\n    {{ unsigned long any; arclang_ms = any; }} /* the first loop() runs at any time */\n    arclang_delayed = 0UL;\n    loop();\n    arclang_ms += {period_ms}UL;\n    {prefix}_init(&s);\n    {prefix}_step(&s, &in, &out);\n#else\n    /* step: from any two states that correspond, one loop() and one step leave two that correspond */\n    __CPROVER_assume(arclang_corresponds(&s));\n    arclang_delayed = 0UL;\n    loop();\n    arclang_ms += {period_ms}UL;\n    {prefix}_step(&s, &in, &out);\n#endif\n#ifdef ARCLANG_LINE\n    __CPROVER_assert(arclang_line(ARCLANG_LINE, &s), \"this line of the correspondence holds\");\n#else\n    __CPROVER_assert(arclang_corresponds(&s), \"the code and the model correspond\");\n#endif\n    return 0;\n}}\n"
+        "#ifdef ARCLANG_START\n    /* start: after setup() and one loop(), and after init and one step, the two correspond */\n    setup();\n    arclang_ms = 0UL; /* the first loop() runs as millis() starts counting */\n    arclang_delayed = 0UL;\n    loop();\n    arclang_ms += {period_ms}UL;\n    {prefix}_init(&s);\n    {prefix}_step(&s, &in, &out);\n#else\n    /* step: from any two states that correspond, one loop() and one step leave two that correspond */\n    __CPROVER_assume(arclang_corresponds(&s));\n{before}    arclang_delayed = 0UL;\n    loop();\n    arclang_ms += {period_ms}UL;\n    {prefix}_step(&s, &in, &out);\n#endif\n{after}#ifdef ARCLANG_LINE\n    __CPROVER_assert(arclang_line(ARCLANG_LINE, &s), \"this line of the correspondence holds\");\n#else\n    __CPROVER_assert(arclang_corresponds(&s), \"the code and the model correspond\");\n#endif\n    return 0;\n}}\n"
     ));
 
+    // One step of the machine is one loop(): the machine counts its times
+    // in steps of the correspondence's period, whatever period the model's C
+    // would take by default.
+    let macro_name = format!("{}_{}_PERIOD_US", prefix.to_uppercase(), id.to_uppercase());
+    if !model.header.contains(&format!("#ifndef {macro_name}\n")) {
+        return Err(format!("{what}: the C of state_machine \"{}\" does not let its period be given ({macro_name})", machine.name));
+    }
+    let define = format!("-D{macro_name}={period_us}UL");
     let mut files = vec![
         ("proof.c".to_string(), c),
         ("arduino.h".to_string(), ARDUINO_H.to_string()),
@@ -286,7 +338,7 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
     // What no line speaks of: the proof holds, and says nothing of it.
     let related: Vec<&str> = correspondence.writes.iter().chain(&correspondence.state).filter_map(|(_, model_side)| if let Term::Variable(name) = model_side { Some(name.as_str()) } else { None }).collect();
     let unrelated = machine.variables.iter().filter(|v| !v.input && !related.contains(&v.name.as_str())).map(|v| v.name.clone()).collect();
-    Ok(Proof { files, unwind, period_us, lines: lines.into_iter().map(|(_, written)| written).collect(), unrelated })
+    Ok(Proof { files, unwind, period_us, lines: lines.into_iter().map(|(_, written)| written).collect(), unrelated, define, shown: shown.into_iter().map(|(code, _, model, _)| (code, model)).collect(), inputs: inputs_shown.into_iter().map(|(name, _)| name).collect() })
 }
 
 /// The line every correspondence holds without writing it.
@@ -305,6 +357,85 @@ pub struct Proof {
     pub lines: Vec<String>,
     /// The variables of the machine, inputs apart, that no line relates.
     pub unrelated: Vec<String>,
+    /// The period of the machine's step, given to its C.
+    pub define: String,
+    /// What a refuting case shows of each line: (the code's side, the model's side), as written.
+    pub shown: Vec<(String, String)>,
+    /// The inputs a refuting case gives, by name.
+    pub inputs: Vec<String>,
+}
+
+/// The case that refutes a proof: the inputs of the step, and both sides of
+/// each line before the step (none for the start) and after it.
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize)]
+pub struct Case {
+    pub inputs: Vec<(String, i64)>,
+    /// (the code's side, its value before and after; the model's side, its value before and after)
+    pub lines: Vec<CaseLine>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct CaseLine {
+    pub code: String,
+    pub code_before: Option<i64>,
+    pub code_after: Option<i64>,
+    pub model: String,
+    pub model_before: Option<i64>,
+    pub model_after: Option<i64>,
+}
+
+impl Case {
+    /// The case as lines of text, the sides that differ after the step marked.
+    pub fn said(&self) -> Vec<String> {
+        let value = |v: Option<i64>| v.map(|v| if v == -1 { "-".to_string() } else { v.to_string() }).unwrap_or_else(|| "?".to_string());
+        let mut text = Vec::new();
+        if !self.inputs.is_empty() {
+            text.push(format!("with {}", self.inputs.iter().map(|(name, v)| format!("{name} = {v}")).collect::<Vec<_>>().join(", ")));
+        }
+        for line in &self.lines {
+            let before = if line.code_before.is_some() || line.model_before.is_some() { format!("before {} and {}, ", value(line.code_before), value(line.model_before)) } else { String::new() };
+            let differ = line.code_after != line.model_after && line.model_after != Some(-1);
+            text.push(format!("`{}` and `{}`: {before}after {} and {}{}", line.code, line.model, value(line.code_after), value(line.model_after), if differ { "  <- differ" } else { "" }));
+        }
+        text
+    }
+}
+
+/// Ask CBMC itself for a case that fails the obligation, and read in its
+/// trace what the harness recorded. None when it gives none in time: the
+/// refutation stands without it.
+fn case(dir: &Path, sources: &[&str], flags: &[&str], unwind: usize, proof: &Proof) -> Option<Case> {
+    use std::process::{Command, Stdio};
+    let cbmc = std::env::var("ARCLANG_CBMC").ok().filter(|v| !v.trim().is_empty()).unwrap_or_else(|| "cbmc".to_string());
+    let trace = dir.join("case.txt");
+    let file = std::fs::File::create(&trace).ok()?;
+    let mut child = Command::new(cbmc).args(sources).args(flags).args(["-DARCLANG_WITNESS", "--no-standard-checks", "--unwind", &unwind.to_string(), "--no-unwinding-assertions", "--trace"]).current_dir(dir).stdout(file).stderr(Stdio::null()).spawn().ok()?;
+    let started = std::time::Instant::now();
+    loop {
+        match child.try_wait().ok()? {
+            Some(_) => break,
+            None if started.elapsed().as_secs() > 60 => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return None;
+            }
+            None => std::thread::sleep(std::time::Duration::from_millis(50)),
+        }
+    }
+    let text = std::fs::read_to_string(&trace).ok()?;
+    let recorded = Regex::new(r"(?m)^  arclang_w(i|bc|bm|ac|am)_(\d+)=(-?\d+)").expect("a pattern of the case");
+    let mut values = std::collections::BTreeMap::new();
+    for found in recorded.captures_iter(&text) {
+        values.insert((found[1].to_string(), found[2].parse::<usize>().ok()?), found[3].parse::<i64>().ok()?);
+    }
+    if values.is_empty() {
+        return None;
+    }
+    let at = |kind: &str, rank: usize| values.get(&(kind.to_string(), rank)).copied();
+    Some(Case {
+        inputs: proof.inputs.iter().enumerate().filter_map(|(rank, name)| Some((name.clone(), at("i", rank)?))).collect(),
+        lines: proof.shown.iter().enumerate().map(|(rank, (code, model))| CaseLine { code: code.clone(), code_before: at("bc", rank), code_after: at("ac", rank), model: model.clone(), model_before: at("bm", rank), model_after: at("am", rank) }).collect(),
+    })
 }
 
 fn said(term: &Term) -> String {
@@ -337,9 +468,11 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
             let name = Path::new(source).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| source.clone());
             sketches.push((name, text));
         }
-        let Proof { files: proof, unwind, period_us, lines, unrelated } = harness(&correspondence, &model, &sketches, default_period)?;
+        let written = harness(&correspondence, &model, &sketches, default_period)?;
+        let Proof { files: proof, unwind, period_us, lines, unrelated, define, .. } = &written;
+        let (unwind, period_us, unrelated) = (*unwind, *period_us, unrelated.clone());
         let dir = work.join(correspondence.name.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect::<String>());
-        for (name, text) in &proof {
+        for (name, text) in proof {
             let path = dir.join(name);
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent).map_err(|e| format!("cannot create {}: {e}", parent.display()))?;
@@ -351,6 +484,7 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
         let mut outcome = None;
         // The start is of the code as it is initialised; the step, of any state it can hold.
         for (obligation, mut flags) in [("start", vec!["-DARCLANG_START"]), ("step", vec!["--nondet-static"])] {
+            flags.push(define.as_str());
             if correspondence.int_bits == 16 {
                 flags.push("--16");
             }
@@ -367,7 +501,8 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
                             failing.push(written.clone());
                         }
                     }
-                    outcome = Some(Outcome::Refuted { obligation: obligation.to_string(), lines: failing, seconds: started.elapsed().as_secs_f64() });
+                    let shown = case(&dir, &["proof.c", model_source.as_str()], &flags, unwind, &written);
+                    outcome = Some(Outcome::Refuted { obligation: obligation.to_string(), lines: failing, case: shown, seconds: started.elapsed().as_secs_f64() });
                     break;
                 }
                 Answer::BeyondBound => {

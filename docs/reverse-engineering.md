@@ -312,9 +312,9 @@ $ arclang prove debounce.arc
 The proof has two parts, each asked of CBMC and Bitwuzla as the equivalence
 above:
 
-- **start**: after `setup()` and one `loop()` run at any time, and after the
-  machine's start and one step with the same inputs, every line of the
-  correspondence holds;
+- **start**: after `setup()` and one `loop()`, and after the machine's start
+  and one step with the same inputs, every line of the correspondence
+  holds;
 - **step**: from *any* state of the code and *any* state of the machine for
   which every line holds, one `loop()` and one step with the same inputs
   leave two states for which every line holds.
@@ -333,10 +333,20 @@ it:
     does not hold after it: stable == 0 && counting == 1 is in Rising
     does not hold after it: stable == 1 && counting == 0 is in High
     does not hold after it: stable == 1 is led
+    a case that shows it (the code's side and the model's side of each line):
+      with button = 1
+      `the level of LED` and `led`: before 0 and 0, after 0 and 1  <- differ
+      `stable == 0 && counting == 1` and `in Rising`: before 1 and 1, after 1 and 0  <- differ
+      `stable == 1 && counting == 0` and `in High`: before 0 and 0, after 0 and 1  <- differ
+      `millis() - since` and `time in Rising`: before 40 and 40, after 50 and -
+      ...
 ```
 
-(the model here waits 40 ms where the sketch waits 50: the machine is in
-`High` with the lamp lit while the sketch still counts.)
+(the model here waits 40 ms where the sketch waits 50: at 40 ms the machine
+is in `High` with the lamp lit while the sketch still counts. The case gives
+the inputs of the step and, for each line, the value of the code's side and
+of the model's side before and after; `-` is the time in a state that is not
+active.)
 
 A refuted step does not always mean the code is wrong. The step is asked
 from any two states the lines allow, reachable or not: a correspondence that
@@ -358,6 +368,9 @@ proven nor refuted, said as such.
 
 What the proof takes as given, and prints with its answer:
 
+- the first `loop()` runs as `millis()` starts counting (at 0);
+- the machine steps at the `period` of the correspondence: a time of 500 ms
+  with a `loop()` of 20 ms is 25 steps;
 - one `loop()` is one step of `period`: `millis()` is constant within a
   `loop()` and advances by the period between two; the time the statements
   themselves take is not counted. A sketch whose `loop()` takes another
@@ -372,3 +385,56 @@ What the proof takes as given, and prints with its answer:
 files of the proof (`proof.c`, the model's C, the code), `--json` gives the
 outcomes to a tool. The declaration is exported to SysML v2 as a
 `#Correspondence` part and read back as written.
+
+## A model proposed by an AI, judged by the proof
+
+Writing the machine and the correspondence of a sketch is work an AI does
+well, and nothing it says is trusted:
+
+```
+$ arclang recover door.ino --propose --with "<command>"
+Turn 1 of 4: asking the proposer
+  not proven: START is refuted: after setup() and one loop(), ...
+Turn 2 of 4: asking the proposer
+✓ Proven (1.4 s) door.ino is state_machine "Door lock"
+  Output: door.arc
+```
+
+Three roles, kept apart:
+
+- the **sketch** is read as it is;
+- a **proposer** proposes: `--with` names any command that reads a prompt
+  on its input and prints its answer (the command line of an AI, local or
+  not; `ARCLANG_PROPOSER` when `--with` is not given). The prompt holds the
+  sketch, how a machine and a correspondence are written, and how the answer
+  is judged;
+- **ArcLang judges**: the answer is compiled and proven exactly as `arclang
+  prove` does. Refuted, the lines that do not hold and the case that shows
+  it go back to the proposer, which answers again, `--turns` times at most
+  (4 by default).
+
+The model is written (`-o`, or `<sketch>.arc`) only once its proof holds,
+with the command that replays the proof with no AI in its first lines. No
+answer proven in the turns given: the command fails and writes nothing.
+`--keep <dir>` keeps each answer and the files of its proof.
+
+ArcLang depends on no AI and calls none by itself: the sketch is sent to the
+command you name, and nowhere else.
+
+What a proof of a proposed model says, and what it does not:
+
+- it says the sketch drives its pins as the machine drives its outputs, on
+  every run, under the assumptions printed with it. A proposer cannot get a
+  wrong model through: the proof is of the sketch that was given, whatever
+  source the answer names, and every pin the sketch touches must be named;
+- it does not say the model is the one an engineer would write. A proposer
+  may count a time in a variable where a `timing:` would say it better, or
+  keep the sketch's bookkeeping as variables of the machine. The model is
+  right; it may still deserve a rewrite, which `arclang prove` then judges
+  the same way.
+
+Tried with an AI's command line on sketches written for it: a thermostat
+and a blinker were proven at the first answer, a door lock (two inputs, two
+outputs, a timer) at the second, after the first was refuted at the start.
+Four sketches are not a measure; a sketch outside the C subset read here is
+not proven by any number of turns.

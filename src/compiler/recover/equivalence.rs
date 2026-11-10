@@ -244,9 +244,25 @@ pub(super) fn decide(work: &Path, sources: &[&str], flags: &[&str], unwind: usiz
         if !missing.is_empty() {
             return Ok(Err(format!("the code calls {}, which this proof has no stand-in for", missing.join(", "))));
         }
+        if !formula.is_file() && said.contains("bits/libc-header-start.h") {
+            return Ok(Err("the C library's headers for this width of int are not installed (on x86_64: the package libc6-dev-i386, which ArcLang's formal image holds)".to_string()));
+        }
         if !formula.is_file() {
             let tail: Vec<&str> = said.lines().filter(|l| !l.trim().is_empty()).rev().take(8).collect();
             return Ok(Err(format!("CBMC could not translate the code:\n{}", tail.into_iter().rev().collect::<Vec<_>>().join("\n"))));
+        }
+        // A question CBMC settles while it simplifies leaves a formula with
+        // nothing to check, and the solver would say nothing of it. It is
+        // then asked of CBMC itself, which must say in so many words that
+        // every check holds: an empty formula alone is never a proof.
+        if !std::fs::read_to_string(&formula).is_ok_and(|text| text.contains("(check-sat)")) {
+            let settled = Command::new(&cbmc).args(sources).args(flags).args(["--no-standard-checks", "--unwind", &unwind, bound]).current_dir(work).output().map_err(|e| format!("cannot run '{cbmc}': {e} ({how})"))?;
+            let said = String::from_utf8_lossy(&settled.stdout).into_owned();
+            return Ok(if settled.status.success() && said.contains("VERIFICATION SUCCESSFUL") && said.contains("** 0 of ") {
+                Ok("unsat".to_string())
+            } else {
+                Err("CBMC wrote a formula with nothing to check, and did not confirm that every check holds".to_string())
+            });
         }
         let answer = Command::new(&bitwuzla).args(["-t", &limit, "equivalence.smt2"]).current_dir(work).output().map_err(|e| format!("cannot run '{bitwuzla}': {e} ({how})"))?;
         Ok(Ok(String::from_utf8_lossy(&answer.stdout).into_owned()))
