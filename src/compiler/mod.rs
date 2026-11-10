@@ -33,17 +33,11 @@ pub mod capability_relations;
 mod capability_semantics;
 pub mod semantic_analyzer;
 pub mod layout_strategy;
-pub mod post_processor;
-pub mod quality_metrics_v2;
-pub mod arcadia_rules_engine;
-pub mod professional_styler;
-pub mod elk_complete_v2_generator;
 pub mod semantic_enhanced;
 pub mod semantic_adapter;
 pub mod capella_metamodel;
 pub mod codegen;
 pub mod yaml;
-pub mod capella_importer;
 pub mod refine;
 pub mod capella_xmi;
 pub mod capella_export;
@@ -73,7 +67,6 @@ pub mod mermaid_generator;
 pub mod mermaid_importer;
 pub mod plantuml_generator;
 pub mod plantuml_importer;
-pub mod arcadia_7d_intelligent_generator;
 pub mod capella_compliant_generator;
 
 // v2.0.0 Active Generators (RECOMMENDED)
@@ -86,13 +79,6 @@ pub mod cicd; // cicd hook
 pub mod arcviz_explorer;
 pub mod workbench;
 pub mod terraform_databricks_generator;
-pub mod terraform_aws_complete_generator;
-pub mod terraform_azure_generator;
-pub mod terraform_gcp_generator;
-pub mod kubernetes_helm_generator;
-pub mod github_actions_generator;
-pub mod gitlab_ci_generator;
-pub mod opa_policy_generator;
 
 use std::path::Path;
 use thiserror::Error;

@@ -1,13 +1,6 @@
 #[cfg(feature = "native")]
 pub mod cli;
 pub mod compiler;
-pub mod parser;
-pub mod semantic;
-pub mod plm;
-pub mod requirements;
-pub mod safety;
-pub mod collaboration;
-pub mod plugins;
 #[cfg(feature = "native")]
 pub mod web_server;
 #[cfg(feature = "native")]
