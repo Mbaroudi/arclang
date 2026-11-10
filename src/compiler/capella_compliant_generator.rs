@@ -10,10 +10,10 @@
 //! Reference: "Model-based System and Architecture Engineering with the Arcadia Method"
 //! Jean-Luc Voirin, ISTE Press, London & Elsevier, Oxford, 2017
 
-use super::semantic::{SemanticModel, ComponentInfo, FunctionInfo};
+use super::semantic::{SemanticModel, ComponentInfo};
 use super::semantic_adapter::SemanticAdapter;
 use super::semantic_enhanced::EnhancedSemanticModel;
-use super::capella_metamodel::{CapellaMetamodel, CapellaElementType, ArchitecturalLayer as CapellaLayer};
+use super::capella_metamodel::{CapellaMetamodel, CapellaElementType};
 use super::CompilerError;
 use std::collections::HashMap;
 
@@ -662,7 +662,7 @@ impl CapellaCompliantGenerator {
         elem: &PositionedCapellaElement,
         parent_children: &HashMap<String, Vec<String>>,
         all_elements: &[PositionedCapellaElement],
-        depth: usize,
+        _depth: usize,
     ) -> String {
         let mut svg = String::new();
         

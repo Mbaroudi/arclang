@@ -12,16 +12,7 @@ use tower_http::trace::TraceLayer;
 
 pub mod systems_modeling;
 
-use crate::compiler::CompilerError;
-use crate::compiler::semantic::{SemanticModel, SemanticAnalyzer};
-use crate::compiler::ast::{
-    Model,
-    Actor as AstActor,
-    Requirement as AstRequirement,
-    SystemFunction,
-    SystemComponent,
-    LogicalComponent
-};
+use crate::compiler::ast::Model;
 
 pub struct AppState {
 }
@@ -414,7 +405,7 @@ async fn generate_7d_layout(
 ) -> Result<Json<Capella7DLayout>, AppError> {
     use crate::compiler::{Compiler, CompilerConfig};
     use crate::compiler::capella_compliant_generator::CapellaCompliantGenerator;
-    use crate::compiler::semantic::SemanticAnalyzer;
+    
     
     tracing::info!("Generating 7D layout for dimension: {}", payload.dimension);
     
@@ -665,13 +656,13 @@ fn extract_7d_model_from_ast(ast: &Model) -> Arcadia7DModel {
         data_flows: Vec::new(),
     };
     
-    let mut physical = PhysicalModel {
+    let physical = PhysicalModel {
         nodes: Vec::new(),
         links: Vec::new(),
         deployments: Vec::new(),
     };
     
-    let mut epbs = EpbsModel {
+    let epbs = EpbsModel {
         subsystems: Vec::new(),
         assemblies: Vec::new(),
         components: Vec::new(),
@@ -682,7 +673,7 @@ fn extract_7d_model_from_ast(ast: &Model) -> Arcadia7DModel {
         traces: Vec::new(),
     };
     
-    let mut cross_cutting = CrossCuttingModel {
+    let cross_cutting = CrossCuttingModel {
         security_policies: Vec::new(),
         safety_constraints: Vec::new(),
         performance_metrics: Vec::new(),

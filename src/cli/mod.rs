@@ -28,7 +28,9 @@ pub struct Cli {
     #[clap(short, long, global = true)]
     pub verbose: bool,
     
-    #[clap(short, long, global = true)]
+    /// Accepted for the scripts that pass it: no command reads a
+    /// configuration file, and the run says so.
+    #[clap(short, long, global = true, hide = true)]
     pub config: Option<PathBuf>,
 
     /// The file the input stands for, when the input is a copy of it (an
@@ -57,7 +59,9 @@ pub enum Commands {
         #[clap(short, long, value_parser)]
         output: Option<PathBuf>,
         
-        #[clap(long)]
+        /// Accepted for the scripts that pass it: every build compiles the
+        /// whole model, and the run says so.
+        #[clap(long, hide = true)]
         incremental: bool,
         
         #[clap(long)]
@@ -1211,8 +1215,14 @@ impl CliRunner {
     }
     
     pub fn run(&self, command: Commands) -> Result<(), CliError> {
+        if let Some(path) = &self.config_path {
+            eprintln!("note: --config {} has no effect: no command reads a configuration file", path.display());
+        }
         match command {
             Commands::Build { input, output, incremental, release, target } => {
+                if incremental {
+                    eprintln!("note: --incremental has no effect: a build compiles the whole model");
+                }
                 self.run_build(input, output, incremental, release, target)
             }
             Commands::Check { input, format: Some(cicd::DiagnosticFormat::Sarif), .. } => { // cicd hook
@@ -1460,13 +1470,18 @@ impl CliRunner {
         target: Option<String>,
     ) -> Result<(), CliError> {
         // The file written holds what its extension says: the JSON model by
-        // default, the Capella-flavoured XML only when asked for.
+        // default, ArcLang's XML, or a Capella project (what `export -f
+        // capella` writes: the .capella with its .aird and .afm).
         let (target, extension) = match target.as_deref() {
             None | Some("json") => ("json", "json"),
-            Some("capella") | Some("xml") => ("capella", "capella"),
+            Some("xml") => ("xml", "xml"),
+            Some("capella") => {
+                let output = output.unwrap_or_else(|| input.with_extension("capella"));
+                return self.run_export(input, output, ExportFormat::Capella, false, false);
+            }
             Some(other) => {
                 return Err(CliError::Config(format!(
-                    "unknown build target '{other}': expected json or capella (other formats: arclang export)"
+                    "unknown build target '{other}': expected json, xml or capella (other formats: arclang export)"
                 )))
             }
         };
@@ -2007,10 +2022,25 @@ impl CliRunner {
                     }
                 }
                 
-                if matrix {
+                // --from / --to keep the traces of those ends, given by id or
+                // by name; they list the matrix even without --matrix.
+                let filtered = from.is_some() || to.is_some();
+                let graph = crate::compiler::elements::build(&result.ast, &result.semantic_model);
+                let names = |written: &str| -> Vec<String> {
+                    match crate::compiler::suspect::end(&graph, written) {
+                        Some(e) => vec![e.id.clone(), e.name.clone()],
+                        None => vec![written.to_string()],
+                    }
+                };
+                let wanted = |end: &str, filter: &Option<String>| filter.as_deref().is_none_or(|f| f == end || names(f).iter().any(|n| n == end) || names(end).iter().any(|n| n == f));
+                if matrix || filtered {
                     println!("\nTraceability Matrix:");
                     println!("═══════════════════════════════════════");
-                    for trace in &result.semantic_model.traces {
+                    let traces: Vec<_> = result.semantic_model.traces.iter().filter(|t| wanted(&t.from, &from) && wanted(&t.to, &to)).collect();
+                    if filtered && traces.is_empty() {
+                        return Err(CliError::Compilation("no trace matches: give --from and --to as the ids or names of its ends".to_string()));
+                    }
+                    for trace in traces {
                         println!("  {} → {}", trace.from, trace.to);
                         if let Some(ref rationale) = trace.rationale {
                             println!("    Rationale: {}", rationale);
@@ -2847,7 +2877,7 @@ impl CliRunner {
         config.target = match format {
             ExportFormat::JSON => "json".to_string(),
             ExportFormat::Capella => "capella".to_string(),
-            ExportFormat::XML => "capella".to_string(),
+            ExportFormat::XML => "xml".to_string(),
             ExportFormat::Markdown => "markdown".to_string(),
             ExportFormat::Mermaid => "json".to_string(),
             ExportFormat::PlantUML => "json".to_string(),
@@ -2881,6 +2911,12 @@ impl CliRunner {
                         // Export the raw AST model as JSON for diagram rendering
                         result.ast.to_json()
                             .map_err(|e| CliError::Compilation(format!("JSON export failed: {}", e)))?
+                    }
+                    ExportFormat::YAML => {
+                        // The model `-f json` writes, as YAML.
+                        let json = result.ast.to_json().map_err(|e| CliError::Compilation(format!("YAML export failed: {}", e)))?;
+                        let value: serde_json::Value = serde_json::from_str(&json).map_err(|e| CliError::Compilation(format!("YAML export failed: {}", e)))?;
+                        crate::compiler::yaml::to_yaml(&value)
                     }
                     ExportFormat::Mermaid => {
                         use crate::compiler::mermaid_generator::generate_mermaid_flowchart;
@@ -3789,7 +3825,7 @@ impl CliRunner {
         ];
         
         let mut success_count = 0;
-        let mut total = diagram_types.len();
+        let total = diagram_types.len();
         
         for (format, name) in diagram_types {
             let output_path = output_dir.join(format!("{}_{}.svg", base_name, name));
@@ -3885,12 +3921,6 @@ impl CliRunner {
             .map_err(|e| CliError::Io(e))?;
         
         Ok(())
-    }
-    
-    fn log(&self, message: &str) {
-        if self.verbose {
-            println!("[INFO] {}", message);
-        }
     }
 }
 

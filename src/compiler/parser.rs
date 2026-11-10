@@ -2707,75 +2707,6 @@ impl Parser {
         })
     }
     
-    fn parse_connection_as_interface(&mut self) -> Result<LogicalInterface, String> {
-        self.expect(Token::Connection)?;
-        let name = self.expect_name()?;
-        
-        let mut from = String::new();
-        let mut to = String::new();
-        let mut attributes = HashMap::new();
-        
-        if self.check(&Token::Arrow) {
-            self.expect(Token::Arrow)?;
-            to = self.expect_string()?;
-            from = name.clone();
-        }
-        
-        self.expect(Token::LeftBrace)?;
-        
-        while !self.check(&Token::RightBrace) && !self.is_at_end() {
-            match self.current() {
-                Token::From => {
-                    self.advance();
-                    self.expect(Token::Colon)?;
-                    from = self.expect_identifier_or_string()?;
-                }
-                Token::To => {
-                    self.advance();
-                    self.expect(Token::Colon)?;
-                    to = self.expect_identifier_or_string()?;
-                }
-                Token::Identifier(ref id) => {
-                    if id == "from" {
-                        self.advance();
-                        self.expect(Token::Colon)?;
-                        from = self.expect_identifier_or_string()?;
-                    } else if id == "to" {
-                        self.advance();
-                        self.expect(Token::Colon)?;
-                        to = self.expect_identifier_or_string()?;
-                    } else {
-                        let (key, value) = self.parse_attribute()?;
-                        attributes.insert(key, value);
-                    }
-                }
-                Token::Description | Token::Version | Token::Author | Token::Priority | 
-                Token::Rationale | Token::Verification | Token::Traces | Token::SafetyLevel |
-                Token::Parent | Token::Properties | Token::Signals | Token::DataType |
-                Token::Protocol | Token::Rate | Token::Unit => {
-                    let (key, value) = self.parse_attribute()?;
-                    attributes.insert(key, value);
-                }
-                _ => break,
-            }
-        }
-        
-        self.expect(Token::RightBrace)?;
-        
-        let connection_name = if from.is_empty() || to.is_empty() {
-            name
-        } else {
-            format!("{} -> {}", from, to)
-        };
-        
-        Ok(LogicalInterface {
-            name: connection_name,
-            from,
-            to,
-            attributes,
-        })
-    }
-    
     fn expect_identifier_or_string(&mut self) -> Result<String, String> {
         match self.current() {
             Token::Identifier(id) => {
@@ -3769,30 +3700,6 @@ impl Parser {
             Ok(result)
         } else {
             Err(self.err(format!("Expected string literal, got {}", self.current())))
-        }
-    }
-    
-    fn expect_identifier(&mut self) -> Result<String, String> {
-        match self.current() {
-            Token::Identifier(id) => {
-                let result = id.clone();
-                self.advance();
-                Ok(result)
-            }
-            // Allow keywords as identifiers in attribute context
-            Token::Description => { self.advance(); Ok("description".to_string()) }
-            Token::Version => { self.advance(); Ok("version".to_string()) }
-            Token::Author => { self.advance(); Ok("author".to_string()) }
-            Token::Priority => { self.advance(); Ok("priority".to_string()) }
-            Token::Rationale => { self.advance(); Ok("rationale".to_string()) }
-            Token::Verification => { self.advance(); Ok("verification".to_string()) }
-            Token::Traces => { self.advance(); Ok("traces".to_string()) }
-            Token::SafetyLevel => { self.advance(); Ok("safety_level".to_string()) }
-            Token::Parent => { self.advance(); Ok("parent".to_string()) }
-            Token::Properties => { self.advance(); Ok("properties".to_string()) }
-            Token::Signals => { self.advance(); Ok("signals".to_string()) }
-            Token::Function => { self.advance(); Ok("function".to_string()) }
-            _ => Err(self.err(format!("Expected identifier, got {}", self.current())))
         }
     }
     

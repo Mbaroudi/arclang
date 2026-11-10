@@ -43,7 +43,7 @@ pub(super) fn render(graph: &Graph, id: &str, refer: &dyn Fn(&str) -> Option<Str
     }
     match &expr {
         Expr::Unit(unit) => Err(format!("'{unit}' is a unit, not a value")),
-        _ => Ok(text(&expr, true)),
+        _ => Ok(text(&expr)),
     }
 }
 
@@ -336,27 +336,27 @@ fn display(graph: &Graph, id: &str) -> String {
     graph.get(id).and_then(|e| e.name.clone().or_else(|| e.short_name.clone())).unwrap_or_else(|| id.to_string())
 }
 
-fn text(expr: &Expr, top: bool) -> String {
+fn text(expr: &Expr) -> String {
     match expr {
         Expr::Literal(value) => value.clone(),
         Expr::Quantity(number, unit) => format!("{number} {unit}"),
         Expr::Attr(element, attribute) => format!("{}.{attribute}", name_text(element)),
         Expr::Ref(name) => name_text(name),
         Expr::Unit(unit) => unit.clone(),
-        Expr::List(items) => format!("[{}]", items.iter().map(|i| text(i, true)).collect::<Vec<_>>().join(", ")),
-        Expr::Call(function, args) => format!("{function}({})", args.iter().map(|a| text(a, true)).collect::<Vec<_>>().join(", ")),
+        Expr::List(items) => format!("[{}]", items.iter().map(|i| text(i)).collect::<Vec<_>>().join(", ")),
+        Expr::Call(function, args) => format!("{function}({})", args.iter().map(|a| text(a)).collect::<Vec<_>>().join(", ")),
         // A negative number or quantity is written as one (`-33.45 deg`).
         Expr::Neg(inner) => match inner.as_ref() {
             Expr::Literal(value) if !value.starts_with('-') => format!("-{value}"),
             Expr::Quantity(number, unit) if !number.starts_with('-') => format!("-{number} {unit}"),
-            _ => format!("-({})", text(inner, true)),
+            _ => format!("-({})", text(inner)),
         },
         // As ArcLang writes an expression: parentheses only where the
         // reading needs them (operators are left-associative).
         Expr::Binary(op, lhs, rhs) => {
             let own = precedence(expr);
-            let left = if precedence(lhs) < own { format!("({})", text(lhs, true)) } else { text(lhs, true) };
-            let right = if precedence(rhs) <= own { format!("({})", text(rhs, true)) } else { text(rhs, true) };
+            let left = if precedence(lhs) < own { format!("({})", text(lhs)) } else { text(lhs) };
+            let right = if precedence(rhs) <= own { format!("({})", text(rhs)) } else { text(rhs) };
             format!("{left} {op} {right}")
         }
     }

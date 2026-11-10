@@ -261,7 +261,7 @@ fn install_library(image: &str, container: &str, deadline: Instant) -> Result<()
 pub fn run(tool: &Tool, dir: &Path, script: &str, timeout: Option<Duration>) -> Result<Run, String> {
     let dir = dir.canonicalize().map_err(|e| format!("cannot use the working directory {}: {e}", dir.display()))?;
     let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
-    let container = format!("arclang-omc-{}-{nanos}", std::process::id());
+    let container = format!("arclang-omc-{}-{nanos}-{}", std::process::id(), run_number());
     let deadline = Instant::now() + timeout.unwrap_or(DEFAULT_TIMEOUT);
     let mut command = match tool {
         Tool::Local(omc) => {
@@ -316,7 +316,7 @@ pub fn spawn(tool: &Tool, dir: &Path, script: &str, log: &Path) -> Result<(std::
             (command, None)
         }
         Tool::Docker(image) => {
-            let container = format!("arclang-twin-{}-{nanos}", std::process::id());
+            let container = format!("arclang-twin-{}-{nanos}-{}", std::process::id(), run_number());
             let mut command = Command::new("docker");
             command.args(["run", "-i", "--rm", "--name", &container]).args(isolation(network_kept())).arg("-v").arg(format!("{}:/work", dir.display())).args(["-w", "/work", image, "sh", script]);
             (command, Some(container))
@@ -369,4 +369,12 @@ mod tests {
         }
         assert!(d.summary().starts_with("OpenModelica: OpenModelica not available"));
     }
+}
+
+/// A number no other run of this process has: two runs started in the same
+/// instant (two threads, a clock that counts in microseconds) must not share
+/// a work directory or a container name.
+pub(crate) fn run_number() -> u64 {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }

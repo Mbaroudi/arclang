@@ -256,7 +256,7 @@ fn start(gateware: &Path, port: u16) -> Result<(Simulator, Link), String> {
 /// console on TCP `port`: the reports, and everything the console said.
 pub fn simulate(gateware: &Path, port: u16, drive: Drive, boot_seconds: u64, step_seconds: u64) -> Result<(String, String), String> {
     let (sim, mut link) = start(gateware, port)?;
-    let mut sim = sim;
+    let sim = sim;
     let wanted = match drive {
         Drive::Cycles(n) => n,
         Drive::Lines(_) => 0,

@@ -151,7 +151,7 @@ fn build_writes_json_into_the_json_file() {
 }
 
 #[test]
-fn build_target_capella_writes_xml_into_a_capella_file() {
+fn build_target_capella_writes_a_capella_project() {
     let directory = tempfile::tempdir().unwrap();
     let path = write(directory.path(), "brake.arc", BASE);
 
@@ -159,8 +159,49 @@ fn build_target_capella_writes_xml_into_a_capella_file() {
 
     assert!(output.status.success(), "{}", text(&output));
     let written = std::fs::read_to_string(directory.path().join("brake.capella")).unwrap();
-    assert!(written.trim_start().starts_with("<?xml"), "{}", &written[..written.len().min(200)]);
+    // What Capella opens: its own metamodel, with the .aird and .afm beside it.
+    assert!(written.contains("org.polarsys.capella.core.data.capellamodeller:Project"), "{}", &written[..written.len().min(300)]);
+    assert!(directory.path().join("brake.aird").exists() && directory.path().join("brake.afm").exists());
     assert!(!directory.path().join("brake.json").exists());
+}
+
+#[test]
+fn the_xml_is_arclangs_own_and_well_formed_whatever_the_text() {
+    let directory = tempfile::tempdir().unwrap();
+    let source = BASE.replace("Command braking within 100 ms", "Command <braking> & \\\"stop\\\" within 100 ms");
+    assert_ne!(source, BASE, "the model has the text this test rewrites");
+    let path = write(directory.path(), "brake.arc", &source);
+
+    let output = arclang(&["build", &path, "--target", "xml"]);
+
+    assert!(output.status.success(), "{}", text(&output));
+    let written = std::fs::read_to_string(directory.path().join("brake.xml")).unwrap();
+    assert!(written.contains("<arclang>") && !written.contains("capella:Project"), "{written}");
+    assert!(written.contains("Command &lt;braking&gt; &amp; &quot;stop&quot; within 100 ms"), "{written}");
+    let mut reader = quick_xml::Reader::from_str(&written);
+    loop {
+        match reader.read_event() {
+            Ok(quick_xml::events::Event::Eof) => break,
+            Ok(_) => {}
+            Err(error) => panic!("not well-formed: {error}\n{written}"),
+        }
+    }
+}
+
+#[test]
+fn export_yaml_writes_yaml() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = write(directory.path(), "brake.arc", BASE);
+    let out = directory.path().join("brake.yaml");
+
+    let output = arclang(&["export", &path, "-f", "yaml", "-o", out.to_str().unwrap()]);
+
+    assert!(output.status.success(), "{}", text(&output));
+    let written = std::fs::read_to_string(&out).unwrap();
+    assert!(!written.trim_start().starts_with('{'), "it is JSON: {}", &written[..written.len().min(200)]);
+    let model: serde_yaml::Value = serde_yaml::from_str(&written).expect("brake.yaml holds YAML");
+    assert!(model.is_mapping());
+    assert!(written.contains("REQ-001") && written.contains("LC-BRAKE"), "{written}");
 }
 
 #[test]

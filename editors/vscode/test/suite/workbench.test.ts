@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 import { applyRequests } from '../../src/workbench/edits';
 import { CanvasHistory } from '../../src/workbench/canvas-history';
 import { WorkbenchPanel } from '../../src/workbench/panel';
-import { metamodelJson, snapshotOf } from '../../src/workbench/snapshot';
+import { metamodelJson, onDidChangeSnapshot, registerSnapshotRefresh, snapshotOf } from '../../src/workbench/snapshot';
 import { locateElement, ModelItem, ModelTreeProvider } from '../../src/workbench/tree';
 
 const MODEL = `model "Workbench test" {
@@ -71,6 +71,28 @@ suite('ArcLang workbench', () => {
     assert.ok(ids.includes('LC-CTL'), ids.join(','));
     assert.ok(ids.includes('LC-Sensor'), ids.join(','));
     assert.ok((snapshot.diagrams?.graphs.length ?? 0) >= 1);
+  });
+
+  test('a verdict written beside the model makes its snapshot one to compute again', async () => {
+    const subscriptions: vscode.Disposable[] = [];
+    registerSnapshotRefresh({ subscriptions } as unknown as vscode.ExtensionContext, 50);
+    try {
+      const document = await openCopy();
+      const first = await snapshotOf(document);
+      assert.equal(await snapshotOf(document), first, 'the same version gives the snapshot it has');
+      let told = 0;
+      subscriptions.push(onDidChangeSnapshot((uri) => {
+        if (uri.toString() === document.uri.toString()) told++;
+      }));
+      // What `arclang verify` does in a terminal: a verdict in the cache, the text untouched.
+      const cache = path.join(path.dirname(document.uri.fsPath), '.arclang', 'sim-cache');
+      fs.mkdirSync(cache, { recursive: true });
+      fs.writeFileSync(path.join(cache, 'TC-1.json'), '{}');
+      assert.ok(await until(() => told > 0, 10000), 'the views are told');
+      assert.notEqual(await snapshotOf(document), first, 'the snapshot is computed again');
+    } finally {
+      for (const subscription of subscriptions) subscription.dispose();
+    }
   });
 
   test('an edit from the views lands in the editor as one undoable change', async () => {

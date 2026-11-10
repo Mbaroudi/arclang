@@ -29,7 +29,7 @@ const CAMPAIGN: [System; 5] = [
         model: "examples/automotive/ev-range/ev_range_simulation.arc",
         physics: "physics/EVPhysics.mo",
         package: "EVRangeSimulation",
-        verdicts: &[("TC-RANGE-STD", "fail"), ("TC-RANGE-LR", "pass"), ("TC-RANGE-ENVELOPE", "pass")],
+        verdicts: &[("TC-RANGE-STD", "fail"), ("TC-RANGE-LR", "pass"), ("TC-RANGE-ENVELOPE", "fail")],
     },
     System {
         model: "examples/automotive/battery-fast-charge/battery_fast_charge.arc",
@@ -176,7 +176,7 @@ fn a_sweep_finds_the_corner_where_the_design_is_not_enough() {
 fn the_gate_blocks_only_the_requirements_whose_own_expectations_fail() {
     use arclang::compiler::production_gate;
     // Each system: the requirements left unverified once every case has run.
-    let blocked: [&[&str]; 5] = [&["REQ-RANGE"], &["REQ-CHARGE-TIME"], &[], &["REQ-COMFORT"], &["REQ-ESS-30MIN", "REQ-ESS-ENVELOPE"]];
+    let blocked: [&[&str]; 5] = [&["REQ-RANGE", "REQ-RANGE-ENVELOPE"], &["REQ-CHARGE-TIME"], &[], &["REQ-COMFORT"], &["REQ-ESS-30MIN", "REQ-ESS-ENVELOPE"]];
     let config = ToolConfig::from_env();
     for (system, expected) in CAMPAIGN.iter().zip(blocked) {
         let (_dir, model) = fresh(system);

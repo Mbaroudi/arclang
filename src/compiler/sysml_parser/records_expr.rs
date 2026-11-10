@@ -13,7 +13,7 @@ impl<'n> Builder<'n> {
         let id = self.extra_id("sysml-expression", owner_id, key);
         let mut object = Map::new();
         let mut arguments: Vec<String> = Vec::new();
-        let mut operand = |builder: &mut Self, rank: usize, e: &Expr, arguments: &mut Vec<String>| {
+        let operand = |builder: &mut Self, rank: usize, e: &Expr, arguments: &mut Vec<String>| {
             let child = builder.expression(e, context, &id, &rank.to_string(), None);
             arguments.push(child);
         };

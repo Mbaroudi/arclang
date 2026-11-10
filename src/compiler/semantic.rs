@@ -624,9 +624,6 @@ impl SemanticAnalyzer {
             }
             
             for activity in &oa.activities {
-                let attr_id = activity.attributes.get("id")
-                    .and_then(|v| v.as_string())
-                    .unwrap_or(&activity.id);
                 collect_activities_recursive(activity, &mut components, &mut all_elements, &mut duplicate_ids);
             }
         }
@@ -1019,7 +1016,7 @@ impl SemanticAnalyzer {
         // Collect missions, capabilities, and functional chains (SA + LA),
         // registering their identities BEFORE resolving their references.
         let mut missions_info = Vec::new();
-        let mut capabilities_info = Vec::new();
+        let capabilities_info;
         let mut chains_info = Vec::new();
 
         for sa in &ast.system_analysis {
@@ -1479,7 +1476,7 @@ impl SemanticAnalyzer {
                     .map(|e| e.id.clone())
                     .collect()
             };
-            let mut check_reference = |owner_kind: &str, owner: &str, role: &str, reference: &str, kinds: &[&str], errors: &mut Vec<String>| {
+            let check_reference = |owner_kind: &str, owner: &str, role: &str, reference: &str, kinds: &[&str], errors: &mut Vec<String>| {
                 let by_id = all_elements.get(reference).filter(|e| kinds.is_empty() || kinds.contains(&e.element_type.as_str()));
                 if by_id.is_some() {
                     return;
@@ -1892,7 +1889,7 @@ impl SemanticModel {
 
         // Adjacency: element id -> [(neighbor id, relation description)]
         let mut graph: HashMap<String, Vec<(String, String)>> = HashMap::new();
-        let mut link = |graph: &mut HashMap<String, Vec<(String, String)>>,
+        let link = |graph: &mut HashMap<String, Vec<(String, String)>>,
                         a: &str,
                         b: &str,
                         forward: &str,

@@ -219,6 +219,7 @@ impl Plants {
     /// What the FMU of a Modelica plant depends on: the model, its sources as
     /// they are, the wires, and the model's own Modelica (`package`, its
     /// name and text, when the model exports) if the plant reads it.
+    #[cfg_attr(not(feature = "native"), allow(dead_code))]
     fn key(base: &Path, spec: &Spec, package: Option<(&str, &str)>) -> Result<String, String> {
         use sha2::{Digest, Sha256};
         let mut hash = Sha256::new();

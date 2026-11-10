@@ -70,7 +70,7 @@ pub fn analyze(case_dir: &Path, engine: Engine) -> Result<serde_json::Value, Str
     // The interpreter may run elsewhere (another directory, a container): an absolute path.
     let samples = samples.canonicalize().map_err(|e| format!("{}: {e}", samples.display()))?;
     let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
-    let work = std::env::temp_dir().join(format!("arclang-stats-{}-{nanos}", std::process::id()));
+    let work = std::env::temp_dir().join(format!("arclang-stats-{}-{nanos}-{}", std::process::id(), super::tool::run_number()));
     std::fs::create_dir_all(&work).map_err(|e| format!("cannot create {}: {e}", work.display()))?;
     let (name, text) = engine.script();
     let script = work.join(name);

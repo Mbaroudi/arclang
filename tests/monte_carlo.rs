@@ -123,10 +123,11 @@ fn openmodelica_runs_the_samples_and_finds_what_drives_the_margin() {
     strata.sort();
     assert_eq!(strata, (0..30).collect::<Vec<_>>());
     assert!(outcome.reason.starts_with(&format!("holds in {} of 30 samples", outcome.points.iter().filter(|p| p.holds).count())), "{}", outcome.reason);
-    // Faster is less charge left; warmer air, more.
+    // Warmer air is more charge left, and it is what drives the margin: the
+    // cold pack and the cabin heater weigh more than 20 km/h. Faster is less.
     let rho = |parameter: &str| outcome.sensitivity.iter().find(|i| i.expect.starts_with("min(") && i.parameter.ends_with(parameter)).unwrap().rank_correlation;
-    assert!(rho("target_speed") < -0.5, "{:?}", outcome.sensitivity);
-    assert!(rho("ambient") > 0.0, "{:?}", outcome.sensitivity);
+    assert!(rho("ambient") > 0.5, "{:?}", outcome.sensitivity);
+    assert!(rho("target_speed") < 0.0 && rho("target_speed").abs() < rho("ambient"), "{:?}", outcome.sensitivity);
     // The samples, for R or Python.
     let table = std::fs::read_to_string(dir.path().join(".arclang/sim-results/TC-RANGE-LR/samples.csv")).unwrap();
     assert_eq!(table.lines().count(), 31);

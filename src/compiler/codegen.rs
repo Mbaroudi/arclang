@@ -14,7 +14,9 @@ impl<'a> CodeGenerator<'a> {
     pub fn generate(&self, model: &SemanticModel) -> Result<String, CompilerError> {
         match self.config.target.as_str() {
             "json" => self.generate_json(model),
-            "capella" => self.generate_capella(model),
+            // "capella" is the name this target had: the XML is ArcLang's
+            // own, not a Capella project (`capella_export` writes those).
+            "xml" | "capella" => self.generate_xml(model),
             "markdown" => self.generate_markdown(model),
             "mermaid" => self.generate_mermaid(model),
             "terraform" => self.generate_terraform(model),
@@ -92,43 +94,64 @@ impl<'a> CodeGenerator<'a> {
             .map_err(|e| CompilerError::Semantic(e.to_string()))?)
     }
     
-    fn generate_capella(&self, model: &SemanticModel) -> Result<String, CompilerError> {
+    /// ArcLang's own XML of the requirements, the components and the traces.
+    /// It is not a Capella project and does not say it is one.
+    fn generate_xml(&self, model: &SemanticModel) -> Result<String, CompilerError> {
+        fn escaped(text: &str) -> String {
+            let mut out = String::with_capacity(text.len());
+            for c in text.chars() {
+                match c {
+                    '&' => out.push_str("&amp;"),
+                    '<' => out.push_str("&lt;"),
+                    '>' => out.push_str("&gt;"),
+                    '"' => out.push_str("&quot;"),
+                    '\n' => out.push_str("&#10;"),
+                    '\r' => out.push_str("&#13;"),
+                    '\t' => out.push_str("&#9;"),
+                    // What XML 1.0 has no character for.
+                    c if c.is_control() => {}
+                    c => out.push(c),
+                }
+            }
+            out
+        }
         let mut xml = String::new();
-        
+
         xml.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-        xml.push_str("<capella:Project xmlns:capella=\"http://www.polarsys.org/capella/core/1.4.0\">\n");
+        xml.push_str("<!-- ArcLang XML: requirements, logical components and traces. Not a Capella project: `arclang export -f capella` writes one. -->\n");
+        xml.push_str("<arclang>\n");
         xml.push_str("  <ownedRequirements>\n");
-        
+
         for req in &model.requirements {
             xml.push_str(&format!(
                 "    <requirement id=\"{}\" name=\"{}\" description=\"{}\" priority=\"{}\" />\n",
-                req.id, req.id, req.description, req.priority
+                escaped(&req.id), escaped(&req.id), escaped(&req.description), escaped(&req.priority.to_string())
             ));
         }
-        
+
         xml.push_str("  </ownedRequirements>\n");
         xml.push_str("  <ownedLogicalComponents>\n");
-        
+
         for comp in &model.components {
             xml.push_str(&format!(
                 "    <component id=\"{}\" name=\"{}\" type=\"{}\" />\n",
-                comp.id, comp.name, comp.component_type
+                escaped(&comp.id), escaped(&comp.name), escaped(&comp.component_type.to_string())
             ));
         }
-        
+
         xml.push_str("  </ownedLogicalComponents>\n");
         xml.push_str("  <ownedTraces>\n");
-        
+
         for trace in &model.traces {
             xml.push_str(&format!(
                 "    <trace from=\"{}\" to=\"{}\" type=\"{}\" />\n",
-                trace.from, trace.to, trace.trace_type
+                escaped(&trace.from), escaped(&trace.to), escaped(&trace.trace_type.to_string())
             ));
         }
-        
+
         xml.push_str("  </ownedTraces>\n");
-        xml.push_str("</capella:Project>\n");
-        
+        xml.push_str("</arclang>\n");
+
         Ok(xml)
     }
     

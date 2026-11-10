@@ -9,7 +9,7 @@
 import { randomBytes } from 'node:crypto';
 import * as vscode from 'vscode';
 import { sysmlText } from '../../workbench/source';
-import { applySession, cancelSession, diffSession, dropSession, restoreFiles, runAsk, session, type WrittenFile } from '../assist';
+import { applySession, cancelSession, diffSession, dropSession, replacedFiles, restoreFiles, runAsk, session, type WrittenFile } from '../assist';
 import { openProvider } from '../client';
 import { MODELICA_NOT_VERIFIED, MODELICA_WHERE_VERIFIED, modelicaMessages, rememberTurn } from '../core/modelica';
 import { attachmentsBlock, MAX_ATTACHED, NO_FILE_RULES, systemRulesFor } from '../core/prompts';
@@ -346,7 +346,11 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
   /** A proposal to the page; one the compiler accepted is written in the file at once (unless the setting says to wait for Apply), to keep or undo. */
   private async deliver(id: string, sessionId: string, provider: string, view: ProposalView): Promise<void> {
     const live = session(sessionId);
-    if (live && view.ok && !view.explainOnly && writesDirectly()) {
+    // A file of the engineer's is not replaced before they have seen the change: it waits for Apply.
+    const replaced = live && view.ok && !view.explainOnly && writesDirectly() ? await replacedFiles(sessionId) : [];
+    if (replaced.length) {
+      this.post({ type: 'chat-note', text: `The change replaces ${replaced.map((p) => `\`${p}\``).join(', ')}, which ${replaced.length > 1 ? 'are' : 'is'} already there: it waits for Apply.` });
+    } else if (live && view.ok && !view.explainOnly && writesDirectly()) {
       const document = live.document;
       const before = document.getText();
       const applied = await applySession(sessionId);
