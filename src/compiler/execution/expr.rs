@@ -554,7 +554,14 @@ fn value_in(ty: Ty, spec: Option<&'static UnitSpec>, written: &str) -> Result<Va
             if w.dimension.vector() != s.dimension.vector() {
                 return Err(format!("{written} is a {}, the variable a {}", w.dimension.label(), s.dimension.label()));
             }
-            value * w.factor / s.factor
+            // Written in the variable's own unit, the value is the one
+            // written: there and back through the SI unit would move its
+            // last digit (125 km/h would read 124.99999999999999).
+            if w.factor == s.factor {
+                value
+            } else {
+                value * (w.factor / s.factor)
+            }
         }
         (Some(w), None) => return Err(format!("{written} has a unit ({}), the variable none: declare it [{}]", w.symbol, w.symbol)),
         (None, _) => value,
@@ -1425,6 +1432,18 @@ mod tests {
 
     fn prog(vars: &[&str], eqs: &[&str]) -> Result<Program, String> {
         program(&vars.iter().map(|s| s.to_string()).collect::<Vec<_>>(), &eqs.iter().map(|s| s.to_string()).collect::<Vec<_>>())
+    }
+
+    #[test]
+    fn a_value_written_in_the_unit_of_its_variable_is_that_value() {
+        // 125 km/h there and back through m/s is 124.99999999999999: the
+        // threshold the engineer wrote is not the one the C would compare with.
+        for (text, value) in [("const off: Real [km/h] = 125 km/h", 125.0), ("x: Real [km/h] = 0.1 km/h", 0.1), ("t: Real [ms] = 7 ms", 7.0), ("d: Real [mm] = 1.1 mm", 1.1), ("p: Real [%] = 85 %", 85.0)] {
+            assert_eq!(declaration(text).unwrap().initial, Value::Real(value), "{text}");
+        }
+        // Another unit is still converted.
+        assert_eq!(declaration("out current: Real [A] = 1500 mA").unwrap().initial, Value::Real(1.5));
+        assert_eq!(declaration("d: Real [m] = 250 cm").unwrap().initial, Value::Real(2.5));
     }
 
     #[test]
