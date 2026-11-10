@@ -185,6 +185,11 @@ impl Check {
 /// that was read. Equal files prove the recovery; every difference is a
 /// place where the recovered model is not the code.
 pub fn check(source: &str, generated: &Generated) -> Check {
+    check_showing(source, generated, 5)
+}
+
+/// As `check`, with at most `shown` differences of each file kept (their count is always whole).
+pub fn check_showing(source: &str, generated: &Generated, shown_at_most: usize) -> Check {
     let compiled = match crate::Compiler::new(crate::CompilerConfig::default()).compile_string(source) {
         Ok(compiled) => compiled,
         Err(error) => return Check { error: Some(format!("the recovered model does not compile: {error}")), ..Check::default() },
@@ -213,7 +218,7 @@ pub fn check(source: &str, generated: &Generated) -> Check {
                     }
                 }
                 outcome.differing_lines += 1;
-                if shown < 5 {
+                if shown < shown_at_most {
                     shown += 1;
                     outcome.differences.push(Difference { file: name.to_string(), line: at + 1, read: left.trim().to_string(), regenerated: right.trim().to_string() });
                 }
