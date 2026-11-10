@@ -43,7 +43,8 @@ fn write_machine(out: &mut String, machine: &Machine, generated: &Generated) {
     // A block that only computes: the generator gives it one state of its own, `Flow`.
     let only_computes = machine.transitions.is_empty() && machine.states.len() == 1 && machine.states[0].path == "Flow" && !machine.equations.is_empty();
     if !only_computes {
-        if let Some(first) = machine.initial.and_then(|i| machine.states.get(i)) {
+        // A machine with regions starts in each of them.
+        if let Some(first) = machine.initial.and_then(|i| machine.states.get(i)).filter(|_| !machine.regions.iter().any(|r| r.owner.is_none())) {
             out.push_str(&format!("    initial: {}\n", quoted(&first.path)));
         }
         write_level(out, machine, "", 1);
@@ -55,10 +56,38 @@ fn write_machine(out: &mut String, machine: &Machine, generated: &Generated) {
 /// and the transitions that leave them.
 fn write_level(out: &mut String, machine: &Machine, prefix: &str, depth: usize) {
     let pad = "    ".repeat(depth);
-    let here: Vec<(usize, &State)> = machine.states.iter().enumerate().filter(|(_, s)| s.path.strip_prefix(prefix).is_some_and(|rest| !rest.is_empty() && !rest.contains('.'))).collect();
+    let owner = prefix.strip_suffix('.').and_then(|path| machine.states.iter().position(|s| s.path == path));
+    let regions: Vec<&super::Region> = machine.regions.iter().filter(|r| r.owner == owner).collect();
+    if !regions.is_empty() {
+        // The name of a region is not in the code: it is named by its rank.
+        for (rank, region) in regions.iter().enumerate() {
+            out.push_str(&format!("{pad}region \"Region {}\" {{\n", rank + 1));
+            if let Some(first) = region.initial.and_then(|i| machine.states.get(i)) {
+                out.push_str(&format!("{pad}    initial: {}\n", quoted(&first.path[prefix.len()..])));
+            }
+            write_states(out, machine, prefix, depth + 1, Some((region.first, region.last)));
+            out.push_str(&format!("{pad}}}\n"));
+        }
+        return;
+    }
+    write_states(out, machine, prefix, depth, None);
+}
+
+/// The states of a level, all of them or those of one region, with the transitions that leave them.
+fn write_states(out: &mut String, machine: &Machine, prefix: &str, depth: usize, range: Option<(usize, usize)>) {
+    let pad = "    ".repeat(depth);
+    let here: Vec<(usize, &State)> = machine
+        .states
+        .iter()
+        .enumerate()
+        .filter(|(index, s)| s.path.strip_prefix(prefix).is_some_and(|rest| !rest.is_empty() && !rest.contains('.')) && range.is_none_or(|(first, last)| (first..=last).contains(index)))
+        .collect();
     for &(_, state) in &here {
         let name = &state.path[prefix.len()..];
         let mut inside = String::new();
+        if let Some(kind) = &state.pseudo {
+            inside.push_str(&format!("{pad}    kind: {}\n", quoted(kind)));
+        }
         for (key, actions) in [("entry", &state.entry), ("exit", &state.exit), ("do", &state.activity)] {
             match actions.as_slice() {
                 [] => {}

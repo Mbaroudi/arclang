@@ -4,7 +4,7 @@
 //! is what this reader relies on; a file it does not recognise is refused,
 //! and a construct it does not read is a note, never a guess.
 
-use super::{Generated, Machine, Recovered, State, Transition, Variable};
+use super::{Generated, Machine, Recovered, Region, State, Transition, Variable};
 use regex::Regex;
 use std::collections::BTreeMap;
 
@@ -42,7 +42,7 @@ pub(super) fn read(generated: &Generated) -> Result<Recovered, String> {
     for (machine, names) in recovered.machines.iter_mut().zip(&names) {
         code(generated, &prefix, machine, names, &mut recovered.notes);
     }
-    recovered.notes.push("not in the code: the regions of a machine (its states are recovered, not their grouping), whether a variable is `out` or `const`, the range of a variable".to_string());
+    recovered.notes.push("not in the code: the name of a region (named here by its rank), whether a variable is `out` or `const`, the range of a variable, the priority of a transition".to_string());
     Ok(recovered)
 }
 
@@ -135,6 +135,9 @@ fn code(generated: &Generated, prefix: &str, machine: &mut Machine, names: &Name
     let function = re(r"^static void (\w+)\(");
     let step = format!("void {prefix}_{id}_step(");
     let enter = re(&format!(r"^\s*{id}_enter_one\(st, in, out, (\d+)U\);"));
+    let exit = re(&format!(r"^\s*{id}_exit_range\(st, in, out, (\d+)U, (\d+)U\);"));
+    // fire index → the range of states it exits first
+    let mut exits: BTreeMap<usize, (usize, usize)> = BTreeMap::new();
     let case = re(r"^\s*case (\d+)U:");
     let act = re(r"^\s*out->act_(\w+) = counted\(");
     let event = re(r#"^/\* event "(.+)": its transitions \*/$"#);
@@ -150,6 +153,9 @@ fn code(generated: &Generated, prefix: &str, machine: &mut Machine, names: &Name
     // (the source state, microseconds, the ends as the model names them)
     let mut budgets: Vec<(usize, u64, (String, String, String))> = Vec::new();
 
+    let section_of = re(r#"^/\* ---- state_machine "(.+)" ---- \*/$"#);
+    let pseudo = re(r"^\s+(\d+): .+ \(pseudo-state: (\w+), never active\)$");
+    let mut own_section = false;
     let mut current = String::new();
     let mut in_step = false;
     let mut state_of_case: Option<usize> = None;
@@ -168,6 +174,17 @@ fn code(generated: &Generated, prefix: &str, machine: &mut Machine, names: &Name
     let mut found: Vec<(usize, Option<String>, Alternative)> = Vec::new();
 
     for (at, line) in generated.code.lines().enumerate() {
+        if let Some(name) = section_of.captures(line) {
+            own_section = name[1] == machine.name;
+            continue;
+        }
+        // The table of the states says which are pseudo-states, and of which kind.
+        if let Some(kind) = pseudo.captures(line).filter(|_| own_section) {
+            if let Some(state) = kind[1].parse::<usize>().ok().and_then(|index| machine.states.get_mut(index)) {
+                state.pseudo = Some(snake(&kind[2]));
+            }
+            continue;
+        }
         if let Some(name) = event.captures(line) {
             pending_event = Some(name[1].to_string());
             continue;
@@ -224,7 +241,11 @@ fn code(generated: &Generated, prefix: &str, machine: &mut Machine, names: &Name
             "start" => start.extend(enter.captures(line).and_then(|e| e[1].parse::<usize>().ok())),
             _ if fire.is_some() => {
                 let entry = fires.get_mut(&fire.unwrap_or_default()).expect("the fire function being read");
-                if let Some(text) = action_of(line) {
+                if let Some(range) = exit.captures(line) {
+                    if let (Ok(lo), Ok(hi)) = (range[1].parse(), range[2].parse()) {
+                        exits.entry(fire.unwrap_or_default()).or_insert((lo, hi));
+                    }
+                } else if let Some(text) = action_of(line) {
                     entry.1.push(text);
                 } else if let Some(state) = enter.captures(line).and_then(|e| e[1].parse::<usize>().ok()) {
                     entry.2.push(state);
@@ -297,10 +318,6 @@ fn code(generated: &Generated, prefix: &str, machine: &mut Machine, names: &Name
     // Where the machine starts, and where each composite state does: a state
     // entered right after the one that holds it.
     machine.initial = start.first().copied();
-    let together = start.iter().filter(|&&s| machine.states.get(s).is_some_and(|state| !state.path.contains('.'))).count();
-    if together > 1 {
-        notes.push(format!("state_machine \"{}\" starts in {together} states at once: it has regions, which this reader does not recover yet; its recovery will not be proven", machine.name));
-    }
     let mut sequences: Vec<&Vec<usize>> = vec![&start];
     sequences.extend(fires.values().map(|(_, _, entered)| entered));
     let mut starts: Vec<(usize, String)> = Vec::new();
@@ -315,8 +332,17 @@ fn code(generated: &Generated, prefix: &str, machine: &mut Machine, names: &Name
     for (state, leaf) in starts {
         machine.states[state].initial.get_or_insert(leaf);
     }
-
     found.sort_by_key(|(index, _, _)| *index);
+
+    regions(machine, &start, &fires, &exits, &found, notes);
+    let kinds: std::collections::BTreeSet<&str> = machine.states.iter().filter_map(|s| s.pseudo.as_deref()).collect();
+    if !kinds.is_empty() {
+        notes.push(format!(
+            "state_machine \"{}\" has pseudo-states ({}): they are recovered as states of their kind, the transitions through them are not read yet, and its recovery will not be proven",
+            machine.name,
+            kinds.into_iter().collect::<Vec<_>>().join(", ")
+        ));
+    }
     for (index, trigger, alternative) in found {
         let Some((line, actions, entered)) = fires.get(&index) else { continue };
         let Some(&to) = entered.first() else {
@@ -347,6 +373,99 @@ fn code(generated: &Generated, prefix: &str, machine: &mut Machine, names: &Name
             None => notes.push(format!("state_machine \"{}\": a budget of {time} us on a transition to '{to}' that was not recovered", machine.name)),
         }
     }
+}
+
+/// The regions of the machine and of its states. A transition exits the
+/// states of the region it is in: two transitions that leave states of one
+/// level and exit different ranges are in two regions of that level. Each
+/// region starts in the state of its range entered with the others (at the
+/// start of the machine, or when the state that holds them is entered).
+fn regions(
+    machine: &mut Machine,
+    start: &[usize],
+    fires: &BTreeMap<usize, (usize, Vec<String>, Vec<usize>)>,
+    exits: &BTreeMap<usize, (usize, usize)>,
+    found: &[(usize, Option<String>, Alternative)],
+    notes: &mut Vec<String>,
+) {
+    let parent = |state: usize| -> Option<Option<usize>> {
+        let path = &machine.states.get(state)?.path;
+        Some(match path.rsplit_once('.') {
+            None => None,
+            Some((outer, _)) => Some(machine.states.iter().position(|s| s.path == outer)?),
+        })
+    };
+    // The states entered together, by what holds them.
+    let mut entered_together: BTreeMap<Option<usize>, Vec<usize>> = BTreeMap::new();
+    for sequence in std::iter::once(start).chain(fires.values().map(|(_, _, entered)| entered.as_slice())) {
+        let mut by_owner: BTreeMap<Option<usize>, Vec<usize>> = BTreeMap::new();
+        for &state in sequence {
+            if let Some(owner) = parent(state) {
+                by_owner.entry(owner).or_default().push(state);
+            }
+        }
+        for (owner, states) in by_owner {
+            if states.len() > 1 && entered_together.get(&owner).is_none_or(|known| known.len() < states.len()) {
+                entered_together.insert(owner, states);
+            }
+        }
+    }
+    // The ranges the transitions of each level exit.
+    let mut ranges: BTreeMap<Option<usize>, Vec<(usize, usize)>> = BTreeMap::new();
+    for (index, _, alternative) in found {
+        if let (Some(owner), Some(&range)) = (parent(alternative.from), exits.get(index)) {
+            // A transition that exits more than its level is one that leaves it.
+            let inside = parent(range.0) == Some(owner) && range.0 <= alternative.from && alternative.from <= range.1;
+            let known = ranges.entry(owner).or_default();
+            if inside && !known.contains(&range) {
+                known.push(range);
+            }
+        }
+    }
+    for (owner, initials) in entered_together {
+        let mut found_ranges = ranges.get(&owner).cloned().unwrap_or_default();
+        // A region none of whose states is left by a transition: the state it starts in, alone.
+        for &initial in &initials {
+            if !found_ranges.iter().any(|(lo, hi)| (*lo..=*hi).contains(&initial)) {
+                let last = (initial + 1..machine.states.len()).take_while(|&s| machine.states[s].path.starts_with(&format!("{}.", machine.states[initial].path))).last().unwrap_or(initial);
+                found_ranges.push((initial, last));
+            }
+        }
+        found_ranges.sort();
+        let disjoint = found_ranges.windows(2).all(|pair| pair[0].1 < pair[1].0);
+        if !disjoint || found_ranges.len() != initials.len() {
+            notes.push(format!(
+                "state_machine \"{}\": {} states are entered together{}, and the transitions exit {} range(s) of states: its regions are not recovered, and its recovery will not be proven",
+                machine.name,
+                initials.len(),
+                owner.and_then(|o| machine.states.get(o)).map(|s| format!(" in '{}'", s.path)).unwrap_or_default(),
+                found_ranges.len()
+            ));
+            continue;
+        }
+        for (first, last) in found_ranges {
+            let initial = initials.iter().copied().find(|s| (first..=last).contains(s));
+            machine.regions.push(Region { owner, first, last, initial });
+        }
+    }
+    // A state that holds regions starts in each of them, not in one sub-state.
+    for region in &machine.regions {
+        if let Some(owner) = region.owner {
+            machine.states[owner].initial = None;
+        }
+    }
+}
+
+/// `DeepHistory` as the model writes the kind: `deep_history`.
+fn snake(name: &str) -> String {
+    let mut out = String::new();
+    for (at, c) in name.chars().enumerate() {
+        if c.is_ascii_uppercase() && at > 0 {
+            out.push('_');
+        }
+        out.push(c.to_ascii_lowercase());
+    }
+    out
 }
 
 /// The last name of a state's path.
