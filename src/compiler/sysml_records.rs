@@ -500,6 +500,9 @@ pub fn build(declarations: &[Declaration]) -> Records {
         object.insert("isLibraryElement".into(), json!(false));
         if is_type(declaration.metaclass) || is_feature(declaration.metaclass) {
             object.insert("isAbstract".into(), json!(declaration.is_abstract));
+            if matches!(declaration.metaclass, "StateUsage" | "StateDefinition") {
+                object.insert("isParallel".into(), json!(declaration.is_parallel));
+            }
         }
         if is_feature(declaration.metaclass) {
             object.insert("direction".into(), json!(declaration.direction));

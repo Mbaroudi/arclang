@@ -1090,7 +1090,7 @@ One product of a product line: the variant it selects in each variation. Two var
 `io_binding "ECU" { ... }`: the inputs and outputs of a state machine bound once to the channels of the I/O interface `arclang_io.h` (gpio, adc, dac, pwm, can, uart, with a clock and a watchdog). Checked by the compiler, against its target's channels too; `arclang export -f c` generates the glue that calls the channels, `arclang sil` runs it on the host board, `arclang pil` on the target's processor. See docs/embedded-c.md.
 
 - Arcadia: `(embedded extension)`
-- SysML v2: `(none: an allocation of a state machine's events, conditions, states and actions to I/O channels)`
+- SysML v2: `part (#IoBinding)`
 
 | Attribute | Type | Meaning |
 |---|---|---|

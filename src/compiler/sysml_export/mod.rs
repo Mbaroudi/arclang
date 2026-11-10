@@ -11,6 +11,7 @@ mod behavior;
 mod cesam_views;
 mod constraints;
 mod data;
+pub(crate) mod declarations;
 mod levels;
 mod relations;
 mod security;
@@ -27,7 +28,7 @@ use std::collections::{BTreeSet, HashMap};
 /// SysML cannot tell by itself.
 pub const PROFILE: &[&str] = &[
     "OA", "SA", "LA", "PA", "EPBS", "Actor", "Entity", "Node", "Behavior", "Hardware", "Mission", "Capability", "Chain", "Link", "Hazard", "Security", "PrimaryAsset", "Threat", "SecurityScales", "Configuration",
-    "Mode", "Class", "PhysicalPort", "ExchangeItem", "Path", "Fmea", "Interface", "Trace", "Association", "Iterate", "Invariant",
+    "Mode", "Class", "PhysicalPort", "ExchangeItem", "Path", "Fmea", "Interface", "Trace", "Association", "Iterate", "Invariant", "IoBinding", "Twin", "Rule", "Stakeholder", "Region", "Beside", "Named", "Interaction",
 ];
 
 /// The SysML v2 text of a model.
@@ -196,15 +197,27 @@ impl<'m> Exporter<'m> {
             security::write(e);
             views::write(e);
             cesam_views::write(e);
+            declarations::write(e);
             tables::write(e); // tables hook
             e.units();
         });
     }
 
     /// The `ArcadiaProfile` library: one metadata definition per level and kind.
+    /// That of a trace has an attribute for each thing the traces of the model say.
     fn profile(&mut self) {
+        let said = relations::said_by_traces(self.model);
         self.block("library package ArcadiaProfile", |e| {
             for name in PROFILE {
+                if *name == "Trace" && !said.is_empty() {
+                    e.block("metadata def Trace", |e| {
+                        for (key, ty) in &said {
+                            let bounds = if ty.ends_with("[*]") { "" } else { " [0..1]" };
+                            e.line(&format!("attribute {} : {ty}{bounds};", text::name(key)));
+                        }
+                    });
+                    continue;
+                }
                 e.line(&format!("metadata def {name};"));
             }
         });

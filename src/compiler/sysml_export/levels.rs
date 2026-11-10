@@ -231,6 +231,11 @@ pub(super) fn register(e: &mut Exporter<'_>) {
         for process in &oa.processes {
             e.register(&package, &process.id, &[&process.name]);
         }
+        // An interaction between two whole parts is a connection: what it
+        // carries is a dependency from it, which needs it named.
+        for exchange in &oa.exchanges {
+            e.register(&package, id_of(&exchange.attributes, ""), &[]);
+        }
     }
     for sa in &model.system_analysis {
         let package = sa_level(sa).qualified();
@@ -316,6 +321,12 @@ pub(super) fn in_package(e: &mut Exporter<'_>, level: Level, body: impl FnOnce(&
 /// action` inside the part that holds it): its ports as directed items,
 /// its sub-functions nested.
 pub(super) fn function<F: Function>(e: &mut Exporter<'_>, kind: &str, f: &F, keyword: &str) {
+    function_in(e, kind, f, keyword, false);
+}
+
+/// The function it realizes at the level above, and the one it is part of
+/// when it is not written inside it: a dependency each, after the action.
+fn function_in<F: Function>(e: &mut Exporter<'_>, kind: &str, f: &F, keyword: &str, is_nested: bool) {
     let typing = e.typing(f.attributes());
     e.block(&format!("{keyword} {}{typing}", text::declared(f.written(), f.name())), |e| {
         e.header(kind, f.attributes(), &["inputs", "outputs"]);
@@ -325,9 +336,15 @@ pub(super) fn function<F: Function>(e: &mut Exporter<'_>, kind: &str, f: &F, key
             e.line(&format!("{} item {short}{} : {ty};", data::direction(&port.direction), text::name(&port.name)));
         }
         for sub in f.subs() {
-            function(e, kind, sub, "action");
+            function_in(e, kind, sub, "action", true);
         }
     });
+    let keys: &[&str] = if is_nested { &["realizes"] } else { &["realizes", "parent"] };
+    for key in keys {
+        for target in super::relations::list(f.attributes(), key) {
+            super::relations::dependency(e, key, f.written(), &target);
+        }
+    }
 }
 
 /// `perform` of each function a part is allocated, by reference.
@@ -418,13 +435,19 @@ fn connector_head(id: &str, label: &str) -> String {
 /// A flow between two features (`'SF-1'.raw`); between two whole functions,
 /// which a flow cannot end on, a connection.
 pub(super) fn flow(e: &mut Exporter<'_>, id: &str, label: &str, item: &str, from: &str, to: &str) {
+    flow_marked(e, "", id, label, item, from, to);
+}
+
+/// A flow; as a connection, it is marked with `metadata` (`#Interaction `), which tells an
+/// interaction between two entities from the means they communicate by.
+fn flow_marked(e: &mut Exporter<'_>, metadata: &str, id: &str, label: &str, item: &str, from: &str, to: &str) {
     let (Some(source), Some(target)) = (e.feature(from), e.feature(to)) else {
         e.line(&format!("// flow {} from {from} to {to}: an end is not exported", text::name(label)));
         return;
     };
     let declared = connector_head(id, label);
     if !source.contains('.') || !target.contains('.') {
-        e.line(&format!("connection {declared}connect {source} to {target};"));
+        e.line(&format!("{metadata}connection {declared}connect {source} to {target};"));
         if !item.is_empty() && !id.is_empty() {
             super::relations::dependency(e, "exchange_item", id, item);
         }
@@ -596,7 +619,7 @@ fn operational(e: &mut Exporter<'_>, oa: &OperationalAnalysis) {
             let id = id_of(&exchange.attributes, "").to_string();
             // The parser's "Data" stands for no data type written: no item flows then.
             let item = if exchange.attributes.contains_key("data_type") { exchange.data_type.as_str() } else { "" };
-            flow(e, &id, exchange.label.as_deref().unwrap_or(""), item, &exchange.from, &exchange.to);
+            flow_marked(e, "#Interaction ", &id, exchange.label.as_deref().unwrap_or(""), item, &exchange.from, &exchange.to);
         }
         for mean in &oa.communication_means {
             let id = id_of(&mean.attributes, "").to_string();

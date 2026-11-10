@@ -5,7 +5,7 @@
 //! `InvocationExpression` and the literals.
 
 use super::records::{Element, Graph};
-use crate::compiler::quantity::UNITS;
+use crate::compiler::quantity::{lookup_unit, UNITS};
 use crate::compiler::source_edit::string_literal;
 use std::collections::BTreeSet;
 
@@ -35,12 +35,56 @@ enum Expr {
 /// aggregates (`max`, `min`) the export unfolds over a chain's members.
 pub(super) fn render(graph: &Graph, id: &str, refer: &dyn Fn(&str) -> Option<String>, chains: &[(String, Vec<String>)]) -> Result<String, String> {
     let expr = read(graph, id, refer, chains, 0)?;
+    let mut mentioned = BTreeSet::new();
+    mentions(&expr, &mut mentioned);
+    let expr = named_as_mentioned(expr, chains, &mentioned);
     if let Some(name) = bare_reference(&expr) {
         return Err(format!("'{name}' is a reference, not a value"));
     }
     match &expr {
         Expr::Unit(unit) => Err(format!("'{unit}' is a unit, not a value")),
         _ => Ok(text(&expr, true)),
+    }
+}
+
+/// The elements an expression reads an attribute of.
+fn mentions(expr: &Expr, into: &mut BTreeSet<String>) {
+    match expr {
+        Expr::Attr(element, _) => {
+            into.insert(element.clone());
+        }
+        Expr::List(items) | Expr::Call(_, items) => items.iter().for_each(|item| mentions(item, into)),
+        Expr::Neg(inner) => mentions(inner, into),
+        Expr::Binary(_, lhs, rhs) => {
+            mentions(lhs, into);
+            mentions(rhs, into);
+        }
+        Expr::Literal(_) | Expr::Quantity(_, _) | Expr::Ref(_) | Expr::Unit(_) => {}
+    }
+}
+
+/// Two collections can hold the same members (a chain and the capability
+/// it serves): the members written do not say which one an aggregate ranged
+/// over. The one the expression reads elsewhere (`sum("FC-1", latency) <=
+/// "FC-1".latency_budget`) is the one meant.
+fn named_as_mentioned(expr: Expr, chains: &[(String, Vec<String>)], mentioned: &BTreeSet<String>) -> Expr {
+    let again = |expr: Expr| named_as_mentioned(expr, chains, mentioned);
+    match expr {
+        Expr::Call(name, mut arguments) => {
+            if let Some(Expr::Ref(collection)) = arguments.first() {
+                let members = |of: &str| chains.iter().find(|(known, _)| known == of).map(|(_, steps)| steps.iter().collect::<BTreeSet<_>>());
+                let same = members(collection);
+                let meant = chains.iter().map(|(known, _)| known).find(|known| *known != collection && mentioned.contains(*known) && same.is_some() && members(known) == same);
+                if let (false, Some(meant)) = (mentioned.contains(collection), meant) {
+                    arguments[0] = Expr::Ref(meant.clone());
+                }
+            }
+            Expr::Call(name, arguments.into_iter().map(again).collect())
+        }
+        Expr::List(items) => Expr::List(items.into_iter().map(again).collect()),
+        Expr::Neg(inner) => Expr::Neg(Box::new(again(*inner))),
+        Expr::Binary(operator, lhs, rhs) => Expr::Binary(operator, Box::new(again(*lhs)), Box::new(again(*rhs))),
+        other => other,
     }
 }
 
@@ -73,7 +117,8 @@ pub(super) fn is_attribute_value(text: &str) -> bool {
     let mut parts = trimmed.splitn(2, ' ');
     let number = parts.next().unwrap_or("");
     let unit = parts.next().unwrap_or("");
-    number.parse::<f64>().is_ok() && (unit.is_empty() || unit.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '%' | '°' | 'µ' | '*' | '^')))
+    // A unit ArcLang knows is one however it is spelled (`m²`, `mΩ`).
+    number.parse::<f64>().is_ok() && (unit.is_empty() || lookup_unit(unit).is_some() || unit.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '%' | '°' | 'µ' | '*' | '^')))
 }
 
 /// Whether the text is one string literal and nothing after it.
@@ -210,6 +255,32 @@ fn flatten(graph: &Graph, element: &Element, name: &str, refer: &dyn Fn(&str) ->
 /// `max`/`min` over the same attribute of the steps of one chain is
 /// ArcLang's `max(chain, attribute)`.
 fn aggregate(name: &str, operands: Vec<Expr>, chains: &[(String, Vec<String>)]) -> Result<Expr, String> {
+    // The members are the arguments, or one sequence of them (`sum((a, b))`).
+    let operands: Vec<Expr> = operands
+        .into_iter()
+        .flat_map(|operand| match operand {
+            Expr::List(items) => items,
+            one => vec![one],
+        })
+        .collect();
+    let chain_of = |members: BTreeSet<&String>, what: &str| {
+        chains.iter().find(|(_, steps)| steps.iter().collect::<BTreeSet<_>>() == members).map(|(chain, _)| chain.clone()).ok_or_else(|| format!("{name}() over {what} that are not the steps of one chain"))
+    };
+    // `size` over the steps of a chain is ArcLang's `count(chain)`; over
+    // anything else it is how many there are.
+    if name == "size" {
+        let mut members = BTreeSet::new();
+        for operand in &operands {
+            match operand {
+                Expr::Ref(element) => members.insert(element),
+                _ => return Err("size() over values that are not elements".to_string()),
+            };
+        }
+        return Ok(match chain_of(members, "elements") {
+            Ok(chain) => Expr::Call("count".to_string(), vec![Expr::Ref(chain)]),
+            Err(_) => Expr::Literal(operands.len().to_string()),
+        });
+    }
     if !matches!(name, "max" | "min" | "sum") {
         return Err(format!("function '{name}' is not ArcLang's"));
     }
@@ -227,11 +298,12 @@ fn aggregate(name: &str, operands: Vec<Expr>, chains: &[(String, Vec<String>)]) 
         return Err(format!("{name}() over different attributes"));
     }
     let members: BTreeSet<&String> = attrs.iter().map(|(e, _)| *e).collect();
-    let chain = chains
-        .iter()
-        .find(|(_, steps)| steps.iter().collect::<BTreeSet<_>>() == members)
-        .ok_or_else(|| format!("{name}() over elements that are not the steps of one chain"))?;
-    Ok(Expr::Call(name.to_string(), vec![Expr::Ref(chain.0.clone()), Expr::Ref((*attribute).clone())]))
+    match chain_of(members, "elements") {
+        Ok(chain) => Ok(Expr::Call(name.to_string(), vec![Expr::Ref(chain), Expr::Ref((*attribute).clone())])),
+        // A sum over values that are no chain's is the sum of them.
+        Err(_) if name == "sum" => sum_of(operands),
+        Err(error) => Err(error),
+    }
 }
 
 /// The unqualified name of the function an invocation calls.
@@ -279,10 +351,33 @@ fn text(expr: &Expr, top: bool) -> String {
             Expr::Quantity(number, unit) if !number.starts_with('-') => format!("-{number} {unit}"),
             _ => format!("-({})", text(inner, true)),
         },
+        // As ArcLang writes an expression: parentheses only where the
+        // reading needs them (operators are left-associative).
         Expr::Binary(op, lhs, rhs) => {
-            let written = format!("{} {op} {}", text(lhs, false), text(rhs, false));
-            if top { written } else { format!("({written})") }
+            let own = precedence(expr);
+            let left = if precedence(lhs) < own { format!("({})", text(lhs, true)) } else { text(lhs, true) };
+            let right = if precedence(rhs) <= own { format!("({})", text(rhs, true)) } else { text(rhs, true) };
+            format!("{left} {op} {right}")
         }
+    }
+}
+
+/// The members added one to the next: `a + b + c`.
+fn sum_of(operands: Vec<Expr>) -> Result<Expr, String> {
+    let mut members = operands.into_iter();
+    let first = members.next().ok_or_else(|| "sum() over nothing".to_string())?;
+    Ok(members.fold(first, |sum, member| Expr::Binary("+".to_string(), Box::new(sum), Box::new(member))))
+}
+
+/// How tightly an expression binds: a comparison, a sum, a product, a value.
+fn precedence(expr: &Expr) -> u8 {
+    match expr {
+        Expr::Binary(op, _, _) => match op.as_str() {
+            "*" | "/" => 3,
+            "+" | "-" => 2,
+            _ => 1,
+        },
+        _ => 4,
     }
 }
 

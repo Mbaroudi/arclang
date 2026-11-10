@@ -39,6 +39,8 @@ pub struct Element {
     pub direction: Option<String>,
     pub is_end: bool,
     pub is_abstract: bool,
+    /// A state whose nested states are concurrent regions (`state S parallel { ... }`).
+    pub is_parallel: bool,
     /// `variation part`: a point of variation.
     pub is_variation: bool,
     /// A variant of the variation that owns it (a VariantMembership).
@@ -256,6 +258,7 @@ pub fn load(records: &[Value]) -> Result<Graph, String> {
             direction: text(record, "direction").map(|d| d.to_ascii_lowercase()),
             is_end: record.get("isEnd").and_then(Value::as_bool).unwrap_or(false),
             is_abstract: record.get("isAbstract").and_then(Value::as_bool).unwrap_or(false),
+            is_parallel: record.get("isParallel").and_then(Value::as_bool).unwrap_or(false),
             is_variation: record.get("isVariation").and_then(Value::as_bool).unwrap_or(false),
             is_library: record.get("isLibraryElement").and_then(Value::as_bool).unwrap_or(false),
             order,

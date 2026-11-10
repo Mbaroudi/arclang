@@ -18,13 +18,38 @@
 //! reviewed). The fingerprint of an element leaves out its own `reviewed:`
 //! and `verifies:`: adding a verified requirement does not unsettle the
 //! verifications already reviewed.
+//!
+//! A quantity counts for what it measures, not for how it is written:
+//! `20 °C` and `293.15 K`, `85 %` and `85 percent` are the same value, and a
+//! model that went out to another tool and came back with its units spelled
+//! that tool's way has not changed. A `reviewed:` written before this rule
+//! (the fingerprint then held the unit as written) still stands while the
+//! element is written as it was.
 
 use super::ast::{AttributeValue, Model, TestCase, Trace};
-use super::elements::{attributes_json, ElementGraph, ElementRecord};
+use super::elements::{attribute_json, attributes_json, ElementGraph, ElementRecord};
+use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
+use std::collections::{BTreeMap, HashMap};
 
-/// Eight hex digits: the kind, name and attributes of an element.
+/// Eight hex digits: the kind, name and attributes of an element, a
+/// quantity counting for its value in the unit of its dimension.
 pub fn fingerprint(element: &ElementRecord) -> String {
+    print_of(element, &|attributes| measured(attributes))
+}
+
+/// The fingerprint as it was written before quantities counted for their
+/// value: the unit as written is part of it.
+fn fingerprint_as_written(element: &ElementRecord) -> String {
+    print_of(element, &|attributes| attributes_json(attributes))
+}
+
+/// Whether a fingerprint read in a `reviewed:` is the element's as it is now.
+fn is_print_of(element: &ElementRecord, print: &str) -> bool {
+    print == fingerprint(element) || print == fingerprint_as_written(element)
+}
+
+fn print_of(element: &ElementRecord, json: &dyn Fn(&HashMap<String, AttributeValue>) -> Value) -> String {
     let mut attributes = element.attributes.clone();
     attributes.remove("reviewed");
     attributes.remove("verifies");
@@ -33,8 +58,29 @@ pub fn fingerprint(element: &ElementRecord) -> String {
     hash.update([0]);
     hash.update(element.name.as_bytes());
     hash.update([0]);
-    hash.update(attributes_json(&attributes).to_string().as_bytes());
+    hash.update(json(&attributes).to_string().as_bytes());
     hash.finalize().iter().take(4).map(|b| format!("{b:02x}")).collect()
+}
+
+/// Attributes with each quantity as its dimension and its value in the unit
+/// of that dimension, to fifteen digits (a conversion there and back does not
+/// move it).
+fn measured(attributes: &HashMap<String, AttributeValue>) -> Value {
+    let sorted: BTreeMap<&String, &AttributeValue> = attributes.iter().collect();
+    Value::Object(sorted.into_iter().map(|(key, value)| (key.clone(), measured_value(value))).collect())
+}
+
+fn measured_value(value: &AttributeValue) -> Value {
+    match value {
+        AttributeValue::Quantity(q) => json!({
+            "@type": "Quantity",
+            "dimension": q.dimension().label(),
+            "value": format!("{:.14e}", q.canonical() + 0.0),
+        }),
+        AttributeValue::List(items) => Value::Array(items.iter().map(measured_value).collect()),
+        AttributeValue::Map(map) => measured(map),
+        other => attribute_json(other),
+    }
 }
 
 /// The element a trace end names, by id or by name.
@@ -119,10 +165,10 @@ pub fn suspects(model: &Model, graph: &ElementGraph) -> Result<Vec<Suspect>, Str
         }
         let (Some(from), Some(to)) = (end(graph, &trace.from), end(graph, &trace.to)) else { continue };
         let mut changed = Vec::new();
-        if fingerprint(from) != parts[0] {
+        if !is_print_of(from, parts[0]) {
             changed.push(trace.from.clone());
         }
-        if fingerprint(to) != parts[1] {
+        if !is_print_of(to, parts[1]) {
             changed.push(trace.to.clone());
         }
         if !changed.is_empty() {
@@ -168,7 +214,6 @@ fn verification_suspects(case: &TestCase, graph: &ElementGraph) -> Result<Vec<Su
     let Some(entries) = verification_entries(case)? else { return Ok(Vec::new()) };
     let designator = if case.id.is_empty() { &case.name } else { &case.id };
     let Some(record) = end(graph, designator) else { return Ok(Vec::new()) };
-    let now = fingerprint(record);
     let mut out = Vec::new();
     for requirement in &case.verifies {
         let Some(target) = end(graph, requirement) else { continue };
@@ -176,10 +221,10 @@ fn verification_suspects(case: &TestCase, graph: &ElementGraph) -> Result<Vec<Su
             None => Vec::new(),
             Some((_, case_print, requirement_print)) => {
                 let mut changed = Vec::new();
-                if *case_print != now {
+                if !is_print_of(record, case_print) {
                     changed.push(designator.clone());
                 }
-                if *requirement_print != fingerprint(target) {
+                if !is_print_of(target, requirement_print) {
                     changed.push(requirement.clone());
                 }
                 if changed.is_empty() {

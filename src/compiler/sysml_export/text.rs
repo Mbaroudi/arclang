@@ -73,8 +73,15 @@ pub fn number(n: f64) -> String {
 pub fn quantity(q: &Quantity) -> String {
     // SysML's °C is a temperature difference: a level in °C is written in K.
     let value = if q.spec().offset != 0.0 { q.canonical() } else { q.value };
-    let value = if value.fract() == 0.0 && value.abs() < 1e15 { format!("{}", value as i64) } else { format!("{}", (value * 1e9).round() / 1e9) };
+    let value = if value.fract() == 0.0 && value.abs() < 1e15 { format!("{}", value as i64) } else { format!("{}", fifteen_digits(value)) };
     format!("{value} [{}]", q.spec().sysml)
+}
+
+/// The value to the fifteen digits a number is written with: what a
+/// conversion adds beyond them (`293.15000000000003`) is not written, and a
+/// small value (`0.1 nF` in farads) is not rounded away.
+fn fifteen_digits(value: f64) -> f64 {
+    format!("{value:.14e}").parse().unwrap_or(value)
 }
 
 /// The SysML scalar type an ArcLang data type name stands for.
@@ -112,5 +119,14 @@ mod tests {
     fn a_decimal_keeps_its_point() {
         assert_eq!(number(800.0), "800.0");
         assert_eq!(number(0.5), "0.5");
+    }
+
+    #[test]
+    fn a_quantity_is_written_with_the_digits_it_has() {
+        let written = |text: &str| quantity(&Quantity::parse(text).unwrap());
+        assert!(written("0.0000000001 s").starts_with("0.0000000001 ["), "{}", written("0.0000000001 s"));
+        assert!(written("0.1234567891234 s").starts_with("0.1234567891234 ["), "{}", written("0.1234567891234 s"));
+        assert!(written("20 °C").starts_with("293.15 ["), "{}", written("20 °C"));
+        assert!(written("85 %").starts_with("85 ["), "{}", written("85 %"));
     }
 }

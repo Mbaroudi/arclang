@@ -89,24 +89,27 @@ SysML says most Arcadia kinds by itself; metadata names the rest.
 | physical path | `part` involving its links by `dependency involves` | `#Path` |
 | component port | `port` usage, direction by `in`/`out` on its port def or `~` conjugation | |
 | physical port | `port` without direction | `#PhysicalPort` |
-| functional exchange / interaction | `flow` between the ports (item parameters) of two actions, carrying its exchange items | |
+| functional exchange / interaction | `flow` between the ports (item parameters) of two actions, carrying its exchange items; an interaction between two entities as a `connection` with `dependency exchange_item` to its item | `#Interaction` on that connection (without it, a communication mean) |
 | component exchange / communication mean / physical exchange | `connection` (or `interface`) between the ports of two parts (`'LC-1'.port`), or between the parts themselves when the exchange has no ports | |
 | logical interface | `connection` between two logical components | `#Interface` |
 | physical link | `connection` between two nodes or their physical ports | `#Link` |
 | exchange item | `item def` | `#ExchangeItem` when it has attributes |
 | class | `item def` with attributes; `extends` by specialization | `#Class` |
 | association | `connection def` whose `end`s are the two classes, with `role`, `kind` and `multiplicity` attributes | `#Association` |
-| data type / enumeration | `attribute def` / `enum def` | |
+| data type / enumeration | `attribute def` / `enum def`; a data type's `base` and `unit` as its attributes | |
 | ArcLang `type` | `part def` / `action def`, its ports and attributes; `type X extends Y` by specialization | |
-| requirement | `requirement` with `doc` and attributes | |
+| requirement | `requirement` with `doc` and attributes; its subject as `subject default = <element>;` (a bound subject cannot also be satisfied by another element); the configurations it applies to by `dependency applies_to` | `#Named` when it is written by its name with an `id` (`#Named requirement <'REQ-1'> 'Hover endurance'`) |
+| stakeholder | `part def` in the requirements | `#Stakeholder` |
 | hazard | `requirement` | `#Hazard` |
 | mission / capability / operational capability / capability realization | `use case def` of the level | `#Mission`, `#Capability` |
-| state machine | `state def` exhibited by the part or action it belongs to; `state`/`mode` usages, `transition` with `accept`/`if`/`do` | `#Mode` on a mode |
+| state machine | `state def` exhibited by the part or action it belongs to; `state`/`mode` usages, `transition` with `accept`/`if`/`do`. What the machine computes is text ArcLang reads back: `attribute variables : String [*]`, `attribute equations : String [*]`, a transition's `guard`, `action` and `timing`, a state's `entry`/`exit` actions and what it `realizes`. A block that only computes is a `state def` without states | `#Mode` on a mode |
+| regions of a machine or state | `state X parallel { ... }`, each region a nested state with its own `entry; then <initial>;`. A transition the model writes beside the regions is written in the region it leaves, both ends named from the machine (SysML allows no transition in a parallel state) | `#Region` on a region; `@Beside;` in the body of such a transition |
 | scenario | `occurrence` with one `ref part` per lifeline (`:>` the element), `event occurrence`s and `flow` messages between them (fragments as `loop`/`alt`... occurrences) | |
 | state invariant of a scenario | in the lifeline: `state 'id' :> '<machine>'.'<state>' { attribute start : Integer = n; attribute endAt : Integer = m; }` (`action` for a function; no `endAt` for an instant — `end` is a reserved word; indexes into the scenario's messages) | `#Invariant` |
-| test case | `verification def` with `objective { verify requirement }` | |
-| constraint | `assert constraint <'CST-1'> 'Name' { <expression> }` over the attributes of elements by feature chain (`'SA'::'SF-1'.wcet`), quantities as `50 [ms]`; `sum(chain, attr)` unfolded as the sum over the chain's steps, `max`/`min` as `DataFunctions::max(...)` over them (folded back on import when the operands are the steps of one chain) | |
-| trace | `satisfy`, `allocate`, `dependency` named after the trace kind (`realizes`, `refines`, `implements`, `verifies`, `validates`, or any `trace_type`) | `#Trace` on a dependency whose name is also a reference key (`realizes`, `includes`...): without it the import reads the dependency as the source's attribute (`realizes: ...`) |
+| test case | `verification def` with `objective { verify requirement }`; its `execute:` block and its `expects` as text attributes | |
+| `io_binding`, `twin`, `rule` | SysML has no notion of them: a `part` of a package `Extensions`, everything the declaration says as attributes (a block as its ArcLang text) | `#IoBinding`, `#Twin`, `#Rule` |
+| constraint | `assert constraint <'CST-1'> 'Name' { <expression> }` over the attributes of elements by feature chain (`'SA'::'SF-1'.wcet`), quantities as `50 [ms]`; `sum(chain, attr)` as `NumericalFunctions::sum((a.attr, b.attr, ...))` over the chain's steps, `count(chain)` as `SequenceFunctions::size((...))`, `max`/`min` as `DataFunctions::max(...)` over them (read back as the aggregate over the chain, or the path, whose members they are) | |
+| trace | `satisfy`, `allocate`, `dependency` named after the trace kind (`realizes`, `refines`, `implements`, `verifies`, `validates`, or any `trace_type`) | `#Trace` on a dependency whose name is also a reference key (`realizes`, `includes`...): without it the import reads the dependency as the source's attribute (`realizes: ...`). What the trace says besides its ends (`rationale`, `reviewed`) in the body of its statement: `satisfy R by E { @Trace { rationale = "..."; } }` |
 | deployment | `allocate` of a logical component to a node | |
 | diagram | `metadata` on the level package: `@Diagram { view; shows }` (not yet) | |
 | table (`table` declaration) | `view <'id'> 'Name' { attribute table : String = "requirements_coverage"; attribute scope : String = "SA"; attribute columns : String = "id, text"; ... render Views::asElementTable; }`: a view rendered as an element table (the standard `Views::asElementTable` rendering), its kind and parameters as attributes, lists comma separated. What the table shows is not written: it is computed from the model, after the import as before. A view without `attribute table` is a diagram, not a table. | |

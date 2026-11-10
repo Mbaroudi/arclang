@@ -66,7 +66,7 @@ fn import_sysml(text: &str) -> String {
 fn sysml_v2_says_them_natively_and_reads_them_back() {
     let result = compile(MODEL).unwrap();
     let text = arclang::compiler::sysmlv2_generator::generate_sysmlv2(&result.semantic_model, &result.ast);
-    for line in ["concern <'CON-SAFETY'> 'Driver safety' {", "subject = Logic::'LC-CAR';", "frame 'CON-SAFETY';", "require constraint {", "assume constraint {"] {
+    for line in ["concern <'CON-SAFETY'> 'Driver safety' {", "subject default = Logic::'LC-CAR';", "frame 'CON-SAFETY';", "require constraint {", "assume constraint {"] {
         assert!(text.contains(line), "{line}\n{text}");
     }
     let back = compile(&import_sysml(&text)).unwrap();
@@ -77,6 +77,29 @@ fn sysml_v2_says_them_natively_and_reads_them_back() {
     assert_eq!(requirement["assume"].display(), "[ambient.T >= -20 °C]");
     assert_eq!(back.ast.system_analysis[0].concerns[0].attributes["stakeholders"].display(), "[Driver]");
     assert!(back.ast.constraints.is_empty(), "a requirement's constraint is not a constraint of the model");
+}
+
+/// `satisfy R by X` binds the subject of R to X. A requirement that also bound its subject
+/// (`subject = Y;`) is refused by the OMG pilot implementation ("Cannot override a binding
+/// feature value"): the subject is written as a default, which a `satisfy` may bind.
+#[test]
+fn a_subject_is_a_default_that_a_satisfy_may_bind() {
+    let satisfied = format!("{MODEL}\ntrace \"LC-CAR\" satisfies \"REQ-MASS\" {{}}\n");
+    let result = compile(&satisfied).unwrap();
+    let text = arclang::compiler::sysmlv2_generator::generate_sysmlv2(&result.semantic_model, &result.ast);
+    assert!(text.contains("satisfy Needs::'Mass' by Logic::'LC-CAR';") || text.contains("satisfy Needs::'REQ-MASS' by Logic::'LC-CAR';"), "{text}");
+    assert!(!text.contains("subject = "), "a bound subject cannot be satisfied by anything: {text}");
+    let back = compile(&import_sysml(&text)).unwrap();
+    assert_eq!(back.ast.system_analysis[0].requirements[0].attributes["subject"].as_string(), Some("LC-CAR"));
+    assert!(back.ast.traces.iter().any(|t| t.trace_type == "satisfies" && t.from == "LC-CAR"), "{:?}", back.ast.traces);
+}
+
+/// What ArcLang wrote before (`subject = X;`) and what other tools write is still read.
+#[test]
+fn a_bound_subject_is_still_read() {
+    let source = import_sysml("package Car {\n  package Logic { part <'LC-CAR'> 'Car'; }\n  requirement <'REQ-MASS'> 'Mass' {\n    subject = Logic::'LC-CAR';\n  }\n}\n");
+    let back = compile(&source).unwrap_or_else(|e| panic!("{e}\n{source}"));
+    assert_eq!(back.ast.system_analysis[0].requirements[0].attributes["subject"].as_string(), Some("LC-CAR"), "{source}");
 }
 
 #[test]
