@@ -443,25 +443,46 @@ fn ref_name<'e>(function: &str, position: &str, expr: &'e Expr) -> Result<&'e st
 
 /// Evaluate an arithmetic (non-comparison) expression.
 pub fn evaluate(expr: &Expr, scope: &Scope) -> Result<Value, String> {
+    measure(expr, scope).map(|(value, _)| value)
+}
+
+/// Two values are equal within this fraction of their scale.
+const RELATIVE_TOLERANCE: f64 = 1e-9;
+
+/// The value of an expression and its scale: the magnitude, in SI, of what
+/// it was computed from (the terms of a difference, the members of a sum).
+/// Two values are equal relative to it, never to an absolute amount: a
+/// nanosecond is not zero, the residue of `0.3 - (0.1 + 0.2)` is.
+fn measure(expr: &Expr, scope: &Scope) -> Result<(Value, f64), String> {
+    let alone = |value: Value| (value, value.canonical.abs());
     match expr {
-        Expr::Number(n) => Ok(Value::number(*n)),
-        Expr::Quantity(q) => Ok(Value::of(q)),
-        Expr::Attr { element, attribute } => scope.attribute(element, attribute),
+        Expr::Number(n) => Ok(alone(Value::number(*n))),
+        Expr::Quantity(q) => Ok(alone(Value::of(q))),
+        Expr::Attr { element, attribute } => scope.attribute(element, attribute).map(alone),
         Expr::Ref(name) => Err(format!("'{}' is a name, not a value — write `{}.<attribute>`", name, name_text(name))),
         Expr::Neg(inner) => {
-            let value = evaluate(inner, scope)?;
-            Ok(Value { canonical: -value.canonical, dimension: value.dimension })
+            let (value, scale) = measure(inner, scope)?;
+            Ok((Value { canonical: -value.canonical, dimension: value.dimension }, scale))
         }
         Expr::Binary { op, lhs, rhs } => {
             if op.is_comparison() {
                 return Err("a comparison cannot be used as an operand".to_string());
             }
-            arithmetic(*op, evaluate(lhs, scope)?, evaluate(rhs, scope)?)
+            let ((left, left_scale), (right, right_scale)) = (measure(lhs, scope)?, measure(rhs, scope)?);
+            let value = arithmetic(*op, left, right)?;
+            let scale = match op {
+                BinOp::Mul => left_scale * right_scale,
+                // The divisor counts at its own scale: a difference that
+                // nearly cancels must not widen the tolerance of the quotient.
+                BinOp::Div => (left_scale / right_scale.max(right.canonical.abs())).max(value.canonical.abs()),
+                _ => left_scale.max(right_scale),
+            };
+            Ok((value, scale))
         }
         Expr::Call { function, args } => match (function.as_str(), args.as_slice()) {
             ("count", [collection]) => {
                 let collection = ref_name("count", "first", collection)?;
-                Ok(Value::number(scope.operand_members(collection)?.len() as f64))
+                Ok(alone(Value::number(scope.operand_members(collection)?.len() as f64)))
             }
             ("sum" | "min" | "max", [collection, attribute]) => {
                 let collection = ref_name(function, "first", collection)?;
@@ -492,13 +513,18 @@ pub fn evaluate(expr: &Expr, scope: &Scope) -> Result<Value, String> {
                 for value in &values[1..] {
                     same_dimension(BinOp::Add, first, *value)?;
                 }
+                // `f64::min` and `f64::max` drop a NaN: it would vanish from the aggregate.
+                if let Some((member, value)) = members.iter().zip(&values).find(|(_, v)| !v.canonical.is_finite()) {
+                    return Err(format!("{}(): '{}.{}' is not a finite number ({}): nothing compares with it", function, member, attribute, value.canonical));
+                }
                 let magnitudes = values.iter().map(|v| v.canonical);
                 let canonical = match function.as_str() {
                     "sum" => magnitudes.sum(),
                     "min" => magnitudes.fold(f64::INFINITY, f64::min),
                     _ => magnitudes.fold(f64::NEG_INFINITY, f64::max),
                 };
-                Ok(Value { canonical, dimension: first.dimension })
+                let scale = values.iter().map(|v| v.canonical.abs()).fold(0.0, f64::max);
+                Ok((Value { canonical, dimension: first.dimension }, scale))
             }
             ("sum" | "min" | "max", _) => Err(format!("{}() takes (collection, attribute)", function)),
             ("count", _) => Err("count() takes (collection)".to_string()),
@@ -523,11 +549,19 @@ pub fn check(expr: &Expr, scope: &Scope) -> Result<Outcome, String> {
     if !op.is_comparison() {
         return Err(format!("a constraint must be a comparison (<, <=, >, >=, ==, !=), got `{}`", expr));
     }
-    let left = evaluate(lhs, scope)?;
-    let right = evaluate(rhs, scope)?;
+    let (left, left_scale) = measure(lhs, scope)?;
+    let (right, right_scale) = measure(rhs, scope)?;
     same_dimension(*op, left, right)?;
+    for (side, value) in [("left", left), ("right", right)] {
+        if !value.canonical.is_finite() {
+            return Err(format!("the {side} side is not a finite number ({}): nothing compares with it", value.canonical));
+        }
+    }
     // Tolerance: quantities come from decimal literals scaled by factors.
-    let epsilon = 1e-9 * left.canonical.abs().max(right.canonical.abs()).max(1.0);
+    // It is relative to what is compared: an absolute one would make any two
+    // quantities under a nanosecond, a picofarad, equal.
+    // A scale that is not finite gives no tolerance: only equal values are equal.
+    let epsilon = Some(RELATIVE_TOLERANCE * left_scale.max(right_scale)).filter(|e| e.is_finite()).unwrap_or(0.0);
     let difference = left.canonical - right.canonical;
     let satisfied = match op {
         BinOp::Lt => difference < -epsilon,
@@ -726,4 +760,36 @@ architecture physical {{
         assert!(check_one("500 kbps", r#""FE-1".latency <= 10 ms"#).unwrap().satisfied);
         assert!(check_one("500 kbps", r#"targets.latency <= 10 ms"#).unwrap().satisfied);
     }
+    #[test]
+    fn the_tolerance_of_a_comparison_follows_the_scale_of_what_is_compared() {
+        // Was satisfied: two quantities less than 1e-9 apart in SI units compared as equal.
+        assert!(!outcome("1.5 ns <= 1 ns").unwrap().satisfied);
+        assert!(!outcome("2 ns == 1 ns").unwrap().satisfied);
+        assert!(outcome("2 ns != 1 ns").unwrap().satisfied);
+        assert!(outcome("1 ns < 1.5 ns").unwrap().satisfied);
+        assert!(!outcome("1.5 ns < 1 ns").unwrap().satisfied);
+        assert!(outcome("1.5 ns > 1 ns").unwrap().satisfied);
+        // Decimal literals and unit factors still compare as written, at any scale.
+        assert!(outcome("0.1 + 0.2 == 0.3").unwrap().satisfied);
+        assert!(outcome("0.3 - (0.1 + 0.2) >= 0").unwrap().satisfied);
+        assert!(!outcome("0.3 - (0.1 + 0.2) > 0").unwrap().satisfied);
+        assert!(outcome("0.1 ns + 0.2 ns == 0.3 ns").unwrap().satisfied);
+        assert!(outcome("0.3 ns - (0.1 ns + 0.2 ns) <= 0 ns").unwrap().satisfied);
+        assert!(outcome(r#""SF-1".latency - 40 ms == 0 ms"#).unwrap().satisfied);
+        // A divisor that nearly cancels does not widen the tolerance of the quotient.
+        assert!(!outcome("(1 - 1) / (0.3 - (0.1 + 0.2)) == 5").unwrap().satisfied);
+    }
+
+    #[test]
+    fn a_side_that_is_not_a_finite_number_is_an_error() {
+        let scope = Scope::from_model(&compile("").unwrap().ast);
+        let compared = |lhs: f64, op: BinOp, rhs: f64| check(&Expr::Binary { op, lhs: Box::new(Expr::Number(lhs)), rhs: Box::new(Expr::Number(rhs)) }, &scope);
+        // Was satisfied: an infinite side made any two values compare as equal.
+        for (lhs, op, rhs) in [(f64::INFINITY, BinOp::Le, 5.0), (f64::INFINITY, BinOp::Eq, 5.0), (5.0, BinOp::Ge, f64::INFINITY), (f64::NAN, BinOp::Ne, 5.0), (5.0, BinOp::Lt, f64::NAN)] {
+            let error = compared(lhs, op, rhs).unwrap_err();
+            assert!(error.contains("is not a finite number"), "{lhs} {} {rhs}: {error}", op.symbol());
+        }
+        assert!(compared(4.0, BinOp::Le, 5.0).unwrap().satisfied);
+    }
+
 }

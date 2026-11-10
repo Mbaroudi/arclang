@@ -33,7 +33,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// Bumped when the meaning of a cached HDL verdict changes.
-const CACHE_FORMAT: &str = "arclang-hdl-cache-1";
+const CACHE_FORMAT: &str = "arclang-hdl-cache-2";
 
 #[derive(Debug, Clone)]
 pub struct Options {
@@ -327,7 +327,7 @@ fn quantisation(model: &Table, fixed: &Table, tolerance: &[f64], plan: &Plan, ma
                     worst = (d.max(worst.0), model.names[c].clone(), tolerance[c]);
                 }
             }
-            if d > tolerance[c] && first_mismatch.is_none() {
+            if !sil::agree(*x, *y, tolerance[c]) && first_mismatch.is_none() {
                 let t = k as f64 * model.period_us as f64 / 1e6;
                 let what = if is_real { format!("beyond its tolerance {:e}", tolerance[c]) } else { "a discrete output: the quantisation changed a decision".to_string() };
                 first_mismatch = Some(format!("at {t} s (step {k}), {}: model {x}, fixed point {y} ({what})", model.names[c]));
@@ -693,8 +693,11 @@ pub fn synthesise(plan: &Plan, a: &Allocation, period_us: u64, work: &Path) -> R
 }
 
 /// What a cached HDL verdict depends on: the generated VHDL and fixed-point
-/// C at the case's period, the case, the generator and the tools.
-pub fn cache_key(ast: &Model, test: &TestCase, tools: &str) -> Result<String, String> {
+/// C at the case's period, the case, the generator and the tools; and what
+/// the vectors the block replays were computed with: the machines its own
+/// reads through its wires (their C, as the model steps them), the plant
+/// the case closes its loop on (`plant::evidence`, its files read in `base`).
+pub fn cache_key(ast: &Model, test: &TestCase, tools: &str, base: &Path) -> Result<String, String> {
     use sha2::{Digest, Sha256};
     let plan = super::plan::plan(ast)?;
     let bindings = super::binding::resolve_all(ast, &plan)?;
@@ -717,6 +720,12 @@ pub fn cache_key(ast: &Model, test: &TestCase, tools: &str) -> Result<String, St
     let generated = super::cgen::generate(&fx_plan, case.step_us);
     field("c", generated.source.as_bytes());
     field("h", generated.header.as_bytes());
+    // The block is run alone, its wired inputs fed what the model's run of the machines upstream gave them.
+    if !super::plan::upstream(&plan, case.machine).is_empty() {
+        let read = super::cgen::generate(&super::plan::with_upstream(&plan, case.machine), case.step_us);
+        field("upstream c", read.source.as_bytes());
+        field("upstream h", read.header.as_bytes());
+    }
     if let Some(AttributeValue::Map(map)) = test.attributes.get("execute") {
         let mut keys: Vec<&String> = map.keys().collect();
         keys.sort();
@@ -727,12 +736,14 @@ pub fn cache_key(ast: &Model, test: &TestCase, tools: &str) -> Result<String, St
     for expect in crate::compiler::simulation::expects_of(&test.attributes) {
         field("expects", expect.as_bytes());
     }
+    super::plant::evidence(ast, test, base, &mut field);
     Ok(hash.finalize().iter().map(|b| format!("{b:02x}")).collect())
 }
 
 /// Keep each case's verdict as `<case>.hdl.json` in the model's cache.
 pub fn cache(ast: &Model, model_path: &Path, outcomes: &[Outcome]) -> Result<Vec<PathBuf>, String> {
-    cache_kind(ast, model_path, outcomes, "hdl", |test, tools| cache_key(ast, test, tools))
+    let base = crate::compiler::simulation::cache::model_dir(model_path);
+    cache_kind(ast, model_path, outcomes, "hdl", |test, tools| cache_key(ast, test, tools, &base))
 }
 
 /// Keep each case's verdict as `<case>.<kind>.json`: `hdl` (the VHDL in

@@ -515,10 +515,17 @@ fn describe(value: &Value) -> String {
 }
 
 fn compare(a: Value, cmp: Cmp, b: Value, lhs: &Term, rhs: &Term) -> Result<bool, String> {
-    let close = |x: f64, y: f64| (x - y).abs() <= 1e-9 * x.abs().max(y.abs()).max(1.0);
+    // Equal within a fraction of the larger of the two, never within an
+    // absolute amount: a nanosecond is not zero.
+    let close = |x: f64, y: f64| x == y || (x - y).abs() <= 1e-9 * x.abs().max(y.abs());
     Ok(match (a, b) {
         (Value::Missing, _) | (_, Value::Missing) => false,
         (Value::Number(x, dx), Value::Number(y, dy)) => {
+            for (term, value) in [(lhs, x), (rhs, y)] {
+                if !value.is_finite() {
+                    return Err(format!("{} is not a finite number ({value}): nothing compares with it", show(term)));
+                }
+            }
             if dx != dy {
                 // A bare number in the model against a quantity in the rule: the element does not hold it.
                 if dx.is_dimensionless() || dy.is_dimensionless() {
@@ -566,4 +573,27 @@ mod tests {
         assert!(parse("has(mass").is_err());
         assert!(parse("mass @ 3").is_err());
     }
+    #[test]
+    fn the_tolerance_of_a_comparison_follows_the_scale_of_what_is_compared() {
+        let time = crate::compiler::quantity::Dimension::Time.vector();
+        let (lhs, rhs) = (Term::Attribute("latency".to_string()), Term::Attribute("budget".to_string()));
+        let compared = |x: f64, cmp: Cmp, y: f64| compare(Value::Number(x, time), cmp, Value::Number(y, time), &lhs, &rhs);
+        // Was held: two quantities less than 1e-9 apart in SI units compared as equal.
+        assert_eq!(compared(1.5e-9, Cmp::Le, 1e-9), Ok(false));
+        assert_eq!(compared(1.5e-9, Cmp::Eq, 1e-9), Ok(false));
+        assert_eq!(compared(1.5e-9, Cmp::Ne, 1e-9), Ok(true));
+        assert_eq!(compared(1e-9, Cmp::Lt, 1.5e-9), Ok(true));
+        assert_eq!(compared(1.5e-9, Cmp::Gt, 1e-9), Ok(true));
+        // A unit factor's rounding still compares as written.
+        assert_eq!(compared(0.1 + 0.2, Cmp::Eq, 0.3), Ok(true));
+        assert_eq!(compared(0.1 + 0.2, Cmp::Le, 0.3), Ok(true));
+        assert_eq!(compared(0.1 + 0.2, Cmp::Gt, 0.3), Ok(false));
+        assert_eq!(compared(0.0, Cmp::Eq, 0.0), Ok(true));
+        // A value that is not a finite number compares with nothing.
+        for (x, cmp, y) in [(f64::INFINITY, Cmp::Le, 5.0), (f64::INFINITY, Cmp::Eq, 5.0), (f64::NAN, Cmp::Ne, 5.0), (5.0, Cmp::Lt, f64::INFINITY)] {
+            let error = compared(x, cmp, y).unwrap_err();
+            assert!(error.contains("is not a finite number"), "{error}");
+        }
+    }
+
 }

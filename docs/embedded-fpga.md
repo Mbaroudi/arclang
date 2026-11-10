@@ -375,11 +375,20 @@ not pass or a block misses timing.
 
 **Verdicts** are kept as `<case>.hdl.json` in `.arclang/sim-cache/`
 (kind `hdl`, the block named), keyed by the generated VHDL and fixed-point
-C at the case's period, the case, the generator's version and the tools'
+C at the case's period, the C of every machine wired upstream of the
+case's (the logic replays the inputs their model run gives it: another
+filter, other inputs), the files of the plant the case closes its loop on,
+the case, the generator's version and the tools'
 versions (GHDL, the C compiler, and Yosys and nextpnr when it synthesised).
 `check`, `gate` and the tables read them as PIL verdicts: a fresh failure
 or error is the case's verdict, a fresh pass is evidence, a stale one a
-warning.
+warning. A machine downstream of the case's is not in its key.
+
+A later stage stands for a case only when no earlier stage says anything
+fresh of it: when the C's verdict is stale or was never run, a fresh pass
+of the logic is the case's verdict; when the C's verdict is fresh, the
+case reads the worst of the two, and a fresh earlier stage that concludes
+nothing is not replaced by a later pass.
 
 ## Synthesis
 

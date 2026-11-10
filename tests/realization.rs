@@ -77,7 +77,7 @@ fn cached_verdicts_climb_the_ladder_and_a_changed_model_makes_them_stale() {
     assert!(!cases.is_empty());
     // SIL, as `arclang sil` keeps it: a fresh pass of every case of the requirement.
     for test in &cases {
-        let key = arclang::compiler::embedded::sil::cache_key(&result.ast, test).unwrap();
+        let key = arclang::compiler::embedded::sil::cache_key(&result.ast, test, model.parent().unwrap()).unwrap();
         let outcome = Outcome { test_case: test.id.clone(), kind: "sil".into(), name: test.name.clone(), verifies: test.verifies.clone(), verdict: "pass".into(), key, tool: "arclang sil (cc)".into(), ..Default::default() };
         cache::write(&dir, &outcome).unwrap();
     }

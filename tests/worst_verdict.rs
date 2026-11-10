@@ -74,9 +74,9 @@ fn cached(model: &Path, kind: &str, said: Said) {
     let result = compile(model);
     let case = result.ast.test_cases.iter().find(|t| t.id == CASE).unwrap();
     let (key, tool) = match kind {
-        "sil" => (sil::cache_key(&result.ast, case).unwrap(), "arclang sil (cc)".to_string()),
+        "sil" => (sil::cache_key(&result.ast, case, model.parent().unwrap()).unwrap(), "arclang sil (cc)".to_string()),
         "cosim" => (cosim::cache_key(&result.ast, case, model.parent().unwrap()).unwrap(), "arclang cosim (OMSimulator v2.1.2)".to_string()),
-        _ => (hdl::cache_key(&result.ast, case, HDL_TOOLS).unwrap(), HDL_TOOLS.to_string()),
+        _ => (hdl::cache_key(&result.ast, case, HDL_TOOLS, model.parent().unwrap()).unwrap(), HDL_TOOLS.to_string()),
     };
     let outcome = Outcome {
         test_case: CASE.to_string(),

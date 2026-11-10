@@ -42,9 +42,14 @@ impl Cmp {
         }
     }
 
-    fn holds(self, a: f64, b: f64) -> bool {
-        // Equality within a relative tolerance: results are numerical.
-        let close = (a - b).abs() <= 1e-9 * a.abs().max(b.abs()).max(1.0);
+    /// Whether `a` compares to `b`, two values equal when they are within
+    /// `epsilon` of each other (results are numerical). A value that is not
+    /// a finite number compares with nothing.
+    fn holds(self, a: f64, b: f64, epsilon: f64) -> bool {
+        if !a.is_finite() || !b.is_finite() {
+            return false;
+        }
+        let close = a == b || (a - b).abs() <= epsilon;
         match self {
             Cmp::Lt => a < b,
             Cmp::Le => a <= b || close,
@@ -407,7 +412,22 @@ pub fn check_constraint(text: &str) -> Result<(), String> {
 struct Value {
     si: f64,
     dim: Option<DimVec>,
+    /// The magnitude of what the value was computed from, in SI: the largest
+    /// level its signal reached, the terms of a difference. Two values are
+    /// numerically equal relative to it, never to an absolute amount: a
+    /// nanosecond is not zero, the residue of 12 V - 12 V is.
+    scale: f64,
 }
+
+impl Value {
+    /// A value that stands for itself.
+    fn of(si: f64, dim: Option<DimVec>) -> Value {
+        Value { si, dim, scale: si.abs() }
+    }
+}
+
+/// Two values are numerically equal within this fraction of their scale.
+const RELATIVE_TOLERANCE: f64 = 1e-9;
 
 /// The outcome of one expectation.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -452,25 +472,32 @@ fn variable_unit(context: &Context<'_>, variable: &str) -> Result<(usize, Option
 
 fn eval(term: &Term, context: &mut Context<'_>) -> Result<Value, String> {
     match term {
-        Term::Number { value, dim, .. } => Ok(Value { si: *value, dim: Some(*dim) }),
+        Term::Number { value, dim, .. } => Ok(Value::of(*value, Some(*dim))),
         Term::Neg(inner) => eval(inner, context).map(|v| Value { si: -v.si, ..v }),
         Term::Binary { op, lhs, rhs } => {
             let (a, b) = (eval(lhs, context)?, eval(rhs, context)?);
             match op {
                 '+' | '-' => {
                     let dim = same(a.dim, b.dim, &format!("'{op}'"))?;
-                    Ok(Value { si: if *op == '+' { a.si + b.si } else { a.si - b.si }, dim })
+                    Ok(Value { si: if *op == '+' { a.si + b.si } else { a.si - b.si }, dim, scale: a.scale.max(b.scale) })
                 }
-                '*' => Ok(Value { si: a.si * b.si, dim: a.dim.zip(b.dim).map(|(x, y)| x.multiply(y)) }),
-                _ => Ok(Value { si: a.si / b.si, dim: a.dim.zip(b.dim).map(|(x, y)| x.divide(y)) }),
+                '*' => Ok(Value { si: a.si * b.si, dim: a.dim.zip(b.dim).map(|(x, y)| x.multiply(y)), scale: a.scale * b.scale }),
+                _ => {
+                    // The divisor counts at its own scale, not at the level it
+                    // happens to end on: a signal settling near zero must not
+                    // widen the tolerance of the quotient.
+                    let si = a.si / b.si;
+                    Ok(Value { si, dim: a.dim.zip(b.dim).map(|(x, y)| x.divide(y)), scale: (a.scale / b.scale.max(b.si.abs())).max(si.abs()) })
+                }
             }
         }
         Term::Call { function, at, variable } => {
             let (column, unit) = variable_unit(context, variable)?;
             let series = context.series;
             let raw = match function.as_str() {
-                "min" => series.values(column).fold(f64::INFINITY, f64::min),
-                "max" => series.values(column).fold(f64::NEG_INFINITY, f64::max),
+                // A step that is not a number is not skipped: the extremum is not known.
+                "min" => series.values(column).fold(f64::INFINITY, |least, v| if least.is_nan() || v.is_nan() { f64::NAN } else { least.min(v) }),
+                "max" => series.values(column).fold(f64::NEG_INFINITY, |most, v| if most.is_nan() || v.is_nan() { f64::NAN } else { most.max(v) }),
                 "initial" => series.values(column).next().ok_or("the result is empty")?,
                 "final" => series.values(column).last().ok_or("the result is empty")?,
                 "mean" => series.mean(column).ok_or("the result is empty")?,
@@ -488,11 +515,13 @@ fn eval(term: &Term, context: &mut Context<'_>) -> Result<Value, String> {
                     })?
                 }
             };
+            // The scale of a reading is the largest level its signal reached.
+            let reached = series.values(column).filter(|v| v.is_finite()).fold(raw.abs(), |most, v| most.max(v.abs()));
             Ok(match unit {
-                Some(unit) => Value { si: raw * unit.factor, dim: Some(unit.dim) },
+                Some(unit) => Value { si: raw * unit.factor, dim: Some(unit.dim), scale: reached * unit.factor.abs() },
                 None => {
                     context.notes.push(format!("the unit of '{variable}' is unknown: compared as a value in SI units"));
-                    Value { si: raw, dim: None }
+                    Value { si: raw, dim: None, scale: reached }
                 }
             })
         }
@@ -537,7 +566,7 @@ fn label(term: &Term) -> String {
         Term::Call { function, at: None, variable } if function == "value" => variable.clone(),
         Term::Call { function, at: None, variable } => format!("{function}({variable})"),
         Term::Call { variable, at: Some(t), .. } => match t.as_ref() {
-            Term::Number { value, dim, unit } => format!("at({}, {variable})", shown(Value { si: *value, dim: Some(*dim) }, unit.as_deref())),
+            Term::Number { value, dim, unit } => format!("at({}, {variable})", shown(Value::of(*value, Some(*dim)), unit.as_deref())),
             _ => format!("at(..., {variable})"),
         },
         _ => "value".to_string(),
@@ -561,22 +590,30 @@ pub fn evaluate(expect: &Expect, context: &mut Context<'_>) -> Result<Evaluated,
             }
         }
     };
-    let close = |a: f64, b: f64| within.is_some_and(|w| (a - b).abs() <= w) || Cmp::Eq.holds(a, b);
-    let holds = match (expect.cmp, within) {
-        (Cmp::Eq, Some(_)) => close(lhs.si, rhs.si),
-        (Cmp::Ne, Some(_)) => !close(lhs.si, rhs.si),
-        _ => expect.cmp.holds(lhs.si, rhs.si),
-    };
     let unit = written_unit(&expect.rhs).or_else(|| written_unit(&expect.lhs));
     let value = format!("{} = {}", label(&expect.lhs), shown(lhs, unit));
+    // A run that gave a value that is not a number (it diverged, it divided
+    // by zero) shows nothing: no expectation holds on it, not even `!=`.
+    if !lhs.si.is_finite() || !rhs.si.is_finite() || within.is_some_and(|w| !w.is_finite()) {
+        return Ok(Evaluated { expect: expect.text.clone(), value, holds: false, margin: "not a number".to_string(), requirement: expect.requirement.clone(), slack: None, slack_unit: None });
+    }
+    // A scale that is not finite gives no tolerance: only equal values are equal.
+    let epsilon = Some(RELATIVE_TOLERANCE * lhs.scale.max(rhs.scale)).filter(|e| e.is_finite()).unwrap_or(0.0);
+    let equal = Cmp::Eq.holds(lhs.si, rhs.si, epsilon);
+    let close = within.is_some_and(|w| (lhs.si - rhs.si).abs() <= w) || equal;
+    let holds = match (expect.cmp, within) {
+        (Cmp::Eq, Some(_)) => close,
+        (Cmp::Ne, Some(_)) => !close,
+        _ => expect.cmp.holds(lhs.si, rhs.si, epsilon),
+    };
     let gap_si = (lhs.si - rhs.si).abs();
     // A gap is a difference: 4.9 K, never 4.9 °C read as a level.
     let gap_unit = unit.filter(|u| lookup_unit(u).is_none_or(|spec| spec.offset == 0.0)).or(unit.map(|_| "K"));
-    let gap = shown(Value { si: gap_si, dim: lhs.dim.or(rhs.dim) }, gap_unit);
+    let gap = shown(Value::of(gap_si, lhs.dim.or(rhs.dim)), gap_unit);
     // A gap below what four significant digits show: the value sits on its bound.
     let on_bound = gap_si <= 5e-5 * lhs.si.abs().max(rhs.si.abs());
     let margin = match (expect.cmp, holds) {
-        (Cmp::Eq, true) if within.is_some() && !Cmp::Eq.holds(lhs.si, rhs.si) => format!("off by {gap}, within its tolerance"),
+        (Cmp::Eq, true) if within.is_some() && !equal => format!("off by {gap}, within its tolerance"),
         (Cmp::Eq, true) => String::new(),
         (_, true) if on_bound => "at the bound".to_string(),
         (Cmp::Ne, false) => "equal".to_string(),
@@ -720,7 +757,7 @@ mod tests {
         let aliases = BTreeMap::new();
         let warm = parse("max(cells.T) <= 55 °C", &aliases).unwrap();
         assert!(matches!(warm.rhs, Term::Number { value, .. } if (value - 328.15).abs() < 1e-9), "{:?}", warm.rhs);
-        assert_eq!(shown(Value { si: 323.3, dim: Some(crate::compiler::quantity::Dimension::Temperature.vector()) }, Some("°C")), "50.15 °C");
+        assert_eq!(shown(Value::of(323.3, Some(crate::compiler::quantity::Dimension::Temperature.vector())), Some("°C")), "50.15 °C");
         let mut series = Series::from_csv("time,cells.T\n0,308.15\n1,323.3\n").unwrap();
         series.set_units([("cells.T".to_string(), "K".to_string())].into_iter().collect());
         let mut notes = Vec::new();
@@ -797,5 +834,83 @@ mod tolerance_tests {
         assert!(holds("at(10 s, x) == 0.69 within 0.01").0);
         assert!(holds("at(10 s, x) != 0.5 within 1 %").0);
         assert!(parse("final(x) >= 1 within 1 %", &BTreeMap::new()).unwrap_err().contains("goes with == or !="));
+    }
+}
+
+#[cfg(test)]
+mod comparison_tests {
+    use super::{evaluate, parse, Context, Evaluated};
+    use crate::compiler::simulation::results::Series;
+    use std::collections::BTreeMap;
+
+    /// The expectation on a result of one variable `x`, in `unit`.
+    fn on(values: &[&str], unit: &str, text: &str) -> Evaluated {
+        let rows: String = values.iter().enumerate().map(|(step, value)| format!("{step},{value}\n")).collect();
+        let mut series = Series::from_csv(&format!("\"time\",\"x\"\n{rows}")).unwrap();
+        series.set_units([("x".to_string(), unit.to_string())].into_iter().collect());
+        let expect = parse(text, &BTreeMap::new()).unwrap();
+        evaluate(&expect, &mut Context { series: &series, notes: &mut Vec::new() }).unwrap()
+    }
+
+    #[test]
+    fn a_value_that_is_not_a_number_holds_no_expectation() {
+        // A run that diverged at one step: neither its extrema nor its mean are evidence.
+        let diverged = ["0", "NaN", "1"];
+        for text in ["max(x) <= 5", "min(x) >= -5", "max(x) != 3", "mean(x) <= 5", "at(1 s, x) != 3", "max(x) == 1 within 50 %", "max(x) != 3 within 1 %"] {
+            let evaluated = on(&diverged, "1", text);
+            assert!(!evaluated.holds, "{text}: {evaluated:?}");
+            assert_eq!(evaluated.margin, "not a number", "{text}");
+            assert_eq!(evaluated.slack, None, "{text}");
+        }
+        assert!(!on(&["0", "1", "NaN"], "1", "final(x) != 3").holds);
+        // The steps before it still say what they say.
+        assert!(on(&diverged, "1", "initial(x) == 0").holds);
+    }
+
+    #[test]
+    fn an_infinite_value_holds_no_expectation() {
+        // Was held: an infinite side made any two values compare as equal.
+        for text in ["max(x) <= 5", "max(x) == 5", "max(x) >= 5", "max(x) != 5", "final(x) / initial(x) >= 1"] {
+            let evaluated = on(&["0", "inf"], "1", text);
+            assert!(!evaluated.holds, "{text}: {evaluated:?}");
+            assert_eq!(evaluated.margin, "not a number", "{text}");
+        }
+        assert!(!on(&["0", "-inf"], "1", "min(x) <= 5").holds);
+    }
+
+    #[test]
+    fn the_tolerance_of_a_comparison_follows_the_scale_of_what_is_compared() {
+        // Was held: two quantities less than 1e-9 apart in SI units compared as equal.
+        assert!(!on(&["0", "1.9e-9"], "s", "max(x) <= 1 ns").holds);
+        assert!(!on(&["0", "1.5e-9"], "s", "final(x) <= 1 ns").holds);
+        assert!(!on(&["0", "1.5e-9"], "s", "final(x) == 1 ns").holds);
+        assert!(on(&["0", "1.5e-9"], "s", "final(x) != 1 ns").holds);
+        assert!(on(&["0", "0.5e-9"], "s", "final(x) <= 1 ns").holds);
+        // Numerical equality still holds, at any scale.
+        assert!(on(&["0", "1.0000000000001e-9"], "s", "final(x) == 1 ns").holds);
+        assert!(on(&["0", "300500.00000001"], "m", "final(x) <= 300.5 km").holds);
+    }
+
+    #[test]
+    fn the_noise_of_a_signal_is_read_at_the_scale_of_the_signal() {
+        // A voltage that reached 12 V and comes back to zero within the solver's noise.
+        let settled = ["0", "12", "1e-12"];
+        assert!(on(&settled, "V", "final(x) == 0 V").holds);
+        assert!(on(&["0", "12", "-1e-12"], "V", "final(x) >= 0 V").holds);
+        assert!(on(&settled, "V", "max(x) - 12 V <= 0 V").holds);
+        // A signal that never left that level is not noise: a nanovolt is not zero.
+        assert!(!on(&["1e-9", "1e-9"], "V", "final(x) == 0 V").holds);
+        assert!(!on(&["1e-9", "1e-9"], "V", "final(x) <= 0 V").holds);
+        assert!(on(&["0", "0"], "V", "final(x) == 0 V").holds);
+    }
+
+    #[test]
+    fn a_divisor_that_settles_near_zero_does_not_widen_the_tolerance() {
+        // Was held: the scale of the quotient was 12 V over the picovolt the divisor ended on.
+        let settled = ["0", "12", "1e-12"];
+        assert!(!on(&settled, "V", "final(x) / final(x) == 5").holds);
+        assert!(on(&settled, "V", "final(x) / final(x) == 1").holds);
+        // A constant divisor scales the noise of the signal with the signal.
+        assert!(on(&settled, "V", "final(x) / 2 == 0 V").holds);
     }
 }

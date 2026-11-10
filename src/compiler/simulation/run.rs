@@ -141,8 +141,8 @@ fn status_of(result: &CompilationResult, test: &crate::compiler::ast::TestCase, 
 }
 
 /// The cached SIL verdict of every case that executes at fixed step
-/// (`arclang sil` writes them): fresh when the generated C and the case are
-/// those it ran, otherwise inconclusive. A failing or stale verdict is a
+/// (`arclang sil` writes them): fresh when the generated C, the case and
+/// the plant it closes its loop on are those it ran, otherwise inconclusive. A failing or stale verdict is a
 /// warning; a case never run is not (the compiler already judged it on the
 /// model).
 fn attach_executed(result: &mut CompilationResult, model_path: &Path) -> std::collections::HashMap<String, Status> {
@@ -152,9 +152,12 @@ fn attach_executed(result: &mut CompilationResult, model_path: &Path) -> std::co
         return statuses;
     }
     let dir = cache::dir(model_path);
+    let base = cache::model_dir(model_path);
     for test in &executed {
         let inconclusive = |reason: String| Status::new("inconclusive", reason, "");
-        let status = match crate::compiler::embedded::sil::cache_key(&result.ast, test) {
+        // What a stale verdict's sentence names: a case in the loop also follows the physics of its plant.
+        let in_the_loop = !crate::compiler::embedded::plant::files(test).is_empty();
+        let status = match crate::compiler::embedded::sil::cache_key(&result.ast, test, &base) {
             Err(e) => {
                 let reason = format!("the C is not generated: {e}");
                 inconclusive(reason.clone()).with_rung(Rung::missing("sil", reason))
@@ -165,7 +168,8 @@ fn attach_executed(result: &mut CompilationResult, model_path: &Path) -> std::co
                     inconclusive(reason.clone()).with_rung(Rung::missing("sil", reason))
                 }
                 Some(outcome) if outcome.key != key => {
-                    let reason = format!("stale: the generated C or the case changed since its SIL run; run `arclang sil {} --test {}`", model_path.display(), test.id);
+                    let changed = if in_the_loop { "the generated C, the case or the plant it closes its loop on changed" } else { "the generated C or the case changed" };
+                    let reason = format!("stale: {changed} since its SIL run; run `arclang sil {} --test {}`", model_path.display(), test.id);
                     result.warnings.push(format!("verification: test_case '{}' is inconclusive: {reason}", test.name));
                     inconclusive(reason.clone()).with_rung(Rung::stale("sil", outcome.tool.clone(), reason))
                 }
@@ -194,36 +198,37 @@ fn attach_executed(result: &mut CompilationResult, model_path: &Path) -> std::co
 /// board (`arclang soc`). A fresh failure or error is the case's verdict
 /// (it is the same C on the target, the hardware computes the machine),
 /// and each requirement keeps the worst of what the stages say of it; a
-/// fresh verdict stands for a SIL verdict missing or stale, and a pass is
-/// added to the evidence otherwise; a stale one is a warning only. Each is
+/// fresh verdict stands for the earlier stages when none of them is fresh
+/// (never run, or stale), and a pass is added to the evidence otherwise; a stale one is a warning only. Each is
 /// a rung of the status, kept apart.
 fn with_stage(result: &mut CompilationResult, model_path: &Path, dir: &Path, test: &crate::compiler::ast::TestCase, status: Status, kind: &str) -> Status {
     let Some(outcome) = cache::read_kind(dir, &test.id, kind) else { return status };
+    let base = cache::model_dir(model_path);
     // `label` names the stage in a verdict's warning; `stale` is the sentence of a stale one.
     let (fresh, stage, label, stale, command, changed) = match kind {
         "pil" => (
-            crate::compiler::embedded::target::find(&outcome.target).and_then(|package| crate::compiler::embedded::pil::cache_key(&result.ast, test, &package)).is_ok_and(|key| key == outcome.key),
+            crate::compiler::embedded::target::find(&outcome.target).and_then(|package| crate::compiler::embedded::pil::cache_key(&result.ast, test, &package, &base)).is_ok_and(|key| key == outcome.key),
             "pil",
             format!("PIL on {}", outcome.target),
             format!("its PIL verdict on {} is stale", outcome.target),
             "pil",
-            "the generated C, the case or the target package changed",
+            "the generated C, the case, its plant or the target package changed",
         ),
         "hdl" => (
-            crate::compiler::embedded::hdl::cache_key(&result.ast, test, &outcome.tool).is_ok_and(|key| key == outcome.key),
+            crate::compiler::embedded::hdl::cache_key(&result.ast, test, &outcome.tool, &base).is_ok_and(|key| key == outcome.key),
             "hdl",
             format!("HDL {}", outcome.target),
             "its HDL verdict is stale".to_string(),
             "hdl",
-            "the generated VHDL, the fixed-point C or the case changed",
+            "the generated VHDL, the fixed-point C, the case, a machine it reads or its plant changed",
         ),
         _ => (
-            crate::compiler::embedded::system::cache_key(&result.ast, test, &outcome.tool).is_ok_and(|key| key == outcome.key),
+            crate::compiler::embedded::system::cache_key(&result.ast, test, &outcome.tool, &base).is_ok_and(|key| key == outcome.key),
             if outcome.tool.contains("on the board") { "board" } else { "soc" },
             format!("{} {}", if outcome.tool.contains("on the board") { "board" } else { "SoC" }, outcome.target),
             format!("its {} verdict is stale", if outcome.tool.contains("on the board") { "board" } else { "SoC" }),
             "soc",
-            "the generated VHDL, the fixed-point C, the application or the case changed",
+            "the generated VHDL, the fixed-point C, the application, the case, a machine it reads or its plant changed",
         ),
     };
     let target = if kind == "pil" { outcome.target.clone() } else { format!("{} ({})", outcome.target, outcome.tool) };
@@ -237,8 +242,10 @@ fn with_stage(result: &mut CompilationResult, model_path: &Path, dir: &Path, tes
     if later.verdict != "pass" {
         result.warnings.push(format!("verification: test_case '{}' {} in {label}: {}", test.name, if later.verdict == "fail" { "fails" } else { "is in error" }, later.reason));
     }
-    // The earlier stages say nothing (never run, or stale): this one stands for the case.
-    if status.verdict == "inconclusive" {
+    // The earlier stages say nothing (never run, or stale): this one stands
+    // for the case. One that ran, is fresh and concludes nothing is not
+    // stood for: a later pass does not make it conclude.
+    if !status.rungs.iter().any(|r| r.state == "fresh") {
         let mut rungs = status.rungs;
         rungs.push(rung);
         return Status { rungs, ..later };

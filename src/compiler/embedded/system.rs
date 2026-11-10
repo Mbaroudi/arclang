@@ -613,7 +613,7 @@ pub fn clocks_of(log: &str) -> Vec<(String, f64, f64)> {
 
 /// What a cached SoC verdict depends on: what the HDL verdict does, the
 /// SoC's description, the application and its target package.
-pub fn cache_key(ast: &Model, test: &TestCase, tools: &str) -> Result<String, String> {
+pub fn cache_key(ast: &Model, test: &TestCase, tools: &str, base: &Path) -> Result<String, String> {
     use sha2::{Digest, Sha256};
     let plan = super::plan::plan(ast)?;
     let bindings = super::binding::resolve_all(ast, &plan)?;
@@ -628,7 +628,7 @@ pub fn cache_key(ast: &Model, test: &TestCase, tools: &str) -> Result<String, St
         hash.update(bytes);
     };
     field("format", CACHE_FORMAT.as_bytes());
-    field("hdl", hdl::cache_key(ast, test, tools)?.as_bytes());
+    field("hdl", hdl::cache_key(ast, test, tools, base)?.as_bytes());
     field("soc", SOC_SCRIPT.as_bytes());
     field("ram", &RAM_BYTES.to_le_bytes());
     let sys_hz = super::alloc::processor_clock(ast)?.unwrap_or(allocations.first().map(|a| a.clock_hz).unwrap_or(0.0));
@@ -642,7 +642,8 @@ pub fn cache_key(ast: &Model, test: &TestCase, tools: &str) -> Result<String, St
 
 /// Keep each case's verdict as `<case>.soc.json` in the model's cache.
 pub fn cache(ast: &Model, model_path: &Path, outcomes: &[Outcome]) -> Result<Vec<PathBuf>, String> {
-    hdl::cache_kind(ast, model_path, outcomes, "soc", |test, tools| cache_key(ast, test, tools))
+    let base = crate::compiler::simulation::cache::model_dir(model_path);
+    hdl::cache_kind(ast, model_path, outcomes, "soc", |test, tools| cache_key(ast, test, tools, &base))
 }
 
 #[cfg(test)]

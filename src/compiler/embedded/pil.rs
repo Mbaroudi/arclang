@@ -68,7 +68,7 @@ pub fn choose_target(bindings: &[Binding], target: Option<&str>) -> Result<Packa
 /// The hash a cached PIL verdict depends on: what the SIL verdict depends
 /// on (every generated file, the case), the target's name and every file
 /// of its package.
-pub fn cache_key(ast: &Model, test: &TestCase, package: &Package) -> Result<String, String> {
+pub fn cache_key(ast: &Model, test: &TestCase, package: &Package, base: &Path) -> Result<String, String> {
     use sha2::{Digest, Sha256};
     let mut hash = Sha256::new();
     let mut field = |label: &str, bytes: &[u8]| {
@@ -77,7 +77,7 @@ pub fn cache_key(ast: &Model, test: &TestCase, package: &Package) -> Result<Stri
         hash.update(bytes);
     };
     field("format", CACHE_FORMAT.as_bytes());
-    field("sil", sil::cache_key(ast, test)?.as_bytes());
+    field("sil", sil::cache_key(ast, test, base)?.as_bytes());
     field("target", package.name.as_bytes());
     for (name, text, _) in package.files()? {
         field("file", name.as_bytes());
@@ -90,13 +90,14 @@ pub fn cache_key(ast: &Model, test: &TestCase, package: &Package) -> Result<Stri
 /// cache, where `check`, `gate` and the tables read them.
 pub fn cache(ast: &Model, model_path: &Path, package: &Package, outcomes: &[Outcome]) -> Result<Vec<PathBuf>, String> {
     let dir = crate::compiler::simulation::cache::dir(model_path);
+    let base = crate::compiler::simulation::cache::model_dir(model_path);
     let mut written = Vec::new();
     for test in sil::cases(ast) {
         let runs: Vec<&Outcome> = outcomes.iter().filter(|o| o.test_case == test.id).collect();
         if runs.is_empty() {
             continue;
         }
-        let mut outcome = sil::cached_outcome(&runs, cache_key(ast, test, package)?);
+        let mut outcome = sil::cached_outcome(&runs, cache_key(ast, test, package, &base)?);
         outcome.kind = "pil".to_string();
         outcome.target = package.name.clone();
         outcome.tool = format!("arclang pil ({})", runs[0].compiler);

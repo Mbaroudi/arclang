@@ -754,13 +754,20 @@ when a case does not pass.
 
 The verdict of each case run is kept in `.arclang/sim-cache/` beside the
 model, as `arclang verify` keeps simulation verdicts, keyed by a hash of
-every generated file, the case's `execute:` and its expectations (over all
+every generated file, the case's `execute:`, its expectations and, for a
+case that closes its loop on a plant, the content of the plant's files (and
+the model's own Modelica export when the plant reads it) (over all
 the compilers of the run: an error with one is an error, a failure a
 failure). `check`, `gate`, the tables and the documents read it: a fresh
 verdict is the case's verdict (by requirement when its expectations name
 requirements), with its values as evidence; a case never run in SIL, or
-whose C or case changed since (stale, with a warning), is inconclusive and
-says what to run.
+whose C, case or plant changed since (stale, with a warning), is
+inconclusive and says what to run. A plant file that is gone makes the
+verdict stale, not an error.
+
+The model's run and the C's are compared value by value: a value that is
+not a number (`NaN`) in either agrees with nothing, and the case fails as
+one whose C departs from the model.
 
 ## The plant in the loop
 

@@ -6,36 +6,18 @@
 //! compiler reads the verdicts too.
 
 use super::sil::{self, Outcome};
-use crate::compiler::ast::{AttributeValue, Model, TestCase};
+use crate::compiler::ast::{Model, TestCase};
 use std::path::{Path, PathBuf};
 
 /// Bumped when the meaning of a cached co-simulation verdict changes.
 const CACHE_FORMAT: &str = "arclang-cosim-cache-1";
 
-/// The files of the plant a case closes the loop on, as written in its
-/// `execute: { plant: { sources: [...] } }` or `fmu:`, relative to the model.
-fn plant_files(test: &TestCase) -> Vec<String> {
-    let Some(AttributeValue::Map(execute)) = test.attributes.get("execute") else { return Vec::new() };
-    let Some(AttributeValue::Map(plant)) = execute.get("plant") else { return Vec::new() };
-    let mut files = Vec::new();
-    match plant.get("sources") {
-        Some(AttributeValue::List(items)) => files.extend(items.iter().filter_map(|i| i.as_string().map(str::to_string))),
-        Some(AttributeValue::String(one)) => files.push(one.clone()),
-        _ => {}
-    }
-    if let Some(fmu) = plant.get("fmu").and_then(|v| v.as_string()) {
-        files.push(fmu.to_string());
-    }
-    files
-}
-
 /// The hash of what the co-simulation verdict of a case depends on: what
-/// its SIL verdict depends on (the generated C, the case, its expectations)
-/// and the plant it closes the loop on (its Modelica sources or its FMU,
-/// read beside the model; one that cannot be read hashes as missing).
+/// its SIL verdict depends on (the generated C, the case, its expectations,
+/// the plant it closes the loop on, read in `base`).
 pub fn cache_key(ast: &Model, test: &TestCase, base: &Path) -> Result<String, String> {
     use sha2::{Digest, Sha256};
-    let sil = sil::cache_key(ast, test)?;
+    let sil = sil::cache_key(ast, test, base)?;
     let mut hash = Sha256::new();
     let mut field = |label: &str, bytes: &[u8]| {
         hash.update(label.as_bytes());
@@ -44,13 +26,6 @@ pub fn cache_key(ast: &Model, test: &TestCase, base: &Path) -> Result<String, St
     };
     field("format", CACHE_FORMAT.as_bytes());
     field("sil", sil.as_bytes());
-    for file in plant_files(test) {
-        field("plant", file.as_bytes());
-        match crate::compiler::simulation::cache::read_bytes(&base.join(&file)) {
-            Some(content) => field("content", &content),
-            None => field("missing", b""),
-        }
-    }
     Ok(hash.finalize().iter().map(|b| format!("{b:02x}")).collect())
 }
 

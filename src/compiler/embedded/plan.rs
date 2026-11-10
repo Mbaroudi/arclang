@@ -541,6 +541,27 @@ pub fn upstream(plan: &Plan, machine: usize) -> Vec<usize> {
     (0..plan.machines.len()).filter(|&m| seen[m]).collect()
 }
 
+/// The plan of `machine` and of the machines it reads through its wires,
+/// in the order of the plan: what a run of `machine` depends on, and
+/// nothing of the machines that only read it or stand beside it.
+pub fn with_upstream(plan: &Plan, machine: usize) -> Plan {
+    let mut kept = upstream(plan, machine);
+    kept.push(machine);
+    kept.sort_unstable();
+    kept.dedup();
+    let machines = kept
+        .iter()
+        .map(|&m| {
+            let mut one = plan.machines[m].clone();
+            for wire in &mut one.wires {
+                wire.machine = kept.iter().position(|&k| k == wire.machine).expect("a machine read is upstream");
+            }
+            one
+        })
+        .collect();
+    Plan { model: plan.model.clone(), ident: plan.ident.clone(), machines }
+}
+
 /// The name of the model, for the files and the functions.
 pub fn model_name(ast: &Model) -> String {
     crate::compiler::modelica::model_name(ast)
