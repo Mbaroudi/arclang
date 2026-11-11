@@ -748,11 +748,58 @@ that takes `digitalRead` and `digitalWrite` for each other.
 and the image a program that starts at address 0. An interrupt of the
 binary is not read. A binary built with the Arduino IDE's link-time
 optimisation has `setup` and `loop` folded into `main`, and its pin
-functions specialised: there is then no `loop` to name. And the addresses
-are found by a person, or by an AI, reading a disassembly (`avr-objdump -D
--m avr5 -b ihex firmware.hex`): `arclang recover` does not propose them.
+functions specialised: there is then no `loop` to name.
 The binary of the example was read back from the board itself, through its
 bootloader, and is byte for byte the one its sketch compiles to.
+
+### Where the functions are: `arclang recover firmware.hex`
+
+The addresses need not be read in a disassembly. `arclang recover` proposes
+them, with the pins, the period and the memory the code keeps its state in:
+
+```
+$ arclang recover uno_lamp.hex
+// setup() calls: pinMode(2, 2), pinMode(13, 1), digitalWrite(13, 0)
+// loop() calls:  digitalRead(2), millis(), millis(), digitalWrite(13, ?), delay(10)
+// loop() keeps its state in the memory at: 0x0100 to 0x0109 (10 bytes)
+
+correspondence "uno_lamp binary" {
+    machine: "..."
+    binary: "uno_lamp.hex"
+    period: 10 ms
+    functions: [
+        "loop at 0x0102",  // main (0x01ea) calls it in its cycle
+        "millis at 0x029c",  // it copies the four bytes at 0x010b with interrupts masked, and touches nothing else
+        "delay at 0x02fe",  // it calls micros (0x02b4) in a cycle and keeps nothing in the memory
+        "pinMode at 0x043e",  // it reads the pin tables of the flash and writes the direction and the level of one port ...
+        "digitalWrite at 0x04b6",  // it reads the pin tables of the flash, turns the PWM of the pin off and writes one port ...
+        "digitalRead at 0x0514"  // it reads the pin tables of the flash, turns the PWM of the pin off, reads one port ...
+    ]
+    reads: ["digitalRead(2) is ..."]
+    writes: ["digitalWrite(13) is ..."]
+    state: ["... is in ..."]
+}
+```
+
+Each function is found by the shape of its machine code, and the reason is
+written beside it. `main` is the first function, from the reset, that calls
+in a cycle and calls nothing after it; `loop` is what it calls there,
+`setup` what it calls just before. An Arduino function is known by what
+only it does on this chip: `millis` copies four bytes of the memory with
+interrupts masked and touches nothing else, `micros` also reads the counter
+of timer 0, `digitalRead` reads the pin tables of the flash and one port
+through a pointer and writes nothing. A pin is the constant the caller
+loads in the register of the first argument just before the call, and the
+period the constant `loop` passes to its one `delay`.
+
+What cannot be told is said and not guessed: two functions with the same
+shape name neither; a pin that is not a constant is a `?`; a binary whose
+`main` has no call in a cycle (link-time optimisation) gives no `loop`.
+
+It is a proposal. The machine is left to write, by a person or an AI, from
+those calls and from the bytes of the state; `arclang prove` then decides,
+and still takes the named Arduino functions on trust: a shape is a reason
+to name a function, not a proof that it is that function.
 
 **The tools.** Ghidra (`analyzeHeadless`, or the command `ARCLANG_GHIDRA`
 names) beside CBMC and Bitwuzla. `tools/embedded/reverse` builds an image

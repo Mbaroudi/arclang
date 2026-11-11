@@ -227,3 +227,30 @@ fn the_compiler_checks_a_correspondence_that_names_a_binary() {
     ));
     assert!(!ok && output.contains("has no state 'Nowhere'"), "{output}");
 }
+
+#[test]
+#[ignore = "needs Ghidra, CBMC and Bitwuzla: tools/embedded/reverse/run.sh cargo test --test binary -- --include-ignored"]
+fn the_functions_the_pins_and_the_period_of_a_binary_are_recovered_from_its_machine_code() {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sketches");
+    let asked = arclang(&["recover", fixtures.join("uno_lamp.hex").to_str().unwrap()]);
+    let output = text(&asked);
+    assert!(asked.status.success(), "{output}");
+    // Every function the proven correspondence names is proposed at the same address.
+    let proven = std::fs::read_to_string(fixtures.join("uno_lamp_binary.arc")).unwrap();
+    let placed: Vec<&str> = proven.lines().map(str::trim).filter(|line| line.starts_with('"') && line.contains(" at 0x")).map(|line| line.trim_end_matches(',')).collect();
+    assert_eq!(placed.len(), 6, "{proven}");
+    for function in placed {
+        assert!(output.contains(function), "{function} is proposed: {output}");
+    }
+    assert!(output.contains("period: 10 ms") && output.contains("reads: [\"digitalRead(2) is ...\"]") && output.contains("writes: [\"digitalWrite(13) is ...\"]"), "{output}");
+    assert!(output.contains("// setup() calls: pinMode(2, 2), pinMode(13, 1), digitalWrite(13, 0)"), "{output}");
+    assert!(output.contains("0x0100 to 0x0109 (10 bytes)") && output.contains("a proposal, not a proof"), "{output}");
+}
+
+#[test]
+fn recovering_a_binary_without_ghidra_says_what_is_missing() {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sketches");
+    let asked = std::process::Command::new(env!("CARGO_BIN_EXE_arclang")).args(["recover", fixtures.join("uno_lamp.hex").to_str().unwrap()]).env("ARCLANG_GHIDRA", "/nowhere/analyzeHeadless").output().unwrap();
+    let output = text(&asked);
+    assert!(!asked.status.success() && output.contains("Ghidra could not be run"), "{output}");
+}

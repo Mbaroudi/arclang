@@ -576,7 +576,11 @@ pub enum Commands {
     /// difference is printed and the command fails. A flattened device tree
     /// (`board.dts`: `dtc -I fs -O dts /proc/device-tree` on the board) is
     /// read as the board it describes: its processors and memory, each
-    /// enabled device, the bus it sits on, the pins that wire it.
+    /// enabled device, the bus it sits on, the pins that wire it. A firmware
+    /// binary (`firmware.hex`, an Arduino UNO's) is read with Ghidra: where
+    /// its `loop` and its Arduino functions are, the pins it reads and
+    /// writes and the memory it keeps its state in, as the correspondence
+    /// `arclang prove` then proves once the machine is written.
     Recover {
         #[clap(value_parser)]
         input: PathBuf,
@@ -1541,6 +1545,7 @@ impl CliRunner {
             Commands::Prove { model, correspondence, timeout, keep, json } => self.run_prove(&model, correspondence.as_deref(), timeout, keep, json),
             Commands::Recover { input, output, propose: true, with, turns, timeout, keep, .. } => propose::run(&input, propose::Options { with, turns, timeout, output, keep }),
             Commands::Recover { input, output, .. } if input.extension().is_some_and(|e| e == "dts") => Self::run_recover_board(&input, output.as_deref()),
+            Commands::Recover { input, output, keep, .. } if input.extension().is_some_and(|e| e == "hex") => Self::run_recover_binary(&input, output.as_deref(), keep.as_deref()),
             Commands::Recover { input, output, check, hdl, .. } => self.run_recover(&input, output.as_deref(), check, hdl.as_deref()),
             Commands::Drift { model, code, hdl, json, prove, timeout } => self.run_drift(&model, &code, hdl.as_deref(), json, prove.then_some(timeout)),
             Commands::Realize { input, requirement, up_to, dry_run, keep_going, board, json } => realize::run(&input, realize::Options { requirement, up_to, dry_run, keep_going, board, json }),
@@ -2537,6 +2542,35 @@ impl CliRunner {
         for note in &recovered.notes {
             eprintln!("  note: {note}");
         }
+        Ok(())
+    }
+
+    /// A firmware binary: where its functions are, proposed from the shape of their machine code.
+    fn run_recover_binary(input: &std::path::Path, output: Option<&std::path::Path>, keep: Option<&std::path::Path>) -> Result<(), CliError> {
+        use crate::compiler::recover::{binary, binary_shape};
+        let wrong = |error: String| CliError::Compilation(format!("{}: {error}", input.display()));
+        let image = binary::intel_hex(&std::fs::read_to_string(input).map_err(CliError::Io)?).map_err(wrong)?;
+        let work = keep.map(std::path::Path::to_path_buf).unwrap_or_else(|| std::env::temp_dir().join(format!("arclang-recover-{}-{}", std::process::id(), crate::compiler::simulation::tool::run_number())));
+        let lifted = binary::lift(&image, &[], &work.join("lift"));
+        if keep.is_none() {
+            let _ = std::fs::remove_dir_all(&work);
+        }
+        let (start, functions) = binary_shape::facts(&lifted.map_err(wrong)?).map_err(wrong)?;
+        let proposal = binary_shape::propose(start, &functions);
+        let file = input.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let text = binary_shape::written(&file, image.bytes.len(), &proposal);
+        match output {
+            Some(path) => std::fs::write(path, &text).map_err(CliError::Io)?,
+            None => print!("{text}"),
+        }
+        eprintln!("Recovered from {}: {} function(s) placed of {} found in the machine code", input.display(), proposal.functions.len(), functions.len());
+        if let Some(path) = output {
+            eprintln!("  Output: {}", path.display());
+        }
+        for unknown in &proposal.unknown {
+            eprintln!("  not found: {unknown}");
+        }
+        eprintln!("  a proposal, not a proof: write the machine, then `arclang prove` decides (it takes the named Arduino functions on trust)");
         Ok(())
     }
 
