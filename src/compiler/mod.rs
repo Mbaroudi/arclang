@@ -457,6 +457,7 @@ impl Compiler {
 
         // Embedded C: the I/O bindings and the cases executed at fixed step.
         warnings.extend(embedded::check(&ast).map_err(CompilerError::Semantic)?);
+        recover::correspondence::check(&ast).map_err(CompilerError::Semantic)?;
         for config in &ast.configurations {
             semantic_model
                 .all_elements

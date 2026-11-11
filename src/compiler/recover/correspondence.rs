@@ -446,18 +446,46 @@ fn said(term: &Term) -> String {
     }
 }
 
+/// The C of the model's machines, by file name: (the header, the source), and the period it steps at by default.
+fn machines_c(ast: &Model) -> Result<((String, String), (String, String), u64), String> {
+    let (files, _) = crate::compiler::embedded::export(ast).map_err(|error| format!("the model generates no C to prove the code against: {error}"))?;
+    let header = files.iter().find(|(name, text)| name.ends_with(".h") && !name.contains('/') && text.contains("/* state_machine \"")).ok_or("the model generates no header of machines")?.clone();
+    let code_name = header.0.replace(".h", ".c");
+    let code = files.iter().find(|(name, _)| *name == code_name).ok_or("the model generates no source of machines")?.clone();
+    let default_period = Regex::new(r"(?m)^#define \w+_PERIOD_US (\d+)UL$").expect("a pattern of the proof").captures(&header.1).and_then(|p| p[1].parse::<u64>().ok()).unwrap_or(10_000);
+    Ok((header, code, default_period))
+}
+
+/// What the compiler checks of the correspondences of a model, without the
+/// code they name: each is well formed, and the machine, the states and the
+/// variables it speaks of are those of the model. Whether it holds is the
+/// proof's to say (`arclang prove`).
+pub fn check(ast: &Model) -> Result<(), String> {
+    if ast.correspondences.is_empty() {
+        return Ok(());
+    }
+    let mut names = std::collections::BTreeSet::new();
+    for declaration in &ast.correspondences {
+        if !names.insert(declaration.name.as_str()) {
+            return Err(format!("correspondence '{}' is declared twice", declaration.name));
+        }
+    }
+    let (header, code, default_period) = machines_c(ast).map_err(|error| format!("correspondence '{}': {error}", ast.correspondences[0].name))?;
+    let model = Generated { header_name: &header.0, header: &header.1, code_name: &code.0, code: &code.1 };
+    for declaration in &ast.correspondences {
+        harness(&read(declaration)?, &model, &[], default_period)?;
+    }
+    Ok(())
+}
+
 /// Prove the correspondences of a model, each against the sources it names
 /// (read beside the model). `work` receives the files of each proof.
 pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds: u64) -> Result<Vec<(Correspondence, Outcome)>, String> {
     if ast.correspondences.is_empty() {
         return Err("the model declares no correspondence (`correspondence \"Name\" { machine: ... source: ... }`)".to_string());
     }
-    let (files, _) = crate::compiler::embedded::export(ast).map_err(|error| format!("the model generates no C to prove the code against: {error}"))?;
-    let header = files.iter().find(|(name, text)| name.ends_with(".h") && !name.contains('/') && text.contains("/* state_machine \"")).ok_or("the model generates no header of machines")?;
-    let code_name = header.0.replace(".h", ".c");
-    let code = files.iter().find(|(name, _)| *name == code_name).ok_or("the model generates no source of machines")?;
+    let (header, code, default_period) = machines_c(ast)?;
     let model = Generated { header_name: &header.0, header: &header.1, code_name: &code.0, code: &code.1 };
-    let default_period = Regex::new(r"(?m)^#define \w+_PERIOD_US (\d+)UL$").expect("a pattern of the proof").captures(&header.1).and_then(|p| p[1].parse::<u64>().ok()).unwrap_or(10_000);
     let mut outcomes = Vec::new();
     for declaration in ast.correspondences.iter().filter(|d| only.is_none_or(|name| d.name == name)) {
         let correspondence = read(declaration)?;

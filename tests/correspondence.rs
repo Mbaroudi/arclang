@@ -189,3 +189,29 @@ fn the_machine_steps_at_the_period_of_the_correspondence() {
     let (proven, output) = proof("blinker", &[], &[("millis() - changed >= 500", "millis() - changed >= 400")]);
     assert!(!proven && output.contains("✗ Refuted"), "{output}");
 }
+
+#[test]
+fn the_compiler_checks_what_a_correspondence_names() {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sketches");
+    let dir = tempfile::tempdir().unwrap();
+    let model = std::fs::read_to_string(fixtures.join("toggle.arc")).unwrap();
+    let check = |from: &str, to: &str| {
+        assert!(model.contains(from), "toggle.arc has `{from}`");
+        let path = dir.path().join("toggle.arc");
+        std::fs::write(&path, model.replacen(from, to, 1)).unwrap();
+        let checked = arclang(&["check", path.to_str().unwrap()]);
+        (checked.status.success(), text(&checked))
+    };
+    // As written, with no sketch beside it and no prover: the model compiles.
+    let (compiles, said) = check("machine: \"Lamp\"", "machine: \"Lamp\"");
+    assert!(compiles, "{said}");
+    // A machine, a state, a variable the model does not have; a line that says nothing.
+    let (compiles, said) = check("machine: \"Lamp\"", "machine: \"Lantern\"");
+    assert!(!compiles && said.contains("the model has no state_machine \"Lantern\""), "{said}");
+    let (compiles, said) = check("is in OnHeld\"", "is in Held\"");
+    assert!(!compiles && said.contains("has no state 'Held'"), "{said}");
+    let (compiles, said) = check("\"lit == 1 is led\"", "\"lit == 1 is lamp\"");
+    assert!(!compiles && said.contains("has no variable 'lamp'"), "{said}");
+    let (compiles, said) = check("\"digitalRead(BUTTON) is button\"", "\"digitalRead(BUTTON)\"");
+    assert!(!compiles && said.contains("does not say what it is in the model"), "{said}");
+}

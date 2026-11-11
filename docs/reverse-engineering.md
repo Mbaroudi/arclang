@@ -303,6 +303,11 @@ correspondence "Debounce sketch" {
   the Nano, the Mega) or `32` (the default). A product that fits in 32 bits
   and overflows in 16 is another behaviour, and another proof.
 
+The compiler checks what a correspondence names when it compiles the model
+(`arclang check`): the machine, the states and the variables are those of
+the model, a read is an input, every line says what it is in the model.
+Whether the lines hold is the proof's to say.
+
 ```
 $ arclang prove debounce.arc
 ✓ Proven (1.5 s) correspondence "Debounce sketch": debounce.ino is state_machine "Debounced button"
