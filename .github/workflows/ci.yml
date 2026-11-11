@@ -108,6 +108,12 @@ jobs:
       - name: Run the equivalence proofs
         run: tools/embedded/formal/run.sh cargo test --release --test equivalence -- --include-ignored
 
+      # The proof that code written by hand is a machine of the model
+      # (`arclang prove`): Arduino sketches, right and wrong, and the loop
+      # of `recover --propose` with a proposer that answers from files.
+      - name: Run the correspondence proofs
+        run: tools/embedded/formal/run.sh cargo test --release --test correspondence -- --include-ignored
+
   # The processor and the logic together: a LiteX SoC (VexRiscv, Zephyr, the
   # generated blocks) simulated cycle by cycle in Verilator, and the same SoC
   # built into one bitstream for the ULX3S. The system image takes Zephyr

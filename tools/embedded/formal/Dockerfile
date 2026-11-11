@@ -24,4 +24,12 @@ RUN git clone --depth 1 --branch ${CBMC_TAG} https://github.com/diffblue/cbmc.gi
 
 FROM ${BASE}
 COPY --from=cbmc /src/cbmc/src/cbmc/cbmc /usr/local/bin/cbmc
+# A proof for a board whose int has 16 bits (`int: 16`, `cbmc --16`) reads the
+# C library's headers as a 32-bit compiler does: on x86_64 they are a package
+# of their own (arm64 reads the same headers for every width).
+RUN if [ "$(dpkg --print-architecture)" = amd64 ]; then \
+        apt-get -o Acquire::Retries=0 update \
+        && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libc6-dev-i386 \
+        && rm -rf /var/lib/apt/lists/*; \
+    fi
 RUN cbmc --version && bitwuzla --version

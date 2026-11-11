@@ -10,7 +10,7 @@ use crate::compiler::sysml_export::declarations::METADATA;
 use crate::compiler::sysml_import::records::Element;
 
 /// The keyword of each declaration, and what the report counts it as.
-const DECLARATIONS: [(&str, &str, &str); 3] = [("IoBinding", "io_binding", "I/O bindings"), ("Twin", "twin", "twins"), ("Rule", "rule", "rules")];
+const DECLARATIONS: [(&str, &str, &str); 4] = [("IoBinding", "io_binding", "I/O bindings"), ("Twin", "twin", "twins"), ("Rule", "rule", "rules"), ("Correspondence", "correspondence", "correspondences")];
 
 /// The keys whose value is a block (`data: { file: ... }`), exported as its source.
 const BLOCKS: [&str; 2] = ["simulate", "data"];

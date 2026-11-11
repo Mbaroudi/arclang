@@ -248,3 +248,198 @@ The tools are not on a usual computer: `tools/embedded/formal` builds an
 image with CBMC (from its source, version 6.4.1) on top of the FPGA image,
 which holds Bitwuzla. `ARCLANG_CBMC` and `ARCLANG_BITWUZLA` name the tools
 when they are elsewhere.
+
+## Code written by hand: a correspondence, and its proof
+
+The code above is the code the compiler generated, or a copy of it someone
+edited: the model's own structures are in it. A sketch written by hand has
+none of them. What ties it to a machine of the model is written down, in a
+`correspondence`, and proven by `arclang prove`:
+
+```
+state_machine "Debounced button" {
+    variables: ["in button: Boolean", "led: Boolean = false"]
+    initial: "Low"
+    state Low {}
+    state Rising {}
+    state High { entry: "led := true" }
+    state Falling {}
+    transition Low -> Rising { guard: "button" }
+    transition Rising -> High { guard: "button" timing: 50 ms }
+    ...
+}
+
+correspondence "Debounce sketch" {
+    machine: "Debounced button"
+    source: "debounce.ino"
+    period: 10 ms
+    reads: ["digitalRead(BUTTON) is button"]
+    writes: ["digitalWrite(LED) is led"]
+    state: [
+        "stable == 0 && counting == 0 is in Low",
+        "stable == 0 && counting == 1 is in Rising",
+        "stable == 1 && counting == 0 is in High",
+        "stable == 1 && counting == 1 is in Falling",
+        "millis() - since is time in Rising",
+        "millis() - since is time in Falling",
+        "stable == 1 is led"
+    ]
+    invariant: ["stable == 0 || stable == 1", "counting == 0 || counting == 1"]
+}
+```
+
+- `source`: the file of the code (or a list of them), beside the model.
+- `period`: the time of one `loop()`, which is one step of the machine.
+- `reads`: the pin each input of the machine is read from.
+- `writes`: the pin each output is written to; the level last written is
+  the value of the variable.
+- `state`: an expression of the code on the left, what it is in the model on
+  the right: `in <State>` (the expression holds exactly when the state is
+  active), `time in <State>` (the expression, in milliseconds, is the time
+  the state has been held, while it is active), or a variable of the machine.
+- `invariant`: what always holds of the code's own variables. It is proven
+  with the rest, not taken on trust.
+- `int`: the bits of an `int` on the board, `16` on an AVR board (the Uno,
+  the Nano, the Mega) or `32` (the default). A product that fits in 32 bits
+  and overflows in 16 is another behaviour, and another proof.
+
+The compiler checks what a correspondence names when it compiles the model
+(`arclang check`): the machine, the states and the variables are those of
+the model, a read is an input, every line says what it is in the model.
+Whether the lines hold is the proof's to say.
+
+```
+$ arclang prove debounce.arc
+✓ Proven (1.5 s) correspondence "Debounce sketch": debounce.ino is state_machine "Debounced button"
+    for one loop() a step of 10 ms, an int of 32 bits, the pins the correspondence names, and the C subset of the Arduino language
+```
+
+The proof has two parts, each asked of CBMC and Bitwuzla as the equivalence
+above:
+
+- **start**: after `setup()` and one `loop()`, and after the machine's start
+  and one step with the same inputs, every line of the correspondence
+  holds;
+- **step**: from *any* state of the code and *any* state of the machine for
+  which every line holds, one `loop()` and one step with the same inputs
+  leave two states for which every line holds.
+
+Both proven, every line holds after every `loop()` of every run, whatever
+the inputs: the pins the sketch drives are the outputs of the machine, for
+ever. That is the whole claim, and it is not a test: no run is sampled.
+
+One refuted, the command fails and names the lines that do not hold after
+it:
+
+```
+✗ Refuted correspondence "Debounce sketch": debounce.ino is state_machine "Debounced button"
+    from two states that correspond, one loop() and one step can leave two that do not
+    does not hold after it: digitalWrite(LED) is led
+    does not hold after it: stable == 0 && counting == 1 is in Rising
+    does not hold after it: stable == 1 && counting == 0 is in High
+    does not hold after it: stable == 1 is led
+    a case that shows it (the code's side and the model's side of each line):
+      with button = 1
+      `the level of LED` and `led`: before 0 and 0, after 0 and 1  <- differ
+      `stable == 0 && counting == 1` and `in Rising`: before 1 and 1, after 1 and 0  <- differ
+      `stable == 1 && counting == 0` and `in High`: before 0 and 0, after 0 and 1  <- differ
+      `millis() - since` and `time in Rising`: before 40 and 40, after 50 and -
+      ...
+```
+
+(the model here waits 40 ms where the sketch waits 50: at 40 ms the machine
+is in `High` with the lamp lit while the sketch still counts. The case gives
+the inputs of the step and, for each line, the value of the code's side and
+of the model's side before and after; `-` is the time in a state that is not
+active.)
+
+A refuted step does not always mean the code is wrong. The step is asked
+from any two states the lines allow, reachable or not: a correspondence that
+says too little allows states no run reaches, and the proof fails from
+them. The remedy is to say more (how a variable of the code relates to the
+output, an `invariant`), never to trust the result less: a correspondence
+is only ever proven when it holds from every state it allows.
+
+A pin the code reads or writes that the correspondence does not name is
+never passed over: the proof is refuted on the line "the code reads and
+writes only the pins the correspondence names". A `loop()` whose `delay()`s
+add up to another time than the period is refuted the same way. A variable
+of the machine that no line speaks of does not fail the proof, since
+nothing was claimed of it; it is named under the answer ("the proof says
+nothing of this variable of the machine"), so that a proof is never read as
+covering more than it does. A loop of the code the
+bound does not cover, a function with no body, the time limit: neither
+proven nor refuted, said as such.
+
+What the proof takes as given, and prints with its answer:
+
+- the first `loop()` runs as `millis()` starts counting (at 0);
+- the machine steps at the `period` of the correspondence: a time of 500 ms
+  with a `loop()` of 20 ms is 25 steps;
+- one `loop()` is one step of `period`: `millis()` is constant within a
+  `loop()` and advances by the period between two; the time the statements
+  themselves take is not counted. A sketch whose `loop()` takes another
+  time on the board is another machine;
+- an input has one value in a step, read by the code and by the machine;
+- the code is the C subset of the Arduino language: `pinMode`,
+  `digitalRead`, `analogRead`, `digitalWrite`, `millis`, `delay`. Interrupts,
+  the serial port, libraries and C++ classes are not read;
+- the machine is the C the model generates, the same that runs in `sil`.
+
+`--correspondence <name>` proves one of several, `--keep <dir>` keeps the
+files of the proof (`proof.c`, the model's C, the code), `--json` gives the
+outcomes to a tool. The declaration is exported to SysML v2 as a
+`#Correspondence` part and read back as written.
+
+## A model proposed by an AI, judged by the proof
+
+Writing the machine and the correspondence of a sketch is work an AI does
+well, and nothing it says is trusted:
+
+```
+$ arclang recover door.ino --propose --with "<command>"
+Turn 1 of 4: asking the proposer
+  not proven: START is refuted: after setup() and one loop(), ...
+Turn 2 of 4: asking the proposer
+✓ Proven (1.4 s) door.ino is state_machine "Door lock"
+  Output: door.arc
+```
+
+Three roles, kept apart:
+
+- the **sketch** is read as it is;
+- a **proposer** proposes: `--with` names any command that reads a prompt
+  on its input and prints its answer (the command line of an AI, local or
+  not; `ARCLANG_PROPOSER` when `--with` is not given). The prompt holds the
+  sketch, how a machine and a correspondence are written, and how the answer
+  is judged;
+- **ArcLang judges**: the answer is compiled and proven exactly as `arclang
+  prove` does. Refuted, the lines that do not hold and the case that shows
+  it go back to the proposer, which answers again, `--turns` times at most
+  (4 by default).
+
+The model is written (`-o`, or `<sketch>.arc`) only once its proof holds,
+with the command that replays the proof with no AI in its first lines. No
+answer proven in the turns given: the command fails and writes nothing.
+`--keep <dir>` keeps each answer and the files of its proof.
+
+ArcLang depends on no AI and calls none by itself: the sketch is sent to the
+command you name, and nowhere else.
+
+What a proof of a proposed model says, and what it does not:
+
+- it says the sketch drives its pins as the machine drives its outputs, on
+  every run, under the assumptions printed with it. A proposer cannot get a
+  wrong model through: the proof is of the sketch that was given, whatever
+  source the answer names, and every pin the sketch touches must be named;
+- it does not say the model is the one an engineer would write. A proposer
+  may count a time in a variable where a `timing:` would say it better, or
+  keep the sketch's bookkeeping as variables of the machine. The model is
+  right; it may still deserve a rewrite, which `arclang prove` then judges
+  the same way.
+
+Tried with an AI's command line on sketches written for it: a thermostat
+and a blinker were proven at the first answer, a door lock (two inputs, two
+outputs, a timer) at the second, after the first was refuted at the start.
+Four sketches are not a measure; a sketch outside the C subset read here is
+not proven by any number of turns.

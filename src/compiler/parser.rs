@@ -129,6 +129,12 @@ impl Parser {
                 Token::Identifier(ref id) if id == "io_binding" && !self.peek_is_colon() => {
                     model.io_bindings.push(self.parse_io_binding()?);
                 }
+                Token::Identifier(ref id) if id == "correspondence" && !self.peek_is_colon() => {
+                    self.advance(); // correspondence
+                    let name = self.expect_name()?;
+                    let attributes = self.parse_attributes_block()?;
+                    model.correspondences.push(CorrespondenceDecl { name, attributes });
+                }
                 Token::Identifier(ref id) if id == "refine" && !self.peek_is_colon() => {
                     model.refinements.push(self.parse_refine()?);
                 }
@@ -295,6 +301,12 @@ impl Parser {
                 Token::Identifier(ref id) if id == "io_binding" && !self.peek_is_colon() => {
                     model.io_bindings.push(self.parse_io_binding()?);
                 }
+                Token::Identifier(ref id) if id == "correspondence" && !self.peek_is_colon() => {
+                    self.advance(); // correspondence
+                    let name = self.expect_name()?;
+                    let attributes = self.parse_attributes_block()?;
+                    model.correspondences.push(CorrespondenceDecl { name, attributes });
+                }
                 Token::Identifier(ref id) if id == "refine" && !self.peek_is_colon() => {
                     model.refinements.push(self.parse_refine()?);
                 }
@@ -419,6 +431,12 @@ impl Parser {
                 }
                 Token::Identifier(ref id) if id == "io_binding" && !self.peek_is_colon() => {
                     model.io_bindings.push(self.parse_io_binding()?);
+                }
+                Token::Identifier(ref id) if id == "correspondence" && !self.peek_is_colon() => {
+                    self.advance(); // correspondence
+                    let name = self.expect_name()?;
+                    let attributes = self.parse_attributes_block()?;
+                    model.correspondences.push(CorrespondenceDecl { name, attributes });
                 }
                 Token::Identifier(ref id) if id == "refine" && !self.peek_is_colon() => {
                     model.refinements.push(self.parse_refine()?);
@@ -613,6 +631,12 @@ impl Parser {
                 }
                 Token::Identifier(ref id) if id == "io_binding" && !self.peek_is_colon() => {
                     model.io_bindings.push(self.parse_io_binding()?);
+                }
+                Token::Identifier(ref id) if id == "correspondence" && !self.peek_is_colon() => {
+                    self.advance(); // correspondence
+                    let name = self.expect_name()?;
+                    let attributes = self.parse_attributes_block()?;
+                    model.correspondences.push(CorrespondenceDecl { name, attributes });
                 }
                 Token::Identifier(ref id) if id == "refine" && !self.peek_is_colon() => {
                     model.refinements.push(self.parse_refine()?);
