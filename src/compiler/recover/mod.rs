@@ -23,6 +23,7 @@
 
 mod c;
 pub mod correspondence;
+pub mod devicetree;
 pub mod drift;
 pub mod equivalence;
 mod fire;
