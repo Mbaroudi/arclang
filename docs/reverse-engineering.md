@@ -523,6 +523,15 @@ outputs, a timer) at the second, after the first was refuted at the start.
 Four sketches are not a measure; a sketch outside the C subset read here is
 not proven by any number of turns.
 
+One sketch went all the way to a board. `uno_lamp.ino` (a lamp toggled by a
+button, a press counting once held 50 ms) had its model proposed and proven
+at the first answer for an `int` of 16 bits, was compiled with avr-gcc and
+flashed on an Arduino UNO R3 (ATmega328P). Tried by hand, a wire for the
+button: the lamp is dark at start, changes once at each press, holds while
+the wire stays, and alternates over repeated presses, as the model says.
+That is what a hand can try, not a measure: it says nothing of the 50 ms
+itself, nor of what the proof assumes (one `loop()` in 10 ms, the compiler).
+
 ## A board, from its device tree
 
 The code is one half of a board; the other is its hardware. On a board that

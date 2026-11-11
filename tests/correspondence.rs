@@ -43,6 +43,8 @@ fn a_sketch_is_proven_to_be_the_machine_its_correspondence_says() {
         ("debounce", "debounce.ino is state_machine \"Debounced button\""),
         // Two inputs, two outputs and a timer the model counts in a variable.
         ("door", "door.ino is state_machine \"Door lock\""),
+        // Proven for an int of 16 bits, then flashed on a real UNO.
+        ("uno_lamp", "uno_lamp.ino is state_machine \"Lamp toggled by a button\""),
     ] {
         let (proven, output) = proof(name, &[], &[]);
         assert!(proven && output.contains("✓ Proven") && output.contains(said), "{name}: {output}");
