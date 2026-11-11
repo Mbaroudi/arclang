@@ -244,9 +244,6 @@ pub(super) fn decide(work: &Path, sources: &[&str], flags: &[&str], unwind: usiz
         if !missing.is_empty() {
             return Ok(Err(format!("the code calls {}, which this proof has no stand-in for", missing.join(", "))));
         }
-        if !formula.is_file() && said.contains("bits/libc-header-start.h") {
-            return Ok(Err("the C library's headers for this width of int are not installed (on x86_64: the package libc6-dev-i386, which ArcLang's formal image holds)".to_string()));
-        }
         if !formula.is_file() {
             let tail: Vec<&str> = said.lines().filter(|l| !l.trim().is_empty()).rev().take(8).collect();
             return Ok(Err(format!("CBMC could not translate the code:\n{}", tail.into_iter().rev().collect::<Vec<_>>().join("\n"))));

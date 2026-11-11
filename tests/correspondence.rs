@@ -98,7 +98,7 @@ fn a_sketch_is_proven_for_the_int_of_its_board() {
     // The same comparison written with a product: right with an int of 32 bits...
     let product = [("if (mode == 0 && t < 400) {", "if (mode == 0 && t * 100 < 40000) {")];
     let (proven, output) = proof("thermostat", &[], &product);
-    assert!(proven && output.contains("an int of 32 bits"), "{output}");
+    assert!(proven && output.contains("an int of 32 bits and a long of 32"), "{output}");
     // ...and wrong on a board whose int has 16, where the product overflows.
     let (proven, output) = proof("thermostat", &[("period: 100 ms", "period: 100 ms\n    int: 16")], &product);
     assert!(!proven && output.contains("✗ Refuted"), "{output}");
