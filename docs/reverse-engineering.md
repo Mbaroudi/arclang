@@ -301,7 +301,10 @@ correspondence "Debounce sketch" {
   with the rest, not taken on trust.
 - `int`: the bits of an `int` on the board, `16` on an AVR board (the Uno,
   the Nano, the Mega) or `32` (the default). A product that fits in 32 bits
-  and overflows in 16 is another behaviour, and another proof.
+  and overflows in 16 is another behaviour, and another proof. A `long`
+  has 32 bits on both, so `millis()` counts on 32 bits as on the board. The
+  proof is compiled for these widths with fixed-width types of its own
+  (`uint32_t` and the others), not with those of the computer that runs it.
 
 The compiler checks what a correspondence names when it compiles the model
 (`arclang check`): the machine, the states and the variables are those of
@@ -311,7 +314,7 @@ Whether the lines hold is the proof's to say.
 ```
 $ arclang prove debounce.arc
 ✓ Proven (1.5 s) correspondence "Debounce sketch": debounce.ino is state_machine "Debounced button"
-    for one loop() a step of 10 ms, an int of 32 bits, the pins the correspondence names, and the C subset of the Arduino language
+    for one loop() a step of 10 ms, an int of 32 bits and a long of 32, the pins the correspondence names, and the C subset of the Arduino language
 ```
 
 The proof has two parts, each asked of CBMC and Bitwuzla as the equivalence

@@ -158,6 +158,14 @@ pub enum Outcome {
 /// The stand-ins every sketch is given: what the Arduino core declares, as C.
 const ARDUINO_H: &str = "/* Stand-ins for the Arduino core, for the proof (written by `arclang prove`). */\n#include <stdbool.h>\n#include <stdint.h>\n#define HIGH 1\n#define LOW 0\n#define INPUT 0\n#define OUTPUT 1\n#define INPUT_PULLUP 2\n#define LED_BUILTIN 13\n#define A0 14\n#define A1 15\n#define A2 16\n#define A3 17\n#define A4 18\n#define A5 19\n#define A6 20\n#define A7 21\ntypedef uint8_t byte;\ntypedef bool boolean;\ntypedef uint16_t word;\nvoid pinMode(int pin, int mode);\nint digitalRead(int pin);\nint analogRead(int pin);\nvoid digitalWrite(int pin, int level);\nunsigned long millis(void);\nvoid delay(unsigned long ms);\nvoid setup(void);\nvoid loop(void);\n";
 
+/// The fixed-width types of the proof, written for the board and not read
+/// from the C library of the machine that runs the proof: there `uint32_t`
+/// is an `unsigned int`, which has 16 bits once an `int` has 16. On an AVR
+/// board an `int` has 16 bits and a `long` 32; on a 32-bit board both have
+/// 32. The sizes are checked where the proof is compiled.
+const STDINT_H: &str = "/* The fixed-width types of the board, for the proof (written by `arclang prove`). */\n#ifndef ARCLANG_PROOF_STDINT_H\n#define ARCLANG_PROOF_STDINT_H\ntypedef signed char int8_t;\ntypedef unsigned char uint8_t;\n#ifdef ARCLANG_INT16\ntypedef int int16_t;\ntypedef unsigned int uint16_t;\ntypedef long int32_t;\ntypedef unsigned long uint32_t;\n#define INT32_C(c) c##L\n#define UINT32_C(c) c##UL\n#else\ntypedef short int16_t;\ntypedef unsigned short uint16_t;\ntypedef int int32_t;\ntypedef unsigned int uint32_t;\n#define INT32_C(c) c\n#define UINT32_C(c) c##U\n#endif\ntypedef long long int64_t;\ntypedef unsigned long long uint64_t;\n#define INT8_MAX 127\n#define INT8_MIN (-128)\n#define UINT8_MAX 255\n#define INT16_MAX 32767\n#define INT16_MIN (-32767 - 1)\n#define UINT16_MAX ((uint16_t)65535U)\n#define INT32_MAX INT32_C(2147483647)\n#define INT32_MIN (-INT32_MAX - 1)\n#define UINT32_MAX UINT32_C(4294967295)\n#define INT64_MAX 9223372036854775807LL\n#define INT64_MIN (-INT64_MAX - 1)\n#define UINT64_MAX 18446744073709551615ULL\n#define INT64_C(c) c##LL\n#define UINT64_C(c) c##ULL\n_Static_assert(sizeof(int16_t) == 2 && sizeof(uint16_t) == 2, \"int16_t has 16 bits\");\n_Static_assert(sizeof(int32_t) == 4 && sizeof(uint32_t) == 4, \"int32_t has 32 bits\");\n_Static_assert(sizeof(int64_t) == 8 && sizeof(uint64_t) == 8, \"int64_t has 64 bits\");\n_Static_assert(sizeof(unsigned long) == 4, \"a long has 32 bits on the board: millis() counts on 32\");\n#ifdef ARCLANG_INT16\n_Static_assert(sizeof(int) == 2, \"an int has 16 bits on the board\");\n#else\n_Static_assert(sizeof(int) == 4, \"an int has 32 bits on the board\");\n#endif\n#endif\n";
+const STDBOOL_H: &str = "#ifndef ARCLANG_PROOF_STDBOOL_H\n#define ARCLANG_PROOF_STDBOOL_H\n#define bool _Bool\n#define true 1\n#define false 0\n#endif\n";
+
 /// The files of the proof: the model's C, the sketch with its stand-ins and
 /// the correspondence as a C predicate, and the two obligations.
 pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(String, String)], default_period_us: u64) -> Result<Proof, String> {
@@ -195,7 +203,7 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
             // The time in a state means something while the state is active.
             Term::TimeIn(state) => {
                 let index = state_index(state)?;
-                format!("(!s->{id}.active[{index}] || ((unsigned long)({sketch}) == (unsigned long)s->{id}.in_state[{index}] * {period_ms}UL))")
+                format!("(!s->{id}.active[{index}] || ((unsigned long long)({sketch}) == (unsigned long long)s->{id}.in_state[{index}] * {period_ms}ULL))")
             }
         })
     };
@@ -328,6 +336,8 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
     let mut files = vec![
         ("proof.c".to_string(), c),
         ("arduino.h".to_string(), ARDUINO_H.to_string()),
+        ("board/stdint.h".to_string(), STDINT_H.to_string()),
+        ("board/stdbool.h".to_string(), STDBOOL_H.to_string()),
         (format!("model/{}", model.header_name), model.header.to_string()),
         (format!("model/{}", model.code_name), model.code.to_string()),
     ];
@@ -513,9 +523,9 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
         // The start is of the code as it is initialised; the step, of any state it can hold.
         for (obligation, mut flags) in [("start", vec!["-DARCLANG_START"]), ("step", vec!["--nondet-static"])] {
             flags.push(define.as_str());
-            if correspondence.int_bits == 16 {
-                flags.push("--16");
-            }
+            // The widths of the board, and its fixed-width types before any the host has.
+            flags.extend(["-I", "board"]);
+            flags.extend(if correspondence.int_bits == 16 { ["--16", "-DARCLANG_INT16"] } else { ["--32", "-DARCLANG_INT32"] });
             match decide(&dir, &["proof.c", model_source.as_str()], &flags, unwind, seconds)? {
                 Answer::Unsat => {}
                 Answer::Sat(_) => {

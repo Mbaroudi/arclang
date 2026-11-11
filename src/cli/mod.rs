@@ -2165,7 +2165,7 @@ impl CliRunner {
                 match outcome {
                     Outcome::Proven { seconds, period_us, int_bits, unrelated } => {
                         println!("✓ Proven ({seconds:.1} s) {of}");
-                        println!("    for one loop() a step of {} ms, an int of {int_bits} bits, the pins the correspondence names, and the C subset of the Arduino language", period_us / 1000);
+                        println!("    for one loop() a step of {} ms, an int of {int_bits} bits and a long of 32, the pins the correspondence names, and the C subset of the Arduino language", period_us / 1000);
                         if !unrelated.is_empty() {
                             println!("    the proof says nothing of {} of the machine: no line of the correspondence speaks of {}", if unrelated.len() == 1 { "this variable" } else { "these variables" }, unrelated.join(", "));
                         }

@@ -173,7 +173,7 @@ fn judge(model: &str, file_name: &str, code: &str, dir: &Path, seconds: u64) -> 
     let of = format!("{file_name} is state_machine \"{}\"", read.machine);
     match outcome {
         Outcome::Proven { seconds, period_us, int_bits, unrelated } => {
-            let mut said = format!("✓ Proven ({seconds:.1} s) {of}\n    for one loop() a step of {} ms, an int of {int_bits} bits, the pins the correspondence names, and the C subset of the Arduino language", period_us / 1000);
+            let mut said = format!("✓ Proven ({seconds:.1} s) {of}\n    for one loop() a step of {} ms, an int of {int_bits} bits and a long of 32, the pins the correspondence names, and the C subset of the Arduino language", period_us / 1000);
             if !unrelated.is_empty() {
                 said.push_str(&format!("\n    the proof says nothing of the machine's {}: no line of the correspondence speaks of it", unrelated.join(", ")));
             }
