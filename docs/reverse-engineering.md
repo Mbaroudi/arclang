@@ -523,6 +523,60 @@ outputs, a timer) at the second, after the first was refuted at the start.
 Four sketches are not a measure; a sketch outside the C subset read here is
 not proven by any number of turns.
 
+One sketch went all the way to a board. `uno_lamp.ino` (a lamp toggled by a
+button, a press counting once held 50 ms) had its model proposed and proven
+at the first answer for an `int` of 16 bits, was compiled with avr-gcc and
+flashed on an Arduino UNO R3 (ATmega328P). Tried by hand, a wire for the
+button: the lamp is dark at start, changes once at each press, holds while
+the wire stays, and alternates over repeated presses, as the model says.
+That is what a hand can try, not a measure.
+
+It was then measured. A second board (the ESP32 of a UDOO KEY, running
+MicroPython) pressed the button and timed the lamp, through a resistor
+divider: 300 clean presses, the time from the press to the lamp's change
+read to a fraction of a millisecond. The model says 50 to 60 ms (five steps
+of 10 ms after the first one that sees the press). The board answered in
+50.2 to 68.3 ms: 281 times within the model's window (allowing half a
+millisecond for the instrument), and 19 times (6 %) later, by up to one
+loop.
+
+The board does not do exactly what the proof assumes. The proof takes
+`millis()` to advance by the period at each `loop()`. On an AVR, `delay(10)`
+does wait 10 ms, but `millis()` counts ticks of 1.024 ms: over five loops it
+can advance by 49, 50 or 51. When it has advanced by 49, `millis() - since
+>= 50` is false at the fifth loop and the lamp changes at the sixth. That
+explanation was then tested: the same sketch timing with `micros()` instead
+of `millis()` (no tick of 1.024 ms) was flashed and measured the same way,
+and its 300 answers all fell between 50.2 and 60.2 ms, none late.
+
+`arclang prove` now asks that question itself. For a board whose clock is
+known not to be the one the proof states (`int: 16`, an AVR), the step is
+proven a second time on the clock of the board: a time read can be one
+millisecond short, so a duration can be one millisecond off either way.
+
+```
+✓ Proven (18.1 s) correspondence "Uno lamp sketch": uno_lamp.ino is state_machine "Lamp toggled by a button"
+    on the clock of the board (an AVR's millis() counts ticks of 1.024 ms: a time read can be 1 ms short): NOT proven. ...
+      a case that shows it (the code's side and the model's side of each line):
+        `millis() - since` and `time in Releasing`: before 49 and 50, after 60 and -
+      a duration compared with an exact number of loops is on the edge: the code can act one loop later than the machine
+```
+
+That case is the one the bench measured: the sketch reads 49 where the
+machine has 50, and waits one loop more. The first line stays what it was,
+a proof for the clock it states; the second says it does not carry to the
+board. A sketch that reads no clock is "proven too". So is this one once its
+comparison is moved off the edge: with `millis() - since >= 45` and the same
+model, both proofs hold, and the board agreed when asked: that variant was
+flashed, and its 300 answers fell between 50.2 and 60.1 ms, none late.
+
+The clock of a board that is not an AVR is not asked about: it has not been
+measured here. The sketch toggles on the same presses as
+the model, in the same order; it is the *moment* that can be one loop late. A proof by `arclang prove` is a proof
+for the clock it states, and this is the measure of how far a real one is
+from it: a sketch that compares `millis()` with an exact multiple of its
+period sits on that edge.
+
 ## A board, from its device tree
 
 The code is one half of a board; the other is its hardware. On a board that

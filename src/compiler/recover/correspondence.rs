@@ -153,7 +153,10 @@ pub enum Outcome {
     /// Both obligations hold: every run of the code is a run of the machine.
     /// `unrelated`: the variables of the machine no line speaks of; the
     /// proof says nothing of them.
-    Proven { seconds: f64, period_us: u64, int_bits: u8, unrelated: Vec<String> },
+    /// `board_clock`: whether the proof still holds on the clock of the
+    /// board, when the board is one whose clock is known not to be the one
+    /// the proof states (an AVR).
+    Proven { seconds: f64, period_us: u64, int_bits: u8, unrelated: Vec<String>, board_clock: Option<BoardClock> },
     /// One does not: which (`start` or `step`), and the lines of the
     /// correspondence that do not hold after it (none: the code read or
     /// wrote a pin the correspondence does not name).
@@ -161,6 +164,42 @@ pub enum Outcome {
     Refuted { obligation: String, lines: Vec<String>, case: Option<Case>, seconds: f64 },
     /// No answer: why.
     Unknown { reason: String },
+}
+
+/// The proof again, on the clock of the board. The proof states a clock on
+/// which `millis()` advances by the period at each `loop()`. On an AVR it
+/// counts ticks of 1.024 ms: a time read can be one millisecond short, and a
+/// duration one millisecond off either way. A sketch that compares a
+/// duration with an exact number of its loops then acts one loop later some
+/// of the time (measured on an UNO: 19 presses of 300).
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub enum BoardClock {
+    /// From any two states that correspond (times within one millisecond),
+    /// one `loop()` and one step leave two that correspond.
+    Holds,
+    /// They can leave two that do not: the lines, and a case.
+    Fails { lines: Vec<String>, case: Option<Case> },
+    Unknown { reason: String },
+}
+
+/// What is printed under a proof of what it is on the clock of the board.
+pub fn board_clock_said(verdict: Option<&BoardClock>) -> Vec<String> {
+    const CLOCK: &str = "on the clock of the board (an AVR's millis() counts ticks of 1.024 ms: a time read can be 1 ms short)";
+    match verdict {
+        None => Vec::new(),
+        Some(BoardClock::Holds) => vec![format!("{CLOCK}: proven too")],
+        Some(BoardClock::Unknown { reason }) => vec![format!("{CLOCK}: neither proven nor refuted ({reason})")],
+        Some(BoardClock::Fails { lines, case }) => {
+            let mut said = vec![format!("{CLOCK}: NOT proven. The proof above is for a clock that advances by the period at each loop(); on the board, one loop() and one step can leave the two apart:")];
+            said.extend(lines.iter().map(|line| format!("  does not hold after it: {line}")));
+            if let Some(case) = case {
+                said.push("  a case that shows it (the code's side and the model's side of each line):".to_string());
+                said.extend(case.said().into_iter().map(|line| format!("    {line}")));
+            }
+            said.push("  a duration compared with an exact number of loops is on the edge: the code can act one loop later than the machine".to_string());
+            said
+        }
+    }
 }
 
 /// The stand-ins every sketch is given: what the Arduino core declares, as C.
@@ -211,7 +250,9 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
             // The time in a state means something while the state is active.
             Term::TimeIn(state) => {
                 let index = state_index(state)?;
-                format!("(!s->{id}.active[{index}] || ((unsigned long long)({sketch}) == (unsigned long long)s->{id}.in_state[{index}] * {period_ms}ULL))")
+                // A state that is active has been so for one step at least: without it a
+                // time could be read before it was taken, which no run does.
+                format!("(!s->{id}.active[{index}] || (s->{id}.in_state[{index}] >= 1U && ARCLANG_SAME_TIME(ARCLANG_ELAPSED({sketch}), (unsigned long long)s->{id}.in_state[{index}] * {period_ms}ULL)))")
             }
         })
     };
@@ -236,7 +277,7 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
     let mut c = String::new();
     c.push_str("/* The proof that this code is a machine of the model: the code, its stand-ins,\n   the correspondence as a predicate, and the two obligations.\n   Written by `arclang prove`. */\n");
     c.push_str(&format!("#include \"model/{}\"\n#include \"arduino.h\"\n\n", model.header_name));
-    c.push_str(&format!("static const {prefix}_inputs *arclang_inputs; /* the inputs of the step, read by both */\nstatic unsigned long arclang_ms; /* what millis() says */\nstatic unsigned long arclang_delayed; /* what the delay()s of this loop() add up to */\n"));
+    c.push_str(&format!("static const {prefix}_inputs *arclang_inputs; /* the inputs of the step, read by both */\nstatic unsigned long arclang_ms; /* the time, in ms */\nstatic unsigned long arclang_late; /* how far short of it millis() reads, on the clock of the board */\nstatic unsigned long arclang_delayed; /* what the delay()s of this loop() add up to */\n"));
     c.push_str("static bool arclang_unnamed; /* the code read or wrote a pin the correspondence does not name */\n");
     for (rank, _) in correspondence.writes.iter().enumerate() {
         c.push_str(&format!("static bool arclang_level_{rank}; /* the level of the pin of write {rank} */\n"));
@@ -246,7 +287,7 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
         c.push_str(&format!("#include \"sketch/{name}\"\n"));
     }
     c.push_str("\n/* ---- the stand-ins ---- */\n");
-    c.push_str("void pinMode(int pin, int mode) { (void)pin; (void)mode; }\nunsigned long millis(void) { return arclang_ms; }\nvoid delay(unsigned long ms) { arclang_delayed += ms; }\n");
+    c.push_str("void pinMode(int pin, int mode) { (void)pin; (void)mode; }\nunsigned long millis(void) { return arclang_ms - arclang_late; }\nvoid delay(unsigned long ms) { arclang_delayed += ms; }\n");
     let mut assumptions: Vec<String> = Vec::new();
     for kind in ["digitalRead", "analogRead"] {
         c.push_str(&format!("int {kind}(int pin)\n{{\n"));
@@ -282,6 +323,7 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
         (format!("s->{id}_started"), "the machine has started".to_string()),
         ("!arclang_unnamed".to_string(), UNNAMED.to_string()),
         (format!("(arclang_delayed == 0UL || arclang_delayed == {period_ms}UL)"), DELAYS.to_string()),
+        ("(arclang_late <= ARCLANG_LATE_MOST)".to_string(), "millis() reads the time, or one millisecond short of it on the clock of the board".to_string()),
     ];
     // What a refuting case shows: (the code's side as written and as C, the model's side as written and as C).
     let mut shown: Vec<(String, String, String, String)> = Vec::new();
@@ -318,6 +360,12 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
     for invariant in &correspondence.invariants {
         lines.push((format!("(({invariant}) != 0)"), format!("invariant: {invariant}")));
     }
+    // A time of the code and a time of the model are the same time. The code's
+    // is taken as it would be read now by a clock that is not short: what is left
+    // between it and the model's is how short the clock was when the code started
+    // to count, nothing on the clock the proof states, at most a millisecond on
+    // the clock of the board.
+    c.push_str("\n/* ---- the clock ---- */\n#ifdef ARCLANG_BOARD_CLOCK\n#define ARCLANG_LATE_MOST 1UL\n#else\n#define ARCLANG_LATE_MOST 0UL\n#endif\n#define ARCLANG_ELAPSED(code) ({ unsigned long arclang_keep = arclang_late; arclang_late = 0UL; unsigned long arclang_read = (unsigned long)(code); arclang_late = arclang_keep; arclang_read; })\n#define ARCLANG_SAME_TIME(code, model) ({ unsigned long long arclang_code = (code); arclang_code >= (model) && arclang_code - (model) <= ARCLANG_LATE_MOST; })\n");
     c.push_str(&format!("\n/* ---- the correspondence ---- */\nstatic bool arclang_line(int line, const {prefix}_state *s)\n{{\n    switch (line) {{\n"));
     for (rank, (condition, written)) in lines.iter().enumerate() {
         c.push_str(&format!("    case {rank}: return {condition}; /* {} */\n", written.replace("*/", "* /")));
@@ -330,7 +378,7 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
         c.push_str(&format!("    __CPROVER_assume({assumption});\n"));
     }
     c.push_str(&format!(
-        "#ifdef ARCLANG_START\n    /* start: after setup() and one loop(), and after init and one step, the two correspond */\n    setup();\n    arclang_ms = 0UL; /* the first loop() runs as millis() starts counting */\n    arclang_delayed = 0UL;\n    loop();\n    arclang_ms += {period_ms}UL;\n    {prefix}_init(&s);\n    {prefix}_step(&s, &in, &out);\n#else\n    /* step: from any two states that correspond, one loop() and one step leave two that correspond */\n    __CPROVER_assume(arclang_corresponds(&s));\n{before}    arclang_delayed = 0UL;\n    loop();\n    arclang_ms += {period_ms}UL;\n    {prefix}_step(&s, &in, &out);\n#endif\n{after}#ifdef ARCLANG_LINE\n    __CPROVER_assert(arclang_line(ARCLANG_LINE, &s), \"this line of the correspondence holds\");\n#else\n    __CPROVER_assert(arclang_corresponds(&s), \"the code and the model correspond\");\n#endif\n    return 0;\n}}\n"
+        "#ifdef ARCLANG_START\n    /* start: after setup() and one loop(), and after init and one step, the two correspond */\n    setup();\n    arclang_ms = 0UL; /* the first loop() runs as millis() starts counting */\n    arclang_late = 0UL;\n    arclang_delayed = 0UL;\n    loop();\n    arclang_ms += {period_ms}UL;\n    {prefix}_init(&s);\n    {prefix}_step(&s, &in, &out);\n#else\n    /* step: from any two states that correspond, one loop() and one step leave two that correspond */\n    __CPROVER_assume(arclang_corresponds(&s));\n{before}    arclang_delayed = 0UL;\n    loop();\n    arclang_ms += {period_ms}UL;\n    {{ unsigned long late; __CPROVER_assume(late <= ARCLANG_LATE_MOST); arclang_late = late; }} /* what the next loop() will read */\n    {prefix}_step(&s, &in, &out);\n#endif\n{after}#ifdef ARCLANG_LINE\n    __CPROVER_assert(arclang_line(ARCLANG_LINE, &s), \"this line of the correspondence holds\");\n#else\n    __CPROVER_assert(arclang_corresponds(&s), \"the code and the model correspond\");\n#endif\n    return 0;\n}}\n"
     ));
 
     // One step of the machine is one loop(): the machine counts its times
@@ -562,7 +610,30 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
             }
         }
         let int_bits = correspondence.int_bits;
-        outcomes.push((correspondence, outcome.unwrap_or(Outcome::Proven { seconds: started.elapsed().as_secs_f64(), period_us, int_bits, unrelated })));
+        // Proven on the clock it states: and on the clock of the board?
+        let board_clock = if outcome.is_none() && int_bits == 16 {
+            let flags = vec!["--nondet-static", define.as_str(), "-I", "board", "--16", "-DARCLANG_INT16", "-DARCLANG_BOARD_CLOCK"];
+            Some(match decide(&dir, &["proof.c", model_source.as_str()], &flags, unwind, seconds)? {
+                Answer::Unsat => BoardClock::Holds,
+                Answer::Sat(_) => {
+                    let mut failing = Vec::new();
+                    for (rank, written) in lines.iter().enumerate() {
+                        let only = format!("-DARCLANG_LINE={rank}");
+                        let mut asked = flags.clone();
+                        asked.push(only.as_str());
+                        if let Answer::Sat(_) = decide(&dir, &["proof.c", model_source.as_str()], &asked, unwind, seconds)? {
+                            failing.push(written.clone());
+                        }
+                    }
+                    BoardClock::Fails { lines: failing, case: case(&dir, &["proof.c", model_source.as_str()], &flags, unwind, &written) }
+                }
+                Answer::BeyondBound => BoardClock::Unknown { reason: format!("a loop of the code or of the model runs more than {unwind} times") },
+                Answer::Unknown(reason) => BoardClock::Unknown { reason },
+            })
+        } else {
+            None
+        };
+        outcomes.push((correspondence, outcome.unwrap_or(Outcome::Proven { seconds: started.elapsed().as_secs_f64(), period_us, int_bits, unrelated, board_clock })));
     }
     if outcomes.is_empty() {
         return Err(format!("the model has no correspondence '{}'", only.unwrap_or_default()));
