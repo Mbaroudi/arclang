@@ -261,3 +261,37 @@ fn a_proof_says_whether_it_holds_on_the_clock_of_the_board() {
     let (proven, output) = proof("debounce", &[], &[]);
     assert!(proven && !output.contains("on the clock of the board"), "{output}");
 }
+
+/// A run recorded on a real Arduino UNO by a second board: 400 changes of its button, 99 of its lamp.
+const UNO_RUN: &str = "tests/fixtures/observations/uno_lamp_400.json";
+
+#[test]
+fn a_board_recorded_is_compared_with_the_model_change_by_change() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let observed = arclang(&["observe", root.join("tests/fixtures/sketches/uno_lamp.arc").to_str().unwrap(), "--recorded", root.join(UNO_RUN).to_str().unwrap()]);
+    let said = text(&observed);
+    // The loop of the board, measured from the moments its lamp changed.
+    assert!(said.contains("the board's loop takes 10.024 ms (the model steps every 10 ms)"), "{said}");
+    // The same changes in the same order; some one loop later, as its clock makes them.
+    assert!(observed.status.success() && said.contains("✓ Agrees on this run: the same 99 change(s) in the same order; 90 at the model's step, 9 one loop later"), "{said}");
+    assert!(said.contains("a measure of what was played, not a proof"), "{said}");
+}
+
+#[test]
+fn a_model_the_board_does_not_follow_disagrees_with_its_recording() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let model = std::fs::read_to_string(root.join("tests/fixtures/sketches/uno_lamp.arc")).unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    // A model that waits 100 ms where the board waits 50; a model whose lamp only ever turns on.
+    for (from, to) in [("guard: \"not button\" timing: 50 ms action", "guard: \"not button\" timing: 100 ms action"), ("action: \"led := not led\"", "action: \"led := true\"")] {
+        assert!(model.contains(from), "uno_lamp.arc has `{from}`");
+        let wrong = dir.path().join("uno_lamp.arc");
+        std::fs::write(&wrong, model.replacen(from, to, 1)).unwrap();
+        let observed = arclang(&["observe", wrong.to_str().unwrap(), "--recorded", root.join(UNO_RUN).to_str().unwrap()]);
+        let said = text(&observed);
+        assert!(!observed.status.success() && said.contains("✗ Disagrees") && said.contains("where the model does not change it"), "{to}: {said}");
+    }
+    // Without an instrument nor a recording, the command says what it needs.
+    let alone = arclang(&["observe", root.join("tests/fixtures/sketches/uno_lamp.arc").to_str().unwrap()]);
+    assert!(!alone.status.success() && text(&alone).contains("--instrument names the serial port of the instrument"), "{}", text(&alone));
+}

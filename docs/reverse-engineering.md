@@ -571,7 +571,69 @@ model, both proofs hold, and the board agreed when asked: that variant was
 flashed, and its 300 answers fell between 50.2 and 60.1 ms, none late.
 
 The clock of a board that is not an AVR is not asked about: it has not been
-measured here. The sketch toggles on the same presses as
+measured here.
+
+## A board observed against the model
+
+The bench that found this is a command. An **instrument** drives the inputs
+of the board and times its outputs: a second board running MicroPython, its
+console on a serial port, wired to the pins of the first.
+
+```
+$ arclang observe uno_lamp.arc --instrument /dev/cu.usbserial-2140 \
+      --drive button=13:1 --watch led=35 --changes 400
+Playing 400 change(s) of button on the board through /dev/cu.usbserial-2140 (about 34 s)
+Observation of correspondence "Uno lamp sketch": the board against state_machine "Lamp toggled by a button"
+  played: 400 change(s) of the inputs over 31.6 s; the board changed its outputs 99 time(s)
+  the board's loop takes 10.024 ms (the model steps every 10 ms); its changes are within 0.11 ms of that loop
+  2 input change(s) fell too close to a read of the board for the instrument to say on which side: taken on the side the board showed
+✓ Agrees on this run: the same 99 change(s) in the same order; 90 at the model's step, 9 one loop later
+    a measure of what was played, not a proof: `arclang prove` is the proof
+```
+
+- `--drive NAME=PIN[:1]`: an input of the machine (one the correspondence
+  reads from a pin), and the instrument's pin wired to it; `:1` when the pin
+  rests high. `--watch NAME=PIN`: what the correspondence writes to a pin (a
+  variable, or a state), and the instrument's pin that reads it.
+- The instrument plays `--changes` changes of the inputs, held for random
+  times, some too short to count; `--seed` plays the same run again.
+- `--keep FILE` keeps the recording, `--recorded FILE` compares one kept
+  earlier, with no board.
+
+How the comparison is made:
+
+- The board's loop is not seen, but its outputs only change when it runs:
+  the moments of the changes lie on a regular lattice. Its period is the
+  **real period of the loop** and its phase is where the loop stands against
+  the instrument's clock. Both are measured from the changes alone, with no
+  help from the model, and how far the changes are from that lattice is
+  printed (here 0.11 ms: the loop is regular).
+- The inputs played are replayed on the model, by the executor of the model
+  (the one `arclang verify` runs), read at the moments the board's loop ran.
+- The outputs are compared change by change: the same change at the model's
+  step, or one loop later (counted apart: on an AVR that is its clock, see
+  above), or a disagreement, with the first one and its time.
+- An input change within 0.6 ms of a moment the board reads cannot be placed
+  by the instrument; it is taken on the side the board showed, and counted.
+
+What it says and does not:
+
+- "Agrees on this run" is an agreement on what was played. Another run may
+  disagree; it is a measure, and the proof is `arclang prove`. Its worth is
+  in what it measures that a proof assumes: the period of the loop (10.024 ms
+  where the model says 10), the clock, the compiler's translation.
+- It catches a model the board does not follow: against the same recording, a
+  model that waits 100 ms instead of 50, or whose lamp only turns on,
+  disagrees from the first change.
+- The inputs and outputs are digital pins. The model starts from its state at
+  rest: a board that was not at rest when the run began is compared by its
+  changes, not by its levels.
+
+The wiring is the instrument's affair and a board's pins are not all alike:
+an instrument at 3.3 V reading a board at 5 V needs a divider (here 10 kΩ
+over 20 kΩ), and checking the wiring by software before the two boards are
+joined (a loopback on the instrument alone, then the divider measured) is
+what kept this one safe. The sketch toggles on the same presses as
 the model, in the same order; it is the *moment* that can be one loop late. A proof by `arclang prove` is a proof
 for the clock it states, and this is the measure of how far a real one is
 from it: a sketch that compares `millis()` with an exact multiple of its
