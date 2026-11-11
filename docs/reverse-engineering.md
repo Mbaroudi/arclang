@@ -615,29 +615,42 @@ same events. The routine is the one read in the code's `attachInterrupt`,
 and a line of the correspondence holds only while it is attached to that
 pin on that edge.
 
-That is one assumption, printed with the proof: **an interrupt is taken
-between two `loop()`s**. A real one can be taken in the middle of `loop()`.
-What the proof can say about that, it says: it lists where the code uses,
-with interrupts on, something a routine changes.
+The proof takes an interrupt **between two `loop()`s**. A real one falls
+anywhere, so a second question is asked for each routine: does an interrupt
+taken in the middle of `loop()` leave what one taken just before the
+`loop()`, or just after it, would leave? Where it does, the interrupt in the
+middle is one of the two the proof covers. The places it may fall are the
+uses, outside the routine and with interrupts on, of what the routine
+changes; the code is run three times from the same state (the routine
+before, after, and at one of those uses) and the three states are compared,
+from any two states that correspond and after none, one or two interrupts
+already taken.
 
 ```
-✓ Proven (2.8 s) correspondence "Pulse lamp sketch": pulse_lamp.ino is state_machine "Lamp"
-    interrupts: taken between two loop()s; what their routines change is only used elsewhere with interrupts off
+✓ Proven (2.7 s) correspondence "Flag lamp sketch": flag_lamp.ino is state_machine "Lamp"
+    interrupts: taken between two loop()s, or in the middle of one: proven that an interrupt at any use of what its routine changes leaves what one taken just before the loop(), or just after it, leaves (one interrupt in the loop(), after none, one or two since the last)
+      `pulsed`, which the routine `mark` changes, is used at line 20, 21 of flag_lamp.ino with interrupts on
 ```
 
-and, for the same sketch without `noInterrupts()` / `interrupts()`:
+That sketch raises a flag in its routine and lowers it in `loop()` with
+interrupts on: two lines use it, and it is safe. The sketch that counts its
+pulses, written without `noInterrupts()` / `interrupts()`, is not:
 
 ```
-    interrupts: taken between two loop()s. NOT covered: an interrupt taken in the middle of loop(), where
+    interrupts: taken between two loop()s. In the middle of one, NOT the same: an interrupt of `count` taken at one of these uses can leave what neither an interrupt just before the loop() nor one just after it leaves (something is lost, or counted twice):
       `pulses`, which the routine `count` changes, is used at line 20, 21 of pulse_lamp.ino with interrupts on
 ```
 
 Those two lines are the read of the count and its reset: a pulse taken
-between them is lost. The proof does not decide whether that can go wrong (it
-would have to follow every place an interrupt can fall); it says where it
-was not looked at. The list is read in the text of the code: the body of
-each routine, what it assigns, and each other line of a function that names
-it outside `noInterrupts()` ... `interrupts()`.
+between them is lost. With the protected section the count is only used
+with interrupts off, and there is nothing to ask.
+
+Where this stops: an interrupt falls between two *uses* of a shared variable,
+not between two instructions of the processor (`count++` in `loop()` is one
+use, where an AVR takes three instructions); one interrupt in a `loop()` is
+followed, not several; the places are found in the text of the code (the
+routine's body, what it assigns), and a state that holds an array or a
+structure is not compared: the answer is then "not asked", with why.
 
 Measured on the board: this sketch on an UNO, 200 pulses sent to its
 interrupt pin by the instrument, 19 of them shorter than its loop (the

@@ -354,9 +354,10 @@ fn a_sketch_with_an_interrupt_is_proven_each_edge_an_event_of_the_machine() {
     assert!(proven && output.contains("pulse_lamp.ino is state_machine \"Lamp\""), "{output}");
     // What the routine changes is read with interrupts off: said so.
     assert!(output.contains("interrupts: taken between two loop()s; what their routines change is only used elsewhere with interrupts off"), "{output}");
-    // Without the protected section the proof still holds for interrupts between two loops, and says what it leaves out.
+    // Without the protected section the proof still holds for interrupts between two loops;
+    // one in the middle is shown to leave what neither order leaves: a pulse is lost.
     let (proven, output) = proof("pulse_lamp", &[], &[("  noInterrupts();\n", ""), ("  interrupts();\n", "")]);
-    assert!(proven && output.contains("NOT covered: an interrupt taken in the middle of loop()"), "{output}");
+    assert!(proven && output.contains("In the middle of one, NOT the same: an interrupt of `count` taken at one of these uses"), "{output}");
     assert!(output.contains("`pulses`, which the routine `count` changes, is used at line 20, 21 of pulse_lamp.ino with interrupts on"), "{output}");
     // A sketch that counts wrongly, and a machine that does something else at a pulse, are refuted.
     let (proven, output) = proof("pulse_lamp", &[], &[("if (seen % 2 == 1) {", "if (seen > 0) {")]);
@@ -388,4 +389,20 @@ fn a_board_with_an_interrupt_recorded_counts_every_pulse_as_the_model_does() {
     let observed = arclang(&["observe", root.join("tests/fixtures/sketches/pulse_lamp.arc").to_str().unwrap(), "--recorded", root.join("tests/fixtures/observations/pulse_lamp_400.json").to_str().unwrap()]);
     let said = text(&observed);
     assert!(observed.status.success() && said.contains("the same 200 change(s) in the same order; 200 at the model's step, 0 one loop later"), "{said}");
+}
+
+#[test]
+#[ignore = "needs CBMC and Bitwuzla: tools/embedded/formal/run.sh cargo test --test correspondence -- --include-ignored"]
+fn an_interrupt_in_the_middle_of_a_loop_is_proven_to_be_one_before_it_or_after_it() {
+    // A flag the routine raises, read and lowered with interrupts on: used at two lines, and safe.
+    let (proven, output) = proof("flag_lamp", &[], &[]);
+    assert!(proven && output.contains("flag_lamp.ino is state_machine \"Lamp\""), "{output}");
+    assert!(output.contains("or in the middle of one: proven that an interrupt at any use of what its routine changes leaves what one taken just before the loop(), or just after it, leaves"), "{output}");
+    assert!(output.contains("`pulsed`, which the routine `mark` changes, is used at line 20, 21 of flag_lamp.ino with interrupts on"), "{output}");
+    // The same code counting instead of flagging loses a pulse taken between the read and the reset.
+    let (proven, output) = proof("flag_lamp", &[], &[("volatile bool pulsed = false;", "volatile int pulsed = 0;"), ("  pulsed = true;", "  pulsed++;"), ("  if (pulsed) {\n    pulsed = false;\n    lit = !lit;", "  if (pulsed) {\n    int seen = pulsed;\n    pulsed = 0;\n    lit = (lit + seen) % 2;")]);
+    assert!(output.contains("In the middle of one, NOT the same: an interrupt of `mark`") || !proven, "{output}");
+    // A state the check cannot keep (an array) is said, and the question is not asked.
+    let (proven, output) = proof("flag_lamp", &[], &[("int lit = 0;", "int lit = 0;\nint history[4];")]);
+    assert!(proven && output.contains("In the middle of one: not asked (the state of the code cannot be kept to compare: `int history[4];` is not one name of a simple type)"), "{output}");
 }

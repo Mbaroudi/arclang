@@ -181,7 +181,7 @@ pub enum Outcome {
     /// `interrupts`: when the code has interrupts, the places where it uses
     /// what a routine changes while interrupts are on. The proof takes an
     /// interrupt between two `loop()`s: one taken at such a place is not covered.
-    Proven { seconds: f64, period_us: u64, int_bits: u8, unrelated: Vec<String>, board_clock: Option<BoardClock>, interrupts: Option<Vec<String>> },
+    Proven { seconds: f64, period_us: u64, int_bits: u8, unrelated: Vec<String>, board_clock: Option<BoardClock>, interrupts: Option<Interrupts> },
     /// One does not: which (`start` or `step`), and the lines of the
     /// correspondence that do not hold after it (none: the code read or
     /// wrote a pin the correspondence does not name).
@@ -207,78 +207,45 @@ pub enum BoardClock {
     Unknown { reason: String },
 }
 
-/// Where the code uses, with interrupts on, what a routine of interrupt
-/// changes: (the file, the routine, the variable, the lines). Read in the
-/// text: the body of each routine, what it assigns, and every other line of
-/// a function that names it outside `noInterrupts()` ... `interrupts()`.
-pub fn shared_with_interrupts(sketches: &[(String, String)], routines: &[String]) -> Vec<String> {
-    let comment = Regex::new(r"//[^\n]*").expect("a pattern of the sharing");
-    let assigned = Regex::new(r"\b([A-Za-z_]\w*)\s*(?:\+\+|--|(?:[+\-*/|&^%]|<<|>>)?=(?:[^=]|$))").expect("a pattern of the sharing");
-    let before = Regex::new(r"(?:\+\+|--)\s*([A-Za-z_]\w*)").expect("a pattern of the sharing");
-    let mut found = Vec::new();
-    for (file, text) in sketches {
-        let lines: Vec<String> = text.lines().map(|line| comment.replace(line, "").into_owned()).collect();
-        // The lines of each routine's body, by the braces that follow its name.
-        let mut inside: Vec<Option<&str>> = vec![None; lines.len()];
-        for routine in routines {
-            let head = Regex::new(&format!(r"\bvoid\s+{}\s*\(", regex::escape(routine))).expect("a pattern of the sharing");
-            let Some(start) = lines.iter().position(|line| head.is_match(line)) else { continue };
-            let mut depth = 0i32;
-            let mut opened = false;
-            for (at, line) in lines.iter().enumerate().skip(start) {
-                depth += line.matches('{').count() as i32;
-                opened |= line.contains('{');
-                inside[at] = Some(routine.as_str());
-                depth -= line.matches('}').count() as i32;
-                if opened && depth <= 0 {
-                    break;
-                }
-            }
-        }
-        for routine in routines {
-            let mut changed: Vec<String> = Vec::new();
-            for (at, line) in lines.iter().enumerate() {
-                if inside[at] == Some(routine.as_str()) {
-                    changed.extend(assigned.captures_iter(line).chain(before.captures_iter(line)).map(|c| c[1].to_string()));
-                }
-            }
-            changed.sort();
-            changed.dedup();
-            for variable in changed {
-                let named = Regex::new(&format!(r"\b{}\b", regex::escape(&variable))).expect("a pattern of the sharing");
-                let (mut depth, mut off) = (0i32, false);
-                let mut places = Vec::new();
-                for (at, line) in lines.iter().enumerate() {
-                    let within = depth > 0;
-                    depth += line.matches('{').count() as i32 - line.matches('}').count() as i32;
-                    if line.contains("noInterrupts()") {
-                        off = true;
-                    }
-                    // Used in a function that is not a routine, with interrupts on.
-                    if within && inside[at].is_none() && !off && named.is_match(line) {
-                        places.push((at + 1).to_string());
-                    }
-                    if line.contains("interrupts()") && !line.contains("noInterrupts()") {
-                        off = false;
-                    }
-                }
-                if !places.is_empty() {
-                    found.push(format!("`{variable}`, which the routine `{routine}` changes, is used at line {} of {file} with interrupts on", places.join(", ")));
-                }
-            }
-        }
-    }
-    found
+/// How a proof takes the interrupts of the code: between two `loop()`s, and
+/// what was asked of one taken in the middle of a `loop()`.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct Interrupts {
+    /// Where the code uses, with interrupts on, what a routine changes.
+    pub shared: Vec<String>,
+    pub middle: Middle,
+}
+
+/// An interrupt taken in the middle of `loop()`, at a use of what its
+/// routine changes (see `interleave`).
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub enum Middle {
+    /// It leaves what an interrupt just before the `loop()`, or just after it, leaves.
+    Same,
+    /// It can leave what neither does: the routine.
+    Differs { routine: String },
+    Unknown { reason: String },
 }
 
 /// What is printed under a proof of how it takes the interrupts of the code.
-pub fn interrupts_said(shared: Option<&Vec<String>>) -> Vec<String> {
-    match shared {
-        None => Vec::new(),
-        Some(shared) if shared.is_empty() => vec!["interrupts: taken between two loop()s; what their routines change is only used elsewhere with interrupts off".to_string()],
-        Some(shared) => {
-            let mut said = vec!["interrupts: taken between two loop()s. NOT covered: an interrupt taken in the middle of loop(), where".to_string()];
-            said.extend(shared.iter().map(|place| format!("  {place}")));
+pub fn interrupts_said(interrupts: Option<&Interrupts>) -> Vec<String> {
+    let Some(interrupts) = interrupts else { return Vec::new() };
+    let places = interrupts.shared.iter().map(|place| format!("  {place}"));
+    match &interrupts.middle {
+        Middle::Same if interrupts.shared.is_empty() => vec!["interrupts: taken between two loop()s; what their routines change is only used elsewhere with interrupts off".to_string()],
+        Middle::Same => {
+            let mut said = vec!["interrupts: taken between two loop()s, or in the middle of one: proven that an interrupt at any use of what its routine changes leaves what one taken just before the loop(), or just after it, leaves (one interrupt in the loop(), after none, one or two since the last)".to_string()];
+            said.extend(places);
+            said
+        }
+        Middle::Differs { routine } => {
+            let mut said = vec![format!("interrupts: taken between two loop()s. In the middle of one, NOT the same: an interrupt of `{routine}` taken at one of these uses can leave what neither an interrupt just before the loop() nor one just after it leaves (something is lost, or counted twice):")];
+            said.extend(places);
+            said
+        }
+        Middle::Unknown { reason } => {
+            let mut said = vec![format!("interrupts: taken between two loop()s. In the middle of one: not asked ({reason})")];
+            said.extend(places);
             said
         }
     }
@@ -305,7 +272,7 @@ pub fn board_clock_said(verdict: Option<&BoardClock>) -> Vec<String> {
 }
 
 /// The stand-ins every sketch is given: what the Arduino core declares, as C.
-const ARDUINO_H: &str = "/* Stand-ins for the Arduino core, for the proof (written by `arclang prove`). */\n#include <stdbool.h>\n#include <stdint.h>\n#define HIGH 1\n#define LOW 0\n#define INPUT 0\n#define OUTPUT 1\n#define INPUT_PULLUP 2\n#define LED_BUILTIN 13\n#define A0 14\n#define A1 15\n#define A2 16\n#define A3 17\n#define A4 18\n#define A5 19\n#define A6 20\n#define A7 21\ntypedef uint8_t byte;\ntypedef bool boolean;\ntypedef uint16_t word;\nvoid pinMode(int pin, int mode);\nint digitalRead(int pin);\nint analogRead(int pin);\nvoid digitalWrite(int pin, int level);\nunsigned long millis(void);\nvoid delay(unsigned long ms);\nunsigned long micros(void);\nvoid delayMicroseconds(unsigned int us);\nvoid analogWrite(int pin, int value);\n#define min(a, b) ((a) < (b) ? (a) : (b))\n#define max(a, b) ((a) > (b) ? (a) : (b))\n#define abs(x) ((x) > 0 ? (x) : -(x))\n#define constrain(x, low, high) ((x) < (low) ? (low) : ((x) > (high) ? (high) : (x)))\nstatic long map(long x, long in_min, long in_max, long out_min, long out_max) { return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min; }\n/* The serial port: what is printed is not looked at; a read is an input nobody named. */\nstruct arclang_serial_port { void (*begin)(); void (*end)(); void (*print)(); void (*println)(); void (*write)(); void (*flush)(); int (*available)(void); int (*read)(void); int (*peek)(void); };\nextern const struct arclang_serial_port Serial;\n/* Interrupts: an edge of a pin calls a function of the code. */\n#define CHANGE 1\n#define FALLING 2\n#define RISING 3\n#define digitalPinToInterrupt(pin) (pin)\nvoid attachInterrupt(int pin, void (*routine)(void), int mode);\nvoid detachInterrupt(int pin);\nvoid noInterrupts(void);\nvoid interrupts(void);\nvoid setup(void);\nvoid loop(void);\n";
+const ARDUINO_H: &str = "/* Stand-ins for the Arduino core, for the proof (written by `arclang prove`). */\n#include <stdbool.h>\n#include <stdint.h>\n#define HIGH 1\n#define LOW 0\n#define INPUT 0\n#define OUTPUT 1\n#define INPUT_PULLUP 2\n#define LED_BUILTIN 13\n#define A0 14\n#define A1 15\n#define A2 16\n#define A3 17\n#define A4 18\n#define A5 19\n#define A6 20\n#define A7 21\ntypedef uint8_t byte;\ntypedef bool boolean;\ntypedef uint16_t word;\nvoid pinMode(int pin, int mode);\nint digitalRead(int pin);\nint analogRead(int pin);\nvoid digitalWrite(int pin, int level);\nunsigned long millis(void);\nvoid delay(unsigned long ms);\nunsigned long micros(void);\nvoid delayMicroseconds(unsigned int us);\nvoid analogWrite(int pin, int value);\n#define min(a, b) ((a) < (b) ? (a) : (b))\n#define max(a, b) ((a) > (b) ? (a) : (b))\n#define abs(x) ((x) > 0 ? (x) : -(x))\n#define constrain(x, low, high) ((x) < (low) ? (low) : ((x) > (high) ? (high) : (x)))\nstatic long map(long x, long in_min, long in_max, long out_min, long out_max) { return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min; }\n/* The serial port: what is printed is not looked at; a read is an input nobody named. */\nstruct arclang_serial_port { void (*begin)(); void (*end)(); void (*print)(); void (*println)(); void (*write)(); void (*flush)(); int (*available)(void); int (*read)(void); int (*peek)(void); };\nextern const struct arclang_serial_port Serial;\n/* Interrupts: an edge of a pin calls a function of the code. */\nvoid arclang_point(void); /* a use of what a routine changes: where an interrupt may fall */\n#define CHANGE 1\n#define FALLING 2\n#define RISING 3\n#define digitalPinToInterrupt(pin) (pin)\nvoid attachInterrupt(int pin, void (*routine)(void), int mode);\nvoid detachInterrupt(int pin);\nvoid noInterrupts(void);\nvoid interrupts(void);\nvoid setup(void);\nvoid loop(void);\n";
 
 /// The fixed-width types of the proof, written for the board and not read
 /// from the C library of the machine that runs the proof: there `uint32_t`
@@ -390,6 +357,7 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
     for (rank, _) in correspondence.events.iter().enumerate() {
         c.push_str(&format!("static bool arclang_attached_{rank}; /* the routine of event {rank} is attached to its pin */\n"));
     }
+    c.push_str("static bool arclang_on = true; /* interrupts are on */\nstatic bool arclang_watch, arclang_in, arclang_fired; /* an interrupt is looked for in loop(); its routine runs; it was taken */\nstatic unsigned arclang_seen, arclang_at; /* the uses passed, and the one the interrupt falls at */\n");
     // The routine the code attaches to each pin of an event: read in the code, and checked where it attaches it.
     let attach = Regex::new(r"attachInterrupt\s*\(\s*(?:digitalPinToInterrupt\s*\(\s*([^()]+?)\s*\)|([^(),]+?))\s*,\s*(\w+)\s*,\s*(\w+)\s*\)").expect("a pattern of the harness");
     let mut routines: Vec<(String, String)> = Vec::new();
@@ -466,7 +434,25 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
     for (rank, ((mode, pin, _), (routine, _))) in correspondence.events.iter().zip(&routines).enumerate() {
         c.push_str(&format!("    if (pin == ({pin}) && routine == {routine} && mode == {mode}) {{ arclang_attached_{rank} = true; return; }}\n"));
     }
-    c.push_str("    (void)pin; (void)routine; (void)mode;\n    arclang_unnamed = true; /* an interrupt the correspondence does not name */\n}\nvoid detachInterrupt(int pin) { (void)pin; arclang_unnamed = true; }\nvoid noInterrupts(void) { }\nvoid interrupts(void) { }\n");
+    c.push_str("    (void)pin; (void)routine; (void)mode;\n    arclang_unnamed = true; /* an interrupt the correspondence does not name */\n}\nvoid detachInterrupt(int pin) { (void)pin; arclang_unnamed = true; }\nvoid noInterrupts(void) { arclang_on = false; }\nvoid interrupts(void) { arclang_on = true; }\n");
+    // A use of what a routine changes, outside the routine and with interrupts on: where an interrupt may fall.
+    c.push_str("void arclang_point(void)\n{\n#ifdef ARCLANG_INTERLEAVE\n    if (arclang_watch && arclang_on && !arclang_in) {\n        if (arclang_seen == arclang_at) { arclang_in = true; ARCLANG_ROUTINE(); arclang_in = false; arclang_fired = true; }\n        arclang_seen++;\n    }\n#endif\n}\n");
+    // The state of the code kept and compared, for the interrupt in the middle of loop().
+    let routine_names: Vec<String> = routines.iter().map(|(routine, _)| routine.clone()).collect();
+    let watched_names: Vec<String> = super::interleave::changed(sketches, &routine_names).into_iter().map(|(_, variable)| variable).collect();
+    let mut kept: Result<Vec<(String, String)>, String> = Ok(Vec::new());
+    if !routine_names.is_empty() {
+        for (_, text) in sketches {
+            match (super::interleave::state(text), &mut kept) {
+                (Ok(more), Ok(all)) => all.extend(more),
+                (Err(reason), _) => kept = Err(reason),
+                _ => {}
+            }
+        }
+        if let Ok(state) = &kept {
+            c.push_str(&super::interleave::keeper(state, correspondence.writes.len(), correspondence.pwm.len()));
+        }
+    }
     // The finer clock: the same time in microseconds, never short (its tick is 4 us).
     c.push_str("unsigned long micros(void) { return arclang_ms * 1000UL; }\nvoid delayMicroseconds(unsigned int us) { (void)us; }\n");
     // What the code prints on its serial port is no part of what is proven; what it would read from it is an input nobody named.
@@ -562,6 +548,11 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
     } else if !correspondence.events.is_empty() {
         return Err(format!("{what}: state_machine \"{}\" takes no event", machine.name));
     }
+    if !routine_names.is_empty() && kept.is_ok() {
+        // An interrupt in the middle of loop(): from any two states that correspond, the routine run at a
+        // use of what it changes leaves what it leaves run just before the loop(), or just after it.
+        c.push_str("#ifdef ARCLANG_INTERLEAVE\n    __CPROVER_assume(arclang_corresponds(&s));\n    {\n        struct arclang_kept first, before, after, now;\n        unsigned at;\n        arclang_watch = false; arclang_in = false;\n        /* interrupts already taken since the last loop(): none, one or two */\n        { unsigned already; __CPROVER_assume(already <= 2U); for (unsigned k = 0U; k < already; k++) { ARCLANG_ROUTINE(); } }\n        arclang_keep(&first);\n        arclang_on = true; arclang_delayed = 0UL; ARCLANG_ROUTINE(); loop(); arclang_keep(&before);\n        arclang_put_back(&first); arclang_on = true; arclang_delayed = 0UL; loop(); ARCLANG_ROUTINE(); arclang_keep(&after);\n        arclang_put_back(&first); arclang_on = true; arclang_delayed = 0UL;\n        arclang_at = at; arclang_seen = 0U; arclang_fired = false; arclang_watch = true;\n        loop();\n        arclang_watch = false;\n        __CPROVER_assume(arclang_fired);\n        arclang_keep(&now);\n        __CPROVER_assert(arclang_same(&now, &before) || arclang_same(&now, &after), \"an interrupt in the middle of loop() is one before it or one after it\");\n    }\n    return 0;\n#endif\n");
+    }
     c.push_str(&format!(
         "#ifdef ARCLANG_START\n    /* start: after setup() and one loop(), and after init and one step, the two correspond */\n    setup();\n    arclang_ms = 0UL; /* the first loop() runs as millis() starts counting */\n    arclang_late = 0UL;\n    arclang_delayed = 0UL;\n{interrupts}    loop();\n    arclang_ms += {period_ms}UL;\n    {prefix}_init(&s);\n    {prefix}_step(&s, &in, &out);\n#else\n    /* step: from any two states that correspond, one loop() and one step leave two that correspond */\n    __CPROVER_assume(arclang_corresponds(&s));\n{before}    arclang_delayed = 0UL;\n{interrupts}    loop();\n    arclang_ms += {period_ms}UL;\n    {{ unsigned long late; __CPROVER_assume(late <= ARCLANG_LATE_MOST); arclang_late = late; }} /* what the next loop() will read */\n    {prefix}_step(&s, &in, &out);\n#endif\n{after}#ifdef ARCLANG_LINE\n    __CPROVER_assert(arclang_line(ARCLANG_LINE, &s), \"this line of the correspondence holds\");\n#else\n    __CPROVER_assert(arclang_corresponds(&s), \"the code and the model correspond\");\n#endif\n    return 0;\n}}\n"
     ));
@@ -582,14 +573,14 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
         (format!("model/{}", model.header_name), model.header.to_string()),
         (format!("model/{}", model.code_name), model.code.to_string()),
     ];
-    files.extend(sketches.iter().map(|(name, text)| (format!("sketch/{name}"), text.clone())));
+    files.extend(sketches.iter().map(|(name, text)| (format!("sketch/{name}"), if watched_names.is_empty() { text.clone() } else { super::interleave::watched(text, &watched_names) })));
     // The loops of the model run over its states or its queue; those of the code are unwound as far.
     let bound = Regex::new(r"(?m)^#define \w+_(?:STATE_COUNT|QUEUE_SIZE) (\d+)U").expect("a pattern of the harness");
     let unwind = bound.captures_iter(model.header).filter_map(|b| b[1].parse::<usize>().ok()).max().unwrap_or(1).max(16) + 2;
     // What no line speaks of: the proof holds, and says nothing of it.
     let related: Vec<&str> = correspondence.writes.iter().chain(&correspondence.state).filter_map(|(_, model_side)| if let Term::Variable(name) = model_side { Some(name.as_str()) } else { None }).chain(correspondence.pwm.iter().map(|(_, name)| name.as_str())).collect();
     let unrelated = machine.variables.iter().filter(|v| !v.input && !related.contains(&v.name.as_str())).map(|v| v.name.clone()).collect();
-    Ok(Proof { files, unwind, period_us, lines: lines.into_iter().map(|(_, written)| written).collect(), unrelated, define, shown: shown.into_iter().map(|(code, _, model, _)| (code, model)).collect(), inputs: inputs_shown.into_iter().map(|(name, _)| name).collect(), routines: routines.into_iter().map(|(routine, _)| routine).collect() })
+    Ok(Proof { files, unwind, period_us, lines: lines.into_iter().map(|(_, written)| written).collect(), unrelated, define, shown: shown.into_iter().map(|(code, _, model, _)| (code, model)).collect(), inputs: inputs_shown.into_iter().map(|(name, _)| name).collect(), routines: routine_names, middle_unasked: kept.err() })
 }
 
 /// The line every correspondence holds without writing it.
@@ -616,6 +607,8 @@ pub struct Proof {
     pub inputs: Vec<String>,
     /// The routines of the interrupts the correspondence names.
     pub routines: Vec<String>,
+    /// Why the interrupt in the middle of loop() cannot be asked, when it cannot.
+    pub middle_unasked: Option<String>,
 }
 
 /// The case that refutes a proof: the inputs of the step, and both sides of
@@ -820,7 +813,38 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
         } else {
             None
         };
-        let interrupts = (!written.routines.is_empty()).then(|| shared_with_interrupts(&sketches, &written.routines));
+        // Proven for interrupts between two loop()s: and one in the middle?
+        let interrupts = if written.routines.is_empty() {
+            None
+        } else {
+            let shared = super::interleave::used_with_interrupts_on(&sketches, &written.routines);
+            let mut middle = Middle::Same;
+            if let Some(reason) = &written.middle_unasked {
+                middle = Middle::Unknown { reason: reason.clone() };
+            } else if outcome.is_none() {
+                for routine in &written.routines {
+                    let named = format!("-DARCLANG_ROUTINE={routine}");
+                    let width = if int_bits == 16 { ["--16", "-DARCLANG_INT16"] } else { ["--32", "-DARCLANG_INT32"] };
+                    let flags = vec!["--nondet-static", define.as_str(), "-I", "board", width[0], width[1], "-DARCLANG_INTERLEAVE", named.as_str()];
+                    match decide(&dir, &["proof.c", model_source.as_str()], &flags, unwind, seconds)? {
+                        Answer::Unsat => {}
+                        Answer::Sat(_) => {
+                            middle = Middle::Differs { routine: routine.clone() };
+                            break;
+                        }
+                        Answer::BeyondBound => {
+                            middle = Middle::Unknown { reason: format!("a loop of the code runs more than {unwind} times") };
+                            break;
+                        }
+                        Answer::Unknown(reason) => {
+                            middle = Middle::Unknown { reason };
+                            break;
+                        }
+                    }
+                }
+            }
+            Some(Interrupts { shared, middle })
+        };
         outcomes.push((correspondence, outcome.unwrap_or(Outcome::Proven { seconds: started.elapsed().as_secs_f64(), period_us, int_bits, unrelated, board_clock, interrupts })));
     }
     if outcomes.is_empty() {
@@ -842,15 +866,6 @@ mod tests {
     }
     fn list(values: &[&str]) -> AttributeValue {
         AttributeValue::List(values.iter().map(|v| text(v)).collect())
-    }
-
-    #[test]
-    fn what_a_routine_changes_and_the_code_uses_with_interrupts_on_is_found() {
-        let sketch = "volatile int n = 0;\nint seen = 0;\nvoid tick() {\n  n++;\n}\nvoid loop() {\n  noInterrupts();\n  seen = n; // read with interrupts off\n  n = 0;\n  interrupts();\n  if (n > 3) { seen = 0; }\n}\n";
-        let found = shared_with_interrupts(&[("s.ino".to_string(), sketch.to_string())], &["tick".to_string()]);
-        // Lines 8 and 9 are protected; line 11 is not. The declaration (line 1) is no use.
-        assert_eq!(found, ["`n`, which the routine `tick` changes, is used at line 11 of s.ino with interrupts on"]);
-        assert!(shared_with_interrupts(&[("s.ino".to_string(), sketch.replace("  if (n > 3) { seen = 0; }\n", ""))], &["tick".to_string()]).is_empty());
     }
 
     #[test]
