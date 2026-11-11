@@ -2219,11 +2219,14 @@ impl CliRunner {
             for (c, outcome) in &outcomes {
                 let of = format!("correspondence \"{}\": {} is state_machine \"{}\"", c.name, c.sources.join(", "), c.machine);
                 match outcome {
-                    Outcome::Proven { seconds, period_us, int_bits, unrelated, board_clock } => {
+                    Outcome::Proven { seconds, period_us, int_bits, unrelated, board_clock, interrupts } => {
                         println!("✓ Proven ({seconds:.1} s) {of}");
                         println!("    for one loop() a step of {} ms, an int of {int_bits} bits and a long of 32, the pins the correspondence names, and the C subset of the Arduino language", period_us / 1000);
                         if !unrelated.is_empty() {
                             println!("    the proof says nothing of {} of the machine: no line of the correspondence speaks of {}", if unrelated.len() == 1 { "this variable" } else { "these variables" }, unrelated.join(", "));
+                        }
+                        for line in correspondence::interrupts_said(interrupts.as_ref()) {
+                            println!("    {line}");
                         }
                         for line in correspondence::board_clock_said(board_clock.as_ref()) {
                             println!("    {line}");

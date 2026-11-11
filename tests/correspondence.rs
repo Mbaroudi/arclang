@@ -346,3 +346,46 @@ fn an_action_written_as_code_that_is_not_code_is_refused() {
     std::fs::write(&model, "model \"M\" { version: \"1.0.0\" }\nstate_machine \"S\" {\n    variables: [\"in go: Boolean\"]\n    initial: \"A\"\n    state A {}\n    state B {}\n    transition A -> B { guard: \"go\" action: \"open the valve\" }\n}\n").unwrap();
     assert!(arclang(&["check", model.to_str().unwrap()]).status.success());
 }
+
+#[test]
+#[ignore = "needs CBMC and Bitwuzla: tools/embedded/formal/run.sh cargo test --test correspondence -- --include-ignored"]
+fn a_sketch_with_an_interrupt_is_proven_each_edge_an_event_of_the_machine() {
+    let (proven, output) = proof("pulse_lamp", &[], &[]);
+    assert!(proven && output.contains("pulse_lamp.ino is state_machine \"Lamp\""), "{output}");
+    // What the routine changes is read with interrupts off: said so.
+    assert!(output.contains("interrupts: taken between two loop()s; what their routines change is only used elsewhere with interrupts off"), "{output}");
+    // Without the protected section the proof still holds for interrupts between two loops, and says what it leaves out.
+    let (proven, output) = proof("pulse_lamp", &[], &[("  noInterrupts();\n", ""), ("  interrupts();\n", "")]);
+    assert!(proven && output.contains("NOT covered: an interrupt taken in the middle of loop()"), "{output}");
+    assert!(output.contains("`pulses`, which the routine `count` changes, is used at line 20, 21 of pulse_lamp.ino with interrupts on"), "{output}");
+    // A sketch that counts wrongly, and a machine that does something else at a pulse, are refuted.
+    let (proven, output) = proof("pulse_lamp", &[], &[("if (seen % 2 == 1) {", "if (seen > 0) {")]);
+    assert!(!proven && output.contains("✗ Refuted"), "{output}");
+    let (proven, output) = proof("pulse_lamp", &[("transition Lit -> Dark { trigger: \"pulse\" action: \"led := false\" }", "")], &[]);
+    assert!(!proven && output.contains("✗ Refuted"), "{output}");
+}
+
+#[test]
+fn an_interrupt_the_code_attaches_otherwise_is_refused_before_any_proof() {
+    // The correspondence says FALLING, the sketch attaches RISING.
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sketches");
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::copy(fixtures.join("pulse_lamp.ino"), dir.path().join("pulse_lamp.ino")).unwrap();
+    let model = std::fs::read_to_string(fixtures.join("pulse_lamp.arc")).unwrap();
+    std::fs::write(dir.path().join("pulse_lamp.arc"), model.replacen("RISING on SENSOR is pulse", "FALLING on SENSOR is pulse", 1)).unwrap();
+    let asked = arclang(&["prove", dir.path().join("pulse_lamp.arc").to_str().unwrap()]);
+    assert!(!asked.status.success() && text(&asked).contains("the code attaches the interrupt of SENSOR on RISING, the correspondence says FALLING"), "{}", text(&asked));
+    // An event the machine does not have is refused when the model is compiled.
+    std::fs::write(dir.path().join("pulse_lamp.arc"), model.replacen("RISING on SENSOR is pulse", "RISING on SENSOR is tick", 1)).unwrap();
+    let checked = arclang(&["check", dir.path().join("pulse_lamp.arc").to_str().unwrap()]);
+    assert!(!checked.status.success() && text(&checked).contains("has no event 'tick'"), "{}", text(&checked));
+}
+
+#[test]
+fn a_board_with_an_interrupt_recorded_counts_every_pulse_as_the_model_does() {
+    // Recorded on the UNO: 200 pulses on its interrupt pin, some shorter than its loop; 200 changes of its lamp.
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let observed = arclang(&["observe", root.join("tests/fixtures/sketches/pulse_lamp.arc").to_str().unwrap(), "--recorded", root.join("tests/fixtures/observations/pulse_lamp_400.json").to_str().unwrap()]);
+    let said = text(&observed);
+    assert!(observed.status.success() && said.contains("the same 200 change(s) in the same order; 200 at the model's step, 0 one loop later"), "{said}");
+}

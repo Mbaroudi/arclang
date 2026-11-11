@@ -89,6 +89,7 @@ correspondence "Debounce sketch" {
 - `period`: the time of one `loop()`; when the sketch calls `delay()`, the sum of its delays;
 - `reads`: `digitalRead(PIN) is <input>` (Boolean) or `analogRead(PIN) is <input>` (Integer, 0 to 1023), the pin written as the sketch writes it;
 - `writes`: `digitalWrite(PIN) is <variable>` or `digitalWrite(PIN) is in <State>`, and `analogWrite(PIN) is <variable>` (an Integer, 0 to 255); EVERY pin the sketch reads or writes must be named;
+- `events`: when the sketch takes a pin by an interrupt (`attachInterrupt(digitalPinToInterrupt(PIN), routine, RISING)`), each edge is an event of the machine: `"RISING on PIN is <event>"` (or FALLING, CHANGE), and the machine has `transition A -> B { trigger: "<event>" ... }`; several events can come in one step, each fires its transition in turn; what the routine counts and `loop()` resets is 0 between two loops (say it as an invariant);
 - what the sketch prints on `Serial` is not part of the proof: leave it out; a time read with `micros()` is related as `(micros() - since) / 1000 is time in <State>`;
 - `state`: on the left a C expression over the sketch's global variables, on the right `in <State>` (true exactly when the state is active), `time in <State>` (milliseconds the state has been held) or a variable of the machine;
 - `invariant`: C expressions that always hold of the sketch's variables;
@@ -173,10 +174,13 @@ fn judge(model: &str, file_name: &str, code: &str, dir: &Path, seconds: u64) -> 
     let (_, outcome) = outcomes.first().ok_or("no proof was run")?;
     let of = format!("{file_name} is state_machine \"{}\"", read.machine);
     match outcome {
-        Outcome::Proven { seconds, period_us, int_bits, unrelated, board_clock } => {
+        Outcome::Proven { seconds, period_us, int_bits, unrelated, board_clock, interrupts } => {
             let mut said = format!("✓ Proven ({seconds:.1} s) {of}\n    for one loop() a step of {} ms, an int of {int_bits} bits and a long of 32, the pins the correspondence names, and the C subset of the Arduino language", period_us / 1000);
             if !unrelated.is_empty() {
                 said.push_str(&format!("\n    the proof says nothing of the machine's {}: no line of the correspondence speaks of it", unrelated.join(", ")));
+            }
+            for line in correspondence::interrupts_said(interrupts.as_ref()) {
+                said.push_str(&format!("\n    {line}"));
             }
             for line in correspondence::board_clock_said(board_clock.as_ref()) {
                 said.push_str(&format!("\n    {line}"));

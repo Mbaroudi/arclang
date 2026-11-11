@@ -130,10 +130,17 @@ pub fn lattice(times: &[f64], nominal: f64) -> Option<(f64, f64, Vec<i64>, f64)>
 /// Where the outputs watched are in a row of the executor, and how each reads as a level.
 struct Columns {
     machine: usize,
-    /// (the driven input's name, its variable in the program)
-    inputs: Vec<(String, usize)>,
+    /// What each driven pin is for the machine.
+    inputs: Vec<Driven>,
     /// (the watched output's name, its column in the row of the machine's run)
     outputs: Vec<(String, usize)>,
+}
+
+/// A pin the instrument drives: the level of an input variable, or the edges an interrupt takes as an event.
+enum Driven {
+    Level(usize),
+    /// (the event of the machine, whether a rising edge is one, whether a falling edge is one)
+    Edges(usize, bool, bool),
 }
 
 fn columns(plan: &Plan, correspondence: &Correspondence, recording: &Recording) -> Result<Columns, String> {
@@ -145,11 +152,16 @@ fn columns(plan: &Plan, correspondence: &Correspondence, recording: &Recording) 
     let variable = |name: &str| m.program().variables.iter().position(|v| v.name == name);
     let mut inputs = Vec::new();
     for trace in &recording.driven {
-        let index = variable(&trace.name).ok_or_else(|| format!("{what}: state_machine \"{}\" has no variable '{}' to drive", m.name, trace.name))?;
-        if !correspondence.reads.iter().any(|(_, _, name)| *name == trace.name) {
-            return Err(format!("{what}: '{}' is not an input the correspondence reads from a pin", trace.name));
+        if let Some((mode, _, _)) = correspondence.events.iter().find(|(_, _, event)| *event == trace.name) {
+            let event = m.events.iter().position(|e| e.text == trace.name).ok_or_else(|| format!("{what}: state_machine \"{}\" has no event '{}'", m.name, trace.name))?;
+            inputs.push(Driven::Edges(event, mode != "FALLING", mode != "RISING"));
+            continue;
         }
-        inputs.push((trace.name.clone(), index));
+        let index = variable(&trace.name).ok_or_else(|| format!("{what}: state_machine \"{}\" has no variable nor event '{}' to drive", m.name, trace.name))?;
+        if !correspondence.reads.iter().any(|(_, _, name)| *name == trace.name) {
+            return Err(format!("{what}: '{}' is not an input the correspondence reads from a pin, nor an event it takes from one", trace.name));
+        }
+        inputs.push(Driven::Level(index));
     }
     let mut outputs = Vec::new();
     for trace in &recording.watched {
@@ -180,15 +192,33 @@ fn replay(plan: &Plan, columns: &Columns, period_us: u64, driven: &[Trace], firs
     let steps = (last - first + 1).max(1) as usize;
     let mut vectors = Vectors::quiet(plan, steps);
     let program = plan.machines[columns.machine].program();
-    for (trace, (_, variable)) in driven.iter().zip(&columns.inputs) {
-        for k in 0..steps {
-            let level = trace.at(moment(first + k as i64));
-            vectors.values[columns.machine][*variable][k] = match program.variables[*variable].ty {
-                Ty::Bool => Value::Bool(level),
-                Ty::Int => Value::Int(level as i32),
-                Ty::Real => Value::Real(level as u8 as f64),
-                Ty::Float => Value::Float(level as u8 as f32),
-            };
+    for (trace, driven) in driven.iter().zip(&columns.inputs) {
+        match driven {
+            Driven::Level(variable) => {
+                for k in 0..steps {
+                    let level = trace.at(moment(first + k as i64));
+                    vectors.values[columns.machine][*variable][k] = match program.variables[*variable].ty {
+                        Ty::Bool => Value::Bool(level),
+                        Ty::Int => Value::Int(level as i32),
+                        Ty::Real => Value::Real(level as u8 as f64),
+                        Ty::Float => Value::Float(level as u8 as f32),
+                    };
+                }
+            }
+            // An interrupt takes each edge when it happens: the step that follows sees
+            // every edge since the one before, in the order they came.
+            Driven::Edges(event, rising, falling) => {
+                for &(time, level) in &trace.changes {
+                    if (level && !*rising) || (!level && !*falling) {
+                        continue;
+                    }
+                    let step = (0..steps).find(|&k| time as f64 <= moment(first + k as i64));
+                    if let Some(k) = step {
+                        vectors.queue[columns.machine][k].push(*event);
+                        vectors.events[columns.machine][*event][k] = true;
+                    }
+                }
+            }
         }
     }
     let mut runner = Runner::new(plan, period_us);
