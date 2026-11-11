@@ -172,10 +172,13 @@ fn judge(model: &str, file_name: &str, code: &str, dir: &Path, seconds: u64) -> 
     let (_, outcome) = outcomes.first().ok_or("no proof was run")?;
     let of = format!("{file_name} is state_machine \"{}\"", read.machine);
     match outcome {
-        Outcome::Proven { seconds, period_us, int_bits, unrelated } => {
+        Outcome::Proven { seconds, period_us, int_bits, unrelated, board_clock } => {
             let mut said = format!("✓ Proven ({seconds:.1} s) {of}\n    for one loop() a step of {} ms, an int of {int_bits} bits and a long of 32, the pins the correspondence names, and the C subset of the Arduino language", period_us / 1000);
             if !unrelated.is_empty() {
                 said.push_str(&format!("\n    the proof says nothing of the machine's {}: no line of the correspondence speaks of it", unrelated.join(", ")));
+            }
+            for line in correspondence::board_clock_said(board_clock.as_ref()) {
+                said.push_str(&format!("\n    {line}"));
             }
             Ok(said)
         }

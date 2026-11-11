@@ -547,7 +547,31 @@ can advance by 49, 50 or 51. When it has advanced by 49, `millis() - since
 >= 50` is false at the fifth loop and the lamp changes at the sixth. That
 explanation was then tested: the same sketch timing with `micros()` instead
 of `millis()` (no tick of 1.024 ms) was flashed and measured the same way,
-and its 300 answers all fell between 50.2 and 60.2 ms, none late. The sketch toggles on the same presses as
+and its 300 answers all fell between 50.2 and 60.2 ms, none late.
+
+`arclang prove` now asks that question itself. For a board whose clock is
+known not to be the one the proof states (`int: 16`, an AVR), the step is
+proven a second time on the clock of the board: a time read can be one
+millisecond short, so a duration can be one millisecond off either way.
+
+```
+✓ Proven (18.1 s) correspondence "Uno lamp sketch": uno_lamp.ino is state_machine "Lamp toggled by a button"
+    on the clock of the board (an AVR's millis() counts ticks of 1.024 ms: a time read can be 1 ms short): NOT proven. ...
+      a case that shows it (the code's side and the model's side of each line):
+        `millis() - since` and `time in Releasing`: before 49 and 50, after 60 and -
+      a duration compared with an exact number of loops is on the edge: the code can act one loop later than the machine
+```
+
+That case is the one the bench measured: the sketch reads 49 where the
+machine has 50, and waits one loop more. The first line stays what it was,
+a proof for the clock it states; the second says it does not carry to the
+board. A sketch that reads no clock is "proven too". So is this one once its
+comparison is moved off the edge: with `millis() - since >= 45` and the same
+model, both proofs hold, and the board agreed when asked: that variant was
+flashed, and its 300 answers fell between 50.2 and 60.1 ms, none late.
+
+The clock of a board that is not an AVR is not asked about: it has not been
+measured here. The sketch toggles on the same presses as
 the model, in the same order; it is the *moment* that can be one loop late. A proof by `arclang prove` is a proof
 for the clock it states, and this is the measure of how far a real one is
 from it: a sketch that compares `millis()` with an exact multiple of its

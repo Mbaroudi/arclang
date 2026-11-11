@@ -107,6 +107,8 @@ fn a_sketch_is_proven_for_the_int_of_its_board() {
     // As written, the sketch is the machine on both.
     let (proven, output) = proof("thermostat", &[("period: 100 ms", "period: 100 ms\n    int: 16")], &[]);
     assert!(proven && output.contains("an int of 16 bits"), "{output}");
+    // It reads no clock: on the clock of the board it is proven too.
+    assert!(output.contains("on the clock of the board") && output.contains("proven too"), "{output}");
 }
 
 #[test]
@@ -242,4 +244,20 @@ fn a_board_is_recovered_from_its_device_tree_and_the_model_compiles() {
     std::fs::write(&tree, "#include \"soc.dtsi\"\n/ { };\n").unwrap();
     let refused = arclang(&["recover", tree.to_str().unwrap()]);
     assert!(!refused.status.success() && text(&refused).contains("give the flattened tree"), "{}", text(&refused));
+}
+
+#[test]
+#[ignore = "needs CBMC and Bitwuzla: tools/embedded/formal/run.sh cargo test --test correspondence -- --include-ignored"]
+fn a_proof_says_whether_it_holds_on_the_clock_of_the_board() {
+    // Proven on the clock the proof states...
+    let (proven, output) = proof("uno_lamp", &[], &[]);
+    assert!(proven && output.contains("✓ Proven"), "{output}");
+    // ...and not on the clock of an AVR, where a time read can be 1 ms short:
+    // the sketch reads 49 where the machine has 50, and waits one loop more.
+    assert!(output.contains("on the clock of the board") && output.contains("NOT proven"), "{output}");
+    assert!(output.contains("`millis() - since` and `time in") && output.contains("before 49 and 50"), "{output}");
+    assert!(output.contains("the code can act one loop later than the machine"), "{output}");
+    // A board that is not an AVR: the question is not asked.
+    let (proven, output) = proof("debounce", &[], &[]);
+    assert!(proven && !output.contains("on the clock of the board"), "{output}");
 }
