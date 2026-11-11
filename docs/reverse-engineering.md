@@ -536,16 +536,18 @@ MicroPython) pressed the button and timed the lamp, through a resistor
 divider: 300 clean presses, the time from the press to the lamp's change
 read to a fraction of a millisecond. The model says 50 to 60 ms (five steps
 of 10 ms after the first one that sees the press). The board answered in
-50.2 to 68.3 ms: 272 times within the model's window, and 28 times (9 %)
-one loop later.
+50.2 to 68.3 ms: 281 times within the model's window (allowing half a
+millisecond for the instrument), and 19 times (6 %) later, by up to one
+loop.
 
-The board is right and the proof's assumption is not exact. The proof takes
+The board does not do exactly what the proof assumes. The proof takes
 `millis()` to advance by the period at each `loop()`. On an AVR, `delay(10)`
 does wait 10 ms, but `millis()` counts ticks of 1.024 ms: over five loops it
-advances by 49, 50 or 51. When it has advanced by 49, `millis() - since >=
-50` is false at the fifth loop and the lamp changes at the sixth. The sketch
-toggles on the same presses as the model, in the same order; it is the
-*moment* that can be one loop late. A proof by `arclang prove` is a proof
+can advance by 49, 50 or 51. When it has advanced by 49, `millis() - since
+>= 50` is false at the fifth loop and the lamp changes at the sixth. That
+explanation fits the measure (late answers, never early ones, by at most one
+loop); it was not tested apart. The sketch toggles on the same presses as
+the model, in the same order; it is the *moment* that can be one loop late. A proof by `arclang prove` is a proof
 for the clock it states, and this is the measure of how far a real one is
 from it: a sketch that compares `millis()` with an exact multiple of its
 period sits on that edge.
