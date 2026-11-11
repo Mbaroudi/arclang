@@ -21,6 +21,7 @@
 //! by its rank. A transition through a pseudo-state (choice, junction, fork,
 //! join, history, terminate) is read in the body of its function (`fire.rs`).
 
+pub mod binary;
 mod c;
 pub mod correspondence;
 pub mod devicetree;
