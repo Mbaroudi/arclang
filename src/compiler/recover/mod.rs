@@ -24,6 +24,7 @@
 mod c;
 pub mod correspondence;
 pub mod devicetree;
+pub mod interleave;
 pub mod drift;
 pub mod equivalence;
 mod fire;
