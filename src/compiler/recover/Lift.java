@@ -14,7 +14,10 @@
 //@category ArcLang
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -33,6 +36,11 @@ public class Lift extends GhidraScript {
     private AddressSpace code;
     /** The functions the function being translated calls or jumps to. */
     private Set<String> calls = new TreeSet<>();
+    /** What is said of the function being translated, for who looks for its functions by their shape. */
+    private StringBuilder sites = new StringBuilder();
+    /** The registers r0..r31 that hold a constant where the translation is, and the instruction it is at. */
+    private final Map<Long, Long> constants = new HashMap<>();
+    private String place = "";
     private final Set<String> userOps = new TreeSet<>();
 
     @Override
@@ -182,23 +190,132 @@ public class Lift extends GhidraScript {
         }
         if (currentProgram.getFunctionManager().getFunctionAt(to) != null) {
             calls.add(hex(to));
+            site(to);
             return "{ c_" + hex(to) + "(); return; }";
         }
         return "{ arclang_uncovered = true; return; } /* a jump to 0x" + hex(to) + ", which is no place of this function and no function */";
+    }
+
+    /** A call (or a jump that does not come back) to a function, and the registers known to hold a constant there. */
+    private void site(Address to) {
+        sites.append("//@ site 0x").append(place).append(" 0x").append(hex(to));
+        for (long register = 18; register <= 25; register++) {
+            if (constants.containsKey(register)) {
+                sites.append(String.format(" r%d=0x%x", register, constants.get(register)));
+            }
+        }
+        sites.append("\n");
+    }
+
+    /** Follow the constants an instruction loads in the registers: enough to read the arguments of a call. */
+    private void follow(PcodeOp[] ops) {
+        Map<Long, Long> temporaries = new HashMap<>();
+        for (PcodeOp op : ops) {
+            Varnode out = op.getOutput();
+            if (out == null) {
+                continue;
+            }
+            Long value = null;
+            if ((op.getOpcode() == PcodeOp.COPY || op.getOpcode() == PcodeOp.INT_ZEXT) && out.getSize() == 1) {
+                Varnode in = op.getInput(0);
+                if (in.isConstant()) {
+                    value = in.getOffset() & 0xff;
+                } else if (in.isUnique()) {
+                    value = temporaries.get(in.getOffset());
+                } else if (isRegisterCell(in) && in.getSize() == 1) {
+                    value = constants.get(in.getOffset());
+                }
+            }
+            if (out.isUnique()) {
+                if (value != null) {
+                    temporaries.put(out.getOffset(), value);
+                } else {
+                    temporaries.remove(out.getOffset());
+                }
+            } else if (isRegisterCell(out)) {
+                for (long k = 0; k < out.getSize(); k++) {
+                    constants.remove(out.getOffset() + k);
+                }
+                if (value != null) {
+                    constants.put(out.getOffset(), value);
+                }
+            }
+        }
+    }
+
+    private static boolean isRegisterCell(Varnode v) {
+        return v.isAddress() && v.getAddress().getAddressSpace().getName().equals("mem") && v.getOffset() < 32;
+    }
+
+    private static boolean isMemory(Varnode v) {
+        return v != null && v.isAddress() && v.getAddress().getAddressSpace().getName().equals("mem") && v.getOffset() >= 32;
     }
 
     private void translate(Function function, StringBuilder bodies, StringBuilder facts) {
         AddressSetView body = function.getBody();
         Set<Long> temporaries = new TreeSet<>();
         calls = new TreeSet<>();
+        sites = new StringBuilder();
+        constants.clear();
+        Set<Long> reads = new TreeSet<>();
+        Set<Long> writes = new TreeSet<>();
+        int flash = 0;
+        int loads = 0;
+        int stores = 0;
+        boolean masks = false;
         StringBuilder text = new StringBuilder();
         List<Instruction> instructions = new ArrayList<>();
         for (Instruction instruction : currentProgram.getListing().getInstructions(body, true)) {
             instructions.add(instruction);
         }
+        // Where a jump arrives, what the registers hold is no longer known.
+        Set<Address> arrivals = new HashSet<>();
+        for (Instruction instruction : instructions) {
+            for (PcodeOp op : instruction.getPcode()) {
+                if ((op.getOpcode() == PcodeOp.BRANCH || op.getOpcode() == PcodeOp.CBRANCH) && op.getInput(0).isAddress()) {
+                    Address to = op.getInput(0).getAddress();
+                    arrivals.add(to);
+                    if (body.contains(to) && to.compareTo(instruction.getAddress()) <= 0) {
+                        sites.append("//@ back 0x").append(hex(instruction.getAddress())).append(" 0x").append(hex(to)).append("\n");
+                    }
+                }
+            }
+        }
         for (int rank = 0; rank < instructions.size(); rank++) {
             Instruction instruction = instructions.get(rank);
             String at = hex(instruction.getAddress());
+            place = at;
+            if (arrivals.contains(instruction.getAddress())) {
+                constants.clear();
+            }
+            masks |= instruction.getMnemonicString().equals("cli");
+            for (PcodeOp op : instruction.getPcode()) {
+                for (Varnode in : op.getInputs()) {
+                    if (isMemory(in)) {
+                        for (long k = 0; k < in.getSize(); k++) {
+                            reads.add(in.getOffset() + k);
+                        }
+                    }
+                }
+                if (isMemory(op.getOutput())) {
+                    for (long k = 0; k < op.getOutput().getSize(); k++) {
+                        writes.add(op.getOutput().getOffset() + k);
+                    }
+                }
+                // What goes through a pointer, the stack apart (a push, a pop, a return address).
+                boolean load = op.getOpcode() == PcodeOp.LOAD;
+                boolean store = op.getOpcode() == PcodeOp.STORE;
+                if ((load || store) && !op.getInput(1).isRegister()) {
+                    boolean memory = currentProgram.getAddressFactory().getAddressSpace((int) op.getInput(0).getOffset()).getName().equals("mem");
+                    if (load && !memory) {
+                        flash++;
+                    } else if (load) {
+                        loads++;
+                    } else {
+                        stores++;
+                    }
+                }
+            }
             text.append("L_").append(at).append(": /* ").append(instruction.toString().replace("*/", "* /")).append(" */\n");
             PcodeOp[] ops = instruction.getPcode();
             boolean inner = false;
@@ -215,6 +332,12 @@ public class Lift extends GhidraScript {
             if (inner) {
                 text.append("L_").append(at).append("_").append(ops.length).append(": ;\n");
             }
+            follow(ops);
+            for (PcodeOp op : ops) {
+                if (op.getOpcode() == PcodeOp.CALL || op.getOpcode() == PcodeOp.CALLIND) {
+                    constants.clear();
+                }
+            }
             // Where the instruction goes on to, when that is not the one written next.
             Address next = instruction.getFallThrough();
             Address following = rank + 1 < instructions.size() ? instructions.get(rank + 1).getAddress() : null;
@@ -226,6 +349,17 @@ public class Lift extends GhidraScript {
         facts.append("//@ function 0x").append(entry).append(" calls");
         for (String callee : calls) {
             facts.append(" 0x").append(callee);
+        }
+        facts.append("\n");
+        facts.append(sites);
+        facts.append("//@ shape 0x").append(entry).append(" flash=").append(flash / 2).append(" loads=").append(loads).append(" stores=").append(stores).append(" masks=").append(masks ? 1 : 0).append("\n");
+        facts.append("//@ reads 0x").append(entry);
+        for (long address : reads) {
+            facts.append(String.format(" 0x%x", address));
+        }
+        facts.append("\n//@ writes 0x").append(entry);
+        for (long address : writes) {
+            facts.append(String.format(" 0x%x", address));
         }
         facts.append("\n");
         bodies.append("\nvoid f_").append(entry).append("(void)\n{\n");
@@ -333,6 +467,7 @@ public class Lift extends GhidraScript {
                     return "{ arclang_uncovered = true; return; } /* a call to 0x" + hex(to) + ", where no function was found */";
                 }
                 calls.add(hex(to));
+                site(to);
                 return "c_" + hex(to) + "(); if (arclang_stop) { return; }";
             }
             case PcodeOp.RETURN:

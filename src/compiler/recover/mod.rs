@@ -22,6 +22,7 @@
 //! join, history, terminate) is read in the body of its function (`fire.rs`).
 
 pub mod binary;
+pub mod binary_shape;
 mod c;
 pub mod correspondence;
 pub mod devicetree;
