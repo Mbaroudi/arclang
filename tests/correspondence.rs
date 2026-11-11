@@ -212,6 +212,11 @@ fn the_compiler_checks_what_a_correspondence_names() {
     assert!(!compiles && said.contains("has no state 'Held'"), "{said}");
     let (compiles, said) = check("\"lit == 1 is led\"", "\"lit == 1 is lamp\"");
     assert!(!compiles && said.contains("has no variable 'lamp'"), "{said}");
+    // A source outside the directory of the model is never read.
+    for outside in ["/etc/passwd", "../toggle.ino", "sub/../../toggle.ino"] {
+        let (compiles, said) = check("source: \"toggle.ino\"", &format!("source: \"{outside}\""));
+        assert!(!compiles && said.contains("is not a file beside the model or below it"), "{outside}: {said}");
+    }
     let (compiles, said) = check("\"digitalRead(BUTTON) is button\"", "\"digitalRead(BUTTON)\"");
     assert!(!compiles && said.contains("does not say what it is in the model"), "{said}");
 }

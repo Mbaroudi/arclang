@@ -27,6 +27,7 @@ from .tools import (
     expert,
     generation,
     integration,
+    recover,
     safety,
     transform,
     workbench,
@@ -38,6 +39,7 @@ from .tools.edit import EditTools
 from .tools.expert import ExpertTools
 from .tools.generation import GenerationTools
 from .tools.integration import IntegrationTools
+from .tools.recover import RecoverTools
 from .tools.safety import SafetyTools
 from .tools.transform import TransformTools
 from .tools.workbench import WorkbenchTools
@@ -95,6 +97,7 @@ class ArcLangMCPServer:
         self.safety_tools = SafetyTools(self.compiler, self.config)
         self.integration_tools = IntegrationTools(self.compiler, self.config)
         self.transform_tools = TransformTools(self.compiler, self.workspace_root)
+        self.recover_tools = RecoverTools(self.compiler, self.workspace_root)
         self.expert_tools = ExpertTools(self.compiler, self.workspace_root)
         self.batch_tools = BatchTools(self.compiler, self.generation_tools, self.workspace_root)
         self.mbse_expert = self.expert_tools.expert
@@ -104,6 +107,7 @@ class ArcLangMCPServer:
             (edit.TOOLS, self.edit_tools.execute),
             (workbench.TOOLS, self.workbench_tools.execute),
             (transform.TOOLS, self.transform_tools.execute),
+            (recover.TOOLS, self.recover_tools.execute),
             (generation.TOOLS, self.generation_tools.execute),
             (safety.TOOLS, self.safety_tools.execute),
             (integration.TOOLS, self.integration_tools.execute),
