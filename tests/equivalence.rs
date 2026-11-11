@@ -154,7 +154,8 @@ fn a_vhdl_that_does_something_else_is_refuted_with_the_clock_and_the_outputs_tha
     edit(&block, "signed'(x\"40000000\") * fx_resize(fx_align(r_v_raw, 0)", "signed'(x\"20000000\") * fx_resize(fx_align(r_v_raw, 0)");
     let refuted = prove_logic(&model, &c, &logic);
     let said = text(&refuted);
-    assert!(said.contains("✗ Not equivalent") && said.contains("clock(s) after reset, with the same inputs"), "{said}");
+    // Found by simulating the two side by side, before any proof is asked.
+    assert!(said.contains("✗ Not equivalent") && said.contains("clock(s) after reset, on a run of random inputs simulated on both"), "{said}");
     assert!(said.contains("o_v_filtered = 0b") && said.contains("for the model"), "{said}");
     assert!(!refuted.status.success(), "{said}");
 }

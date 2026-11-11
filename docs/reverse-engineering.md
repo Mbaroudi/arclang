@@ -275,9 +275,18 @@ GHDL synthesizes each side to a netlist, and the answer is one of three:
   values, are printed, and the command fails:
 
   ```
-  ✗ Not equivalent (6.1 s) entity speed_monitor_wheel_speed_filter: 7 clock(s) after reset, with the same inputs, the logic as built does not give what the model's gives:
-      o_v_filtered = 0b1000000000000000000000000000 as built, 0b10000000000000000000000000000 for the model
+  ✗ Not equivalent (4.7 s) entity battery_charger_charger: 3936 clock(s) after reset, on a run of random inputs simulated on both, the logic as built does not give what the model's gives:
+      o_st_charging_bulk = 0b0 as built, 0b1 for the model
+      o_st_charging_absorption = 0b1 as built, 0b0 for the model
   ```
+
+  The run is looked for twice. Before any proof, GHDL simulates the two
+  side by side from reset on 200,000 clocks of random inputs (always the
+  same run: its seed is fixed) and stops at the first clock an output
+  differs; that reaches a change far from reset. When the proof then
+  fails, SymbiYosys searches the first 400 clocks exhaustively. A run that
+  shows a difference is a refutation whoever found it; a run that shows
+  none proves nothing, and the proof is still asked.
 
 - **neither proven nor refuted**, said as such and never as a proof: the
   time limit, a VHDL that GHDL does not accept, an entity with other ports
@@ -298,20 +307,19 @@ What the proof is of, exactly, and where it stops:
 - a VHDL rewritten so far that its registers no longer carry the numbers of
   the model's is not proven by this route; it is then searched for a
   difference, and reported as neither when none is found;
-- a difference is searched from reset for 400 clocks and the time given. A
-  change that shows only later, or behind a search the solver does not
-  finish, is **not** refuted: the answer is "neither", and the cases of the
-  model run on the logic as built (`arclang hdl`) are the other way to find
-  it.
+- a change that neither the random run reaches nor the search of the first
+  400 clocks finds is **not** refuted: the answer is "neither", and the
+  cases of the model run on the logic as built (`arclang hdl`) are the
+  other way to find it. Random inputs reach what a few conditions lead to;
+  a state behind a precise sequence of events may never be reached by them.
 
 Measured, on a laptop: the speed monitor (a filter with a 32-bit product,
-1,400 points) is proven in 7 s after two terms of a sum are exchanged, and
-refuted in 6 s once a coefficient is halved. The battery charger (regions,
-a PID, sixteen events a step; 12,000 points) is proven in a little over two
-minutes after two guards are rewritten, and refuted in one minute once a
-constant is changed. The same charger with the target of one transition
-changed gets no answer in 400 s: that change shows only after the machine
-has reached the state, too far from reset for the search.
+1,400 points) is proven in 7 s after two terms of a sum are exchanged. The
+battery charger (regions, a PID, sixteen events a step; 12,000 points) is
+proven in a little over two minutes after two guards are rewritten. The
+same charger is refuted in 5 s once the target of one transition is
+changed, a difference that shows 3,936 clocks after reset and that the
+exhaustive search alone did not find in 400 s.
 
 The tools are GHDL, Yosys and SymbiYosys with Bitwuzla, in the same formal
 image; `ARCLANG_GHDL`, `ARCLANG_YOSYS` and `ARCLANG_SBY` name them when they
