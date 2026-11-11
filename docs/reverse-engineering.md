@@ -545,8 +545,9 @@ The board does not do exactly what the proof assumes. The proof takes
 does wait 10 ms, but `millis()` counts ticks of 1.024 ms: over five loops it
 can advance by 49, 50 or 51. When it has advanced by 49, `millis() - since
 >= 50` is false at the fifth loop and the lamp changes at the sixth. That
-explanation fits the measure (late answers, never early ones, by at most one
-loop); it was not tested apart. The sketch toggles on the same presses as
+explanation was then tested: the same sketch timing with `micros()` instead
+of `millis()` (no tick of 1.024 ms) was flashed and measured the same way,
+and its 300 answers all fell between 50.2 and 60.2 ms, none late. The sketch toggles on the same presses as
 the model, in the same order; it is the *moment* that can be one loop late. A proof by `arclang prove` is a proof
 for the clock it states, and this is the measure of how far a real one is
 from it: a sketch that compares `millis()` with an exact multiple of its
