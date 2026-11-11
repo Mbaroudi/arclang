@@ -622,6 +622,54 @@ pub enum Commands {
         keep: Option<PathBuf>,
     },
 
+    /// Observe a board against the model: an instrument (a second board
+    /// running MicroPython, its console on a serial port) drives the inputs
+    /// of the board and times its outputs; what it played is replayed on
+    /// the model at the moments the board's own loop ran, and the outputs
+    /// are compared change by change. The answer is an agreement on what
+    /// was played, with the real period of the board's loop: a measure,
+    /// never a proof.
+    Observe {
+        #[clap(value_parser)]
+        model: PathBuf,
+
+        /// The correspondence observed (the only one of the model when it has one)
+        #[clap(long)]
+        correspondence: Option<String>,
+
+        /// The serial port of the instrument
+        #[clap(long, value_name = "PORT")]
+        instrument: Option<String>,
+
+        /// An input of the machine the instrument drives: NAME=PIN, or NAME=PIN:1 when the pin rests high (repeatable)
+        #[clap(long, value_name = "NAME=PIN[:REST]")]
+        drive: Vec<String>,
+
+        /// An output of the machine the instrument watches: NAME=PIN (repeatable)
+        #[clap(long, value_name = "NAME=PIN")]
+        watch: Vec<String>,
+
+        /// How many times an input changes in the run
+        #[clap(long, default_value_t = 200)]
+        changes: usize,
+
+        /// The seed of the run: the same seed plays the same inputs
+        #[clap(long, default_value_t = 1)]
+        seed: u64,
+
+        /// Compare a recording kept earlier instead of playing a run
+        #[clap(long, value_name = "FILE")]
+        recorded: Option<PathBuf>,
+
+        /// Keep the recording of the run in this file
+        #[clap(long, value_name = "FILE")]
+        keep: Option<PathBuf>,
+
+        /// The comparison as JSON
+        #[clap(long)]
+        json: bool,
+    },
+
     /// Prove that code written by hand is a machine of the model, as each
     /// `correspondence` of the model says it is: after `setup()` and one
     /// `loop()` the code and the model correspond, and from any two states
@@ -1489,6 +1537,7 @@ impl CliRunner {
             Commands::Partition { input, target, device, clock, machine, dry_run, json } => partition::run(&input, partition::Options { target, device, clock_mhz: clock, machine, dry_run, json }),
             Commands::Schedule { input, target, wcet, prove, cycles, keep, json } => schedule::run(&input, schedule::Options { target, wcet, prove, cycles, keep, json }),
             Commands::Soc { input, test, bitstream, board, no_sim, gate_level, port, keep, json } => self.run_soc(&input, test, bitstream || board.is_some(), board, !no_sim && port.is_none(), gate_level, port, keep, json),
+            Commands::Observe { model, correspondence, instrument, drive, watch, changes, seed, recorded, keep, json } => Self::run_observe(&model, correspondence.as_deref(), instrument.as_deref(), &drive, &watch, changes, seed, recorded.as_deref(), keep.as_deref(), json),
             Commands::Prove { model, correspondence, timeout, keep, json } => self.run_prove(&model, correspondence.as_deref(), timeout, keep, json),
             Commands::Recover { input, output, propose: true, with, turns, timeout, keep, .. } => propose::run(&input, propose::Options { with, turns, timeout, output, keep }),
             Commands::Recover { input, output, .. } if input.extension().is_some_and(|e| e == "dts") => Self::run_recover_board(&input, output.as_deref()),
@@ -2383,6 +2432,74 @@ impl CliRunner {
                 drift.findings.len(),
                 drift.unexplained_lines
             )))
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn run_observe(model: &std::path::Path, only: Option<&str>, instrument: Option<&str>, drive: &[String], watch: &[String], changes: usize, seed: u64, recorded: Option<&std::path::Path>, keep: Option<&std::path::Path>, json: bool) -> Result<(), CliError> {
+        use crate::compiler::recover::{correspondence, observe};
+        let fail = |message: String| CliError::Compilation(message);
+        let compiled = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(model).map_err(|e| fail(e.to_string()))?;
+        let declarations: Vec<_> = compiled.ast.correspondences.iter().filter(|d| only.is_none_or(|name| d.name == name)).collect();
+        let [declaration] = declarations.as_slice() else {
+            return Err(fail(format!("{} correspondence(s) of the model to observe: name one with --correspondence", declarations.len())));
+        };
+        let read = correspondence::read(declaration).map_err(fail)?;
+        let plan = crate::compiler::embedded::plan::plan(&compiled.ast).map_err(fail)?;
+        let period_us = read.period_us.unwrap_or(10_000);
+        let recording = match recorded {
+            Some(file) => serde_json::from_str::<observe::Recording>(&std::fs::read_to_string(file).map_err(CliError::Io)?).map_err(|e| fail(format!("{}: not a recording: {e}", file.display())))?,
+            None => {
+                let port = instrument.ok_or_else(|| fail("--instrument names the serial port of the instrument (a board running MicroPython), or --recorded a recording kept earlier".to_string()))?;
+                let pin = |text: &str, what: &str| -> Result<(String, u32, bool), CliError> {
+                    let (name, rest) = text.split_once('=').ok_or_else(|| fail(format!("--{what} {text}: NAME=PIN")))?;
+                    let (pin, level) = rest.split_once(':').unwrap_or((rest, "0"));
+                    let pin = pin.parse::<u32>().map_err(|_| fail(format!("--{what} {text}: the pin is a number")))?;
+                    Ok((name.to_string(), pin, level == "1"))
+                };
+                let drives = drive.iter().map(|d| pin(d, "drive")).collect::<Result<Vec<_>, _>>()?;
+                let watches = watch.iter().map(|w| pin(w, "watch")).collect::<Result<Vec<_>, _>>()?;
+                if drives.is_empty() || watches.is_empty() {
+                    return Err(fail("an observation drives one input at least (--drive NAME=PIN) and watches one output at least (--watch NAME=PIN)".to_string()));
+                }
+                let play = observe::stimulus(drives.len(), changes, seed);
+                let program = observe::program(&drives.iter().map(|(_, pin, rest)| (*pin, *rest)).collect::<Vec<_>>(), &watches.iter().map(|(_, pin, _)| *pin).collect::<Vec<_>>(), &play);
+                let seconds = play.iter().map(|(_, hold)| *hold as u64).sum::<u64>() / 1000 + 30;
+                eprintln!("Playing {changes} change(s) of {} on the board through {port} (about {} s)", drives.iter().map(|(name, _, _)| name.as_str()).collect::<Vec<_>>().join(", "), seconds - 28);
+                let printed = observe::play(port, &program, seconds).map_err(fail)?;
+                observe::recorded(&printed, &drives.iter().map(|(name, _, rest)| (name.clone(), *rest)).collect::<Vec<_>>(), &watches.iter().map(|(name, _, _)| name.clone()).collect::<Vec<_>>()).map_err(fail)?
+            }
+        };
+        if let Some(file) = keep {
+            std::fs::write(file, serde_json::to_string(&recording).map_err(|e| fail(e.to_string()))?).map_err(CliError::Io)?;
+        }
+        let report = observe::compare(&plan, &read, period_us, &recording).map_err(fail)?;
+        if json {
+            println!("{}", serde_json::to_string_pretty(&report).map_err(|e| fail(e.to_string()))?);
+        } else {
+            println!("Observation of correspondence \"{}\": the board against state_machine \"{}\"", read.name, read.machine);
+            println!("  played: {} change(s) of the inputs over {:.1} s; the board changed its outputs {} time(s)", report.inputs_played, report.seconds, report.changes.len());
+            println!("  the board's loop takes {:.3} ms (the model steps every {} ms); its changes are within {:.2} ms of that loop", report.loop_us / 1000.0, report.model_period_us / 1000, report.lattice_worst_us / 1000.0);
+            for note in &report.notes {
+                println!("  note: {note}");
+            }
+            if report.decided_by_board > 0 {
+                println!("  {} input change(s) fell too close to a read of the board for the instrument to say on which side: taken on the side the board showed", report.decided_by_board);
+            }
+            if report.agrees() {
+                println!("✓ Agrees on this run: the same {} change(s) in the same order; {} at the model's step, {} one loop later", report.changes.len(), report.at_step, report.one_loop_late);
+                println!("    a measure of what was played, not a proof: `arclang prove` is the proof");
+            } else {
+                println!("✗ Disagrees: {} change(s) of the board the model does not make at that moment, {} change(s) of the model the board did not make", report.unexplained, report.missing);
+                if let Some(first) = report.changes.iter().find(|c| c.model_step.is_none()) {
+                    println!("    first at {:.1} ms: {} changes at loop {} of the board, where the model does not change it", first.time_us as f64 / 1000.0, first.output, first.at_loop);
+                }
+            }
+        }
+        if report.agrees() {
+            Ok(())
+        } else {
+            Err(fail("the board does not do what the model does on this run".to_string()))
         }
     }
 
