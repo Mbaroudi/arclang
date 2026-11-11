@@ -374,6 +374,9 @@ correspondence "Debounce sketch" {
   the right: `in <State>` (the expression holds exactly when the state is
   active), `time in <State>` (the expression, in milliseconds, is the time
   the state has been held, while it is active), or a variable of the machine.
+- `events`: an edge of a pin taken by an interrupt, and the event of the
+  machine each such edge is: `"RISING on SENSOR is pulse"` (or `FALLING`,
+  `CHANGE`). See "Interrupts" below.
   A time read with `micros()` is related in milliseconds:
   `(micros() - since) / 1000 is time in Rising`.
 - `invariant`: what always holds of the code's own variables. It is proven
@@ -469,7 +472,8 @@ What the proof takes as given, and prints with its answer:
   `map`. A pin the code writes reads back as it was last written. What the
   code prints on `Serial` is not looked at (it is no part of the claim);
   what it would read from it is an input nobody named, and fails the proof
-  as a pin would. Interrupts, libraries and C++ classes are not read;
+  as a pin would. Interrupts are read as events (below). Libraries and C++
+  classes are not read;
 - the machine is the C the model generates, the same that runs in `sil`.
 
 `--correspondence <name>` proves one of several, `--keep <dir>` keeps the
@@ -585,6 +589,60 @@ of its button, made its 103 changes at the model's step, none a loop late.
 The clock of a board that is not an AVR is not asked about: it has not been
 measured here.
 
+## Interrupts
+
+A sketch that reads a pin once a loop misses a pulse shorter than its loop.
+One that takes it by an interrupt does not: a function of the code runs at
+the edge itself.
+
+```c
+volatile int pulses = 0;
+void count() { pulses++; }
+void setup() { ... attachInterrupt(digitalPinToInterrupt(SENSOR), count, RISING); }
+void loop() {
+  noInterrupts(); int seen = pulses; pulses = 0; interrupts();
+  if (seen % 2 == 1) { lit = !lit; digitalWrite(LAMP, lit); }
+  delay(10);
+}
+```
+
+On the model's side an edge is an **event**, the trigger of a transition
+(`transition Dark -> Lit { trigger: "pulse" ... }`), and the correspondence
+says which: `events: ["RISING on SENSOR is pulse"]`. In the proof, the
+events of a step call the routine the code attached to that pin, once each
+and in the order they came, before `loop()` runs; the machine is given the
+same events. The routine is the one read in the code's `attachInterrupt`,
+and a line of the correspondence holds only while it is attached to that
+pin on that edge.
+
+That is one assumption, printed with the proof: **an interrupt is taken
+between two `loop()`s**. A real one can be taken in the middle of `loop()`.
+What the proof can say about that, it says: it lists where the code uses,
+with interrupts on, something a routine changes.
+
+```
+✓ Proven (2.8 s) correspondence "Pulse lamp sketch": pulse_lamp.ino is state_machine "Lamp"
+    interrupts: taken between two loop()s; what their routines change is only used elsewhere with interrupts off
+```
+
+and, for the same sketch without `noInterrupts()` / `interrupts()`:
+
+```
+    interrupts: taken between two loop()s. NOT covered: an interrupt taken in the middle of loop(), where
+      `pulses`, which the routine `count` changes, is used at line 20, 21 of pulse_lamp.ino with interrupts on
+```
+
+Those two lines are the read of the count and its reset: a pulse taken
+between them is lost. The proof does not decide whether that can go wrong (it
+would have to follow every place an interrupt can fall); it says where it
+was not looked at. The list is read in the text of the code: the body of
+each routine, what it assigns, and each other line of a function that names
+it outside `noInterrupts()` ... `interrupts()`.
+
+Measured on the board: this sketch on an UNO, 200 pulses sent to its
+interrupt pin by the instrument, 19 of them shorter than its loop (the
+shortest 5 ms), and 200 changes of its lamp, each at the model's step.
+
 ## A board observed against the model
 
 The bench that found this is a command. An **instrument** drives the inputs
@@ -604,7 +662,9 @@ Observation of correspondence "Uno lamp sketch": the board against state_machine
 ```
 
 - `--drive NAME=PIN[:1]`: an input of the machine (one the correspondence
-  reads from a pin), and the instrument's pin wired to it; `:1` when the pin
+  reads from a pin), or an event it takes from a pin by an interrupt (each
+  edge is then given to the model in the step that follows it), and the
+  instrument's pin wired to it; `:1` when the pin
   rests high. `--watch NAME=PIN`: what the correspondence writes to a pin (a
   variable, or a state), and the instrument's pin that reads it.
 - The instrument plays `--changes` changes of the inputs, held for random
