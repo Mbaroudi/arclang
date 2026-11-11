@@ -2461,16 +2461,18 @@ impl CliRunner {
                     Ok((name.to_string(), pin, level == "1"))
                 };
                 let drives = drive.iter().map(|d| pin(d, "drive")).collect::<Result<Vec<_>, _>>()?;
-                let watches = watch.iter().map(|w| pin(w, "watch")).collect::<Result<Vec<_>, _>>()?;
-                if drives.is_empty() || watches.is_empty() {
+                if drives.is_empty() || !watch.iter().any(|w| !w.ends_with(":duty")) {
                     return Err(fail("an observation drives one input at least (--drive NAME=PIN) and watches one output at least (--watch NAME=PIN)".to_string()));
                 }
                 let play = observe::stimulus(drives.len(), changes, seed);
-                let program = observe::program(&drives.iter().map(|(_, pin, rest)| (*pin, *rest)).collect::<Vec<_>>(), &watches.iter().map(|(_, pin, _)| *pin).collect::<Vec<_>>(), &play);
+                // `--watch NAME=PIN:duty`: the value of the pin is measured (the share of the time it is high), not its level followed.
+                let measures: Vec<(String, u32)> = watch.iter().filter(|w| w.ends_with(":duty")).map(|w| pin(w.trim_end_matches(":duty"), "watch").map(|(name, pin, _)| (name, pin))).collect::<Result<Vec<_>, _>>()?;
+                let watches: Vec<(String, u32, bool)> = watch.iter().filter(|w| !w.ends_with(":duty")).map(|w| pin(w, "watch")).collect::<Result<Vec<_>, _>>()?;
+                let program = observe::program(&drives.iter().map(|(_, pin, rest)| (*pin, *rest)).collect::<Vec<_>>(), &watches.iter().map(|(_, pin, _)| *pin).collect::<Vec<_>>(), &measures.iter().map(|(_, pin)| *pin).collect::<Vec<_>>(), &play);
                 let seconds = play.iter().map(|(_, hold)| *hold as u64).sum::<u64>() / 1000 + 30;
                 eprintln!("Playing {changes} change(s) of {} on the board through {port} (about {} s)", drives.iter().map(|(name, _, _)| name.as_str()).collect::<Vec<_>>().join(", "), seconds - 28);
                 let printed = observe::play(port, &program, seconds).map_err(fail)?;
-                observe::recorded(&printed, &drives.iter().map(|(name, _, rest)| (name.clone(), *rest)).collect::<Vec<_>>(), &watches.iter().map(|(name, _, _)| name.clone()).collect::<Vec<_>>()).map_err(fail)?
+                observe::recorded(&printed, &drives.iter().map(|(name, _, rest)| (name.clone(), *rest)).collect::<Vec<_>>(), &watches.iter().map(|(name, _, _)| name.clone()).collect::<Vec<_>>(), &measures.iter().map(|(name, _)| name.clone()).collect::<Vec<_>>()).map_err(fail)?
             }
         };
         if let Some(file) = keep {
@@ -2489,11 +2491,17 @@ impl CliRunner {
             if report.decided_by_board > 0 {
                 println!("  {} input change(s) fell too close to a read of the board for the instrument to say on which side: taken on the side the board showed", report.decided_by_board);
             }
+            if report.values_same > 0 || report.values_differ.is_some() {
+                match &report.values_differ {
+                    None => println!("  measured values: {} change(s), each the model's value at the model's step (or the one beside: a value is seen up to {:.1} ms after the loop that made it)", report.values_same, observe::MEASURE_WINDOW_US as f64 / 1000.0),
+                    Some(what) => println!("  measured values: {} change(s) the model's, then {what}", report.values_same),
+                }
+            }
             if report.agrees() {
                 println!("✓ Agrees on this run: the same {} change(s) in the same order; {} at the model's step, {} one loop later", report.changes.len(), report.at_step, report.one_loop_late);
                 println!("    a measure of what was played, not a proof: `arclang prove` is the proof");
             } else {
-                println!("✗ Disagrees: {} change(s) of the board the model does not make at that moment, {} change(s) of the model the board did not make", report.unexplained, report.missing);
+                println!("✗ Disagrees: {} change(s) of the board the model does not make at that moment, {} change(s) of the model the board did not make{}", report.unexplained, report.missing, if report.values_differ.is_some() { ", and a measured value that is not the model's" } else { "" });
                 if let Some(first) = report.changes.iter().find(|c| c.model_step.is_none()) {
                     println!("    first at {:.1} ms: {} changes at loop {} of the board, where the model does not change it", first.time_us as f64 / 1000.0, first.output, first.at_loop);
                 }

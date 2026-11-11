@@ -680,6 +680,11 @@ Observation of correspondence "Uno lamp sketch": the board against state_machine
   instrument's pin wired to it; `:1` when the pin
   rests high. `--watch NAME=PIN`: what the correspondence writes to a pin (a
   variable, or a state), and the instrument's pin that reads it.
+- `--watch NAME=PIN:duty`: a value the correspondence writes with
+  `analogWrite`. The instrument does not follow the level of that pin, it
+  measures it: the share of each of its periods the pin is high, 0 to 255
+  (a pin that stays put is 0 or 255). One output at least is followed by its
+  level: the loop of the board is found from those.
 - The instrument plays `--changes` changes of the inputs, held for random
   times, some too short to count; `--seed` plays the same run again.
 - `--keep FILE` keeps the recording, `--recorded FILE` compares one kept
@@ -700,6 +705,11 @@ How the comparison is made:
   above), or a disagreement, with the first one and its time.
 - An input change within 0.6 ms of a moment the board reads cannot be placed
   by the instrument; it is taken on the side the board showed, and counted.
+- A measured value is compared in value (within 20 of 255: what timing one
+  period of the pin by polling can be off by) and in step (the loop just
+  before the change was seen, or the one beside: a value shows up to 7.5 ms
+  after the loop that made it). A model that differs by less than that
+  tolerance is not told apart: 80 for 85 would pass.
 
 What it says and does not:
 
@@ -713,6 +723,18 @@ What it says and does not:
 - The inputs and outputs are digital pins. The model starts from its state at
   rest: a board that was not at rest when the run began is compared by its
   changes, not by its levels.
+
+The dimmer of the tests (`dimmer.ino`: two buttons, a heartbeat that
+changes at every loop, a lamp written with `analogWrite`) was observed so:
+two inputs driven, the heartbeat followed, the lamp measured.
+
+```
+$ arclang observe dimmer.arc --instrument /dev/cu.usbserial-2140 \
+      --drive up=13:0 --drive off=26:0 --watch beat=35 --watch duty=14:duty --changes 150
+  the board's loop takes 20.053 ms (the model steps every 20 ms); its changes are within 0.48 ms of that loop
+  measured values: 27 change(s), each the model's value at the model's step (or the one beside: a value is seen up to 7.5 ms after the loop that made it)
+✓ Agrees on this run: the same 645 change(s) in the same order; 645 at the model's step, 0 one loop later
+```
 
 The wiring is the instrument's affair and a board's pins are not all alike:
 an instrument at 3.3 V reading a board at 5 V needs a divider (here 10 kΩ

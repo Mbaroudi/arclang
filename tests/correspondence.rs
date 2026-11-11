@@ -406,3 +406,29 @@ fn an_interrupt_in_the_middle_of_a_loop_is_proven_to_be_one_before_it_or_after_i
     let (proven, output) = proof("flag_lamp", &[], &[("int lit = 0;", "int lit = 0;\nint history[4];")]);
     assert!(proven && output.contains("In the middle of one: not asked (the state of the code cannot be kept to compare: `int history[4];` is not one name of a simple type)"), "{output}");
 }
+
+#[test]
+fn a_board_whose_brightness_is_measured_agrees_with_the_model_in_value_and_in_step() {
+    // Recorded on the UNO running dimmer.ino: two buttons driven, the heartbeat followed, the lamp's PWM measured period by period.
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let recording = root.join("tests/fixtures/observations/dimmer_150.json");
+    let observed = arclang(&["observe", root.join("tests/fixtures/sketches/dimmer.arc").to_str().unwrap(), "--recorded", recording.to_str().unwrap()]);
+    let said = text(&observed);
+    assert!(said.contains("the board's loop takes 20.053 ms (the model steps every 20 ms)"), "{said}");
+    assert!(said.contains("measured values: 27 change(s), each the model's value at the model's step"), "{said}");
+    assert!(observed.status.success() && said.contains("the same 645 change(s) in the same order; 645 at the model's step, 0 one loop later"), "{said}");
+    // A model that steps the brightness by 120 instead of 85, and one that does not put it out, disagree on the measured value.
+    let model = std::fs::read_to_string(root.join("tests/fixtures/sketches/dimmer.arc")).unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    for (from, to, wanted) in [
+        ("duty := min(duty + 85, 255)", "duty := min(duty + 120, 255)", "where the model has 120"),
+        ("transition Held -> Held { guard: \"up and off\" action: \"duty := 0; beat := not beat\" }", "transition Held -> Held { guard: \"up and off\" action: \"beat := not beat\" }", "where the model makes it at step"),
+    ] {
+        assert!(model.contains(from), "dimmer.arc has `{from}`");
+        let wrong = dir.path().join("dimmer.arc");
+        std::fs::write(&wrong, model.replacen(from, to, 1)).unwrap();
+        let observed = arclang(&["observe", wrong.to_str().unwrap(), "--recorded", recording.to_str().unwrap()]);
+        let said = text(&observed);
+        assert!(!observed.status.success() && said.contains("a measured value that is not the model's") && said.contains(wanted), "{to}: {said}");
+    }
+}
