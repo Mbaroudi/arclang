@@ -14,8 +14,12 @@
 //!   from reset, the same points are equal for the first cycles
 //!   (SymbiYosys, bounded check).
 //! - **Different**: from reset and with the same inputs, an output of the
-//!   two differs within the cycles searched; the cycle and the outputs are
-//!   given.
+//!   two differs; the cycle and the outputs are given. The run is looked
+//!   for twice: before any proof, GHDL simulates the two side by side on a
+//!   long run of random inputs, which reaches what is far from reset; when
+//!   the proof fails, SymbiYosys searches the first cycles exhaustively. A
+//!   run that shows a difference is a refutation whoever found it; a run
+//!   that shows none proves nothing, and the proof is still asked.
 //! - Neither, said as such: the time allowed, a design GHDL does not
 //!   synthesize, other ports, no reset to start from.
 //!
@@ -34,7 +38,9 @@ pub enum LogicEquivalence {
     Proven { points: usize, dropped: usize, seconds: f64 },
     /// The cycle after reset at which outputs differ, and each: (its name,
     /// its value for the model's logic, its value for the logic as built).
-    Different { cycle: usize, outputs: Vec<(String, String, String)>, seconds: f64 },
+    /// `found`: how the run was found (`simulation`: a run of random inputs
+    /// in GHDL; `search`: the shortest run, by SymbiYosys).
+    Different { cycle: usize, outputs: Vec<(String, String, String)>, found: String, seconds: f64 },
     Unknown { reason: String },
 }
 
@@ -43,6 +49,9 @@ pub enum LogicEquivalence {
 const BASE_CYCLES: usize = 8;
 /// The cycles after reset a difference is searched in.
 const SEARCH_CYCLES: usize = 400;
+/// The clocks of the run of random inputs the two are simulated on, and its seed.
+const SIMULATED_CYCLES: usize = 200_000;
+const SEED: usize = 1;
 /// How many times the proof is run again after dropping anonymous points.
 const PASSES: usize = 8;
 const HOW: &str = "run in ArcLang's formal image: tools/embedded/formal/run.sh";
@@ -132,6 +141,12 @@ pub fn prove(generated: &[(String, String)], built: &[(String, String)], entity:
         }
     }
 
+    // First, the two simulated side by side on a long run of random inputs:
+    // a difference found there is found in seconds, and settles the question.
+    if let Some((cycle, outputs)) = simulate(&ghdl, generated, built, entity, &model_text, work, until)? {
+        return Ok(LogicEquivalence::Different { cycle, outputs, found: "simulation".to_string(), seconds: started.elapsed().as_secs_f64() });
+    }
+
     // The two netlists side by side, each flattened under its own name.
     let load = format!(
         "read_verilog gold.v\nhierarchy -top {entity}\nproc\nflatten\nopt_clean\nrename {entity} gold\ndesign -stash gold\nread_verilog gate.v\nhierarchy -top {entity}\nproc\nflatten\nopt_clean\nrename {entity} gate\ndesign -stash gate\ndesign -copy-from gold -as gold gold\ndesign -copy-from gate -as gate gate\n"
@@ -206,6 +221,9 @@ pub fn prove(generated: &[(String, String)], built: &[(String, String)], entity:
     if Instant::now() >= until {
         return unknown(why_not);
     }
+    if Instant::now() >= until {
+        return unknown(format!("{why_not}, and no output differs on a run of {SIMULATED_CYCLES} clocks of random inputs"));
+    }
     std::fs::write(work.join("reset.smtc"), smtc("in_rst")).map_err(|e| e.to_string())?;
     let script = format!("{load}miter -equiv -flatten -make_outputs -make_assert gold gate differ\nhierarchy -top differ\n");
     std::fs::write(work.join("differ.sby"), sby_file(SEARCH_CYCLES, &script, left(until))).map_err(|e| e.to_string())?;
@@ -213,13 +231,157 @@ pub fn prove(generated: &[(String, String)], built: &[(String, String)], entity:
         Some((_, said)) if said.contains("DONE (FAIL") => {
             let cycle = Regex::new(r"Checking assertions in step (\d+)").expect("a pattern of the search").captures_iter(&said).last().and_then(|c| c[1].parse().ok()).unwrap_or(0);
             let trace = std::fs::read_to_string(work.join("differ/engine_0/trace.vcd")).unwrap_or_default();
-            Ok(LogicEquivalence::Different { cycle, outputs: differing(&trace), seconds: started.elapsed().as_secs_f64() })
+            Ok(LogicEquivalence::Different { cycle, outputs: differing(&trace), found: "search".to_string(), seconds: started.elapsed().as_secs_f64() })
         }
-        Some((_, said)) if said.contains("DONE (PASS") => unknown(format!("{why_not}, and no output differs in the first {SEARCH_CYCLES} cycles after reset")),
-        Some((_, said)) if said.contains("DONE (TIMEOUT") || said.is_empty() => unknown(format!("{why_not}, and no output was found to differ from reset within {seconds} s")),
-        None => unknown(format!("{why_not}, and no output was found to differ from reset within {seconds} s")),
+        Some((_, said)) if said.contains("DONE (PASS") => unknown(format!("{why_not}, and no output differs on a run of {SIMULATED_CYCLES} clocks of random inputs nor in the first {SEARCH_CYCLES} clocks after reset")),
+        Some((_, said)) if said.contains("DONE (TIMEOUT") || said.is_empty() => unknown(format!("{why_not}, and no output was found to differ on a run of {SIMULATED_CYCLES} clocks of random inputs nor from reset within {seconds} s")),
+        None => unknown(format!("{why_not}, and no output was found to differ on a run of {SIMULATED_CYCLES} clocks of random inputs nor from reset within {seconds} s")),
         Some((_, said)) => unknown(format!("{why_not}; SymbiYosys could not search for a difference:\n{}", last_lines(&said, 6))),
     }
+}
+
+/// A port of an entity: its name, whether it is an input, its type and,
+/// for a vector, its width.
+#[derive(Debug, Clone, PartialEq)]
+struct Port {
+    name: String,
+    input: bool,
+    kind: String,
+    width: Option<usize>,
+}
+
+/// The ports of an entity, when each is of a type the simulation can drive
+/// and compare (`std_logic`, and vectors of it: `std_logic_vector`, `unsigned`, `signed`).
+fn port_list(vhdl: &str, entity: &str) -> Option<Vec<Port>> {
+    let comment = Regex::new(r"--[^\n]*").expect("a pattern of the ports");
+    let text = comment.replace_all(vhdl, "").to_lowercase();
+    let start = text.find(&format!("entity {} is", entity.to_lowercase()))?;
+    let end = start + text[start..].find("end entity").or_else(|| text[start..].find(&format!("end {}", entity.to_lowercase())))?;
+    let open = start + text[start..end].find("port")? + 4;
+    let inside = text[open..end].trim().strip_prefix('(')?.trim_end().trim_end_matches(';').trim_end().strip_suffix(')')?;
+    let vector = Regex::new(r"^(std_logic_vector|unsigned|signed)\s*\(\s*(\d+)\s+downto\s+(\d+)\s*\)$").expect("a pattern of the ports");
+    let mut ports = Vec::new();
+    for declaration in inside.split(';').map(str::trim).filter(|d| !d.is_empty()) {
+        let (names, rest) = declaration.split_once(':')?;
+        let (direction, kind) = rest.trim().split_once(char::is_whitespace)?;
+        let kind = kind.trim();
+        let (kind, width) = if kind == "std_logic" {
+            (kind.to_string(), None)
+        } else {
+            let found = vector.captures(kind)?;
+            (found[1].to_string(), Some(found[2].parse::<usize>().ok()?.checked_sub(found[3].parse::<usize>().ok()?)? + 1))
+        };
+        let input = match direction {
+            "in" => true,
+            "out" => false,
+            _ => return None,
+        };
+        for name in names.split(',') {
+            ports.push(Port { name: name.trim().to_string(), input, kind: kind.clone(), width });
+        }
+    }
+    Some(ports)
+}
+
+/// The test bench that runs the two side by side from reset on random
+/// inputs and stops at the first clock an output differs, naming each.
+fn bench(entity: &str, ports: &[Port], cycles: usize, seed: usize) -> String {
+    let declared = |port: &Port| match port.width {
+        None => "std_logic".to_string(),
+        Some(width) => format!("{}({} downto 0)", port.kind, width - 1),
+    };
+    let mut b = String::from("-- Written by `arclang drift --hdl --prove`: the logic the model generates (gold) and the logic as built (gate), side by side.\nlibrary gold;\nlibrary gate;\nlibrary ieee;\nuse ieee.std_logic_1164.all;\nuse ieee.numeric_std.all;\nuse ieee.math_real.all;\nuse std.textio.all;\n\nentity arclang_side_by_side is\nend entity;\n\narchitecture sim of arclang_side_by_side is\n");
+    for port in ports {
+        if port.input {
+            b.push_str(&format!("  signal {} : {};\n", port.name, declared(port)));
+        } else {
+            b.push_str(&format!("  signal g_{0}, b_{0} : {1};\n", port.name, declared(port)));
+        }
+    }
+    b.push_str("begin\n");
+    for (library, prefix) in [("gold", "g_"), ("gate", "b_")] {
+        let map: Vec<String> = ports.iter().map(|port| if port.input { format!("{0} => {0}", port.name) } else { format!("{0} => {prefix}{0}", port.name) }).collect();
+        b.push_str(&format!("  {library}_side : entity {library}.{entity} port map ({});\n", map.join(", ")));
+    }
+    b.push_str(&format!("  process\n    variable s1 : positive := {seed};\n    variable s2 : positive := 7919;\n    variable r : real;\n    variable l : line;\n    variable differs : boolean := false;\n"));
+    b.push_str("    impure function pick(n : natural) return natural is\n    begin\n      uniform(s1, s2, r);\n      return natural(floor(r * real(n)));\n    end function;\n");
+    // Half the values are small: a count, an index, a condition are met far more often than by a word drawn whole.
+    b.push_str("    impure function bits(w : natural) return std_logic_vector is\n      variable v : std_logic_vector(w - 1 downto 0) := (others => '0');\n    begin\n      if pick(2) = 0 then\n        v(minimum(w, 4) - 1 downto 0) := std_logic_vector(to_unsigned(pick(2 ** minimum(w, 4)), minimum(w, 4)));\n      else\n        for k in 0 to w - 1 loop\n          if pick(2) = 1 then\n            v(k) := '1';\n          end if;\n        end loop;\n      end if;\n      return v;\n    end function;\n  begin\n");
+    for port in ports.iter().filter(|port| port.input && port.name != "clk") {
+        b.push_str(&format!("    {} <= {};\n", port.name, if port.width.is_some() { "(others => '0')" } else { "'0'" }));
+    }
+    b.push_str(&format!("    rst <= '1';\n    clk <= '0';\n    wait for 5 ns;\n    clk <= '1';\n    wait for 5 ns;\n    rst <= '0';\n    for c in 1 to {cycles} loop\n"));
+    for port in ports.iter().filter(|port| port.input && port.name != "clk" && port.name != "rst") {
+        // An input keeps its value one clock in two: a condition has to hold a while to be seen.
+        match port.width {
+            None => b.push_str(&format!("      if pick(2) = 0 then\n        if pick(2) = 0 then {0} <= '1'; else {0} <= '0'; end if;\n      end if;\n", port.name)),
+            Some(width) if port.kind == "std_logic_vector" => b.push_str(&format!("      if pick(2) = 0 then {} <= bits({width}); end if;\n", port.name)),
+            Some(width) => b.push_str(&format!("      if pick(2) = 0 then {} <= {}(bits({width})); end if;\n", port.name, port.kind)),
+        }
+    }
+    b.push_str("      clk <= '0';\n      wait for 5 ns;\n      clk <= '1';\n      wait for 5 ns;\n");
+    for port in ports.iter().filter(|port| !port.input) {
+        let shown = |side: &str| match port.width {
+            None => format!("std_logic'image({side}_{})", port.name),
+            Some(_) => format!("to_bstring(std_logic_vector({side}_{}))", port.name),
+        };
+        b.push_str(&format!("      if g_{0} /= b_{0} then\n        write(l, string'(\"DIFFER \") & integer'image(c) & string'(\" {0} \") & {1} & string'(\" \") & {2});\n        writeline(output, l);\n        differs := true;\n      end if;\n", port.name, shown("g"), shown("b")));
+    }
+    b.push_str("      if differs then\n        std.env.finish;\n      end if;\n    end loop;\n    write(l, string'(\"SAME\"));\n    writeline(output, l);\n    std.env.finish;\n  end process;\nend architecture;\n");
+    b
+}
+
+/// The two simulated side by side on a run of random inputs: the clock at
+/// which outputs differ and each of them, or None when none does (or when
+/// the simulation cannot be run: it is one way to find a difference, and
+/// its absence proves nothing).
+fn simulate(ghdl: &str, generated: &[(String, String)], built: &[(String, String)], entity: &str, model_text: &str, work: &Path, until: Instant) -> Result<Option<(usize, Vec<(String, String, String)>)>, String> {
+    let Some(ports) = port_list(model_text, entity) else {
+        return Ok(None);
+    };
+    if !ports.iter().any(|port| port.input && port.name == "clk" && port.width.is_none()) || !ports.iter().any(|port| port.input && port.name == "rst" && port.width.is_none()) {
+        return Ok(None);
+    }
+    let dir = work.join("simulation");
+    std::fs::create_dir_all(&dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+    // Each side in a library of its own; a file name of its own too, as GHDL names its objects after the files.
+    for (side, files) in [("gold", generated), ("gate", built)] {
+        let mut names = Vec::new();
+        for name in ordered(files) {
+            let text = files.iter().find(|(file, _)| file == name).map(|(_, text)| text.as_str()).unwrap_or_default();
+            let renamed = format!("{side}_{name}");
+            std::fs::write(dir.join(&renamed), text).map_err(|e| format!("cannot write {renamed}: {e}"))?;
+            names.push(renamed);
+        }
+        let library = format!("--work={side}");
+        let mut analyse = vec!["-a", "--std=08", library.as_str()];
+        analyse.extend(names.iter().map(String::as_str));
+        if !matches!(run(ghdl, &analyse, &dir, until)?, Some((true, _))) {
+            return Ok(None);
+        }
+    }
+    std::fs::write(dir.join("arclang_side_by_side.vhd"), bench(entity, &ports, SIMULATED_CYCLES, SEED)).map_err(|e| e.to_string())?;
+    for step in [vec!["-a", "--std=08", "arclang_side_by_side.vhd"], vec!["-e", "--std=08", "arclang_side_by_side"]] {
+        if !matches!(run(ghdl, &step, &dir, until)?, Some((true, _))) {
+            return Ok(None);
+        }
+    }
+    let Some((_, said)) = run(ghdl, &["-r", "--std=08", "arclang_side_by_side"], &dir, until)? else {
+        return Ok(None);
+    };
+    let line = Regex::new(r"(?m)^DIFFER (\d+) (\S+) (\S+) (\S+)\s*$").expect("a pattern of the simulation");
+    let mut cycle = 0;
+    let mut outputs = Vec::new();
+    // A value as the bench prints it (`'1'`, or the bits of a vector), without its leading zeros.
+    let value = |text: &str| {
+        let bits = text.trim_matches('\'').trim_start_matches('0');
+        format!("0b{}", if bits.is_empty() { "0" } else { bits })
+    };
+    for found in line.captures_iter(&said) {
+        cycle = found[1].parse().unwrap_or(0);
+        outputs.push((found[2].to_string(), value(&found[3]), value(&found[4])));
+    }
+    Ok(if outputs.is_empty() { None } else { Some((cycle, outputs)) })
 }
 
 fn last_lines(text: &str, count: usize) -> String {
@@ -276,6 +438,21 @@ mod tests {
     fn the_outputs_that_differ_at_the_end_of_a_trace_are_read() {
         let vcd = "$scope module differ $end\n$var wire 1 n1 gold_done $end\n$var wire 1 n2 gate_done $end\n$var wire 8 n3 gold_o_v [7:0] $end\n$var wire 8 n4 gate_o_v [7:0] $end\n$upscope $end\n#0\n0n1\n0n2\nb00000100 n3\nb00000100 n4\n#10\n1n1\n1n2\nb00000010 n4\n";
         assert_eq!(differing(vcd), vec![("o_v".to_string(), "0b100".to_string(), "0b10".to_string())]);
+    }
+
+    #[test]
+    fn the_ports_are_read_with_their_types_and_the_bench_drives_and_compares_them() {
+        let vhdl = "entity blk is\n  port (\n    clk, rst : in std_logic; -- the clock, the reset\n    i_v : in signed(31 downto 0);\n    ev : in std_logic_vector(7 downto 0);\n    done : out std_logic;\n    o_v : out unsigned(15 downto 0)\n  );\nend entity;";
+        let ports = port_list(vhdl, "blk").unwrap();
+        assert_eq!(ports.len(), 6);
+        assert_eq!(ports[2], Port { name: "i_v".to_string(), input: true, kind: "signed".to_string(), width: Some(32) });
+        assert_eq!(ports[5], Port { name: "o_v".to_string(), input: false, kind: "unsigned".to_string(), width: Some(16) });
+        let bench = bench("blk", &ports, 1000, 1);
+        assert!(bench.contains("gold_side : entity gold.blk port map (clk => clk, rst => rst, i_v => i_v, ev => ev, done => g_done, o_v => g_o_v);"), "{bench}");
+        assert!(bench.contains("if pick(2) = 0 then i_v <= signed(bits(32)); end if;") && bench.contains("if pick(2) = 0 then ev <= bits(8); end if;"), "{bench}");
+        assert!(bench.contains("if g_o_v /= b_o_v then") && bench.contains("for c in 1 to 1000 loop"), "{bench}");
+        // A port of a type the bench cannot drive: no simulation, and the proof is asked alone.
+        assert_eq!(port_list("entity blk is port (clk : in std_logic; n : in integer);\nend entity;", "blk"), None);
     }
 
     #[test]

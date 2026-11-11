@@ -2343,8 +2343,9 @@ impl CliRunner {
                             println!("    {dropped} anonymous wire(s) the synthesis numbered alike are not compared: they are not the same wire in the two");
                         }
                     }
-                    LogicEquivalence::Different { cycle, outputs, seconds } => {
-                        println!("✗ Not equivalent ({seconds:.1} s) entity {entity}: {cycle} clock(s) after reset, with the same inputs, the logic as built does not give what the model's gives:");
+                    LogicEquivalence::Different { cycle, outputs, found, seconds } => {
+                        let how = if found == "simulation" { "on a run of random inputs simulated on both" } else { "with the same inputs" };
+                        println!("✗ Not equivalent ({seconds:.1} s) entity {entity}: {cycle} clock(s) after reset, {how}, the logic as built does not give what the model's gives:");
                         for (output, model, built) in outputs {
                             println!("    {output} = {built} as built, {model} for the model");
                         }
