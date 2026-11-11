@@ -573,7 +573,10 @@ pub enum Commands {
     /// c`): a directory holding `<model>.h` and `<model>.c`, or one of the
     /// two files. --check generates the C of the recovered model again and
     /// compares it with the C read: equal, the recovery is proven; any
-    /// difference is printed and the command fails.
+    /// difference is printed and the command fails. A flattened device tree
+    /// (`board.dts`: `dtc -I fs -O dts /proc/device-tree` on the board) is
+    /// read as the board it describes: its processors and memory, each
+    /// enabled device, the bus it sits on, the pins that wire it.
     Recover {
         #[clap(value_parser)]
         input: PathBuf,
@@ -1488,6 +1491,7 @@ impl CliRunner {
             Commands::Soc { input, test, bitstream, board, no_sim, gate_level, port, keep, json } => self.run_soc(&input, test, bitstream || board.is_some(), board, !no_sim && port.is_none(), gate_level, port, keep, json),
             Commands::Prove { model, correspondence, timeout, keep, json } => self.run_prove(&model, correspondence.as_deref(), timeout, keep, json),
             Commands::Recover { input, output, propose: true, with, turns, timeout, keep, .. } => propose::run(&input, propose::Options { with, turns, timeout, output, keep }),
+            Commands::Recover { input, output, .. } if input.extension().is_some_and(|e| e == "dts") => Self::run_recover_board(&input, output.as_deref()),
             Commands::Recover { input, output, check, hdl, .. } => self.run_recover(&input, output.as_deref(), check, hdl.as_deref()),
             Commands::Drift { model, code, hdl, json, prove, timeout } => self.run_drift(&model, &code, hdl.as_deref(), json, prove.then_some(timeout)),
             Commands::Realize { input, requirement, up_to, dry_run, keep_going, board, json } => realize::run(&input, realize::Options { requirement, up_to, dry_run, keep_going, board, json }),
@@ -2377,6 +2381,29 @@ impl CliRunner {
                 drift.unexplained_lines
             )))
         }
+    }
+
+    /// The physical architecture a flattened device tree describes.
+    fn run_recover_board(input: &std::path::Path, output: Option<&std::path::Path>) -> Result<(), CliError> {
+        let text = std::fs::read_to_string(input).map_err(CliError::Io)?;
+        let origin = input.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let recovered = crate::compiler::recover::devicetree::to_arclang(&text, &origin).map_err(|e| CliError::Compilation(format!("{}: {e}", input.display())))?;
+        // What is written is a model the compiler accepts, or it is not written.
+        if let Err(error) = crate::Compiler::new(crate::CompilerConfig::default()).compile_string(&recovered.source) {
+            return Err(CliError::Compilation(format!("the board read in {} is not a model the compiler accepts: {error}", input.display())));
+        }
+        match output {
+            Some(path) => std::fs::write(path, &recovered.source).map_err(CliError::Io)?,
+            None => print!("{}", recovered.source),
+        }
+        eprintln!("Recovered board \"{}\" from {}: {} device(s), {} link(s), read in the tree", recovered.board, input.display(), recovered.devices, recovered.links);
+        if let Some(path) = output {
+            eprintln!("  Output: {}", path.display());
+        }
+        for note in &recovered.notes {
+            eprintln!("  note: {note}");
+        }
+        Ok(())
     }
 
     fn run_recover(&self, input: &std::path::Path, output: Option<&std::path::Path>, check: bool, hdl: Option<&std::path::Path>) -> Result<(), CliError> {

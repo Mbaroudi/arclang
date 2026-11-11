@@ -220,3 +220,24 @@ fn the_compiler_checks_what_a_correspondence_names() {
     let (compiles, said) = check("\"digitalRead(BUTTON) is button\"", "\"digitalRead(BUTTON)\"");
     assert!(!compiles && said.contains("does not say what it is in the model"), "{said}");
 }
+
+#[test]
+fn a_board_is_recovered_from_its_device_tree_and_the_model_compiles() {
+    let dir = tempfile::tempdir().unwrap();
+    let tree = dir.path().join("board.dts");
+    std::fs::write(&tree, "/dts-v1/;\n/ {\n    model = \"Acme Board\";\n    compatible = \"acme,board\\0acme,soc\";\n    #address-cells = <1>;\n    #size-cells = <1>;\n    cpus { cpu@0 { compatible = \"arm,cortex-m7\"; }; };\n    memory@20000000 { device_type = \"memory\"; reg = <0x20000000 0x100000>; };\n    soc {\n        compatible = \"simple-bus\";\n        gpio0: gpio@40020000 { compatible = \"acme,gpio\"; #gpio-cells = <2>; };\n        i2c@40005400 {\n            compatible = \"acme,i2c\";\n            sensor@48 { compatible = \"acme,temp\"; alert-gpios = <&gpio0 5 0>; };\n        };\n        can@40006400 { compatible = \"acme,can\"; status = \"disabled\"; };\n    };\n};\n").unwrap();
+    let model = dir.path().join("board.arc");
+    let recovered = arclang(&["recover", tree.to_str().unwrap(), "-o", model.to_str().unwrap()]);
+    let said = text(&recovered);
+    assert!(recovered.status.success() && said.contains("Recovered board \"Acme Board\"") && said.contains("4 device(s), 5 link(s), read in the tree"), "{said}");
+    assert!(said.contains("1 node(s) the tree marks as not enabled") && said.contains("does not hold the schematic"), "{said}");
+    let written = std::fs::read_to_string(&model).unwrap();
+    assert!(written.contains("processor: \"1 x arm,cortex-m7\"") && written.contains("ram: 1 MiB") && written.contains("type: \"acme,board\""), "{written}");
+    assert!(written.contains("protocol: \"I2C, address 0x48\"") && written.contains("protocol: \"GPIO 5 (alert)\""), "{written}");
+    assert!(!written.contains("acme,can"), "{written}");
+    assert!(arclang(&["check", model.to_str().unwrap()]).status.success());
+    // A tree that is not flattened is refused, with how to flatten it.
+    std::fs::write(&tree, "#include \"soc.dtsi\"\n/ { };\n").unwrap();
+    let refused = arclang(&["recover", tree.to_str().unwrap()]);
+    assert!(!refused.status.success() && text(&refused).contains("give the flattened tree"), "{}", text(&refused));
+}

@@ -522,3 +522,61 @@ and a blinker were proven at the first answer, a door lock (two inputs, two
 outputs, a timer) at the second, after the first was refuted at the start.
 Four sketches are not a measure; a sketch outside the C subset read here is
 not proven by any number of turns.
+
+## A board, from its device tree
+
+The code is one half of a board; the other is its hardware. On a board that
+runs Linux (a Raspberry Pi, a Zynq, most ARM and RISC-V boards) and on
+those Zephyr builds for, the hardware is described by a **device tree**:
+what the kernel itself reads to know its processors, its memory, each
+device, where it is mapped, the bus it sits on and the pins that wire it.
+`arclang recover` reads it:
+
+```
+# on the board
+$ dtc -I fs -O dts /proc/device-tree > board.dts
+# or from the blob the board boots with
+$ dtc -I dtb -O dts board.dtb > board.dts
+
+$ arclang recover board.dts -o board.arc
+Recovered board "Zynq Zed Development Board" from board.dts: 35 device(s), 35 link(s), read in the tree
+  note: 11 node(s) the tree marks as not enabled (`status`) are not written, nor what they hold
+```
+
+What is written is a physical architecture:
+
+- the **board**: what it is compatible with, its processors (`1 x
+  arm,cortex-a9`), its memory (the sum of the ranges the tree gives);
+- a **node** for each enabled device that says what it is compatible with,
+  named by its label when it has one, with its path in the tree;
+- a **link** for the bus each device sits on, with where: `I2C, address
+  0x76`, `SPI, chip select 0`, `memory-mapped, 0xe000a000`;
+- a **link** for each pin of a GPIO controller that wires a device, with
+  what the tree calls it: `GPIO 17 (reset)`.
+
+Every line is read in the tree, and the level is that one: **read**, not
+guessed and not proven. There is nothing to prove: the tree is the
+description the board's own kernel trusts, and the model is checked to
+compile before it is written. What the tree does not hold is not recovered,
+and is said with the result:
+
+- a device the tree marks as not enabled, and a node that does not say what
+  it is compatible with, are not written (their count is given);
+- interrupt lines, clocks and power supplies are in the tree and are not
+  written as links yet;
+- the schematic, what is plugged on a connector the tree does not describe
+  (a sensor on a Raspberry Pi's header that no overlay declares), and what
+  the software does with the devices are not in a device tree at all.
+
+The tree must be flattened, as `dtc` writes it: a source with `#include`,
+macros, deletions or an overlay (`&label { ... }`) is refused, with the
+command that flattens it.
+
+Tried on two real trees, decompiled from the blobs Zephyr ships for its
+emulated boards: a ZedBoard (Zynq-7000: 35 devices, 35 links) and a ZCU102
+(Zynq UltraScale+: 348 devices, 585 links, 237 of them pins). Both models
+compile. No board was plugged in for these runs: reading `/proc/device-tree`
+on a board is the command above, run by whoever has the board.
+
+A board without a device tree (an Arduino Uno, a bare microcontroller) has
+no such description to read: its hardware is in its schematic.

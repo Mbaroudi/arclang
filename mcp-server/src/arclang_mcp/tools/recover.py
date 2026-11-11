@@ -58,7 +58,10 @@ TOOLS: List[Tool] = [
             "recovered model must generate that same C, line for line: only then is the "
             "recovery proven. `hdl_path` (the directory of `arclang export -f vhdl`) sizes "
             "the machines the logic computes and, with `check`, proves the logic too. For "
-            "code written by hand use arclang_prove."
+            "code written by hand use arclang_prove. When `code_path` is a flattened device "
+            "tree (`.dts`: `dtc -I fs -O dts /proc/device-tree` on the board), the answer is "
+            "the board as a physical architecture: its devices, the bus each sits on, the "
+            "pins that wire them, as the tree says them."
         ),
         inputSchema=schema(
             {
@@ -170,6 +173,14 @@ class RecoverTools:
 
     async def _recover(self, args: Dict[str, Any]) -> str:
         code = self._path(args, "code_path")
+        if code.suffix == ".dts":
+            # A board: its device tree is read, and nothing of it is to prove.
+            arguments = ["recover"]
+            if args.get("output_path"):
+                arguments += ["--output", str(self._path(args, "output_path"))]
+            run = await self.compiler.run(arguments + ["--", str(code)])
+            verdict = "read from the device tree (read, not proven)" if run.ok else None
+            return report(f"Board of {code.name}", run, verdict)
         check = args.get("check", True)
         arguments = ["recover"]
         if check:

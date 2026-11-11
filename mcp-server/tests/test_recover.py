@@ -100,3 +100,19 @@ async def test_the_paths_of_the_three_tools_stay_in_the_workspace(server, sketch
         with pytest.raises(Exception) as refused:
             await server.call_tool(tool, arguments)
         assert "outside the workspace" in str(refused.value), (tool, arguments)
+
+
+async def test_recover_reads_a_board_from_its_device_tree(server, workspace):
+    tree = workspace / "board.dts"
+    tree.write_text(
+        '/dts-v1/;\n/ {\n    model = "Acme Board";\n    compatible = "acme,board";\n'
+        '    soc {\n        compatible = "simple-bus";\n'
+        '        i2c@1000 { compatible = "acme,i2c"; sensor@48 { compatible = "acme,temp"; }; };\n'
+        "    };\n};\n"
+    )
+    answer = await server.call_tool("arclang_recover", {"code_path": str(tree), "output_path": "board.arc"})
+    first = answer.splitlines()[0]
+    assert first == "Board of board.dts: read from the device tree (read, not proven)", answer
+    written = (workspace / "board.arc").read_text()
+    assert 'protocol: "I2C, address 0x48"' in written
+    assert (await server.compiler.check(workspace / "board.arc")).ok
