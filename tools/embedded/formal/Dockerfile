@@ -24,4 +24,15 @@ RUN git clone --depth 1 --branch ${CBMC_TAG} https://github.com/diffblue/cbmc.gi
 
 FROM ${BASE}
 COPY --from=cbmc /src/cbmc/src/cbmc/cbmc /usr/local/bin/cbmc
-RUN cbmc --version && bitwuzla --version
+# The proof that the VHDL as built does what the model's VHDL does
+# (`arclang drift --hdl --prove`) asks SymbiYosys for the start from reset
+# and for a run where the outputs differ. The FPGA image keeps Yosys and
+# drops SymbiYosys, its model checker and their Python: they are taken back
+# from the same release of oss-cad-suite.
+ARG OSS_CAD_SUITE_DATE=2026-11-01
+RUN set -e; case "$(dpkg --print-architecture)" in amd64) a=x64;; arm64) a=arm64;; *) exit 1;; esac; \
+    d=$(echo ${OSS_CAD_SUITE_DATE} | tr -d -); \
+    curl -fsSL https://github.com/YosysHQ/oss-cad-suite-build/releases/download/${OSS_CAD_SUITE_DATE}/oss-cad-suite-linux-${a}-${d}.tgz \
+    | tar -xz -C /opt oss-cad-suite/libexec/sby oss-cad-suite/libexec/yosys-smtbmc oss-cad-suite/libexec/yosys-witness oss-cad-suite/libexec/python3.11; \
+    sby --help >/dev/null && yosys-smtbmc --help >/dev/null
+RUN cbmc --version && bitwuzla --version && sby --version
