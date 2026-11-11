@@ -27,6 +27,7 @@ pub mod drift;
 pub mod equivalence;
 mod fire;
 pub mod logic;
+pub mod logic_equivalence;
 mod write;
 
 use std::collections::BTreeMap;

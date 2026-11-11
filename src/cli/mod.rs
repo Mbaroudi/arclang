@@ -678,7 +678,10 @@ pub enum Commands {
         /// Bitwuzla, in ArcLang's formal image: tools/embedded/formal).
         /// Two codes written differently that do the same are proven the
         /// same; two that do not come with the state and the inputs that
-        /// tell them apart
+        /// tell them apart. With --hdl, each entity whose VHDL differs is
+        /// proven too (GHDL, Yosys and SymbiYosys): from reset and for any
+        /// inputs the two agree at every clock, or the clock and the
+        /// outputs at which they differ are given
         #[clap(long)]
         prove: bool,
 
@@ -2221,6 +2224,7 @@ impl CliRunner {
         let (c_files, _) = crate::compiler::embedded::export(&design.ast).map_err(CliError::Compilation)?;
         drift.files = recover::drift::files(&c_files, &[header_name.as_str(), code_name.as_str()], &beside(&code_dir));
         // The programmable logic, when its directory is given: every file the model generates for it.
+        let mut logic_proofs: Vec<(String, recover::logic_equivalence::LogicEquivalence)> = Vec::new();
         if let Some(dir) = hdl {
             if !dir.is_dir() {
                 return Err(CliError::Compilation(format!("{} is not a directory: --hdl takes the directory `arclang export -f vhdl` wrote", dir.display())));
@@ -2229,6 +2233,21 @@ impl CliRunner {
             let mut compared = recover::drift::files(&hdl_files, &[], &beside(dir));
             if compared.iter().all(|file| file.missing) {
                 return Err(CliError::Compilation(format!("{} holds none of the files the model generates for the logic ({})", dir.display(), hdl_files.iter().map(|(name, _)| name.as_str()).collect::<Vec<_>>().join(", "))));
+            }
+            // The proof of the logic: each entity whose VHDL differs (all of
+            // them when the package they share does), as built against as generated.
+            if let Some(seconds) = prove {
+                let is_package = |name: &str| name.ends_with("_pkg.vhd");
+                let package_differs = compared.iter().any(|file| file.differs() && is_package(&file.file));
+                let entities: Vec<String> = compared.iter().filter(|file| file.file.ends_with(".vhd") && !is_package(&file.file) && !file.missing && (file.differs() || package_differs)).map(|file| file.file.trim_end_matches(".vhd").to_string()).collect();
+                let built_files: Vec<(String, String)> = hdl_files.iter().filter(|(name, _)| name.ends_with(".vhd")).filter_map(|(name, _)| Some((name.clone(), std::fs::read_to_string(dir.join(name)).ok()?))).collect();
+                for entity in entities {
+                    let work = std::env::temp_dir().join(format!("arclang-logic-equivalence-{}-{}", std::process::id(), crate::compiler::simulation::tool::run_number()));
+                    std::fs::create_dir_all(&work).map_err(CliError::Io)?;
+                    let outcome = recover::logic_equivalence::prove(&hdl_files, &built_files, &entity, &work, seconds);
+                    let _ = std::fs::remove_dir_all(&work);
+                    logic_proofs.push((entity, outcome.map_err(CliError::Compilation)?));
+                }
             }
             for file in &mut compared {
                 file.file = dir.join(&file.file).display().to_string();
@@ -2254,6 +2273,10 @@ impl CliRunner {
             let mut value = serde_json::to_value(&drift).map_err(|e| CliError::Compilation(e.to_string()))?;
             if let (Some(outcome), Some(object)) = (&equivalence, value.as_object_mut()) {
                 object.insert("equivalence".to_string(), serde_json::to_value(outcome).map_err(|e| CliError::Compilation(e.to_string()))?);
+            }
+            if let (false, Some(object)) = (logic_proofs.is_empty(), value.as_object_mut()) {
+                let rows: Vec<serde_json::Value> = logic_proofs.iter().map(|(entity, outcome)| serde_json::json!({ "entity": entity, "outcome": outcome })).collect();
+                object.insert("logic_equivalence".to_string(), serde_json::Value::Array(rows));
             }
             println!("{}", serde_json::to_string_pretty(&value).map_err(|e| CliError::Compilation(e.to_string()))?);
         } else {
@@ -2311,13 +2334,39 @@ impl CliRunner {
                 }
                 Some(recover::equivalence::Equivalence::Unknown { reason }) => println!("  ? Equivalence neither proven nor refuted: {reason}"),
             }
+            for (entity, outcome) in &logic_proofs {
+                use recover::logic_equivalence::LogicEquivalence;
+                match outcome {
+                    LogicEquivalence::Proven { points, dropped, seconds } => {
+                        println!("✓ Proven equivalent ({seconds:.1} s) entity {entity}: from reset and for any inputs, the logic as built and the logic the model generates agree on {points} signals, their outputs among them, at every clock");
+                        if *dropped > 0 {
+                            println!("    {dropped} anonymous wire(s) the synthesis numbered alike are not compared: they are not the same wire in the two");
+                        }
+                    }
+                    LogicEquivalence::Different { cycle, outputs, seconds } => {
+                        println!("✗ Not equivalent ({seconds:.1} s) entity {entity}: {cycle} clock(s) after reset, with the same inputs, the logic as built does not give what the model's gives:");
+                        for (output, model, built) in outputs {
+                            println!("    {output} = {built} as built, {model} for the model");
+                        }
+                    }
+                    LogicEquivalence::Unknown { reason } => println!("  ? Equivalence of entity {entity} neither proven nor refuted: {reason}"),
+                }
+            }
         }
         // A proof of equivalence is the last word on the machines' code: it
         // was edited, and it does the same. Without it, a difference is a drift.
         let proven = matches!(equivalence, Some(recover::equivalence::Equivalence::Proven { .. }));
         let refuted = matches!(equivalence, Some(recover::equivalence::Equivalence::Different { .. }));
-        let other_files = drift.files.iter().any(|file| file.differs());
-        if (drift.none() || (proven && !other_files)) && !refuted {
+        // A VHDL file that differs and whose entity is proven equivalent is not a drift;
+        // neither is the package, once every entity that uses it is proven.
+        use recover::logic_equivalence::LogicEquivalence;
+        let logic_refuted = logic_proofs.iter().any(|(_, outcome)| matches!(outcome, LogicEquivalence::Different { .. }));
+        let logic_all_proven = !logic_proofs.is_empty() && logic_proofs.iter().all(|(_, outcome)| matches!(outcome, LogicEquivalence::Proven { .. }));
+        let entity_proven = |file: &str| logic_proofs.iter().any(|(entity, outcome)| file.ends_with(&format!("{entity}.vhd")) && matches!(outcome, LogicEquivalence::Proven { .. }));
+        let other_files = drift.files.iter().any(|file| file.differs() && !entity_proven(&file.file) && !(file.file.ends_with("_pkg.vhd") && logic_all_proven));
+        let machines_same = drift.findings.is_empty() && drift.unexplained_lines == 0;
+        let refuted = refuted || logic_refuted;
+        if (drift.none() || ((proven || machines_same) && !other_files)) && !refuted {
             Ok(())
         } else {
             let files = drift.files.iter().filter(|file| file.differs()).count();

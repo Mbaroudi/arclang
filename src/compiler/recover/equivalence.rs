@@ -177,6 +177,53 @@ fn tool(variable: &str, default: &str) -> String {
     std::env::var(variable).ok().filter(|v| !v.trim().is_empty()).unwrap_or_else(|| default.to_string())
 }
 
+/// What the solver says of `equivalence.smt2` in `work`. Its answer is its
+/// first line, and it is taken as soon as it is written: the solver is not
+/// waited for past it (it has been seen to stay, idle, until its time limit
+/// after it had answered), nor past the time given.
+fn solve(bitwuzla: &str, limit_ms: &str, work: &Path, seconds: u64) -> std::io::Result<String> {
+    use std::io::Read;
+    let mut child = Command::new(bitwuzla).args(["-t", limit_ms, "equivalence.smt2"]).current_dir(work).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::null()).spawn()?;
+    let mut out = child.stdout.take().expect("the output of the solver is piped");
+    let (sender, receiver) = std::sync::mpsc::channel::<String>();
+    let reader = std::thread::spawn(move || {
+        let mut said = String::new();
+        let mut buffer = [0u8; 4096];
+        // The first line is the answer; what follows (a model) is read while it comes.
+        let mut answered = false;
+        while let Ok(count) = out.read(&mut buffer) {
+            if count == 0 {
+                break;
+            }
+            said.push_str(&String::from_utf8_lossy(&buffer[..count]));
+            if !answered && said.contains('\n') {
+                answered = true;
+                let _ = sender.send(String::new());
+            }
+        }
+        said
+    });
+    let until = std::time::Instant::now() + std::time::Duration::from_secs(seconds.saturating_add(5));
+    let mut answered_at: Option<std::time::Instant> = None;
+    loop {
+        if child.try_wait()?.is_some() {
+            break;
+        }
+        if answered_at.is_none() && receiver.try_recv().is_ok() {
+            answered_at = Some(std::time::Instant::now());
+        }
+        // Once it has answered, a moment for the values of a model; then it is stopped.
+        let late = answered_at.is_some_and(|at| at.elapsed() > std::time::Duration::from_secs(10));
+        if late || std::time::Instant::now() >= until {
+            let _ = child.kill();
+            let _ = child.wait();
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    Ok(reader.join().unwrap_or_default())
+}
+
 /// Prove, or refute, that one step of the code as built is one step of the
 /// model's code. `work` receives the files of the proof and is kept.
 pub fn prove(generated: &Generated, built: &Generated, work: &Path, seconds: u64) -> Result<Equivalence, String> {
@@ -261,8 +308,7 @@ pub(super) fn decide(work: &Path, sources: &[&str], flags: &[&str], unwind: usiz
                 Err("CBMC wrote a formula with nothing to check, and did not confirm that every check holds".to_string())
             });
         }
-        let answer = Command::new(&bitwuzla).args(["-t", &limit, "equivalence.smt2"]).current_dir(work).output().map_err(|e| format!("cannot run '{bitwuzla}': {e} ({how})"))?;
-        Ok(Ok(String::from_utf8_lossy(&answer.stdout).into_owned()))
+        Ok(Ok(solve(&bitwuzla, &limit, work, seconds).map_err(|e| format!("cannot run '{bitwuzla}': {e} ({how})"))?))
     };
     let first = match asked("--unwinding-assertions")? {
         Ok(said) => said,

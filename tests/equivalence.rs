@@ -114,3 +114,64 @@ fn a_code_with_another_interface_is_not_compared() {
     assert!(!output.status.success());
     assert!(text(&output).contains("do not have the same structures"), "{}", text(&output));
 }
+
+/// The VHDL of an example beside its C: (the directory kept alive, the model, the C, the VHDL, the file of its first block).
+fn built_logic(example: &str) -> (tempfile::TempDir, PathBuf, PathBuf, PathBuf, PathBuf) {
+    let (dir, model, header) = built(example);
+    let logic = dir.path().join("vhdl");
+    assert!(arclang(&["export", model.to_str().unwrap(), "-f", "vhdl", "-o", logic.to_str().unwrap()]).status.success());
+    let block = std::fs::read_dir(&logic).unwrap().flatten().map(|e| e.path()).find(|p| p.extension().is_some_and(|e| e == "vhd") && !p.to_string_lossy().ends_with("_pkg.vhd") && !p.to_string_lossy().ends_with("_wb.vhd")).unwrap();
+    let c = header.parent().unwrap().to_path_buf();
+    (dir, model, c, logic, block)
+}
+
+fn prove_logic(model: &Path, c: &Path, logic: &Path) -> Output {
+    arclang(&["drift", model.to_str().unwrap(), c.to_str().unwrap(), "--hdl", logic.to_str().unwrap(), "--prove", "--timeout", "1200"])
+}
+
+const FILTER: &str = "            r_v_filtered := fx_resize(fx_align(r_v_filtered, 2) + fx_align(fx_resize(signed'(x\"40000000\") * fx_resize(fx_align(r_v_raw, 0) - fx_align(r_v_filtered, 0), 0), 30), 0), 2);";
+
+#[test]
+#[ignore = "needs GHDL, Yosys and SymbiYosys: tools/embedded/formal/run.sh cargo test --test equivalence -- --include-ignored"]
+fn a_vhdl_written_another_way_that_does_the_same_is_proven_equivalent() {
+    let (_dir, model, c, logic, block) = built_logic(SPEED_MONITOR);
+    // The two terms of the sum exchanged: other text, same logic.
+    edit(&block, FILTER, "            r_v_filtered := fx_resize(fx_align(fx_resize(signed'(x\"40000000\") * fx_resize(fx_align(r_v_raw, 0) - fx_align(r_v_filtered, 0), 0), 30), 0) + fx_align(r_v_filtered, 2), 2);");
+    let proven = prove_logic(&model, &c, &logic);
+    let said = text(&proven);
+    // The file differs, and drift says where...
+    assert!(said.contains("speed_monitor_wheel_speed_filter.vhd:109: 1 line(s) of the file as built where the model generates 1"), "{said}");
+    // ...and the proof says the logic does the same: the command succeeds.
+    assert!(said.contains("Proven equivalent") && said.contains("entity speed_monitor_wheel_speed_filter: from reset and for any inputs"), "{said}");
+    assert!(proven.status.success(), "{said}");
+}
+
+#[test]
+#[ignore = "needs GHDL, Yosys and SymbiYosys: tools/embedded/formal/run.sh cargo test --test equivalence -- --include-ignored"]
+fn a_vhdl_that_does_something_else_is_refuted_with_the_clock_and_the_outputs_that_show_it() {
+    let (_dir, model, c, logic, block) = built_logic(SPEED_MONITOR);
+    // The coefficient of the filter halved.
+    edit(&block, "signed'(x\"40000000\") * fx_resize(fx_align(r_v_raw, 0)", "signed'(x\"20000000\") * fx_resize(fx_align(r_v_raw, 0)");
+    let refuted = prove_logic(&model, &c, &logic);
+    let said = text(&refuted);
+    assert!(said.contains("✗ Not equivalent") && said.contains("clock(s) after reset, with the same inputs"), "{said}");
+    assert!(said.contains("o_v_filtered = 0b") && said.contains("for the model"), "{said}");
+    assert!(!refuted.status.success(), "{said}");
+}
+
+#[test]
+#[ignore = "needs GHDL, Yosys and SymbiYosys: tools/embedded/formal/run.sh cargo test --test equivalence -- --include-ignored"]
+fn a_vhdl_with_other_ports_or_that_is_not_vhdl_is_neither_proven_nor_refuted() {
+    let (_dir, model, c, logic, block) = built_logic(SPEED_MONITOR);
+    let original = std::fs::read_to_string(&block).unwrap();
+    // One more port: another interface.
+    edit(&block, "    rst", "    spare : in std_logic;\n    rst");
+    let said = text(&prove_logic(&model, &c, &logic));
+    assert!(said.contains("neither proven nor refuted") && said.contains("has other ports than the model's"), "{said}");
+    // A statement GHDL refuses.
+    std::fs::write(&block, original.replacen("r_v_filtered := fx_resize(", "r_v_filtered := fx_resiz(", 1)).unwrap();
+    let asked = prove_logic(&model, &c, &logic);
+    let said = text(&asked);
+    assert!(said.contains("neither proven nor refuted") && said.contains("GHDL does not accept the VHDL as built"), "{said}");
+    assert!(!asked.status.success(), "{said}");
+}

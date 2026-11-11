@@ -249,6 +249,74 @@ image with CBMC (from its source, version 6.4.1) on top of the FPGA image,
 which holds Bitwuzla. `ARCLANG_CBMC` and `ARCLANG_BITWUZLA` name the tools
 when they are elsewhere.
 
+### The same question of the VHDL
+
+With `--hdl <dir>`, `--prove` asks it of the programmable logic too: each
+entity whose VHDL differs from the model's (all of them when the package
+they share differs) is compared as built against as generated.
+
+```
+$ arclang drift speed_monitor.arc c/ --hdl vhdl/ --prove
+    ✗ vhdl/speed_monitor_wheel_speed_filter.vhd:109: 1 line(s) of the file as built where the model generates 1
+✓ Proven equivalent (6.8 s) entity speed_monitor_wheel_speed_filter: from reset and for any inputs, the logic as built and the logic the model generates agree on 1403 signals, their outputs among them, at every clock
+```
+
+GHDL synthesizes each side to a netlist, and the answer is one of three:
+
+- **proven equivalent**, by an induction on the clock in two parts. The
+  step, by Yosys: every signal the two netlists share by name is a point
+  where they must agree, and points equal for two clocks are proven to stay
+  equal. The base, by SymbiYosys with Bitwuzla: from reset, with any inputs,
+  those same points are equal for the first clocks. A VHDL file that
+  differs and whose entity is proven is no longer a drift, and the command
+  succeeds;
+- **not equivalent**: from reset and with the same inputs, an output of the
+  two differs. The clock at which it does and the outputs, with both
+  values, are printed, and the command fails:
+
+  ```
+  ✗ Not equivalent (6.1 s) entity speed_monitor_wheel_speed_filter: 7 clock(s) after reset, with the same inputs, the logic as built does not give what the model's gives:
+      o_v_filtered = 0b1000000000000000000000000000 as built, 0b10000000000000000000000000000 for the model
+  ```
+
+- **neither proven nor refuted**, said as such and never as a proof: the
+  time limit, a VHDL that GHDL does not accept, an entity with other ports
+  (a logic with another interface is not compared), an entity with no
+  `rst` to start from.
+
+What the proof is of, exactly, and where it stops:
+
+- the netlists GHDL synthesizes, from reset, for any inputs at any clock;
+  the bus wrapper of a block is an entity like another;
+- the points are the signals with the same name in both. GHDL gives a
+  number to the wires it creates, and two netlists may give the same number
+  to wires that are not the same: such a point, when it is not proven, is
+  no claim of anyone's and is dropped, and the whole proof is run again on
+  the points left, until every one of them is proven. Their count is
+  printed. A signal with a name of the design is never dropped: one that is
+  not proven ends the proof;
+- a VHDL rewritten so far that its registers no longer carry the numbers of
+  the model's is not proven by this route; it is then searched for a
+  difference, and reported as neither when none is found;
+- a difference is searched from reset for 400 clocks and the time given. A
+  change that shows only later, or behind a search the solver does not
+  finish, is **not** refuted: the answer is "neither", and the cases of the
+  model run on the logic as built (`arclang hdl`) are the other way to find
+  it.
+
+Measured, on a laptop: the speed monitor (a filter with a 32-bit product,
+1,400 points) is proven in 7 s after two terms of a sum are exchanged, and
+refuted in 6 s once a coefficient is halved. The battery charger (regions,
+a PID, sixteen events a step; 12,000 points) is proven in a little over two
+minutes after two guards are rewritten, and refuted in one minute once a
+constant is changed. The same charger with the target of one transition
+changed gets no answer in 400 s: that change shows only after the machine
+has reached the state, too far from reset for the search.
+
+The tools are GHDL, Yosys and SymbiYosys with Bitwuzla, in the same formal
+image; `ARCLANG_GHDL`, `ARCLANG_YOSYS` and `ARCLANG_SBY` name them when they
+are elsewhere.
+
 ## Code written by hand: a correspondence, and its proof
 
 The code above is the code the compiler generated, or a copy of it someone
