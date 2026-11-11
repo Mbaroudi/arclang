@@ -107,3 +107,6 @@ __pycache__/
 /capellambse-study/
 /elk-models/
 /sysml-v2/
+
+# The recordings of real boards that the tests compare with the models.
+!tests/fixtures/observations/*.json
