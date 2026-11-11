@@ -656,6 +656,108 @@ Measured on the board: this sketch on an UNO, 200 pulses sent to its
 interrupt pin by the instrument, 19 of them shorter than its loop (the
 shortest 5 ms), and 200 changes of its lamp, each at the model's step.
 
+## A binary, without its sources
+
+A sketch may be lost, or never have been given: what is left is what was
+flashed. `arclang prove` reads that too. A correspondence names a `binary`
+(an Intel HEX file) in place of a `source`, and the proof is of the machine
+code itself:
+
+```
+correspondence "Uno lamp binary" {
+    machine: "Lamp toggled by a button"
+    binary: "uno_lamp.hex"
+    period: 10 ms
+    functions: [
+        "loop at 0x0102",
+        "pinMode at 0x043e",
+        "digitalRead at 0x0514",
+        "digitalWrite at 0x04b6",
+        "millis at 0x029c",
+        "delay at 0x02fe"
+    ]
+    reads: ["digitalRead(2) is button"]
+    writes: ["digitalWrite(13) is led"]
+    state: [
+        "word(0x0106) == 0 && word(0x0104) == 0 is in Up",
+        "word(0x0106) == 0 && word(0x0104) == 1 is in Arming",
+        "word(0x0106) == 1 && word(0x0104) == 0 is in Down",
+        "word(0x0106) == 1 && word(0x0104) == 1 is in Releasing",
+        "millis() - dword(0x0100) is time in Arming",
+        "millis() - dword(0x0100) is time in Releasing",
+        "word(0x0108) == 1 is led"
+    ]
+    invariant: ["word(0x0106) == 0 || word(0x0106) == 1", ...]
+}
+```
+
+A binary has no names. A function is where it is (`loop at 0x0102`, the
+address a disassembler prints), and a variable is the bytes of the memory
+that hold it: `byte(at)`, `word(at)` for two bytes (an `int`), `dword(at)`
+for four (a `long`), low byte first. A pin is its number.
+
+```
+$ arclang prove uno_lamp_binary.arc
+✓ Proven (169.3 s) correspondence "Uno lamp binary": uno_lamp.hex is state_machine "Lamp toggled by a button"
+    of the machine code of uno_lamp.hex itself, translated one instruction at a time (ATmega328P, Ghidra's description of the AVR): no source is read
+    taken on trust: these are the Arduino functions they are said to be, and are not run (pinMode at 0x043e, digitalRead at 0x0514, digitalWrite at 0x04b6, millis at 0x029c, delay at 0x02fe)
+    taken on trust: an interrupt changes nothing the code of loop() reads (the clock is millis() and micros(), as named)
+    on the clock of the board (an AVR's millis() counts ticks of 1.024 ms: a time read can be 1 ms short): NOT proven. ...
+```
+
+**How the machine code is read.** Nothing is decompiled: a decompiler
+gives C a person can read, and loses things on the way (the argument of a
+call, a comparison on four bytes). Ghidra is asked something else: the
+meaning its description of the processor gives each instruction, as a few
+elementary operations. Each is written as one line of C: a register is a
+cell of an array, the memory an array of bytes, a jump a `goto`, a call a
+call, the flags of an addition the flags of that addition. That C is long
+and unreadable, and it is what the chip does. It takes the place of the
+sketch in the proof of the section above, unchanged otherwise:
+
+- **the start** runs the code from its reset (its own initialisation of
+  the memory, the Arduino core's `init`, the sketch's `setup`) to its first
+  call of `loop`;
+- **the step** runs `loop` once from any memory and any registers that
+  correspond to a state of the machine.
+
+**What stands in.** The Arduino functions the correspondence names are not
+run: they are the stand-ins of the proof, called as the compiler of the
+board calls them (the first argument in r24, the result in r24, or in r22
+to r25 for a `long`), and what such a function may change beside its
+result is anything after it. That the function at 0x0514 is `digitalRead`
+is what the correspondence says; the proof takes it on trust and says so.
+A function that is not named is run, instruction by instruction: leave
+`pinMode` out and its code writes the direction of the port itself, which
+the proof refuses (*the machine code writes no port of the chip itself*),
+since a pin written that way would be a write nobody compared.
+
+**What the proof holds besides the lines of the correspondence**, each a
+line of its own that can fail: the code runs only instructions the
+translation covers (a computed jump is not one); it stays within the memory
+and the flash of the chip; it reaches `loop` from its reset; between two
+`loop()`s, r1 is zero (the compiler's convention) and the stack is where
+it was.
+
+**What is tried against it** (the tests): the binary with one instruction
+changed (`sbiw r24, 0x32`, the 50 ms of the press, made 51) is refuted; so
+are a correspondence that reads the wrong bytes of the memory, and one
+that takes `digitalRead` and `digitalWrite` for each other.
+
+**What it does not do yet.** The chip is an ATmega328P (an Arduino UNO),
+and the image a program that starts at address 0. An interrupt of the
+binary is not read. A binary built with the Arduino IDE's link-time
+optimisation has `setup` and `loop` folded into `main`, and its pin
+functions specialised: there is then no `loop` to name. And the addresses
+are found by a person, or by an AI, reading a disassembly (`avr-objdump -D
+-m avr5 -b ihex firmware.hex`): `arclang recover` does not propose them.
+The binary of the example was read back from the board itself, through its
+bootloader, and is byte for byte the one its sketch compiles to.
+
+**The tools.** Ghidra (`analyzeHeadless`, or the command `ARCLANG_GHIDRA`
+names) beside CBMC and Bitwuzla. `tools/embedded/reverse` builds an image
+that holds the three.
+
 ## A board observed against the model
 
 The bench that found this is a command. An **instrument** drives the inputs

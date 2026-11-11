@@ -114,6 +114,15 @@ jobs:
       - name: Run the correspondence proofs
         run: tools/embedded/formal/run.sh cargo test --release --test correspondence -- --include-ignored
 
+      # The same proof of a firmware binary, read without its sources: Ghidra
+      # gives the meaning of each instruction, on top of the formal image
+      # (tools/embedded/reverse).
+      - name: Build the reverse image
+        run: docker build -t arclang-embedded-reverse:1 tools/embedded/reverse
+
+      - name: Run the proofs of a binary
+        run: tools/embedded/reverse/run.sh cargo test --release --test binary -- --include-ignored
+
   # The processor and the logic together: a LiteX SoC (VexRiscv, Zephyr, the
   # generated blocks) simulated cycle by cycle in Verilator, and the same SoC
   # built into one bitstream for the ULX3S. The system image takes Zephyr

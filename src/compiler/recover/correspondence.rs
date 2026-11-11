@@ -53,6 +53,8 @@ pub struct Correspondence {
     pub name: String,
     pub machine: String,
     pub sources: Vec<String>,
+    /// The binary the correspondence names in place of sources, and where its functions are.
+    pub binary: Option<super::binary::Binary>,
     /// The time of one `loop()`, when the correspondence gives it.
     pub period_us: Option<u64>,
     /// (`digitalRead` or `analogRead`, the pin as the sketch writes it, the input of the model)
@@ -95,23 +97,32 @@ pub fn read(declaration: &CorrespondenceDecl) -> Result<Correspondence, String> 
         }
     };
     for key in declaration.attributes.keys() {
-        if !["machine", "source", "period", "reads", "writes", "events", "state", "invariant", "int", "description"].contains(&key.as_str()) {
-            return Err(format!("{what}: '{key}' is not something a correspondence says (machine, source, period, reads, writes, events, state, invariant, int)"));
+        if !["machine", "source", "binary", "functions", "period", "reads", "writes", "events", "state", "invariant", "int", "description"].contains(&key.as_str()) {
+            return Err(format!("{what}: '{key}' is not something a correspondence says (machine, source, binary, functions, period, reads, writes, events, state, invariant, int)"));
         }
     }
     let machine = text("machine").ok_or_else(|| format!("{what}: it names no machine (machine: \"...\")"))?;
     let sources = list("source");
-    if sources.is_empty() {
+    let binary_file = text("binary");
+    if sources.is_empty() && binary_file.is_none() {
         return Err(format!("{what}: it names no source (source: \"sketch.ino\")"));
+    }
+    if !sources.is_empty() && binary_file.is_some() {
+        return Err(format!("{what}: it names a source and a binary: the proof is of one or of the other"));
     }
     // A source is read, and what a tool says of it is printed: it is a file
     // beside the model or below it, never one reached by climbing out.
-    for source in &sources {
+    for source in sources.iter().chain(&binary_file) {
         let path = Path::new(source);
         if path.is_absolute() || path.components().any(|part| !matches!(part, std::path::Component::Normal(_))) {
             return Err(format!("{what}: the source \"{source}\" is not a file beside the model or below it (no absolute path, no `..`)"));
         }
     }
+    let binary = match binary_file {
+        Some(file) => Some(super::binary::Binary { file, functions: super::binary::functions(&list("functions"), &what)? }),
+        None if declaration.attributes.contains_key("functions") => return Err(format!("{what}: functions are those of a binary (binary: \"firmware.hex\")")),
+        None => None,
+    };
     let period_us = match declaration.attributes.get("period") {
         None => None,
         Some(AttributeValue::Quantity(q)) if q.dimension().label() == "time" => Some((q.canonical() * 1e6).round() as u64),
@@ -160,13 +171,19 @@ pub fn read(declaration: &CorrespondenceDecl) -> Result<Correspondence, String> 
     if writes.is_empty() && pwm.is_empty() && state.is_empty() {
         return Err(format!("{what}: it relates nothing (writes: [...] or state: [...]): there would be nothing to prove"));
     }
+    if binary.is_some() && !events.is_empty() {
+        return Err(format!("{what}: the interrupts of a binary are not read yet (events)"));
+    }
     let int_bits = match declaration.attributes.get("int").map(|bits| bits.as_integer()) {
+        // The binary is that of an AVR: its int has 16 bits.
+        None if binary.is_some() => 16,
+        Some(Some(32)) if binary.is_some() => return Err(format!("{what}: the binary is that of an AVR board, whose int has 16 bits")),
         None => 32,
         Some(Some(16)) => 16,
         Some(Some(32)) => 32,
         Some(_) => return Err(format!("{what}: int is the bits of an int on the board, 16 (an AVR board such as the Uno) or 32")),
     };
-    Ok(Correspondence { name: declaration.name.clone(), machine, sources, period_us, reads, writes, events, pwm, state, invariants: list("invariant"), int_bits })
+    Ok(Correspondence { name: declaration.name.clone(), machine, sources, binary, period_us, reads, writes, events, pwm, state, invariants: list("invariant"), int_bits })
 }
 
 /// The outcome of a proof of correspondence.
@@ -467,6 +484,9 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
     ];
     // What a refuting case shows: (the code's side as written and as C, the model's side as written and as C).
     let mut shown: Vec<(String, String, String, String)> = Vec::new();
+    if correspondence.binary.is_some() {
+        lines.extend(super::binary::lines());
+    }
     for (rank, (pin, model_side)) in correspondence.writes.iter().enumerate() {
         let level = format!("arclang_level_{rank}");
         lines.push((relate(&level, model_side)?, format!("digitalWrite({pin}) is {}", said(model_side))));
@@ -573,6 +593,9 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
         (format!("model/{}", model.header_name), model.header.to_string()),
         (format!("model/{}", model.code_name), model.code.to_string()),
     ];
+    if correspondence.binary.is_some() {
+        files.push(("sketch/arclang_lifted.h".to_string(), super::binary::LIFTED_H.to_string()));
+    }
     files.extend(sketches.iter().map(|(name, text)| (format!("sketch/{name}"), if watched_names.is_empty() { text.clone() } else { super::interleave::watched(text, &watched_names) })));
     // The loops of the model run over its states or its queue; those of the code are unwound as far.
     let bound = Regex::new(r"(?m)^#define \w+_(?:STATE_COUNT|QUEUE_SIZE) (\d+)U").expect("a pattern of the harness");
@@ -580,8 +603,16 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
     // What no line speaks of: the proof holds, and says nothing of it.
     let related: Vec<&str> = correspondence.writes.iter().chain(&correspondence.state).filter_map(|(_, model_side)| if let Term::Variable(name) = model_side { Some(name.as_str()) } else { None }).chain(correspondence.pwm.iter().map(|(_, name)| name.as_str())).collect();
     let unrelated = machine.variables.iter().filter(|v| !v.input && !related.contains(&v.name.as_str())).map(|v| v.name.clone()).collect();
-    Ok(Proof { files, unwind, period_us, lines: lines.into_iter().map(|(_, written)| written).collect(), unrelated, define, shown: shown.into_iter().map(|(code, _, model, _)| (code, model)).collect(), inputs: inputs_shown.into_iter().map(|(name, _)| name).collect(), routines: routine_names, middle_unasked: kept.err() })
+    // The start of a binary runs its own initialisation: it copies and clears its memory byte by byte.
+    let start_unwind = if correspondence.binary.is_some() { BINARY_START_UNWIND } else { unwind };
+    Ok(Proof { files, unwind, start_unwind, period_us, lines: lines.into_iter().map(|(_, written)| written).collect(), unrelated, define, shown: shown.into_iter().map(|(code, _, model, _)| (code, model)).collect(), inputs: inputs_shown.into_iter().map(|(name, _)| name).collect(), routines: routine_names, middle_unasked: kept.err() })
 }
+
+/// The loops of a binary's start copy and clear at most the memory of the chip (2 KiB).
+const BINARY_START_UNWIND: usize = 2100;
+
+/// The registers of a processor are cells of small arrays: the prover follows each cell alone.
+const BINARY_FLAGS: [&str; 2] = ["--max-field-sensitivity-array-size", "256"];
 
 /// The line every correspondence holds without writing it.
 const UNNAMED: &str = "the code reads and writes only the pins the correspondence names";
@@ -595,6 +626,8 @@ const DELAYS: &str = "the delay()s of one loop(), when it has some, add up to th
 pub struct Proof {
     pub files: Vec<(String, String)>,
     pub unwind: usize,
+    /// The bound of the loops of the start, which for a binary is that of its memory.
+    pub start_unwind: usize,
     pub period_us: u64,
     pub lines: Vec<String>,
     /// The variables of the machine, inputs apart, that no line relates.
@@ -742,10 +775,19 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
             let name = Path::new(source).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| source.clone());
             sketches.push((name, text));
         }
-        let written = harness(&correspondence, &model, &sketches, default_period)?;
-        let Proof { files: proof, unwind, period_us, lines, unrelated, define, .. } = &written;
-        let (unwind, period_us, unrelated) = (*unwind, *period_us, unrelated.clone());
         let dir = work.join(correspondence.name.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect::<String>());
+        if let Some(binary) = &correspondence.binary {
+            let what = format!("correspondence '{}'", correspondence.name);
+            let path = base.join(&binary.file);
+            let text = std::fs::read_to_string(&path).map_err(|e| format!("{what}: cannot read {}: {e}", path.display()))?;
+            let image = super::binary::intel_hex(&text).map_err(|e| format!("{what}: {}: {e}", binary.file))?;
+            let entries: Vec<u32> = binary.functions.iter().map(|(_, at)| *at).collect();
+            let lifted = super::binary::lift(&image, &entries, &dir.join("lift")).map_err(|e| format!("{what}: {e}"))?;
+            sketches.push(("machine_code.c".to_string(), super::binary::sketch(binary, &lifted, &what)?));
+        }
+        let written = harness(&correspondence, &model, &sketches, default_period)?;
+        let Proof { files: proof, unwind, start_unwind, period_us, lines, unrelated, define, .. } = &written;
+        let (step_unwind, start_unwind, period_us, unrelated) = (*unwind, *start_unwind, *period_us, unrelated.clone());
         for (name, text) in proof {
             let path = dir.join(name);
             if let Some(parent) = path.parent() {
@@ -757,11 +799,16 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
         let model_source = format!("model/{}", model.code_name);
         let mut outcome = None;
         // The start is of the code as it is initialised; the step, of any state it can hold.
+        let mut unwind = step_unwind;
         for (obligation, mut flags) in [("start", vec!["-DARCLANG_START"]), ("step", vec!["--nondet-static"])] {
+            unwind = if obligation == "start" { start_unwind } else { step_unwind };
             flags.push(define.as_str());
             // The widths of the board, and its fixed-width types before any the host has.
             flags.extend(["-I", "board"]);
             flags.extend(if correspondence.int_bits == 16 { ["--16", "-DARCLANG_INT16"] } else { ["--32", "-DARCLANG_INT32"] });
+            if correspondence.binary.is_some() {
+                flags.extend(BINARY_FLAGS);
+            }
             match decide(&dir, &["proof.c", model_source.as_str()], &flags, unwind, seconds)? {
                 Answer::Unsat => {}
                 Answer::Sat(_) => {
@@ -792,7 +839,10 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
         let int_bits = correspondence.int_bits;
         // Proven on the clock it states: and on the clock of the board?
         let board_clock = if outcome.is_none() && int_bits == 16 {
-            let flags = vec!["--nondet-static", define.as_str(), "-I", "board", "--16", "-DARCLANG_INT16", "-DARCLANG_BOARD_CLOCK"];
+            let mut flags = vec!["--nondet-static", define.as_str(), "-I", "board", "--16", "-DARCLANG_INT16", "-DARCLANG_BOARD_CLOCK"];
+            if correspondence.binary.is_some() {
+                flags.extend(BINARY_FLAGS);
+            }
             Some(match decide(&dir, &["proof.c", model_source.as_str()], &flags, unwind, seconds)? {
                 Answer::Unsat => BoardClock::Holds,
                 Answer::Sat(_) => {
