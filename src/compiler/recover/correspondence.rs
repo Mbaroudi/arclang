@@ -100,6 +100,14 @@ pub fn read(declaration: &CorrespondenceDecl) -> Result<Correspondence, String> 
     if sources.is_empty() {
         return Err(format!("{what}: it names no source (source: \"sketch.ino\")"));
     }
+    // A source is read, and what a tool says of it is printed: it is a file
+    // beside the model or below it, never one reached by climbing out.
+    for source in &sources {
+        let path = Path::new(source);
+        if path.is_absolute() || path.components().any(|part| !matches!(part, std::path::Component::Normal(_))) {
+            return Err(format!("{what}: the source \"{source}\" is not a file beside the model or below it (no absolute path, no `..`)"));
+        }
+    }
     let period_us = match declaration.attributes.get("period") {
         None => None,
         Some(AttributeValue::Quantity(q)) if q.dimension().label() == "time" => Some((q.canonical() * 1e6).round() as u64),

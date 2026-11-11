@@ -8,6 +8,7 @@ from .edit import EditTools
 from .expert import ExpertTools
 from .generation import GenerationTools
 from .integration import IntegrationTools
+from .recover import RecoverTools
 from .safety import SafetyTools
 from .transform import TransformTools
 from .workbench import WorkbenchTools
@@ -19,6 +20,7 @@ __all__ = [
     "ExpertTools",
     "GenerationTools",
     "IntegrationTools",
+    "RecoverTools",
     "SafetyTools",
     "TransformTools",
     "WorkbenchTools",
