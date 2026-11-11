@@ -98,12 +98,66 @@ correspondence "Debounce sketch" {
 What makes the STEP hold: it starts from any states the lines allow, so the lines must say enough. Give every state of the machine an expression, so that exactly one is true; bound each variable of the sketch with an invariant (`x == 0 || x == 1`); say how the sketch's variables give each output (`"lit == 1 is led"`); relate every timer of the sketch to the `time in` of the state that waits.
 "#;
 
+/// What a proposer is told of a binary, around the language of the machine (the same as for a sketch).
+const BINARY_INTRO: &str = r#"You are recovering the model of the firmware of an Arduino UNO (an ATmega328P) from its binary alone: there is no source.
+
+Answer with ONE ArcLang model in a single fenced block (```arclang ... ```), nothing else that is code. The model holds:
+- `model "Name" { version: "1.0.0" }`
+- one `state_machine` that does what the firmware does, one step for one turn of its `loop`;
+- one `correspondence` that ties the binary to the machine.
+
+Your answer is not trusted: it is compiled, then proven by a model checker against the machine code itself, translated instruction by instruction. The proof has two parts. START: after the code has run from its reset through one `loop`, and after the machine's start and one step with the same inputs, every line of the correspondence holds. STEP: from ANY memory of the chip and ANY state of the machine for which every line holds, one `loop` and one step with the same inputs leave two for which every line holds again. What fails comes back to you.
+"#;
+
+const BINARY_CORRESPONDENCE: &str = r#"The correspondence was started for you from the machine code: keep its `binary`, its `period` and its `functions` exactly as given (a function you add, move or rename is refused). Complete it:
+- `machine`: the name of your state machine;
+- `reads`: `digitalRead(2) is <input>` (Boolean) or `analogRead(0) is <input>` (Integer, 0 to 1023), the pin by its number;
+- `writes`: `digitalWrite(13) is <variable>` or `digitalWrite(13) is in <State>`, and `analogWrite(9) is <variable>` (an Integer, 0 to 255); EVERY pin `loop` reads or writes must be named;
+- `state`: on the left a C expression over the bytes of the memory, on the right `in <State>` (true exactly when the state is active), `time in <State>` (milliseconds the state has been held) or a variable of the machine. A binary has no names: a variable is `byte(0x0104)` (one byte), `word(0x0104)` (two bytes, an `int`, low byte first) or `dword(0x0100)` (four bytes, a `long`). A time the code took with `millis()` and kept at 0x0100 is related as `millis() - dword(0x0100) is time in <State>`;
+- `invariant`: C expressions that always hold of those bytes (`word(0x0104) == 0 || word(0x0104) == 1`).
+
+How to read the listing: one line an instruction, its address then the instruction, in Ghidra's notation for the AVR. `R25R24` is the pair r25:r24, `X`, `Y`, `Z` the pairs r27:r26, r29:r28, r31:r30 (`Xlo`, `Xhi`...). `brbs 0x126,Zflg` jumps to 0x126 when the flag Z is set (`breq`), `brbc` when it is clear (`brne`); `Cflg` is the carry. `lds R24,0x0106` loads the byte of the memory at 0x0106, `sts 0x0106,R24` stores it. A function is called with its first argument in r24 (r25:r24 for two bytes, r25:r22 for four) and its second in r22; it returns in r24 (r25:r24, or r25:r22 for a long). A comparison of two or four bytes is `cp`/`sub` on the low byte then `cpc`/`sbc` on the others. Addresses 0x0100 and above are the memory.
+
+What makes the STEP hold: it starts from any memory the lines allow, so the lines must say enough. Give every state of the machine an expression, so that exactly one is true; bound each variable of the code with an invariant; say how the bytes give each output (`"word(0x0108) == 1 is led"`); relate every time the code keeps to the `time in` of the state that waits.
+"#;
+
+/// The binary a model is proposed for: what was found in its machine code.
+struct Binary {
+    /// The Intel HEX file, as it is.
+    hex: String,
+    /// The correspondence as `arclang recover` starts it, and the listing of `setup` and `loop`.
+    started: String,
+    listing: String,
+    /// The functions found, which a proposal names as they are.
+    functions: Vec<(String, u32)>,
+}
+
+/// Read a binary for a proposer: its translation, where its functions are, the listing of its loop.
+fn read_binary(input: &Path, file_name: &str, work: &Path) -> Result<Binary, String> {
+    use crate::compiler::recover::{binary, binary_shape};
+    let hex = std::fs::read_to_string(input).map_err(|e| format!("cannot read {}: {e}", input.display()))?;
+    let image = binary::intel_hex(&hex).map_err(|e| format!("{file_name}: {e}"))?;
+    let lifted = binary::lift(&image, &[], &work.join("lift")).map_err(|e| format!("{file_name}: {e}"))?;
+    let (start, functions) = binary_shape::facts(&lifted)?;
+    let proposal = binary_shape::propose(start, &functions);
+    if !proposal.functions.iter().any(|(name, _, _)| name == "loop") {
+        return Err(format!("{file_name}: its loop() was not found in the machine code ({}): there is nothing to propose a model of", proposal.unknown.join("; ")));
+    }
+    Ok(Binary {
+        hex,
+        started: binary_shape::written(file_name, image.bytes.len(), &proposal),
+        listing: binary_shape::listing(&lifted, &proposal),
+        functions: proposal.functions.iter().map(|(name, at, _)| (name.clone(), *at)).collect(),
+    })
+}
+
 pub fn run(sketch: &Path, options: Options) -> Result<(), CliError> {
     let fail = |message: String| CliError::Compilation(message);
     let proposer = options.with.clone().or_else(|| std::env::var("ARCLANG_PROPOSER").ok().filter(|c| !c.trim().is_empty())).ok_or_else(|| {
         fail("--propose needs a proposer: --with \"<command>\" (or ARCLANG_PROPOSER), a command that reads the prompt on its input and prints a model; the sketch is sent to that command and to nothing else".to_string())
     })?;
-    let code = std::fs::read_to_string(sketch).map_err(CliError::Io)?;
+    let is_binary = sketch.extension().is_some_and(|e| e == "hex");
+    let code = if is_binary { String::new() } else { std::fs::read_to_string(sketch).map_err(CliError::Io)? };
     let file_name = sketch.file_name().map(|n| n.to_string_lossy().into_owned()).ok_or_else(|| fail(format!("{} is not a file", sketch.display())))?;
     let output = options.output.clone().unwrap_or_else(|| sketch.with_extension("arc"));
     if options.output.is_none() && output.exists() {
@@ -111,7 +165,12 @@ pub fn run(sketch: &Path, options: Options) -> Result<(), CliError> {
     }
     let work = options.keep.clone().unwrap_or_else(|| std::env::temp_dir().join(format!("arclang-propose-{}-{}", std::process::id(), crate::compiler::simulation::tool::run_number())));
     std::fs::create_dir_all(&work).map_err(CliError::Io)?;
-    let outcome = turns(&proposer, &file_name, &code, &work, &options);
+    let binary = if is_binary { Some(read_binary(sketch, &file_name, &work)) } else { None };
+    let outcome = match binary {
+        Some(Err(why)) => Err(why),
+        Some(Ok(binary)) => turns(&proposer, &file_name, &code, Some(&binary), &work, &options),
+        None => turns(&proposer, &file_name, &code, None, &work, &options),
+    };
     if options.keep.is_none() {
         let _ = std::fs::remove_dir_all(&work);
     }
@@ -132,8 +191,16 @@ pub fn run(sketch: &Path, options: Options) -> Result<(), CliError> {
 
 /// Ask, judge, tell, for as many turns as allowed: the proven model and what
 /// the proof said, or why none was proven.
-fn turns(proposer: &str, file_name: &str, code: &str, work: &Path, options: &Options) -> Result<(String, String), String> {
-    let mut prompt = format!("{BRIEF}\nThe sketch, `{file_name}`:\n```c\n{code}\n```\n");
+fn turns(proposer: &str, file_name: &str, code: &str, binary: Option<&Binary>, work: &Path, options: &Options) -> Result<(String, String), String> {
+    // The same task each turn: for a binary, what was found in its machine code and the listing of its loop.
+    let task = match binary {
+        None => format!("{BRIEF}\nThe sketch, `{file_name}`:\n```c\n{code}\n```\n"),
+        Some(binary) => {
+            let (from, to) = (BRIEF.find("The state machine:").ok_or("the brief has no state machine")?, BRIEF.find("The correspondence of that machine").ok_or("the brief has no correspondence")?);
+            format!("{BINARY_INTRO}\n{}{BINARY_CORRESPONDENCE}\nWhat `arclang recover` found in `{file_name}`, the correspondence started:\n```arclang\n{}```\n\nThe machine code of its setup and of its loop:\n```\n{}```\n", &BRIEF[from..to], binary.started, binary.listing)
+        }
+    };
+    let mut prompt = task.clone();
     let mut last = String::new();
     for turn in 1..=options.turns.max(1) {
         eprintln!("Turn {turn} of {}: asking the proposer", options.turns.max(1));
@@ -143,14 +210,14 @@ fn turns(proposer: &str, file_name: &str, code: &str, work: &Path, options: &Opt
         std::fs::write(dir.join("answer.txt"), &answer).map_err(|e| e.to_string())?;
         let verdict = match model_of(&answer) {
             None => Err("your answer holds no fenced block with a state_machine and a correspondence".to_string()),
-            Some(model) => judge(&model, file_name, code, &dir, options.timeout).map(|said| (model.clone(), said)).map_err(|why| format!("{why}\n\nYour model was:\n```arclang\n{model}\n```")),
+            Some(model) => judge(&model, file_name, code, binary, &dir, options.timeout).map(|said| (model.clone(), said)).map_err(|why| format!("{why}\n\nYour model was:\n```arclang\n{model}\n```")),
         };
         match verdict {
             Ok(proven) => return Ok(proven),
             Err(why) => {
                 eprintln!("  not proven: {}", why.lines().next().unwrap_or_default());
                 last = why.lines().take_while(|line| !line.starts_with("Your model was")).collect::<Vec<_>>().join("\n").trim().to_string();
-                prompt = format!("{BRIEF}\nThe sketch, `{file_name}`:\n```c\n{code}\n```\n\nYour previous answer was not proven.\n{why}\n\nAnswer again with the whole corrected model.\n");
+                prompt = format!("{task}\nYour previous answer was not proven.\n{why}\n\nAnswer again with the whole corrected model.\n");
             }
         }
     }
@@ -158,16 +225,31 @@ fn turns(proposer: &str, file_name: &str, code: &str, work: &Path, options: &Opt
 }
 
 /// The proposal compiled and proven: what the proof printed, or what to tell the proposer.
-fn judge(model: &str, file_name: &str, code: &str, dir: &Path, seconds: u64) -> Result<String, String> {
+fn judge(model: &str, file_name: &str, code: &str, binary: Option<&Binary>, dir: &Path, seconds: u64) -> Result<String, String> {
     let compiled = crate::Compiler::new(crate::CompilerConfig::default()).compile_string(model).map_err(|error| format!("The model does not compile: {error}"))?;
     let [declaration] = compiled.ast.correspondences.as_slice() else {
         return Err(format!("The model declares {} correspondence(s): it must declare exactly one", compiled.ast.correspondences.len()));
     };
     // The proof is of the sketch that was given, whatever the proposal names.
     let read = correspondence::read(declaration)?;
-    if read.sources != [file_name.to_string()] {
-        return Err(format!("The correspondence names the source {:?}: it must be exactly \"{file_name}\"", read.sources));
+    match (binary, &read.binary) {
+        (None, _) if read.sources != [file_name.to_string()] => return Err(format!("The correspondence names the source {:?}: it must be exactly \"{file_name}\"", read.sources)),
+        (None, _) => {}
+        (Some(_), None) => return Err(format!("The correspondence names no binary: it must have `binary: \"{file_name}\"`")),
+        (Some(_), Some(named)) if named.file != file_name => return Err(format!("The correspondence names the binary \"{}\": it must be exactly \"{file_name}\"", named.file)),
+        (Some(found), Some(named)) => {
+            // A function that is named is not run in the proof: only those found in the machine code are named,
+            // where they were found. A proposal cannot put code out of the proof by calling it an Arduino function.
+            let said = |functions: &[(String, u32)]| functions.iter().map(|(name, at)| format!("\"{name} at 0x{at:04x}\"")).collect::<Vec<_>>().join(", ");
+            let (mut given, mut expected) = (named.functions.clone(), found.functions.clone());
+            given.sort();
+            expected.sort();
+            if given != expected {
+                return Err(format!("The correspondence names the functions [{}]: they must be exactly those found in the machine code, [{}]", said(&named.functions), said(&found.functions)));
+            }
+        }
     }
+    let code = binary.map(|binary| binary.hex.as_str()).unwrap_or(code);
     std::fs::write(dir.join(file_name), code).map_err(|e| e.to_string())?;
     std::fs::write(dir.join("model.arc"), model).map_err(|e| e.to_string())?;
     let outcomes = correspondence::prove(&compiled.ast, dir, None, &dir.join("proof"), seconds)?;
@@ -178,6 +260,9 @@ fn judge(model: &str, file_name: &str, code: &str, dir: &Path, seconds: u64) -> 
             let mut said = format!("✓ Proven ({seconds:.1} s) {of}\n    for one loop() a step of {} ms, an int of {int_bits} bits and a long of 32, the pins the correspondence names, and the C subset of the Arduino language", period_us / 1000);
             if !unrelated.is_empty() {
                 said.push_str(&format!("\n    the proof says nothing of the machine's {}: no line of the correspondence speaks of it", unrelated.join(", ")));
+            }
+            for line in read.binary.iter().flat_map(crate::compiler::recover::binary::trusted) {
+                said.push_str(&format!("\n    {line}"));
             }
             for line in correspondence::interrupts_said(interrupts.as_ref()) {
                 said.push_str(&format!("\n    {line}"));
@@ -283,9 +368,9 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("arclang-propose-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let model = |source: &str| format!("model \"A\" {{ version: \"1.0.0\" }}\nstate_machine \"M\" {{\n    variables: [\"led: Boolean = false\"]\n    initial: \"S\"\n    state S {{}}\n}}\ncorrespondence \"C\" {{\n    machine: \"M\"\n    source: \"{source}\"\n    writes: [\"digitalWrite(13) is led\"]\n}}\n");
-        let told = judge(&model("other.ino"), "sketch.ino", "void setup(){}\nvoid loop(){}\n", &dir, 10).unwrap_err();
+        let told = judge(&model("other.ino"), "sketch.ino", "void setup(){}\nvoid loop(){}\n", None, &dir, 10).unwrap_err();
         assert!(told.contains("it must be exactly \"sketch.ino\""), "{told}");
-        let told = judge("state_machine \"M\" {", "sketch.ino", "", &dir, 10).unwrap_err();
+        let told = judge("state_machine \"M\" {", "sketch.ino", "", None, &dir, 10).unwrap_err();
         assert!(told.starts_with("The model does not compile"), "{told}");
         let _ = std::fs::remove_dir_all(&dir);
     }

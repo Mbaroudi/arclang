@@ -801,6 +801,30 @@ those calls and from the bytes of the state; `arclang prove` then decides,
 and still takes the named Arduino functions on trust: a shape is a reason
 to name a function, not a proof that it is that function.
 
+### The machine, proposed by an AI: `arclang recover firmware.hex --propose`
+
+The loop of the section *A model proposed by an AI, judged by the proof*
+takes a binary as it takes a sketch:
+
+```
+$ arclang recover firmware.hex --propose --with "<command>" -o firmware.arc
+```
+
+The proposer is given what `arclang recover` found (the correspondence
+started, with its functions, its pins and its period) and the machine code
+of `setup` and of `loop` as a listing, one line an instruction, the calls
+of the named functions said. It is given no source: there is none. It
+answers with the machine and the completed correspondence; the answer is
+compiled and proven against the machine code; what is refuted goes back to
+it, with the case. A model is written only once its proof holds, and
+`arclang prove` replays that proof with no AI.
+
+One thing a proposal cannot do: name functions. A function a correspondence
+names is not run in the proof, so a proposal that called a piece of the
+code `delay` would put it out of the proof. The functions are those found
+in the machine code, where they were found; a proposal that adds, moves or
+renames one is refused before any proof.
+
 **The tools.** Ghidra (`analyzeHeadless`, or the command `ARCLANG_GHIDRA`
 names) beside CBMC and Bitwuzla. `tools/embedded/reverse` builds an image
 that holds the three.

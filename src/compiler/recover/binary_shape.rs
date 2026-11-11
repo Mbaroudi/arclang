@@ -131,6 +131,10 @@ pub struct Proposal {
     pub period_ms: Option<u32>,
     /// The bytes of the RAM the code of `loop` reads or writes by address, in runs: (the first, how many).
     pub memory: Vec<(u32, u32)>,
+    /// The functions whose machine code is that of `loop` and of `setup`: themselves and
+    /// what they call that is not named.
+    pub loop_code: Vec<u32>,
+    pub setup_code: Vec<u32>,
     /// What could not be told, said.
     pub unknown: Vec<String>,
 }
@@ -285,7 +289,9 @@ pub fn propose(start: u32, functions: &BTreeMap<u32, Function>) -> Proposal {
         }
     };
     let (loop_sites, loop_code) = reach(loop_at);
-    let setup_sites = proposal.setup.map(|at| reach(at).0).unwrap_or_default();
+    let (setup_sites, setup_code) = proposal.setup.map(reach).unwrap_or_default();
+    proposal.loop_code = loop_code.iter().copied().collect();
+    proposal.setup_code = setup_code.into_iter().collect();
     let used: BTreeSet<u32> = loop_sites.iter().chain(&setup_sites).map(|site| site.to).collect();
     for (name, found) in &roles {
         for (at, why) in found {
@@ -330,6 +336,30 @@ pub fn propose(start: u32, functions: &BTreeMap<u32, Function>) -> Proposal {
         proposal.unknown.push("the code of loop() also reads or writes the memory through pointers: bytes it uses that way are not listed".to_string());
     }
     proposal
+}
+
+/// The instructions of `setup` and of `loop`, as the translation names them
+/// (one line an instruction: its address, the instruction), the calls of
+/// the named functions said. What a person or an AI reads to write the machine.
+pub fn listing(lifted: &str, proposal: &Proposal) -> String {
+    let named: BTreeMap<u32, &str> = proposal.functions.iter().map(|(name, at, _)| (*at, name.as_str())).collect();
+    let instruction = regex::Regex::new(r"^L_([0-9a-f]{4}): /\* (.*) \*/$").expect("a pattern of the listing");
+    let target = regex::Regex::new(r"^r?(?:call|jmp) 0x([0-9a-f]+)$").expect("a pattern of the listing");
+    let mut text = String::new();
+    let mut shown = false;
+    for line in lifted.lines() {
+        if let Some(entry) = line.strip_prefix("void f_").and_then(|rest| rest.strip_suffix("(void)")).and_then(|at| u32::from_str_radix(at, 16).ok()) {
+            let part = if Some(entry) == proposal.setup { Some("setup") } else if named.get(&entry) == Some(&"loop") { Some("loop") } else { None };
+            shown = part.is_some() || proposal.loop_code.contains(&entry) || proposal.setup_code.contains(&entry);
+            if shown {
+                text.push_str(&format!("; {} at 0x{entry:04x}\n", part.unwrap_or("a function they call")));
+            }
+        } else if let (true, Some(found)) = (shown, instruction.captures(line)) {
+            let said = target.captures(&found[2]).and_then(|to| u32::from_str_radix(&to[1], 16).ok()).and_then(|to| named.get(&to)).map(|name| format!("    ; {name}")).unwrap_or_default();
+            text.push_str(&format!("  {}  {}{said}\n", &found[1], &found[2]));
+        }
+    }
+    text
 }
 
 /// The proposal as a file a person or an AI completes: the correspondence
@@ -394,6 +424,8 @@ mod tests {
         assert!(proposal.reads.contains(&("digitalRead".to_string(), 2)) && proposal.writes.contains(&("digitalWrite".to_string(), 13)));
         let text = written("lamp.hex", 1388, &proposal);
         assert!(text.contains("\"loop at 0x0220\",  // main (0x0100) calls it in its cycle"), "{text}");
+        let lifted = "void f_0220(void);\n\nvoid f_0220(void)\n{\nL_0220: /* ldi R24,0x2 */\n    x;\nL_0222: /* call 0x600 */\n}\n\nvoid f_0400(void)\n{\nL_0400: /* cli */\n}\n";
+        assert_eq!(listing(lifted, &proposal), "; loop at 0x0220\n  0220  ldi R24,0x2\n  0222  call 0x600    ; digitalRead\n");
         assert!(text.contains("period: 20 ms") && text.contains("reads: [\"digitalRead(2) is ...\"]") && text.contains("0x0100 to 0x0101 (2 bytes), 0x0104"), "{text}");
     }
 
