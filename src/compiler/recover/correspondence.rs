@@ -59,6 +59,8 @@ pub struct Correspondence {
     pub reads: Vec<(String, String, String)>,
     /// (the pin as the sketch writes it, what its level is in the model)
     pub writes: Vec<(String, Term)>,
+    /// (the pin as the sketch writes it, the Integer variable of the model its `analogWrite` value is)
+    pub pwm: Vec<(String, String)>,
     /// (an expression of the sketch, what it is in the model)
     pub state: Vec<(String, Term)>,
     /// What always holds of the sketch's own variables (`lit == 0 || lit == 1`):
@@ -125,9 +127,19 @@ pub fn read(declaration: &CorrespondenceDecl) -> Result<Correspondence, String> 
         reads.push((found[1].to_string(), found[2].trim().to_string(), model));
     }
     let mut writes = Vec::new();
+    let mut pwm = Vec::new();
+    let analog_form = Regex::new(r"^analogWrite\((.+)\)$").expect("a pattern of the correspondence");
     for line in list("writes") {
         let (sketch, model) = split(&line, "the write")?;
-        let found = write_form.captures(&sketch).ok_or_else(|| format!("{what}: \"{sketch}\" is not a write (digitalWrite(pin))"))?;
+        if let Some(found) = analog_form.captures(&sketch) {
+            // The value written (0 to 255) is a variable of the model, never a state.
+            match term(&model) {
+                Term::Variable(name) => pwm.push((found[1].trim().to_string(), name)),
+                _ => return Err(format!("{what}: \"{line}\": what analogWrite writes is a variable of the machine (an Integer)")),
+            }
+            continue;
+        }
+        let found = write_form.captures(&sketch).ok_or_else(|| format!("{what}: \"{sketch}\" is not a write (digitalWrite(pin) or analogWrite(pin))"))?;
         writes.push((found[1].trim().to_string(), term(&model)));
     }
     let mut state = Vec::new();
@@ -135,7 +147,7 @@ pub fn read(declaration: &CorrespondenceDecl) -> Result<Correspondence, String> 
         let (sketch, model) = split(&line, "the line of state")?;
         state.push((sketch, term(&model)));
     }
-    if writes.is_empty() && state.is_empty() {
+    if writes.is_empty() && pwm.is_empty() && state.is_empty() {
         return Err(format!("{what}: it relates nothing (writes: [...] or state: [...]): there would be nothing to prove"));
     }
     let int_bits = match declaration.attributes.get("int").map(|bits| bits.as_integer()) {
@@ -144,7 +156,7 @@ pub fn read(declaration: &CorrespondenceDecl) -> Result<Correspondence, String> 
         Some(Some(32)) => 32,
         Some(_) => return Err(format!("{what}: int is the bits of an int on the board, 16 (an AVR board such as the Uno) or 32")),
     };
-    Ok(Correspondence { name: declaration.name.clone(), machine, sources, period_us, reads, writes, state, invariants: list("invariant"), int_bits })
+    Ok(Correspondence { name: declaration.name.clone(), machine, sources, period_us, reads, writes, pwm, state, invariants: list("invariant"), int_bits })
 }
 
 /// The outcome of a proof of correspondence.
@@ -203,7 +215,7 @@ pub fn board_clock_said(verdict: Option<&BoardClock>) -> Vec<String> {
 }
 
 /// The stand-ins every sketch is given: what the Arduino core declares, as C.
-const ARDUINO_H: &str = "/* Stand-ins for the Arduino core, for the proof (written by `arclang prove`). */\n#include <stdbool.h>\n#include <stdint.h>\n#define HIGH 1\n#define LOW 0\n#define INPUT 0\n#define OUTPUT 1\n#define INPUT_PULLUP 2\n#define LED_BUILTIN 13\n#define A0 14\n#define A1 15\n#define A2 16\n#define A3 17\n#define A4 18\n#define A5 19\n#define A6 20\n#define A7 21\ntypedef uint8_t byte;\ntypedef bool boolean;\ntypedef uint16_t word;\nvoid pinMode(int pin, int mode);\nint digitalRead(int pin);\nint analogRead(int pin);\nvoid digitalWrite(int pin, int level);\nunsigned long millis(void);\nvoid delay(unsigned long ms);\nvoid setup(void);\nvoid loop(void);\n";
+const ARDUINO_H: &str = "/* Stand-ins for the Arduino core, for the proof (written by `arclang prove`). */\n#include <stdbool.h>\n#include <stdint.h>\n#define HIGH 1\n#define LOW 0\n#define INPUT 0\n#define OUTPUT 1\n#define INPUT_PULLUP 2\n#define LED_BUILTIN 13\n#define A0 14\n#define A1 15\n#define A2 16\n#define A3 17\n#define A4 18\n#define A5 19\n#define A6 20\n#define A7 21\ntypedef uint8_t byte;\ntypedef bool boolean;\ntypedef uint16_t word;\nvoid pinMode(int pin, int mode);\nint digitalRead(int pin);\nint analogRead(int pin);\nvoid digitalWrite(int pin, int level);\nunsigned long millis(void);\nvoid delay(unsigned long ms);\nunsigned long micros(void);\nvoid delayMicroseconds(unsigned int us);\nvoid analogWrite(int pin, int value);\n#define min(a, b) ((a) < (b) ? (a) : (b))\n#define max(a, b) ((a) > (b) ? (a) : (b))\n#define abs(x) ((x) > 0 ? (x) : -(x))\n#define constrain(x, low, high) ((x) < (low) ? (low) : ((x) > (high) ? (high) : (x)))\nstatic long map(long x, long in_min, long in_max, long out_min, long out_max) { return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min; }\n/* The serial port: what is printed is not looked at; a read is an input nobody named. */\nstruct arclang_serial_port { void (*begin)(); void (*end)(); void (*print)(); void (*println)(); void (*write)(); void (*flush)(); int (*available)(void); int (*read)(void); int (*peek)(void); };\nextern const struct arclang_serial_port Serial;\nvoid setup(void);\nvoid loop(void);\n";
 
 /// The fixed-width types of the proof, written for the board and not read
 /// from the C library of the machine that runs the proof: there `uint32_t`
@@ -282,6 +294,9 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
     for (rank, _) in correspondence.writes.iter().enumerate() {
         c.push_str(&format!("static bool arclang_level_{rank}; /* the level of the pin of write {rank} */\n"));
     }
+    for (rank, _) in correspondence.pwm.iter().enumerate() {
+        c.push_str(&format!("static int arclang_duty_{rank}; /* the value last written to the pin of analog write {rank} */\n"));
+    }
     c.push_str("\n/* ---- the code as written ---- */\n");
     for (name, _) in sketches {
         c.push_str(&format!("#include \"sketch/{name}\"\n"));
@@ -310,13 +325,32 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
                 (_, ty) => return Err(format!("{what}: {kind}({pin}) is '{name}', a {ty}: a digital read is a Boolean or an Integer, an analog read an Integer (0 to 1023)")),
             }
         }
+        if kind == "digitalRead" {
+            // A pin the code writes reads back as it was last written.
+            for (rank, (pin, _)) in correspondence.writes.iter().enumerate() {
+                c.push_str(&format!("    if (pin == ({pin})) {{ return arclang_level_{rank} ? 1 : 0; }}\n"));
+            }
+        }
         c.push_str(&format!("    arclang_unnamed = true; /* a pin with {kind} that the correspondence does not name */\n    return 0;\n}}\n"));
     }
     c.push_str("void digitalWrite(int pin, int level)\n{\n");
     for (rank, (pin, _)) in correspondence.writes.iter().enumerate() {
         c.push_str(&format!("    if (pin == ({pin})) {{ arclang_level_{rank} = level != 0; return; }}\n"));
     }
+    // A level written to a pin of analog writes is its lowest or its highest value.
+    for (rank, (pin, _)) in correspondence.pwm.iter().enumerate() {
+        c.push_str(&format!("    if (pin == ({pin})) {{ arclang_duty_{rank} = level != 0 ? 255 : 0; return; }}\n"));
+    }
     c.push_str("    arclang_unnamed = true; /* a pin the correspondence does not name */\n}\n");
+    c.push_str("void analogWrite(int pin, int value)\n{\n");
+    for (rank, (pin, _)) in correspondence.pwm.iter().enumerate() {
+        c.push_str(&format!("    if (pin == ({pin})) {{ arclang_duty_{rank} = value; return; }}\n"));
+    }
+    c.push_str("    arclang_unnamed = true; /* a pin the correspondence does not name */\n}\n");
+    // The finer clock: the same time in microseconds, never short (its tick is 4 us).
+    c.push_str("unsigned long micros(void) { return arclang_ms * 1000UL; }\nvoid delayMicroseconds(unsigned int us) { (void)us; }\n");
+    // What the code prints on its serial port is no part of what is proven; what it would read from it is an input nobody named.
+    c.push_str("static void arclang_serial_out() { }\nstatic int arclang_serial_in(void) { arclang_unnamed = true; return 0; }\nconst struct arclang_serial_port Serial = { arclang_serial_out, arclang_serial_out, arclang_serial_out, arclang_serial_out, arclang_serial_out, arclang_serial_out, arclang_serial_in, arclang_serial_in, arclang_serial_in };\n");
 
     // Each line of the correspondence, as a condition and as it is written.
     let mut lines: Vec<(String, String)> = vec![
@@ -332,6 +366,17 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
         lines.push((relate(&level, model_side)?, format!("digitalWrite({pin}) is {}", said(model_side))));
         let (code, model) = sides(&level, model_side)?;
         shown.push((format!("the level of {pin}"), code, said(model_side), model));
+    }
+    for (rank, (pin, name)) in correspondence.pwm.iter().enumerate() {
+        let v = variable(name)?;
+        if v.input || v.ty != "Integer" {
+            return Err(format!("{what}: analogWrite({pin}) is '{name}': what it writes is a variable of the machine that is an Integer and not an input"));
+        }
+        let duty = format!("arclang_duty_{rank}");
+        let model_side = Term::Variable(name.clone());
+        lines.push((relate(&duty, &model_side)?, format!("analogWrite({pin}) is {name}")));
+        let (code, model) = sides(&duty, &model_side)?;
+        shown.push((format!("the value written to {pin}"), code, name.clone(), model));
     }
     for (sketch_side, model_side) in &correspondence.state {
         lines.push((relate(sketch_side, model_side)?, format!("{sketch_side} is {}", said(model_side))));
@@ -402,7 +447,7 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
     let bound = Regex::new(r"(?m)^#define \w+_(?:STATE_COUNT|QUEUE_SIZE) (\d+)U").expect("a pattern of the harness");
     let unwind = bound.captures_iter(model.header).filter_map(|b| b[1].parse::<usize>().ok()).max().unwrap_or(1).max(16) + 2;
     // What no line speaks of: the proof holds, and says nothing of it.
-    let related: Vec<&str> = correspondence.writes.iter().chain(&correspondence.state).filter_map(|(_, model_side)| if let Term::Variable(name) = model_side { Some(name.as_str()) } else { None }).collect();
+    let related: Vec<&str> = correspondence.writes.iter().chain(&correspondence.state).filter_map(|(_, model_side)| if let Term::Variable(name) = model_side { Some(name.as_str()) } else { None }).chain(correspondence.pwm.iter().map(|(_, name)| name.as_str())).collect();
     let unrelated = machine.variables.iter().filter(|v| !v.input && !related.contains(&v.name.as_str())).map(|v| v.name.clone()).collect();
     Ok(Proof { files, unwind, period_us, lines: lines.into_iter().map(|(_, written)| written).collect(), unrelated, define, shown: shown.into_iter().map(|(code, _, model, _)| (code, model)).collect(), inputs: inputs_shown.into_iter().map(|(name, _)| name).collect() })
 }
@@ -654,6 +699,15 @@ mod tests {
     }
     fn list(values: &[&str]) -> AttributeValue {
         AttributeValue::List(values.iter().map(|v| text(v)).collect())
+    }
+
+    #[test]
+    fn an_analog_write_is_a_variable_of_the_machine() {
+        let read = read(&declaration(&[("machine", text("M")), ("source", text("s.ino")), ("writes", list(&["analogWrite(LAMP) is duty", "digitalWrite(13) is beat"]))])).unwrap();
+        assert_eq!(read.pwm, [("LAMP".to_string(), "duty".to_string())]);
+        assert_eq!(read.writes, [("13".to_string(), Term::Variable("beat".to_string()))]);
+        let refused = super::read(&declaration(&[("machine", text("M")), ("source", text("s.ino")), ("writes", list(&["analogWrite(LAMP) is in Lit"]))])).unwrap_err();
+        assert!(refused.contains("what analogWrite writes is a variable of the machine"), "{refused}");
     }
 
     #[test]

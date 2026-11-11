@@ -61,7 +61,7 @@ state_machine "Debounced button" {
 }
 ```
 - variables are `Boolean`, `Integer` or `Real`; `in` marks an input; others take an initial value;
-- guards use `and`, `or`, `not`, comparisons and arithmetic; actions are `name := expression`;
+- guards use `and`, `or`, `not`, comparisons and + - * /, with `min(a, b)`, `max(a, b)`, `abs(a)`; there is no remainder (%) and no conditional expression: write two transitions with opposite guards instead; actions are `name := expression`, several separated by `;`;
 - `timing: 50 ms` on a transition: it fires once its source state has been held that long and its guard holds;
 - at most one transition fires in a step; the machine enters its initial state at its first step.
 
@@ -88,7 +88,8 @@ correspondence "Debounce sketch" {
 - `source`: the file name of the sketch, exactly as given below;
 - `period`: the time of one `loop()`; when the sketch calls `delay()`, the sum of its delays;
 - `reads`: `digitalRead(PIN) is <input>` (Boolean) or `analogRead(PIN) is <input>` (Integer, 0 to 1023), the pin written as the sketch writes it;
-- `writes`: `digitalWrite(PIN) is <variable>` or `digitalWrite(PIN) is in <State>`; EVERY pin the sketch reads or writes must be named;
+- `writes`: `digitalWrite(PIN) is <variable>` or `digitalWrite(PIN) is in <State>`, and `analogWrite(PIN) is <variable>` (an Integer, 0 to 255); EVERY pin the sketch reads or writes must be named;
+- what the sketch prints on `Serial` is not part of the proof: leave it out; a time read with `micros()` is related as `(micros() - since) / 1000 is time in <State>`;
 - `state`: on the left a C expression over the sketch's global variables, on the right `in <State>` (true exactly when the state is active), `time in <State>` (milliseconds the state has been held) or a variable of the machine;
 - `invariant`: C expressions that always hold of the sketch's variables;
 - `int: 16` when the board is an AVR one (Uno, Nano, Mega).
