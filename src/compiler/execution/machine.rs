@@ -287,8 +287,17 @@ pub fn compile(machine: &StateMachine) -> Result<Program, String> {
         }
     }
     for action in actions.iter().map(|a| a.trim()).filter(|a| !a.is_empty()) {
-        if let Some(code) = program.action(action).map_err(|e| format!("{what}: {e}"))? {
-            program.actions.insert(action.to_string(), code);
+        match program.action(action).map_err(|e| format!("{what}: {e}"))? {
+            Some(code) => {
+                program.actions.insert(action.to_string(), code);
+            }
+            // An action that is not statements is a name, reported and never run. One
+            // written as an assignment was meant as code: taking it for a name would
+            // run nothing and say nothing.
+            None if action.contains(":=") => {
+                return Err(format!("{what}: the action `{action}` is written as code (`:=`) and is not understood as statements `name := expression` separated by `;`: it would be taken for a name and do nothing. The expressions have + - * /, the comparisons, and, or, not, and min, max, abs, saturate, gain; there is no remainder (%) and no conditional"));
+            }
+            None => {}
         }
     }
     Ok(program)

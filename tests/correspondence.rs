@@ -278,6 +278,15 @@ fn a_board_recorded_is_compared_with_the_model_change_by_change() {
 }
 
 #[test]
+fn the_same_board_timing_with_micros_is_never_a_loop_late() {
+    // The same lamp, flashed with the sketch that reads the finer clock: 400 changes of the button, 103 of the lamp.
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let observed = arclang(&["observe", root.join("tests/fixtures/sketches/uno_lamp_micros.arc").to_str().unwrap(), "--recorded", root.join("tests/fixtures/observations/uno_lamp_micros_400.json").to_str().unwrap()]);
+    let said = text(&observed);
+    assert!(observed.status.success() && said.contains("the same 103 change(s) in the same order; 103 at the model's step, 0 one loop later"), "{said}");
+}
+
+#[test]
 fn a_model_the_board_does_not_follow_disagrees_with_its_recording() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let model = std::fs::read_to_string(root.join("tests/fixtures/sketches/uno_lamp.arc")).unwrap();
@@ -294,4 +303,46 @@ fn a_model_the_board_does_not_follow_disagrees_with_its_recording() {
     // Without an instrument nor a recording, the command says what it needs.
     let alone = arclang(&["observe", root.join("tests/fixtures/sketches/uno_lamp.arc").to_str().unwrap()]);
     assert!(!alone.status.success() && text(&alone).contains("--instrument names the serial port of the instrument"), "{}", text(&alone));
+}
+
+#[test]
+#[ignore = "needs CBMC and Bitwuzla: tools/embedded/formal/run.sh cargo test --test correspondence -- --include-ignored"]
+fn a_sketch_with_analog_writes_a_serial_port_and_a_pin_read_back_is_proven() {
+    // analogWrite as a variable of the machine, constrain, Serial.print, a pin the sketch writes read back.
+    let (proven, output) = proof("dimmer", &[], &[]);
+    assert!(proven && output.contains("dimmer.ino is state_machine \"Dimmer\"") && output.contains("proven too"), "{output}");
+    // The value written is compared: a sketch that writes another is refuted.
+    let (proven, output) = proof("dimmer", &[], &[("    analogWrite(LAMP, level);", "    analogWrite(LAMP, level / 2);")]);
+    assert!(!proven && output.contains("does not hold after it: analogWrite(LAMP) is duty"), "{output}");
+    // The pin read back is the level last written: a heartbeat that no longer changes is refuted.
+    let (proven, output) = proof("dimmer", &[], &[("digitalWrite(BEAT, !digitalRead(BEAT));", "digitalWrite(BEAT, digitalRead(BEAT));")]);
+    assert!(!proven && output.contains("does not hold after it: digitalWrite(BEAT) is beat"), "{output}");
+    // What is printed is not looked at; what would be read from the port is an input nobody named.
+    let (proven, output) = proof("dimmer", &[], &[("  int up = digitalRead(UP);", "  int up = digitalRead(UP);\n  if (Serial.available() > 0) { level = Serial.read(); }")]);
+    assert!(!proven && output.contains("does not hold after it: the code reads and writes only the pins the correspondence names"), "{output}");
+}
+
+#[test]
+#[ignore = "needs CBMC and Bitwuzla: tools/embedded/formal/run.sh cargo test --test correspondence -- --include-ignored"]
+fn a_sketch_that_times_with_micros_is_proven_on_the_clock_of_the_board_too() {
+    // The same lamp as uno_lamp, timed on the finer clock: measured on the board, never late.
+    let (proven, output) = proof("uno_lamp_micros", &[], &[]);
+    assert!(proven && output.contains("on the clock of the board") && output.contains("proven too"), "{output}");
+    // A model that waits another time is still refuted.
+    let (proven, output) = proof("uno_lamp_micros", &[("timing: 50 ms action", "timing: 60 ms action")], &[]);
+    assert!(!proven && output.contains("✗ Refuted"), "{output}");
+}
+
+#[test]
+fn an_action_written_as_code_that_is_not_code_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let model = dir.path().join("m.arc");
+    // `%` is not an operator of the action language: taken for a name, the action would do nothing.
+    std::fs::write(&model, "model \"M\" { version: \"1.0.0\" }\nstate_machine \"S\" {\n    variables: [\"in go: Boolean\", \"n: Integer = 0\"]\n    initial: \"A\"\n    state A {}\n    state B {}\n    transition A -> B { guard: \"go\" action: \"n := (n + 1) % 4\" }\n}\n").unwrap();
+    let checked = arclang(&["check", model.to_str().unwrap()]);
+    let said = text(&checked);
+    assert!(!checked.status.success() && said.contains("is written as code (`:=`) and is not understood as statements"), "{said}");
+    // An action that is a name stays one.
+    std::fs::write(&model, "model \"M\" { version: \"1.0.0\" }\nstate_machine \"S\" {\n    variables: [\"in go: Boolean\"]\n    initial: \"A\"\n    state A {}\n    state B {}\n    transition A -> B { guard: \"go\" action: \"open the valve\" }\n}\n").unwrap();
+    assert!(arclang(&["check", model.to_str().unwrap()]).status.success());
 }

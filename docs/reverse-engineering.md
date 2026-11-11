@@ -368,11 +368,14 @@ correspondence "Debounce sketch" {
 - `period`: the time of one `loop()`, which is one step of the machine.
 - `reads`: the pin each input of the machine is read from.
 - `writes`: the pin each output is written to; the level last written is
-  the value of the variable.
+  the value of the variable. `analogWrite(PIN) is duty` relates the value
+  written (0 to 255) to an Integer variable of the machine.
 - `state`: an expression of the code on the left, what it is in the model on
   the right: `in <State>` (the expression holds exactly when the state is
   active), `time in <State>` (the expression, in milliseconds, is the time
   the state has been held, while it is active), or a variable of the machine.
+  A time read with `micros()` is related in milliseconds:
+  `(micros() - since) / 1000 is time in Rising`.
 - `invariant`: what always holds of the code's own variables. It is proven
   with the rest, not taken on trust.
 - `int`: the bits of an `int` on the board, `16` on an AVR board (the Uno,
@@ -461,8 +464,12 @@ What the proof takes as given, and prints with its answer:
   time on the board is another machine;
 - an input has one value in a step, read by the code and by the machine;
 - the code is the C subset of the Arduino language: `pinMode`,
-  `digitalRead`, `analogRead`, `digitalWrite`, `millis`, `delay`. Interrupts,
-  the serial port, libraries and C++ classes are not read;
+  `digitalRead`, `analogRead`, `digitalWrite`, `analogWrite`, `millis`,
+  `micros`, `delay`, `delayMicroseconds`, `min`, `max`, `abs`, `constrain`,
+  `map`. A pin the code writes reads back as it was last written. What the
+  code prints on `Serial` is not looked at (it is no part of the claim);
+  what it would read from it is an input nobody named, and fails the proof
+  as a pin would. Interrupts, libraries and C++ classes are not read;
 - the machine is the C the model generates, the same that runs in `sil`.
 
 `--correspondence <name>` proves one of several, `--keep <dir>` keeps the
@@ -569,6 +576,11 @@ board. A sketch that reads no clock is "proven too". So is this one once its
 comparison is moved off the edge: with `millis() - since >= 45` and the same
 model, both proofs hold, and the board agreed when asked: that variant was
 flashed, and its 300 answers fell between 50.2 and 60.1 ms, none late.
+
+A sketch that times with `micros()` is proven on the clock of the board too:
+that clock's tick is 4 µs, and its reads are never a millisecond short. The
+board agreed again: the lamp timed with `micros()`, observed over 400 changes
+of its button, made its 103 changes at the model's step, none a loop late.
 
 The clock of a board that is not an AVR is not asked about: it has not been
 measured here.
