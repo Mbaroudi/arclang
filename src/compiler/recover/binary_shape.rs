@@ -161,7 +161,7 @@ pub struct Proposal {
     /// cycle `main` never leaves, and the other heads it could be (with how many jumps come back to
     /// each), first the one proposed.
     pub cycle: Option<u32>,
-    pub candidates: Vec<(u32, usize)>,
+    pub candidates: Vec<(u32, usize, u32)>,
     /// The function that holds the cycle.
     pub folded: Option<u32>,
     /// What could not be told, said.
@@ -172,27 +172,31 @@ pub struct Proposal {
 /// The finer, the longer the proof (4 us: hours for a wait of 10 ms; 1000 us: minutes).
 pub const CYCLE_TICK_US: u64 = 1000;
 
-/// Place the cycle of a `main` that holds the work (see `Proposal::folded`): the head most jumps
-/// come back to (the end of the loop, and the `continue`s), the lowest when several have as many.
+/// Place the cycle of a `main` that holds the work (see `Proposal::folded`): the outermost loop, the
+/// head with the longest jump back to it (a loop nested in another has a shorter one); the lowest when
+/// several are as long.
 /// A head is only a proposal: `arclang prove` says whether the code reaches it from its reset and
 /// comes back to it, and whether the machine is the code's.
 /// `timekeeper`: the bytes the interrupt of timer 0 writes (the clock, which is not the code's state).
 pub fn place_cycle(proposal: &mut Proposal, start: u32, functions: &BTreeMap<u32, Function>, timekeeper: &BTreeSet<u32>) {
     let Some(main_at) = proposal.folded else { return };
     let main = &functions[&main_at];
-    let mut heads: BTreeMap<u32, usize> = BTreeMap::new();
-    for (_, to) in &main.backs {
-        *heads.entry(*to).or_default() += 1;
+    // (the jumps back to a head, the longest of them)
+    let mut heads: BTreeMap<u32, (usize, u32)> = BTreeMap::new();
+    for (from, to) in &main.backs {
+        let known = heads.entry(*to).or_default();
+        known.0 += 1;
+        known.1 = known.1.max(from.saturating_sub(*to));
     }
-    let mut ranked: Vec<(u32, usize)> = heads.into_iter().collect();
-    ranked.sort_by_key(|(at, count)| (std::cmp::Reverse(*count), *at));
-    let Some(&(head, _)) = ranked.first() else {
+    let mut ranked: Vec<(u32, usize, u32)> = heads.into_iter().map(|(at, (count, span))| (at, count, span)).collect();
+    ranked.sort_by_key(|(at, _, span)| (std::cmp::Reverse(*span), *at));
+    let Some(&(head, _, _)) = ranked.first() else {
         proposal.unknown.push(format!("main (0x{main_at:04x}) has no jump back: there is no cycle to place"));
         return;
     };
     proposal.cycle = Some(head);
     if ranked.len() > 1 {
-        proposal.unknown.push(format!("{} places could be the head of the cycle ({}): the first is proposed; `arclang prove` refuses a head the code does not come back to", ranked.len(), ranked.iter().map(|(at, count)| format!("0x{at:04x} ({count} jump{} back)", if *count == 1 { "" } else { "s" })).collect::<Vec<_>>().join(", ")));
+        proposal.unknown.push(format!("{} places could be the head of the cycle ({}): the first is proposed; `arclang prove` refuses a head the code does not come back to", ranked.len(), ranked.iter().map(|(at, count, span)| format!("0x{at:04x} ({count} jump{} back, the longest 0x{span:x} bytes)", if *count == 1 { "" } else { "s" })).collect::<Vec<_>>().join(", ")));
     }
     proposal.candidates = ranked;
     // The bytes of the memory the code of the cycle reads or writes by address: all that main reaches, the reset apart.
@@ -571,7 +575,8 @@ mod tests {
         let mut proposal = propose(start, &functions);
         place_cycle(&mut proposal, start, &functions, &timekeeper);
         assert_eq!(proposal.cycle, Some(0x108), "{proposal:?}");
-        assert_eq!(proposal.candidates, [(0x108, 2), (0x10a, 1)]);
+        // The outermost loop is the head with the longest jump back: 0x0108 (0x0118 - 0x0108 = 0x10) over 0x010a (0x0110 - 0x010a = 6).
+        assert_eq!(proposal.candidates, [(0x108, 2, 0x10), (0x10a, 1, 6)]);
         let text = written("lamp.hex", 100, &proposal);
         assert!(text.contains("functions: [\"cycle at 0x0108\"]") && text.contains("tick: 1000 us") && text.contains("2 places could be the head of the cycle"), "{text}");
         // No cycle that calls: no main, and it is said.

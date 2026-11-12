@@ -946,7 +946,7 @@ and `arclang recover firmware.hex` says so and places the cycle instead:
 ```
 $ arclang recover uno_lamp_lto.hex
 // the cycle keeps its state in the memory at: 0x0100 to 0x0109 (10 bytes) (the clock, kept by the interrupt of timer 0, is left out)
-// not found: 3 places could be the head of the cycle (0x0390 (2 jumps back), 0x0498 (2 jumps back), 0x03c4 (1 jump back)): the first is proposed; ...
+// not found: 3 places could be the head of the cycle (0x0390 (2 jumps back, the longest 0x14e bytes), 0x03c4 (...), 0x0498 (...)): the first is proposed; ...
 // not found: the pins and the period are not found: the code reads its pins through tables of the flash, and waits in a loop of its own; ...
 
 correspondence "uno_lamp_lto binary" {
@@ -961,8 +961,10 @@ correspondence "uno_lamp_lto binary" {
 
 A `main` that reads the memory, the registers of the chip or the flash itself
 holds the work (a `main` that only calls is the one of a binary with a `loop`).
-Its head is the place the most jumps come back to (the end of the loop and its
-`continue`s), the lowest when several have as many; the others are listed, and
+Its head is that of the outermost loop: the place with the longest jump back to
+it (a loop inside another, a wait or a print, has a shorter one), the lowest when
+several are as long. Counting the jumps back to a head, as a first version did,
+found the right head of the lamp by chance and a wait of the dimmer; the others are listed, and
 `arclang prove` refuses a head the code does not come back to from its reset. The
 bytes of the memory the cycle touches are listed, the bytes the interrupt of
 timer 0 keeps left out: they are the clock, not the state of the code. What is
