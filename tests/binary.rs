@@ -365,14 +365,26 @@ fn a_binary_that_times_with_micros_is_proven_and_so_is_its_micros() {
 }
 
 #[test]
-#[ignore = "needs Ghidra, CBMC and Bitwuzla: tools/embedded/reverse/run.sh cargo test --test binary -- --include-ignored"]
-fn a_binary_built_with_link_time_optimisation_has_no_loop_to_name_and_nothing_is_proposed() {
-    // The lamp built as the Arduino IDE builds: setup() and loop() are folded into main.
+#[ignore = "needs Ghidra: tools/embedded/reverse/run.sh cargo test --test binary -- --include-ignored"]
+fn a_binary_built_with_link_time_optimisation_has_its_cycle_placed_and_no_function_named() {
+    // The lamp built as the Arduino IDE builds it: setup() and loop() are folded into main.
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sketches");
     let asked = arclang(&["recover", fixtures.join("uno_lamp_lto.hex").to_str().unwrap()]);
     let output = text(&asked);
-    assert!(!asked.status.success() && output.contains("setup() and loop() are folded into it") && output.contains("nothing could be proposed"), "{output}");
-    assert!(!output.contains("correspondence \""), "nothing is written: {output}");
+    assert!(asked.status.success(), "{output}");
+    // The head the proven correspondence places, the state it keeps without the clock, the step of its time.
+    let proven = std::fs::read_to_string(fixtures.join("uno_lamp_lto_binary.arc")).unwrap();
+    assert!(proven.contains("functions: [\"cycle at 0x0390\"]"));
+    for said in [
+        "functions: [\"cycle at 0x0390\"]",
+        "tick: 1000 us",
+        "0x0100 to 0x0109 (10 bytes) (the clock, kept by the interrupt of timer 0, is left out)",
+        "3 places could be the head of the cycle (0x0390 (2 jumps back), 0x0498 (2 jumps back), 0x03c4 (1 jump back))",
+        "the pins and the period are not found",
+    ] {
+        assert!(output.contains(said), "{said}: {output}");
+    }
+    assert!(!output.contains("loop at 0x") && !output.contains("digitalRead at 0x"), "no function is named: {output}");
 }
 
 #[test]
@@ -425,4 +437,31 @@ fn a_correspondence_that_reads_the_wrong_bytes_of_an_optimised_binary_is_refuted
     let output = text(&asked);
     // The lines of a cycle are not asked one by one (each question takes minutes): the refutation is said, and why not more.
     assert!(!asked.status.success() && output.contains("✗ Refuted") && output.contains("the lines are not asked one by one"), "{output}");
+}
+
+#[test]
+#[ignore = "needs Ghidra: tools/embedded/reverse/run.sh cargo test --test binary -- --include-ignored"]
+fn a_proposal_for_a_cycle_cannot_move_the_head_or_change_the_step_and_is_refused_before_any_proof() {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sketches");
+    let right = std::fs::read_to_string(fixtures.join("uno_lamp_lto_binary.arc")).unwrap();
+    let moved = right.replacen("cycle at 0x0390", "cycle at 0x0498", 1);
+    let finer = right.replacen("tick: 1000 us", "tick: 200 us", 1);
+    assert!(moved != right && finer != right);
+    let fence = |model: &str| format!("```arclang\n{model}```\n");
+    let (command, kept) = proposer(&[fence(&moved), fence(&finer), fence(&moved)]);
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::copy(fixtures.join("uno_lamp_lto.hex"), dir.path().join("uno_lamp_lto.hex")).unwrap();
+    let written = dir.path().join("recovered.arc");
+    let asked = arclang(&["recover", dir.path().join("uno_lamp_lto.hex").to_str().unwrap(), "--propose", "--with", &command, "--turns", "3", "-o", written.to_str().unwrap()]);
+    let output = text(&asked);
+    assert!(!asked.status.success() && !written.exists() && output.contains("no model of uno_lamp_lto.hex was proven"), "{output}");
+    // The proposer was given the cycle, the step and the listing of the code, and no source.
+    let first = std::fs::read_to_string(kept.path().join("prompt-0")).unwrap();
+    assert!(first.contains("functions: [\"cycle at 0x0390\"]") && first.contains("tick: 1000 us") && first.contains("0x0100 to 0x0109"), "{first}");
+    assert!(first.contains("; a function they call at 0x0272") || first.contains("0272"), "{first}");
+    assert!(first.contains("built with link-time optimisation"), "{first}");
+    let second = std::fs::read_to_string(kept.path().join("prompt-1")).unwrap();
+    assert!(second.contains("must be exactly `functions: [\"cycle at 0x0390\"]`"), "{second}");
+    let third = std::fs::read_to_string(kept.path().join("prompt-2")).unwrap();
+    assert!(third.contains("it must be `tick: 1000 us`"), "{third}");
 }

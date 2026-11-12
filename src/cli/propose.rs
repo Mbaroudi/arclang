@@ -121,6 +121,22 @@ How to read the listing: one line an instruction, its address then the instructi
 What makes the STEP hold: it starts from any memory the lines allow, so the lines must say enough. Give every state of the machine an expression, so that exactly one is true; bound each variable of the code with an invariant; say how the bytes give each output (`"word(0x0108) == 1 is led"`); relate every time the code keeps to the `time in` of the state that waits.
 "#;
 
+/// What a proposer is told of a binary whose loop is folded into `main` (built as the Arduino IDE builds it).
+const BINARY_CYCLE: &str = r#"This binary was built with link-time optimisation, as the Arduino IDE builds: setup(), loop() and the Arduino functions are folded into `main`, so there is no function to name. The correspondence places the cycle `main` never leaves, and the whole of the machine code is run, from its reset, on a model of the chip. The start is the code from its reset to its first arrival at the head of the cycle; one turn is from one arrival to the next.
+
+The correspondence was started for you: keep its `binary`, its `tick` and its `functions: ["cycle at ..."]` exactly as given (a function you add, or a head you move, is refused). Complete it:
+- `machine`: the name of your state machine;
+- `period`: the time of one turn of the cycle, in ms: the time the code waits in it (a wait is a loop that reads the timer until enough time has passed);
+- `reads`: `digitalRead(2) is <input>` (Boolean), the pin by its number on an Arduino UNO: pins 0 to 7 are bits 0 to 7 of port D, pins 8 to 13 are bits 0 to 5 of port B, pins 14 to 19 are bits 0 to 5 of port C. The machine code reads a pin through tables kept in the flash, so the number is not written in it: it is the pin whose port and bit the code reads and writes (port D is I/O address 0x29 for the input register, 0x2b for the output; port B 0x23 and 0x25; port C 0x26 and 0x28). EVERY pin the cycle reads or writes must be named;
+- `writes`: `digitalWrite(13) is <variable>` or `digitalWrite(13) is in <State>`;
+- `state`: on the left a C expression over the bytes of the memory, on the right `in <State>` (true exactly when the state is active), `time in <State>` (milliseconds the state has been held) or a variable of the machine. A binary has no names: a variable is `byte(0x0104)` (one byte), `word(0x0104)` (two bytes, an `int`, low byte first) or `dword(0x0102)` (four bytes, a `long`). A time the code took with `millis()` and kept in four bytes at 0x0102 is related as `millis() - dword(0x0102) is time in <State>`. The bytes the clock itself keeps are not the code's: they are left out of the list `arclang recover` gives;
+- `invariant`: C expressions that always hold of those bytes (`word(0x0104) == 0 || word(0x0104) == 1`).
+
+How to read the listing: one line an instruction, its address then the instruction, in Ghidra's notation for the AVR. `R25R24` is the pair r25:r24, `X`, `Y`, `Z` the pairs r27:r26, r29:r28, r31:r30. `brbs 0x126,Zflg` jumps when the flag Z is set (`breq`), `brbc` when it is clear (`brne`); `Cflg` is the carry. `lds R24,0x0106` loads the byte of the memory at 0x0106, `sts 0x0106,R24` stores it. Registers the cycle does not write hold what the start left in them: an optimised cycle keeps pointers and constants in them. Addresses 0x0100 and above are the memory.
+
+What makes the STEP hold: it starts from any memory the lines allow, so the lines must say enough. Give every state of the machine an expression, so that exactly one is true; bound each variable of the code with an invariant; say how the bytes give each output; relate every time the code keeps to the `time in` of the state that waits.
+"#;
+
 /// The binary a model is proposed for: what was found in its machine code.
 struct Binary {
     /// The Intel HEX file, as it is.
@@ -130,6 +146,8 @@ struct Binary {
     listing: String,
     /// The functions found, which a proposal names as they are.
     functions: Vec<(String, u32)>,
+    /// The head of the cycle of `main`, for a binary whose loop is folded into it.
+    cycle: Option<u32>,
 }
 
 /// Read a binary for a proposer: its translation, where its functions are, the listing of its loop.
@@ -137,10 +155,8 @@ fn read_binary(input: &Path, file_name: &str, work: &Path) -> Result<Binary, Str
     use crate::compiler::recover::{binary, binary_shape};
     let hex = std::fs::read_to_string(input).map_err(|e| format!("cannot read {}: {e}", input.display()))?;
     let image = binary::intel_hex(&hex).map_err(|e| format!("{file_name}: {e}"))?;
-    let lifted = binary::lift(&image, &[], None, &work.join("lift")).map_err(|e| format!("{file_name}: {e}"))?;
-    let (start, functions) = binary_shape::facts(&lifted)?;
-    let proposal = binary_shape::propose(start, &functions);
-    if !proposal.functions.iter().any(|(name, _, _)| name == "loop") {
+    let binary_shape::Recovered { lifted, proposal, .. } = binary_shape::recover(&image, &work.join("lift")).map_err(|e| format!("{file_name}: {e}"))?;
+    if !proposal.functions.iter().any(|(name, _, _)| name == "loop") && proposal.cycle.is_none() {
         return Err(format!("{file_name}: its loop() was not found in the machine code ({}): there is nothing to propose a model of", proposal.unknown.join("; ")));
     }
     Ok(Binary {
@@ -148,6 +164,7 @@ fn read_binary(input: &Path, file_name: &str, work: &Path) -> Result<Binary, Str
         started: binary_shape::written(file_name, image.bytes.len(), &proposal),
         listing: binary_shape::listing(&lifted, &proposal),
         functions: proposal.functions.iter().map(|(name, at, _)| (name.clone(), *at)).collect(),
+        cycle: proposal.cycle,
     })
 }
 
@@ -197,7 +214,8 @@ fn turns(proposer: &str, file_name: &str, code: &str, binary: Option<&Binary>, w
         None => format!("{BRIEF}\nThe sketch, `{file_name}`:\n```c\n{code}\n```\n"),
         Some(binary) => {
             let (from, to) = (BRIEF.find("The state machine:").ok_or("the brief has no state machine")?, BRIEF.find("The correspondence of that machine").ok_or("the brief has no correspondence")?);
-            format!("{BINARY_INTRO}\n{}{BINARY_CORRESPONDENCE}\nWhat `arclang recover` found in `{file_name}`, the correspondence started:\n```arclang\n{}```\n\nThe machine code of its setup and of its loop:\n```\n{}```\n", &BRIEF[from..to], binary.started, binary.listing)
+            let correspondence = if binary.cycle.is_some() { BINARY_CYCLE } else { BINARY_CORRESPONDENCE };
+            format!("{BINARY_INTRO}\n{}{correspondence}\nWhat `arclang recover` found in `{file_name}`, the correspondence started:\n```arclang\n{}```\n\nThe machine code of its setup and of its loop:\n```\n{}```\n", &BRIEF[from..to], binary.started, binary.listing)
         }
     };
     let mut prompt = task.clone();
@@ -237,6 +255,15 @@ fn judge(model: &str, file_name: &str, code: &str, binary: Option<&Binary>, dir:
         (None, _) => {}
         (Some(_), None) => return Err(format!("The correspondence names no binary: it must have `binary: \"{file_name}\"`")),
         (Some(_), Some(named)) if named.file != file_name => return Err(format!("The correspondence names the binary \"{}\": it must be exactly \"{file_name}\"", named.file)),
+        (Some(found), Some(named)) if found.cycle.is_some() => {
+            // A cycle: nothing is named, and the head and the step are those proposed.
+            if named.cycle != found.cycle || !named.functions.is_empty() {
+                return Err(format!("The correspondence places the cycle at {:?}: it must be exactly `functions: [\"cycle at 0x{:04x}\"]`, the head found in the machine code", named.cycle, found.cycle.unwrap_or_default()));
+            }
+            if named.tick_us != crate::compiler::recover::binary_shape::CYCLE_TICK_US {
+                return Err(format!("The correspondence says `tick: {} us`: it must be `tick: {} us` (how often a wait reads the timer: the proof holds for that step and takes minutes at it)", named.tick_us, crate::compiler::recover::binary_shape::CYCLE_TICK_US));
+            }
+        }
         (Some(found), Some(named)) => {
             // A function that is named is not run in the proof: only those found in the machine code are named,
             // where they were found. A proposal cannot put code out of the proof by calling it an Arduino function.
