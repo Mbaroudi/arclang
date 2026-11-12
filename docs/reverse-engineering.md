@@ -938,8 +938,43 @@ than one, is outside what a coarse step can say; the verdict says which step it
 is for.
 
 What is not read yet for a cycle: `analogRead`, `analogWrite`, the interrupts of
-the sketch (only the one that keeps the time), a serial port, and the proposal
-of the head of the cycle by `arclang recover`.
+the sketch (only the one that keeps the time), and a serial port.
+
+**`arclang recover` places the cycle.** On such a binary the loop is no function,
+and `arclang recover firmware.hex` says so and places the cycle instead:
+
+```
+$ arclang recover uno_lamp_lto.hex
+// the cycle keeps its state in the memory at: 0x0100 to 0x0109 (10 bytes) (the clock, kept by the interrupt of timer 0, is left out)
+// not found: 3 places could be the head of the cycle (0x0390 (2 jumps back, the longest 0x14e bytes), 0x03c4 (...), 0x0498 (...)): the first is proposed; ...
+// not found: the pins and the period are not found: the code reads its pins through tables of the flash, and waits in a loop of its own; ...
+
+correspondence "uno_lamp_lto binary" {
+    machine: "..."
+    binary: "uno_lamp_lto.hex"
+    period: ... ms
+    tick: 1000 us
+    functions: ["cycle at 0x0390"]
+    ...
+}
+```
+
+A `main` that reads the memory, the registers of the chip or the flash itself
+holds the work (a `main` that only calls is the one of a binary with a `loop`).
+Its head is that of the outermost loop: the place with the longest jump back to
+it (a loop inside another, a wait or a print, has a shorter one), the lowest when
+several are as long. Counting the jumps back to a head, as a first version did,
+found the right head of the lamp by chance and a wait of the dimmer; the others are listed, and
+`arclang prove` refuses a head the code does not come back to from its reset. The
+bytes of the memory the cycle touches are listed, the bytes the interrupt of
+timer 0 keeps left out: they are the clock, not the state of the code. What is
+not found is said: the pins (the code reads them through tables of the flash, so
+no pin number is written in it) and the period (a wait in a loop of its own).
+
+**`--propose` takes such a binary too.** The proposer is given the cycle, the
+step and the listing of the code of `main`; it cannot move the head or change
+the step (a proposal that does is refused before any proof), since a head it
+chose would be the one it proved against.
 
 ## A board observed against the model
 

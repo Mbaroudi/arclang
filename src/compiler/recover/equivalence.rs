@@ -310,7 +310,18 @@ pub(super) fn decide(work: &Path, sources: &[&str], flags: &[&str], unwind: usiz
         }
         Ok(Ok(solve(&bitwuzla, &limit, work, seconds).map_err(|e| format!("cannot run '{bitwuzla}': {e} ({how})"))?))
     };
-    let first = match asked("--unwinding-assertions")? {
+    // The formula of a long proof is hundreds of megabytes written through the container's mount, and the
+    // write fails now and then ("failed to open file"): an incident of the machine, which must not decide a
+    // verdict. The question is asked once more when it is that, and only that.
+    let ask = |bound: &str| -> Result<Result<String, String>, String> {
+        let first = asked(bound)?;
+        if matches!(&first, Err(reason) if reason.contains("failed to open file")) {
+            std::thread::sleep(std::time::Duration::from_secs(3));
+            return asked(bound);
+        }
+        Ok(first)
+    };
+    let first = match ask("--unwinding-assertions")? {
         Ok(said) => said,
         Err(reason) => return Ok(Answer::Unknown(reason)),
     };
@@ -319,7 +330,7 @@ pub(super) fn decide(work: &Path, sources: &[&str], flags: &[&str], unwind: usiz
         Some("sat") => {
             // A check that fails, or a loop that runs past its bound from a
             // state out of range? The same question without the bound's check.
-            let within = match asked("--no-unwinding-assertions")? {
+            let within = match ask("--no-unwinding-assertions")? {
                 Ok(said) => said,
                 Err(reason) => return Ok(Answer::Unknown(reason)),
             };

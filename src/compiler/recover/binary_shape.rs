@@ -115,6 +115,28 @@ pub fn facts(lifted: &str) -> Result<(u32, BTreeMap<u32, Function>), String> {
     Ok((start.ok_or("the translation does not say where the code starts")?, functions))
 }
 
+/// What is read of a binary: its translation, its functions, and what is proposed.
+pub struct Recovered {
+    pub lifted: String,
+    pub start: u32,
+    pub functions: BTreeMap<u32, Function>,
+    pub proposal: Proposal,
+}
+
+/// Read a binary (translate its machine code with Ghidra in `dir`) and propose where its loop is:
+/// as functions, or as the cycle of `main` when the loop is folded into it.
+pub fn recover(image: &super::binary::Image, dir: &std::path::Path) -> Result<Recovered, String> {
+    // The routine of the overflow of timer 0 is translated too: what it writes is the clock, not the state of the code.
+    let routine = super::binary::vectors(image).map(|vectors| vectors[super::binary::TIMER0_OVERFLOW]);
+    let entries: Vec<u32> = routine.into_iter().collect();
+    let lifted = super::binary::lift(image, &entries, None, dir)?;
+    let (start, functions) = facts(&lifted)?;
+    let mut proposal = propose(start, &functions);
+    let timekeeper: BTreeSet<u32> = routine.and_then(|at| functions.get(&at)).map(|f| f.writes.iter().copied().filter(|a| *a >= RAM).collect()).unwrap_or_default();
+    place_cycle(&mut proposal, start, &functions, &timekeeper);
+    Ok(Recovered { lifted, start, functions, proposal })
+}
+
 /// What is proposed of a binary.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Proposal {
@@ -135,8 +157,62 @@ pub struct Proposal {
     /// what they call that is not named.
     pub loop_code: Vec<u32>,
     pub setup_code: Vec<u32>,
+    /// A binary whose loop is folded into `main` (built with link-time optimisation): the head of the
+    /// cycle `main` never leaves, and the other heads it could be (with how many jumps come back to
+    /// each), first the one proposed.
+    pub cycle: Option<u32>,
+    pub candidates: Vec<(u32, usize, u32)>,
+    /// The function that holds the cycle.
+    pub folded: Option<u32>,
     /// What could not be told, said.
     pub unknown: Vec<String>,
+}
+
+/// The step of the time proposed for a cycle, in microseconds: how often a wait reads the timer.
+/// The finer, the longer the proof (4 us: hours for a wait of 10 ms; 1000 us: minutes).
+pub const CYCLE_TICK_US: u64 = 1000;
+
+/// Place the cycle of a `main` that holds the work (see `Proposal::folded`): the outermost loop, the
+/// head with the longest jump back to it (a loop nested in another has a shorter one); the lowest when
+/// several are as long.
+/// A head is only a proposal: `arclang prove` says whether the code reaches it from its reset and
+/// comes back to it, and whether the machine is the code's.
+/// `timekeeper`: the bytes the interrupt of timer 0 writes (the clock, which is not the code's state).
+pub fn place_cycle(proposal: &mut Proposal, start: u32, functions: &BTreeMap<u32, Function>, timekeeper: &BTreeSet<u32>) {
+    let Some(main_at) = proposal.folded else { return };
+    let main = &functions[&main_at];
+    // (the jumps back to a head, the longest of them)
+    let mut heads: BTreeMap<u32, (usize, u32)> = BTreeMap::new();
+    for (from, to) in &main.backs {
+        let known = heads.entry(*to).or_default();
+        known.0 += 1;
+        known.1 = known.1.max(from.saturating_sub(*to));
+    }
+    let mut ranked: Vec<(u32, usize, u32)> = heads.into_iter().map(|(at, (count, span))| (at, count, span)).collect();
+    ranked.sort_by_key(|(at, _, span)| (std::cmp::Reverse(*span), *at));
+    let Some(&(head, _, _)) = ranked.first() else {
+        proposal.unknown.push(format!("main (0x{main_at:04x}) has no jump back: there is no cycle to place"));
+        return;
+    };
+    proposal.cycle = Some(head);
+    if ranked.len() > 1 {
+        proposal.unknown.push(format!("{} places could be the head of the cycle ({}): the first is proposed; `arclang prove` refuses a head the code does not come back to", ranked.len(), ranked.iter().map(|(at, count, span)| format!("0x{at:04x} ({count} jump{} back, the longest 0x{span:x} bytes)", if *count == 1 { "" } else { "s" })).collect::<Vec<_>>().join(", ")));
+    }
+    proposal.candidates = ranked;
+    // The bytes of the memory the code of the cycle reads or writes by address: all that main reaches, the reset apart.
+    let code = code_of(main_at, &BTreeSet::new(), start, functions);
+    let bytes: BTreeSet<u32> = code.iter().filter_map(|at| functions.get(at)).flat_map(|f| f.reads.iter().chain(&f.writes)).copied().filter(|a| *a >= RAM && !timekeeper.contains(a)).collect();
+    for at in bytes {
+        match proposal.memory.last_mut() {
+            Some((first, count)) if *first + *count == at => *count += 1,
+            _ => proposal.memory.push((at, 1)),
+        }
+    }
+    proposal.loop_code = code;
+    if functions.values().any(|f| f.loads + f.stores > 0) {
+        proposal.unknown.push("the code also reads or writes the memory through pointers: bytes it uses that way are not listed".to_string());
+    }
+    proposal.unknown.push("the pins and the period are not found: the code reads its pins through tables of the flash, and waits in a loop of its own; they are read in the listing of the cycle".to_string());
 }
 
 /// The Arduino function a function is, by its shape, and why.
@@ -207,7 +283,8 @@ pub fn propose(start: u32, functions: &BTreeMap<u32, Function>) -> Proposal {
     // (a binary built with link-time optimisation, as the Arduino IDE builds): what it calls in its
     // cycle is then not loop(), and nothing is named.
     if main.flash > 0 || main.loads + main.stores > 0 || main.reads.iter().chain(&main.writes).any(|a| *a != STATUS) {
-        proposal.unknown.push(format!("main (0x{main_at:04x}) does the work itself: setup() and loop() are folded into it (a binary built with link-time optimisation, as the Arduino IDE builds). There is no loop() to name, and such a binary is not read yet"));
+        proposal.folded = Some(main_at);
+        proposal.unknown.push(format!("main (0x{main_at:04x}) does the work itself: setup() and loop() are folded into it (a binary built with link-time optimisation, as the Arduino IDE builds). There is no loop() to name: the cycle of main is placed instead"));
         return proposal;
     }
     let cycle: Vec<&Site> = main.sites.iter().filter(|site| site.to != start && in_cycle(main, site)).collect();
@@ -383,11 +460,31 @@ pub fn listing(lifted: &str, proposal: &Proposal) -> String {
     text
 }
 
+/// The proposal for a binary whose loop is folded into `main`: the head of its cycle, the step of
+/// its time, the bytes of its state. The pins and the period are left to read in the machine code.
+fn written_cycle(file: &str, bytes: usize, stem: &str, head: u32, proposal: &Proposal) -> String {
+    let mut text = format!("// Recovered from {file} ({bytes} bytes, read as an ATmega328P) by `arclang recover`.\n// Its loop is folded into main (link-time optimisation): no function is named, and none is taken on trust.\n// A proposal: the head of the cycle `main` never leaves, found by the jumps that come back to it.\n");
+    text.push_str(&format!("model \"{stem}, as flashed\" {{ version: \"1.0.0\" }}\n\n"));
+    if !proposal.memory.is_empty() {
+        let runs: Vec<String> = proposal.memory.iter().map(|(first, count)| if *count == 1 { format!("0x{first:04x}") } else { format!("0x{first:04x} to 0x{:04x} ({count} bytes)", first + count - 1) }).collect();
+        text.push_str(&format!("// the cycle keeps its state in the memory at: {} (the clock, kept by the interrupt of timer 0, is left out)\n//   read it as byte(at), word(at) (two bytes, an int) or dword(at) (four, a long)\n", runs.join(", ")));
+    }
+    for unknown in &proposal.unknown {
+        text.push_str(&format!("// not found: {unknown}\n"));
+    }
+    text.push_str("\n// state_machine \"...\" { ... }   <- to write: its inputs are the pins read, its variables the pins written\n\n");
+    text.push_str(&format!("correspondence \"{stem} binary\" {{\n    machine: \"...\"\n    binary: \"{file}\"\n    period: ... ms\n    tick: {CYCLE_TICK_US} us   // how often a wait reads the timer: the proof holds for that step (4 us: hours; 1000 us: minutes)\n    functions: [\"cycle at 0x{head:04x}\"]\n    reads: [\"digitalRead(...) is ...\"]\n    writes: [\"digitalWrite(...) is ...\"]\n    state: [\"... is in ...\"]\n}}\n"));
+    text
+}
+
 /// The proposal as a file a person or an AI completes: the correspondence
 /// with what is known, the machine left to write.
 pub fn written(file: &str, bytes: usize, proposal: &Proposal) -> String {
     let stem = std::path::Path::new(file).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "firmware".to_string());
     let mut text = format!("// Recovered from {file} ({bytes} bytes, read as an ATmega328P) by `arclang recover`.\n// A proposal: where its functions are, by the shape of their machine code. `arclang prove`\n// takes the Arduino functions named here on trust; the machine is left to write.\n");
+    if let Some(head) = proposal.cycle {
+        return written_cycle(file, bytes, &stem, head, proposal);
+    }
     text.push_str(&format!("model \"{stem}, as flashed\" {{ version: \"1.0.0\" }}\n\n"));
     if !proposal.in_setup.is_empty() {
         text.push_str(&format!("// setup() calls: {}\n", proposal.in_setup.join(", ")));
@@ -461,8 +558,27 @@ mod tests {
         // A main that reads the memory itself has loop() folded into it: what it calls in its cycle is not loop().
         let folded = FACTS.replace("//@ function 0x0100 calls\n", "//@ function 0x0100 calls\n//@ reads 0x0100 0x100 0x101\n");
         let (start, functions) = facts(&folded).unwrap();
-        let proposal = propose(start, &functions);
+        let mut proposal = propose(start, &functions);
         assert!(proposal.functions.is_empty() && proposal.unknown[0].contains("setup() and loop() are folded into it"), "{proposal:?}");
+        // The cycle is placed where the most jumps come back: main (0x0100) jumps back to 0x010a once.
+        assert_eq!(proposal.folded, Some(0x100));
+        let mut proposal = proposal;
+        let timekeeper: BTreeSet<u32> = BTreeSet::from([0x101]);
+        place_cycle(&mut proposal, start, &functions, &timekeeper);
+        assert_eq!(proposal.cycle, Some(0x10a), "{proposal:?}");
+        let holds = |at: u32| proposal.memory.iter().any(|(first, count)| (*first..*first + *count).contains(&at));
+        assert!(holds(0x100) && !holds(0x101), "the clock's byte is left out: {proposal:?}");
+        // Two jumps back to a head, one to another: the first is proposed, the other said.
+        let more = folded.replace("//@ function 0x0100 calls\n//@ reads 0x0100 0x100 0x101\n//@ back 0x0110 0x010a\n", "//@ function 0x0100 calls\n//@ reads 0x0100 0x100 0x101\n//@ back 0x0110 0x010a\n//@ back 0x0114 0x0108\n//@ back 0x0118 0x0108\n");
+        assert!(more != folded, "the facts have that block");
+        let (start, functions) = facts(&more).unwrap();
+        let mut proposal = propose(start, &functions);
+        place_cycle(&mut proposal, start, &functions, &timekeeper);
+        assert_eq!(proposal.cycle, Some(0x108), "{proposal:?}");
+        // The outermost loop is the head with the longest jump back: 0x0108 (0x0118 - 0x0108 = 0x10) over 0x010a (0x0110 - 0x010a = 6).
+        assert_eq!(proposal.candidates, [(0x108, 2, 0x10), (0x10a, 1, 6)]);
+        let text = written("lamp.hex", 100, &proposal);
+        assert!(text.contains("functions: [\"cycle at 0x0108\"]") && text.contains("tick: 1000 us") && text.contains("2 places could be the head of the cycle"), "{text}");
         // No cycle that calls: no main, and it is said.
         let (start, functions) = facts("//@ start 0x0\n//@ function 0x0000 calls\n//@ back 0x0004 0x0002\n").unwrap();
         let proposal = propose(start, &functions);
