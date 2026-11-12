@@ -531,6 +531,12 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
         text
     };
     let (before, after) = (record("b"), record("a"));
+    // The start has no state before it, and has inputs: a case that refutes it gives them too.
+    let mut start_inputs = String::from("#ifdef ARCLANG_WITNESS\n");
+    for (rank, (_, read)) in inputs_shown.iter().enumerate() {
+        start_inputs.push_str(&format!("    long long arclang_wi_{rank} = (long long)({read});\n"));
+    }
+    start_inputs.push_str("#endif\n");
     for invariant in &correspondence.invariants {
         lines.push((format!("(({invariant}) != 0)"), format!("invariant: {invariant}")));
     }
@@ -574,7 +580,7 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
         c.push_str("#ifdef ARCLANG_INTERLEAVE\n    __CPROVER_assume(arclang_corresponds(&s));\n    {\n        struct arclang_kept first, before, after, now;\n        unsigned at;\n        arclang_watch = false; arclang_in = false;\n        /* interrupts already taken since the last loop(): none, one or two */\n        { unsigned already; __CPROVER_assume(already <= 2U); for (unsigned k = 0U; k < already; k++) { ARCLANG_ROUTINE(); } }\n        arclang_keep(&first);\n        arclang_on = true; arclang_delayed = 0UL; ARCLANG_ROUTINE(); loop(); arclang_keep(&before);\n        arclang_put_back(&first); arclang_on = true; arclang_delayed = 0UL; loop(); ARCLANG_ROUTINE(); arclang_keep(&after);\n        arclang_put_back(&first); arclang_on = true; arclang_delayed = 0UL;\n        arclang_at = at; arclang_seen = 0U; arclang_fired = false; arclang_watch = true;\n        loop();\n        arclang_watch = false;\n        __CPROVER_assume(arclang_fired);\n        arclang_keep(&now);\n        __CPROVER_assert(arclang_same(&now, &before) || arclang_same(&now, &after), \"an interrupt in the middle of loop() is one before it or one after it\");\n    }\n    return 0;\n#endif\n");
     }
     c.push_str(&format!(
-        "#ifdef ARCLANG_START\n    /* start: after setup() and one loop(), and after init and one step, the two correspond */\n    setup();\n    arclang_ms = 0UL; /* the first loop() runs as millis() starts counting */\n    arclang_late = 0UL;\n    arclang_delayed = 0UL;\n{interrupts}    loop();\n    arclang_ms += {period_ms}UL;\n    {prefix}_init(&s);\n    {prefix}_step(&s, &in, &out);\n#else\n    /* step: from any two states that correspond, one loop() and one step leave two that correspond */\n    __CPROVER_assume(arclang_corresponds(&s));\n{before}    arclang_delayed = 0UL;\n{interrupts}    loop();\n    arclang_ms += {period_ms}UL;\n    {{ unsigned long late; __CPROVER_assume(late <= ARCLANG_LATE_MOST); arclang_late = late; }} /* what the next loop() will read */\n    {prefix}_step(&s, &in, &out);\n#endif\n{after}#ifdef ARCLANG_LINE\n    __CPROVER_assert(arclang_line(ARCLANG_LINE, &s), \"this line of the correspondence holds\");\n#else\n    __CPROVER_assert(arclang_corresponds(&s), \"the code and the model correspond\");\n#endif\n    return 0;\n}}\n"
+        "#ifdef ARCLANG_START\n    /* start: after setup() and one loop(), and after init and one step, the two correspond */\n{start_inputs}    setup();\n    arclang_ms = 0UL; /* the first loop() runs as millis() starts counting */\n    arclang_late = 0UL;\n    arclang_delayed = 0UL;\n{interrupts}    loop();\n    arclang_ms += {period_ms}UL;\n    {prefix}_init(&s);\n    {prefix}_step(&s, &in, &out);\n#else\n    /* step: from any two states that correspond, one loop() and one step leave two that correspond */\n    __CPROVER_assume(arclang_corresponds(&s));\n{before}    arclang_delayed = 0UL;\n{interrupts}    loop();\n    arclang_ms += {period_ms}UL;\n    {{ unsigned long late; __CPROVER_assume(late <= ARCLANG_LATE_MOST); arclang_late = late; }} /* what the next loop() will read */\n    {prefix}_step(&s, &in, &out);\n#endif\n{after}#ifdef ARCLANG_LINE\n    __CPROVER_assert(arclang_line(ARCLANG_LINE, &s), \"this line of the correspondence holds\");\n#else\n    __CPROVER_assert(arclang_corresponds(&s), \"the code and the model correspond\");\n#endif\n    return 0;\n}}\n"
     ));
 
     // One step of the machine is one loop(): the machine counts its times

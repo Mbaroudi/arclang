@@ -254,3 +254,43 @@ fn recovering_a_binary_without_ghidra_says_what_is_missing() {
     let output = text(&asked);
     assert!(!asked.status.success() && output.contains("Ghidra could not be run"), "{output}");
 }
+
+/// A proposer that answers from files, one a turn, and keeps the prompts it was given.
+fn proposer(answers: &[String]) -> (String, tempfile::TempDir) {
+    let dir = tempfile::tempdir().unwrap();
+    for (turn, answer) in answers.iter().enumerate() {
+        std::fs::write(dir.path().join(format!("answer-{turn}")), answer).unwrap();
+    }
+    let at = dir.path().display();
+    let command = format!("n=$(cat '{at}/count' 2>/dev/null || echo 0); echo $((n+1)) > '{at}/count'; cat > '{at}/prompt-'$n; cat '{at}/answer-'$n");
+    (command, dir)
+}
+
+#[test]
+#[ignore = "needs Ghidra, CBMC and Bitwuzla: tools/embedded/reverse/run.sh cargo test --test binary -- --include-ignored"]
+fn a_model_proposed_for_a_binary_is_written_only_once_proven_against_its_machine_code() {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sketches");
+    let right = std::fs::read_to_string(fixtures.join("uno_lamp_binary.arc")).unwrap();
+    // First a machine that waits 40 ms where the binary waits 50, then one that names a function of its own, then the right one.
+    let wrong = right.replacen("transition Arming -> Down { guard: \"not button\" timing: 50 ms", "transition Arming -> Down { guard: \"not button\" timing: 40 ms", 1);
+    let moved = right.replacen("\"millis at 0x029c\"", "\"millis at 0x02b4\"", 1);
+    assert!(wrong != right && moved != right);
+    let fence = |model: &str| format!("Here is the model.\n```arclang\n{model}```\n");
+    let (command, kept) = proposer(&[fence(&wrong), fence(&moved), fence(&right)]);
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::copy(fixtures.join("uno_lamp.hex"), dir.path().join("uno_lamp.hex")).unwrap();
+    let written = dir.path().join("recovered.arc");
+    let asked = arclang(&["recover", dir.path().join("uno_lamp.hex").to_str().unwrap(), "--propose", "--with", &command, "--turns", "3", "--timeout", "1200", "-o", written.to_str().unwrap()]);
+    let output = text(&asked);
+    assert!(asked.status.success() && output.contains("✓ Proven") && output.contains("of the machine code of uno_lamp.hex itself"), "{output}");
+    assert!(std::fs::read_to_string(&written).unwrap().contains("timing: 50 ms"));
+    // The proposer was given what was found in the machine code and the listing of loop(), no source.
+    let first = std::fs::read_to_string(kept.path().join("prompt-0")).unwrap();
+    assert!(first.contains("\"loop at 0x0102\"") && first.contains("; loop at 0x0102") && first.contains("call 0x514    ; digitalRead"), "{first}");
+    assert!(!first.contains("void loop()"), "{first}");
+    // What was refuted went back to it, and so did the function it moved.
+    let second = std::fs::read_to_string(kept.path().join("prompt-1")).unwrap();
+    assert!(second.contains("STEP is refuted") && second.contains("timing: 40 ms"), "{second}");
+    let third = std::fs::read_to_string(kept.path().join("prompt-2")).unwrap();
+    assert!(third.contains("they must be exactly those found in the machine code"), "{third}");
+}
