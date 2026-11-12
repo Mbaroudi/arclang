@@ -379,7 +379,7 @@ fn a_binary_built_with_link_time_optimisation_has_its_cycle_placed_and_no_functi
         "functions: [\"cycle at 0x0390\"]",
         "tick: 1000 us",
         "0x0100 to 0x0109 (10 bytes) (the clock, kept by the interrupt of timer 0, is left out)",
-        "3 places could be the head of the cycle (0x0390 (2 jumps back), 0x0498 (2 jumps back), 0x03c4 (1 jump back))",
+        "3 places could be the head of the cycle (0x0390 (2 jumps back, the longest 0x14e bytes)",
         "the pins and the period are not found",
     ] {
         assert!(output.contains(said), "{said}: {output}");
