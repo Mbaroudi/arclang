@@ -119,7 +119,7 @@ pub fn read(declaration: &CorrespondenceDecl) -> Result<Correspondence, String> 
         }
     }
     let binary = match binary_file {
-        Some(file) => Some(super::binary::Binary { file, functions: super::binary::functions(&list("functions"), &what)? }),
+        Some(file) => Some(super::binary::Binary { file, functions: super::binary::functions(&list("functions"), &what)?, identified: Vec::new() }),
         None if declaration.attributes.contains_key("functions") => return Err(format!("{what}: functions are those of a binary (binary: \"firmware.hex\")")),
         None => None,
     };
@@ -773,8 +773,9 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
     let model = Generated { header_name: &header.0, header: &header.1, code_name: &code.0, code: &code.1 };
     let mut outcomes = Vec::new();
     for declaration in ast.correspondences.iter().filter(|d| only.is_none_or(|name| d.name == name)) {
-        let correspondence = read(declaration)?;
+        let mut correspondence = read(declaration)?;
         let mut sketches = Vec::new();
+        let mut machine_code = None;
         for source in &correspondence.sources {
             let path = base.join(source);
             let text = std::fs::read_to_string(&path).map_err(|e| format!("correspondence '{}': cannot read {}: {e}", correspondence.name, path.display()))?;
@@ -790,6 +791,7 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
             let entries: Vec<u32> = binary.functions.iter().map(|(_, at)| *at).collect();
             let lifted = super::binary::lift(&image, &entries, &dir.join("lift")).map_err(|e| format!("{what}: {e}"))?;
             sketches.push(("machine_code.c".to_string(), super::binary::sketch(binary, &lifted, &what)?));
+            machine_code = Some(lifted);
         }
         let written = harness(&correspondence, &model, &sketches, default_period)?;
         let Proof { files: proof, unwind, start_unwind, period_us, lines, unrelated, define, .. } = &written;
@@ -804,9 +806,31 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
         let started = std::time::Instant::now();
         let model_source = format!("model/{}", model.code_name);
         let mut outcome = None;
+        // The functions a binary's correspondence names are not run in its proof: first, that each is
+        // the function it is said to be, of its own machine code (those whose identity is proven yet).
+        if let (Some(binary), Some(lifted)) = (correspondence.binary.as_mut(), &machine_code) {
+            let mut not_them = Vec::new();
+            for (name, at) in binary.functions.clone().iter().filter(|(name, _)| name != "loop") {
+                match super::binary_identity::check(name, *at, lifted, &dir, seconds)? {
+                    super::binary_identity::Identity::Proven(proven) => binary.identified.push((name.clone(), proven)),
+                    super::binary_identity::Identity::Refuted(parts) => not_them.extend(parts.iter().map(|part| format!("{name} at 0x{at:04x}: {part}"))),
+                    super::binary_identity::Identity::Unknown(reason) => {
+                        outcome = Some(Outcome::Unknown { reason: format!("whether the function at 0x{at:04x} is {name}: {reason}") });
+                        break;
+                    }
+                    super::binary_identity::Identity::NotAsked => {}
+                }
+            }
+            if !not_them.is_empty() {
+                outcome = Some(Outcome::Refuted { obligation: "functions".to_string(), lines: not_them, case: None, seconds: started.elapsed().as_secs_f64() });
+            }
+        }
         // The start is of the code as it is initialised; the step, of any state it can hold.
         let mut unwind = step_unwind;
         for (obligation, mut flags) in [("start", vec!["-DARCLANG_START"]), ("step", vec!["--nondet-static"])] {
+            if outcome.is_some() {
+                break;
+            }
             unwind = if obligation == "start" { start_unwind } else { step_unwind };
             flags.push(define.as_str());
             // The widths of the board, and its fixed-width types before any the host has.

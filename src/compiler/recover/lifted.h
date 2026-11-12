@@ -16,6 +16,11 @@
 static uint8_t arclang_r[32];
 static uint8_t arclang_mem[ARCLANG_MEM_SIZE];
 static uint8_t arclang_reg[0x100];
+#ifdef ARCLANG_IDENTITY
+/* The registers of the chip, when what a function does to them is what is proven:
+   a read gives what the register holds, a write is kept. */
+static uint8_t arclang_io[0x100];
+#endif
 static bool arclang_uncovered;      /* an instruction ran that the translation does not cover */
 static bool arclang_outside;        /* an address outside the memory or the flash was used */
 static bool arclang_wrote_register; /* a register of the chip was written by the code itself */
@@ -61,7 +66,11 @@ static uint64_t arclang_mem_rd1(uint64_t at)
         if (at == 0x5eu) { return arclang_reg[ARCLANG_SP + 1u]; }
         /* The status register is kept flag by flag; what the translation stores at its address is a copy. */
         if (at == 0x5fu) { return arclang_mem[at]; }
+#ifdef ARCLANG_IDENTITY
+        return arclang_io[at];
+#else
         return arclang_any();
+#endif
     }
     return arclang_mem[at];
 }
@@ -78,6 +87,10 @@ static void arclang_mem_wr1(uint64_t at, uint64_t value)
            port): that is not looked at. The ports are, always: a pin written by the code itself
            is a write the proof would not see. */
         if (at == 0x5fu) { arclang_mem[at] = (uint8_t)value; return; }
+#ifdef ARCLANG_IDENTITY
+        arclang_io[at] = (uint8_t)value;
+        return;
+#endif
         if (arclang_booting && !(at >= 0x23u && at <= 0x2bu)) { return; }
         arclang_wrote_register = true;
         return;

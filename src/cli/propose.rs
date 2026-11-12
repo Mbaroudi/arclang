@@ -273,7 +273,9 @@ fn judge(model: &str, file_name: &str, code: &str, binary: Option<&Binary>, dir:
             Ok(said)
         }
         Outcome::Refuted { obligation, lines, case, .. } => {
-            let part = if obligation == "start" {
+            let part = if obligation == "functions" {
+                "A function the correspondence names is not the Arduino function it is said to be. Its machine code, from some memory and registers, for some pin, fails this"
+            } else if obligation == "start" {
                 "START is refuted: after setup() and one loop(), and after the machine's start and one step, these lines do not hold"
             } else {
                 "STEP is refuted: from two states for which every line holds, one loop() and one step can leave two for which these lines do not hold"

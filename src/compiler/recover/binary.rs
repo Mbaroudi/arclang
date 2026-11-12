@@ -55,6 +55,9 @@ pub struct Binary {
     pub file: String,
     /// (the function, its address in the flash)
     pub functions: Vec<(String, u32)>,
+    /// The functions proven to be the Arduino functions they are said to be: (the function, what is proven of it).
+    /// Filled by the proof; empty as the correspondence is read.
+    pub identified: Vec<(String, String)>,
 }
 
 /// An Arduino function a correspondence can name: the bytes of its
@@ -329,9 +332,25 @@ pub fn lift(image: &Image, entries: &[u32], dir: &Path) -> Result<String, String
             }
         )
     })?;
+    same_flash(image, &lifted)?;
     std::fs::write(&out, format!("{key}{lifted}"))
         .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
     Ok(lifted)
+}
+
+/// The flash the translation gives its code to read is the image, byte for
+/// byte: checked at every translation, since a proof over another flash
+/// would be a proof of another binary.
+fn same_flash(image: &Image, lifted: &str) -> Result<(), String> {
+    let wrong = || "the flash in the translation is not the image that was given: the translation is not used".to_string();
+    let (_, after) = lifted.split_once("static const uint8_t arclang_flash[ARCLANG_FLASH_SIZE] = {").ok_or_else(wrong)?;
+    let (bytes, _) = after.split_once("};").ok_or_else(wrong)?;
+    let flash: Vec<u8> = bytes.split(',').map(str::trim).filter(|byte| !byte.is_empty()).map(|byte| u8::from_str_radix(byte.trim_start_matches("0x"), 16)).collect::<Result<_, _>>().map_err(|_| wrong())?;
+    // An image of an odd length ends in the middle of a word: the translation gives the whole word.
+    if flash.len() < image.bytes.len() || flash.len() > image.bytes.len() + 1 || flash[..image.bytes.len()] != image.bytes[..] {
+        return Err(wrong());
+    }
+    Ok(())
 }
 
 /// The C the proof takes for the sketch: the translation, the functions the
@@ -434,17 +453,20 @@ pub fn lines() -> Vec<(String, String)> {
     ]
 }
 
-/// What a proof over a binary takes on trust, as it is printed under it.
+/// What a proof over a binary is of, what it proves of the functions it
+/// does not run, and what it takes on trust, as it is printed under it.
 pub fn trusted(binary: &Binary) -> Vec<String> {
-    let named: Vec<String> = binary
-        .functions
-        .iter()
-        .filter(|(name, _)| name != "loop")
-        .map(|(name, at)| format!("{name} at 0x{at:04x}"))
-        .collect();
     let mut said = vec![format!("of the machine code of {} itself, translated one instruction at a time (ATmega328P, Ghidra's description of the AVR): no source is read", binary.file)];
-    if !named.is_empty() {
-        said.push(format!("taken on trust: these are the Arduino functions they are said to be, and are not run ({})", named.join(", ")));
+    if !binary.identified.is_empty() {
+        said.push("proven of the machine code of the functions it does not run, from any memory and registers, on the pins of an Arduino UNO:".to_string());
+        said.extend(binary.identified.iter().map(|(_, proven)| format!("  {proven}")));
+    }
+    let on_trust: Vec<String> = binary.functions.iter().filter(|(name, _)| name != "loop" && !binary.identified.iter().any(|(proven, _)| proven == name)).map(|(name, at)| format!("{name} at 0x{at:04x}")).collect();
+    if !on_trust.is_empty() {
+        said.push(format!("taken on trust: these are the Arduino functions they are said to be, and are not run ({})", on_trust.join(", ")));
+    }
+    if binary.identified.iter().any(|(name, _)| name == "millis") {
+        said.push("taken on trust: the four bytes millis returns count the milliseconds (the interrupt of timer 0 keeps them)".to_string());
     }
     said.push("taken on trust: an interrupt changes nothing the code of loop() reads (the clock is millis() and micros(), as named)".to_string());
     said
@@ -473,6 +495,16 @@ mod tests {
             .unwrap_err()
             .contains("starts with ':'"));
         assert!(intel_hex(":00000001FF\n").unwrap_err().contains("no byte"));
+    }
+
+    #[test]
+    fn a_translation_whose_flash_is_not_the_image_is_not_used() {
+        let image = Image { base: 0, bytes: vec![0x0C, 0x94, 0x61] };
+        let lifted = |bytes: &str| format!("#define ARCLANG_FLASH_SIZE 4u\nstatic const uint8_t arclang_flash[ARCLANG_FLASH_SIZE] = {{\n    {bytes}\n}};\n");
+        assert!(same_flash(&image, &lifted("0x0c, 0x94, 0x61, 0xff,")).is_ok());
+        assert!(same_flash(&image, &lifted("0x0c, 0x61, 0x94, 0xff,")).unwrap_err().contains("is not the image"));
+        assert!(same_flash(&image, &lifted("0x0c, 0x94,")).unwrap_err().contains("is not the image"));
+        assert!(same_flash(&image, "void f(void);").unwrap_err().contains("is not the image"));
     }
 
     #[test]
