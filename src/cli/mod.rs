@@ -2243,6 +2243,7 @@ impl CliRunner {
                     Outcome::Refuted { obligation, lines, case, seconds } => {
                         println!("✗ Refuted ({seconds:.1} s) {of}");
                         println!("    {}", match obligation.as_str() {
+                            "functions" => "a function the correspondence names is not the Arduino function it is said to be: its machine code, from some memory and registers, for some pin",
                             "start" => "after setup() and one loop(), and after init and one step, the code and the model do not correspond",
                             _ => "from two states that correspond, one loop() and one step can leave two that do not",
                         });

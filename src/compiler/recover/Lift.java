@@ -126,13 +126,10 @@ public class Lift extends GhidraScript {
             if ((at - low) % 16 == 0) {
                 out.print("\n   ");
             }
-            // The bytes of a word-addressed space are read through the listing's memory, byte by byte.
-            Address address = code.getAddress(at, false);
-            byte[] word = new byte[code.getAddressableUnitSize()];
+            // One byte of the flash: the memory is read by byte, whatever the unit the space counts in.
             int value;
             try {
-                currentProgram.getMemory().getBytes(address, word);
-                value = word[(int) (at % code.getAddressableUnitSize())] & 0xff;
+                value = currentProgram.getMemory().getByte(code.getAddress(at, false)) & 0xff;
             } catch (Exception absent) {
                 value = 0xff;
             }
