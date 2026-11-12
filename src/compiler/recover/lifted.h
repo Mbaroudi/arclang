@@ -16,16 +16,28 @@
 static uint8_t arclang_r[32];
 static uint8_t arclang_mem[ARCLANG_MEM_SIZE];
 static uint8_t arclang_reg[0x100];
-#ifdef ARCLANG_IDENTITY
-/* The registers of the chip, when what a function does to them is what is proven:
+#if defined(ARCLANG_IDENTITY) || defined(ARCLANG_CHIP)
+/* The registers of the chip, when what the code does to them is what is proven:
    a read gives what the register holds, a write is kept. */
 static uint8_t arclang_io[0x100];
+#endif
+#ifdef ARCLANG_CHIP
+/* The chip beneath the code (its pins, its time), written by the proof after the code. */
+static uint8_t arclang_chip_rd(unsigned at);
+static void arclang_chip_wr(unsigned at, uint8_t value);
 #endif
 static bool arclang_uncovered;      /* an instruction ran that the translation does not cover */
 static bool arclang_outside;        /* an address outside the memory or the flash was used */
 static bool arclang_wrote_register; /* a register of the chip was written by the code itself */
 static bool arclang_booting;        /* the code runs from reset, before its first loop() */
 static bool arclang_stop;           /* the first loop() was reached: every function returns */
+static bool arclang_resume;         /* enter the function that holds the cut at the cut */
+/* The cut: the head of the cycle the code never leaves. Arriving there ends the start, or a turn. */
+static bool arclang_cut(void)
+{
+    arclang_stop = true;
+    return true;
+}
 /* Any value: what a register of the chip reads (to the prover, a function named nondet_ gives any value). */
 unsigned char nondet_uchar(void);
 #define arclang_any() nondet_uchar()
@@ -43,16 +55,30 @@ static uint64_t arclang_popcount(uint64_t value)
     return count;
 }
 
+/* A value of up to eight bytes, low byte first. Written without a loop: a prover unwinds a loop turn by turn. */
 static uint64_t arclang_reg_rd(unsigned at, int size)
 {
-    uint64_t value = 0;
-    for (int k = size - 1; k >= 0; k--) { value = (value << 8) | arclang_reg[(at + (unsigned)k) & 0xffu]; }
+    uint64_t value = arclang_reg[at & 0xffu];
+    if (size > 1) { value |= (uint64_t)arclang_reg[(at + 1u) & 0xffu] << 8; }
+    if (size > 2) { value |= (uint64_t)arclang_reg[(at + 2u) & 0xffu] << 16; }
+    if (size > 3) { value |= (uint64_t)arclang_reg[(at + 3u) & 0xffu] << 24; }
+    if (size > 4) { value |= (uint64_t)arclang_reg[(at + 4u) & 0xffu] << 32; }
+    if (size > 5) { value |= (uint64_t)arclang_reg[(at + 5u) & 0xffu] << 40; }
+    if (size > 6) { value |= (uint64_t)arclang_reg[(at + 6u) & 0xffu] << 48; }
+    if (size > 7) { value |= (uint64_t)arclang_reg[(at + 7u) & 0xffu] << 56; }
     return value;
 }
 
 static void arclang_reg_wr(unsigned at, int size, uint64_t value)
 {
-    for (int k = 0; k < size; k++) { arclang_reg[(at + (unsigned)k) & 0xffu] = (uint8_t)(value >> (8 * k)); }
+    arclang_reg[at & 0xffu] = (uint8_t)value;
+    if (size > 1) { arclang_reg[(at + 1u) & 0xffu] = (uint8_t)(value >> 8); }
+    if (size > 2) { arclang_reg[(at + 2u) & 0xffu] = (uint8_t)(value >> 16); }
+    if (size > 3) { arclang_reg[(at + 3u) & 0xffu] = (uint8_t)(value >> 24); }
+    if (size > 4) { arclang_reg[(at + 4u) & 0xffu] = (uint8_t)(value >> 32); }
+    if (size > 5) { arclang_reg[(at + 5u) & 0xffu] = (uint8_t)(value >> 40); }
+    if (size > 6) { arclang_reg[(at + 6u) & 0xffu] = (uint8_t)(value >> 48); }
+    if (size > 7) { arclang_reg[(at + 7u) & 0xffu] = (uint8_t)(value >> 56); }
 }
 
 static uint64_t arclang_mem_rd1(uint64_t at)
@@ -68,6 +94,8 @@ static uint64_t arclang_mem_rd1(uint64_t at)
         if (at == 0x5fu) { return arclang_mem[at]; }
 #ifdef ARCLANG_IDENTITY
         return arclang_io[at];
+#elif defined(ARCLANG_CHIP)
+        return arclang_chip_rd((unsigned)at);
 #else
         return arclang_any();
 #endif
@@ -90,6 +118,9 @@ static void arclang_mem_wr1(uint64_t at, uint64_t value)
 #ifdef ARCLANG_IDENTITY
         arclang_io[at] = (uint8_t)value;
         return;
+#elif defined(ARCLANG_CHIP)
+        arclang_chip_wr((unsigned)at, (uint8_t)value);
+        return;
 #endif
         if (arclang_booting && !(at >= 0x23u && at <= 0x2bu)) { return; }
         arclang_wrote_register = true;
@@ -100,24 +131,45 @@ static void arclang_mem_wr1(uint64_t at, uint64_t value)
 
 static uint64_t arclang_mem_rd(uint64_t at, int size)
 {
-    uint64_t value = 0;
-    for (int k = size - 1; k >= 0; k--) { value = (value << 8) | arclang_mem_rd1(at + (uint64_t)k); }
+    uint64_t value = arclang_mem_rd1(at);
+    if (size > 1) { value |= arclang_mem_rd1(at + 1u) << 8; }
+    if (size > 2) { value |= arclang_mem_rd1(at + 2u) << 16; }
+    if (size > 3) { value |= arclang_mem_rd1(at + 3u) << 24; }
+    if (size > 4) { value |= arclang_mem_rd1(at + 4u) << 32; }
+    if (size > 5) { value |= arclang_mem_rd1(at + 5u) << 40; }
+    if (size > 6) { value |= arclang_mem_rd1(at + 6u) << 48; }
+    if (size > 7) { value |= arclang_mem_rd1(at + 7u) << 56; }
     return value;
 }
 
 static void arclang_mem_wr(uint64_t at, int size, uint64_t value)
 {
-    for (int k = 0; k < size; k++) { arclang_mem_wr1(at + (uint64_t)k, value >> (8 * k)); }
+    arclang_mem_wr1(at, value);
+    if (size > 1) { arclang_mem_wr1(at + 1u, value >> 8); }
+    if (size > 2) { arclang_mem_wr1(at + 2u, value >> 16); }
+    if (size > 3) { arclang_mem_wr1(at + 3u, value >> 24); }
+    if (size > 4) { arclang_mem_wr1(at + 4u, value >> 32); }
+    if (size > 5) { arclang_mem_wr1(at + 5u, value >> 40); }
+    if (size > 6) { arclang_mem_wr1(at + 6u, value >> 48); }
+    if (size > 7) { arclang_mem_wr1(at + 7u, value >> 56); }
+}
+
+static uint64_t arclang_flash_rd1(uint64_t at)
+{
+    if (at < ARCLANG_FLASH_BASE || at - ARCLANG_FLASH_BASE >= ARCLANG_FLASH_SIZE) { arclang_outside = true; return 0; }
+    return arclang_flash[at - ARCLANG_FLASH_BASE];
 }
 
 static uint64_t arclang_flash_rd(uint64_t at, int size)
 {
-    uint64_t value = 0;
-    for (int k = size - 1; k >= 0; k--) {
-        uint64_t byte = at + (uint64_t)k;
-        if (byte < ARCLANG_FLASH_BASE || byte - ARCLANG_FLASH_BASE >= ARCLANG_FLASH_SIZE) { arclang_outside = true; return 0; }
-        value = (value << 8) | arclang_flash[byte - ARCLANG_FLASH_BASE];
-    }
+    uint64_t value = arclang_flash_rd1(at);
+    if (size > 1) { value |= arclang_flash_rd1(at + 1u) << 8; }
+    if (size > 2) { value |= arclang_flash_rd1(at + 2u) << 16; }
+    if (size > 3) { value |= arclang_flash_rd1(at + 3u) << 24; }
+    if (size > 4) { value |= arclang_flash_rd1(at + 4u) << 32; }
+    if (size > 5) { value |= arclang_flash_rd1(at + 5u) << 40; }
+    if (size > 6) { value |= arclang_flash_rd1(at + 6u) << 48; }
+    if (size > 7) { value |= arclang_flash_rd1(at + 7u) << 56; }
     return value;
 }
 

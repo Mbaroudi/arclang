@@ -194,6 +194,8 @@ pub struct Clock {
     pub unknown: Option<String>,
     /// Every interrupt of the binary is proven to change nothing the code of loop() reads.
     pub interrupts_settled: bool,
+    /// Where the routine keeps the milliseconds and its turns, once it is proven to.
+    pub kept_at: Option<(u32, u32)>,
 }
 
 /// The proof of the interrupt of timer 0, as C: from any memory and registers, the routine run once.
@@ -226,13 +228,15 @@ fn interrupt_harness(at: u32, count_at: u32, fraction_at: u32, overflows_at: u32
 }
 
 /// The proof of how the start leaves timer 0, as C: the code run from its reset to its first loop().
-fn start_harness(start: u32, loop_at: u32) -> (String, Vec<String>) {
+fn start_harness(start: u32, loop_at: Option<u32>) -> (String, Vec<String>) {
     let conditions = [
         ("(arclang_stop && !arclang_uncovered && !arclang_outside)", "the code reaches loop() from its reset"),
         ("((arclang_io[0x45] & 0x0fu) == 0x03u && (arclang_io[0x44] & 0x03u) == 0x03u)", "it leaves timer 0 counting one in 64 cycles of the clock, and overflowing every 256 counts"),
         ("((arclang_io[0x6e] & 0x01u) == 0x01u && arclang_reg[0x87] == 1)", "it leaves the overflow of timer 0 an interrupt, and interrupts on"),
     ];
-    let mut c = format!("/* The proof of how the start of the binary leaves timer 0 (written by `arclang prove`). */\n#define ARCLANG_IDENTITY\nstatic void arclang_first_loop(void);\n#define c_{loop_at:04x} arclang_first_loop\n#include \"identity_code.c\"\n\nstatic void arclang_first_loop(void) {{ arclang_stop = true; }}\n\nint main(void)\n{{\n    /* the chip as its reset leaves it: every register at zero */\n    arclang_booting = true;\n    f_{start:04x}();\n");
+    // The start ends at the first call of loop(), or at the head of the cycle the translation is cut at.
+    let hook = loop_at.map(|at| format!("#define c_{at:04x} arclang_first_loop\n")).unwrap_or_default();
+    let mut c = format!("/* The proof of how the start of the binary leaves timer 0 (written by `arclang prove`). */\n#define ARCLANG_IDENTITY\nstatic void arclang_first_loop(void);\n{hook}#include \"identity_code.c\"\n\nstatic void arclang_first_loop(void) {{ arclang_stop = true; }}\n\nint main(void)\n{{\n    /* the chip as its reset leaves it: every register at zero */\n    arclang_booting = true;\n    f_{start:04x}();\n");
     c.push_str("#ifdef ARCLANG_PART\n    switch (ARCLANG_PART) {\n");
     for (rank, (condition, written)) in conditions.iter().enumerate() {
         c.push_str(&format!("    case {rank}: __CPROVER_assert({condition}, \"{written}\"); break;\n"));
@@ -269,7 +273,8 @@ fn ask(dir: &Path, source: &str, text: &str, parts: &[String], unwind: usize, se
 /// keeps them, that the start leaves timer 0 overflowing every 1.024 ms of
 /// a 16 MHz clock, and that no interrupt changes what the code of `loop`
 /// (the functions at `loop_code`) reads by address.
-pub fn clock(vectors: &[u32], start: u32, loop_at: u32, loop_code: &[u32], count_at: Option<u32>, turns_at: Option<u32>, lifted: &str, dir: &Path, seconds: u64) -> Result<Clock, String> {
+#[allow(clippy::too_many_arguments)]
+pub fn clock(vectors: &[u32], start: u32, loop_at: Option<u32>, loop_code: &[u32], count_at: Option<u32>, turns_at: Option<u32>, lifted: &str, dir: &Path, seconds: u64) -> Result<Clock, String> {
     let mut clock = Clock::default();
     let Some(&routine) = vectors.get(super::binary::TIMER0_OVERFLOW) else { return Ok(clock) };
     let (_, functions) = super::binary_shape::facts(lifted)?;
@@ -284,9 +289,12 @@ pub fn clock(vectors: &[u32], start: u32, loop_at: u32, loop_code: &[u32], count
         let rest: Vec<u32> = own.iter().copied().filter(|a| *a != fraction).collect();
         (rest.len() == 8 && rest[3] == rest[0] + 3 && rest[7] == rest[4] + 3).then(|| (rest[0], rest[4]))
     };
+    let unanchored = count_at.is_none() && turns_at.is_none();
     let layout = own.iter().find_map(|fraction| runs(*fraction).map(|(low, high)| (*fraction, low, high))).and_then(|(fraction, low, high)| match (count_at, turns_at) {
         (Some(count), turns) if (count == low || count == high) && turns.is_none_or(|turns| turns == low + high - count) => Some((fraction, count, low + high - count)),
         (None, Some(turns)) if turns == low || turns == high => Some((fraction, low + high - turns, turns)),
+        // Nothing says which run is which (millis and micros are folded into the code): the proof of the routine will.
+        (None, None) => Some((fraction, low, high)),
         _ => None,
     });
     let Some((fraction_at, count_at, overflows_at)) = layout else {
@@ -297,7 +305,20 @@ pub fn clock(vectors: &[u32], start: u32, loop_at: u32, loop_code: &[u32], count
     std::fs::write(dir.join("identity_code.c"), lifted).map_err(|e| e.to_string())?;
     std::fs::write(dir.join("arclang_lifted.h"), super::binary::LIFTED_H).map_err(|e| e.to_string())?;
     let (text, parts) = interrupt_harness(routine, count_at, *fraction_at, overflows_at, &own);
-    match ask(dir, "identity_timer0.c", &text, &parts, UNWIND, seconds) {
+    let mut asked = ask(dir, "identity_timer0.c", &text, &parts, UNWIND, seconds);
+    let (mut count_at, mut overflows_at) = (count_at, overflows_at);
+    if let (Ok(Err(_)), true) = (&asked, unanchored) {
+        // The other way round: the count where the turns were taken to be.
+        let (text, parts) = interrupt_harness(routine, overflows_at, *fraction_at, count_at, &own);
+        if let Ok(Ok(())) = ask(dir, "identity_timer0.c", &text, &parts, UNWIND, seconds) {
+            (count_at, overflows_at) = (overflows_at, count_at);
+            asked = Ok(Ok(()));
+        }
+    }
+    if let Ok(Ok(())) = &asked {
+        clock.kept_at = Some((count_at, overflows_at));
+    }
+    match asked {
         Ok(Ok(())) => clock.proven.push(format!("the interrupt of timer 0 (at 0x{routine:04x}) adds 1.024 to the count of milliseconds (the four bytes at 0x{count_at:04x}, which millis returns) and 1 to its turns (the four bytes at 0x{overflows_at:04x}, which micros reads) at each overflow of the timer, and changes nothing else")),
         Ok(Err(failing)) => clock.refuted.extend(failing.iter().map(|part| format!("the interrupt of timer 0, at 0x{routine:04x}: {part}"))),
         Err(reason) => clock.unknown = Some(format!("the interrupt of timer 0, at 0x{routine:04x}: {reason}")),

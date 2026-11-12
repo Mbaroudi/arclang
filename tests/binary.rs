@@ -374,3 +374,55 @@ fn a_binary_built_with_link_time_optimisation_has_no_loop_to_name_and_nothing_is
     assert!(!asked.status.success() && output.contains("setup() and loop() are folded into it") && output.contains("nothing could be proposed"), "{output}");
     assert!(!output.contains("correspondence \""), "nothing is written: {output}");
 }
+
+#[test]
+fn a_cycle_says_the_step_of_its_time_and_is_checked_before_any_proof() {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sketches");
+    let model = std::fs::read_to_string(fixtures.join("uno_lamp_lto_binary.arc")).unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let check = |edited: String| {
+        let path = dir.path().join("m.arc");
+        std::fs::write(&path, edited).unwrap();
+        let asked = arclang(&["check", path.to_str().unwrap()]);
+        (asked.status.success(), text(&asked))
+    };
+    assert!(check(model.clone()).0);
+    let (ok, output) = check(model.replacen("    tick: 1000 us\n", "", 1));
+    assert!(!ok && output.contains("a cycle says the step of its time"), "{output}");
+    let (ok, output) = check(model.replacen("1000 us", "250 us", 1));
+    assert!(!ok && output.contains("a multiple of 4 us"), "{output}");
+    let (ok, output) = check(model.replacen("\"cycle at 0x0390\"", "\"cycle at 0x0390\", \"millis at 0x029c\"", 1));
+    assert!(!ok && output.contains("only the cycle is placed"), "{output}");
+    let (ok, output) = check(model.replacen("digitalRead(2) is button", "analogRead(2) is button", 1));
+    assert!(!ok || output.contains("button"), "{output}");
+}
+
+#[test]
+#[ignore = "needs Ghidra, CBMC and Bitwuzla (about 10 minutes): tools/embedded/reverse/run.sh cargo test --test binary -- --include-ignored"]
+fn a_binary_built_as_the_arduino_ide_builds_it_is_proven_with_no_function_named() {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sketches");
+    let asked = arclang(&["prove", fixtures.join("uno_lamp_lto_binary.arc").to_str().unwrap(), "--timeout", "1800"]);
+    let output = text(&asked);
+    assert!(asked.status.success() && output.contains("✓ Proven"), "{output}");
+    for said in [
+        "the whole of it is run, from its reset: no function is stood in for",
+        "1000 us pass each time the code has read the timer",
+        "the interrupt of timer 0 (at 0x01de) adds 1.024 to the count of milliseconds",
+    ] {
+        assert!(output.contains(said), "{said}: {output}");
+    }
+}
+
+#[test]
+#[ignore = "needs Ghidra, CBMC and Bitwuzla (about 10 minutes): tools/embedded/reverse/run.sh cargo test --test binary -- --include-ignored"]
+fn a_correspondence_that_reads_the_wrong_bytes_of_an_optimised_binary_is_refuted() {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sketches");
+    let dir = tempfile::tempdir().unwrap();
+    let model = std::fs::read_to_string(fixtures.join("uno_lamp_lto_binary.arc")).unwrap();
+    std::fs::write(dir.path().join("m.arc"), model.replacen("word(0x0100) == 1 is led", "word(0x010a) == 1 is led", 1)).unwrap();
+    std::fs::copy(fixtures.join("uno_lamp_lto.hex"), dir.path().join("uno_lamp_lto.hex")).unwrap();
+    let asked = arclang(&["prove", dir.path().join("m.arc").to_str().unwrap(), "--timeout", "1800"]);
+    let output = text(&asked);
+    // The lines of a cycle are not asked one by one (each question takes minutes): the refutation is said, and why not more.
+    assert!(!asked.status.success() && output.contains("✗ Refuted") && output.contains("the lines are not asked one by one"), "{output}");
+}

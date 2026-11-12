@@ -137,7 +137,7 @@ fn read_binary(input: &Path, file_name: &str, work: &Path) -> Result<Binary, Str
     use crate::compiler::recover::{binary, binary_shape};
     let hex = std::fs::read_to_string(input).map_err(|e| format!("cannot read {}: {e}", input.display()))?;
     let image = binary::intel_hex(&hex).map_err(|e| format!("{file_name}: {e}"))?;
-    let lifted = binary::lift(&image, &[], &work.join("lift")).map_err(|e| format!("{file_name}: {e}"))?;
+    let lifted = binary::lift(&image, &[], None, &work.join("lift")).map_err(|e| format!("{file_name}: {e}"))?;
     let (start, functions) = binary_shape::facts(&lifted)?;
     let proposal = binary_shape::propose(start, &functions);
     if !proposal.functions.iter().any(|(name, _, _)| name == "loop") {

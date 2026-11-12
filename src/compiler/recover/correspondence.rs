@@ -55,6 +55,8 @@ pub struct Correspondence {
     pub sources: Vec<String>,
     /// The binary the correspondence names in place of sources, and where its functions are.
     pub binary: Option<super::binary::Binary>,
+    /// For a cycle: the time that passes each time the code has read the timer (4 us, one count of it, when not given).
+    pub tick_us: u64,
     /// The time of one `loop()`, when the correspondence gives it.
     pub period_us: Option<u64>,
     /// (`digitalRead` or `analogRead`, the pin as the sketch writes it, the input of the model)
@@ -97,8 +99,8 @@ pub fn read(declaration: &CorrespondenceDecl) -> Result<Correspondence, String> 
         }
     };
     for key in declaration.attributes.keys() {
-        if !["machine", "source", "binary", "functions", "period", "reads", "writes", "events", "state", "invariant", "int", "description"].contains(&key.as_str()) {
-            return Err(format!("{what}: '{key}' is not something a correspondence says (machine, source, binary, functions, period, reads, writes, events, state, invariant, int)"));
+        if !["machine", "source", "binary", "functions", "tick", "period", "reads", "writes", "events", "state", "invariant", "int", "description"].contains(&key.as_str()) {
+            return Err(format!("{what}: '{key}' is not something a correspondence says (machine, source, binary, functions, tick, period, reads, writes, events, state, invariant, int)"));
         }
     }
     let machine = text("machine").ok_or_else(|| format!("{what}: it names no machine (machine: \"...\")"))?;
@@ -119,7 +121,11 @@ pub fn read(declaration: &CorrespondenceDecl) -> Result<Correspondence, String> 
         }
     }
     let binary = match binary_file {
-        Some(file) => Some(super::binary::Binary { file, functions: super::binary::functions(&list("functions"), &what)?, ..Default::default() }),
+        Some(file) => {
+            let placed = super::binary::functions(&list("functions"), &what)?;
+            let cycle = placed.iter().find(|(name, _)| name == "cycle").map(|(_, at)| *at);
+            Some(super::binary::Binary { file, functions: placed.into_iter().filter(|(name, _)| name != "cycle").collect(), cycle, ..Default::default() })
+        }
         None if declaration.attributes.contains_key("functions") => return Err(format!("{what}: functions are those of a binary (binary: \"firmware.hex\")")),
         None => None,
     };
@@ -127,6 +133,15 @@ pub fn read(declaration: &CorrespondenceDecl) -> Result<Correspondence, String> 
         None => None,
         Some(AttributeValue::Quantity(q)) if q.dimension().label() == "time" => Some((q.canonical() * 1e6).round() as u64),
         Some(_) => return Err(format!("{what}: period is a time (period: 100 ms)")),
+    };
+    let tick_us = match declaration.attributes.get("tick") {
+        // The time a wait is read at is what the guarantee is for: it is always said, never a default
+        // (the timer's own 4 us makes the proof of a wait of 10 ms last hours).
+        None if binary.as_ref().is_some_and(|binary| binary.cycle.is_some()) => return Err(format!("{what}: a cycle says the step of its time (tick: 1000 us): how often a wait reads the timer, a multiple of 4 us, the count of the timer. The finer it is, the longer the proof takes (4 us: hours for a wait of 10 ms; 1000 us: minutes), and what it says holds for that step")),
+        None => 4,
+        Some(_) if !binary.as_ref().is_some_and(|binary| binary.cycle.is_some()) => return Err(format!("{what}: tick is the time that passes at each read of the timer in a cycle (functions: [\"cycle at 0x...\"])")),
+        Some(AttributeValue::Quantity(q)) if q.dimension().label() == "time" && (q.canonical() * 1e6).round() >= 4.0 && ((q.canonical() * 1e6).round() as u64) % 4 == 0 => (q.canonical() * 1e6).round() as u64,
+        Some(_) => return Err(format!("{what}: tick is a time, a multiple of 4 us, the count of the timer (tick: 200 us)")),
     };
     let split = |line: &str, of: &str| -> Result<(String, String), String> {
         line.rsplit_once(" is ").map(|(sketch, model)| (sketch.trim().to_string(), model.trim().to_string())).ok_or_else(|| format!("{what}: {of} \"{line}\" does not say what it is in the model (`<the sketch's> is <the model's>`)"))
@@ -183,7 +198,8 @@ pub fn read(declaration: &CorrespondenceDecl) -> Result<Correspondence, String> 
         Some(Some(32)) => 32,
         Some(_) => return Err(format!("{what}: int is the bits of an int on the board, 16 (an AVR board such as the Uno) or 32")),
     };
-    Ok(Correspondence { name: declaration.name.clone(), machine, sources, binary, period_us, reads, writes, events, pwm, state, invariants: list("invariant"), int_bits })
+    let binary = binary.map(|binary| super::binary::Binary { tick_us, ..binary });
+    Ok(Correspondence { name: declaration.name.clone(), machine, sources, binary, tick_us, period_us, reads, writes, events, pwm, state, invariants: list("invariant"), int_bits })
 }
 
 /// The outcome of a proof of correspondence.
@@ -485,7 +501,7 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
     // What a refuting case shows: (the code's side as written and as C, the model's side as written and as C).
     let mut shown: Vec<(String, String, String, String)> = Vec::new();
     if correspondence.binary.is_some() {
-        lines.extend(super::binary::lines());
+        lines.extend(if correspondence.binary.as_ref().is_some_and(|binary| binary.cycle.is_some()) { super::binary_cycle::lines() } else { super::binary::lines() });
     }
     for (rank, (pin, model_side)) in correspondence.writes.iter().enumerate() {
         let level = format!("arclang_level_{rank}");
@@ -580,7 +596,7 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
         c.push_str("#ifdef ARCLANG_INTERLEAVE\n    __CPROVER_assume(arclang_corresponds(&s));\n    {\n        struct arclang_kept first, before, after, now;\n        unsigned at;\n        arclang_watch = false; arclang_in = false;\n        /* interrupts already taken since the last loop(): none, one or two */\n        { unsigned already; __CPROVER_assume(already <= 2U); for (unsigned k = 0U; k < already; k++) { ARCLANG_ROUTINE(); } }\n        arclang_keep(&first);\n        arclang_on = true; arclang_delayed = 0UL; ARCLANG_ROUTINE(); loop(); arclang_keep(&before);\n        arclang_put_back(&first); arclang_on = true; arclang_delayed = 0UL; loop(); ARCLANG_ROUTINE(); arclang_keep(&after);\n        arclang_put_back(&first); arclang_on = true; arclang_delayed = 0UL;\n        arclang_at = at; arclang_seen = 0U; arclang_fired = false; arclang_watch = true;\n        loop();\n        arclang_watch = false;\n        __CPROVER_assume(arclang_fired);\n        arclang_keep(&now);\n        __CPROVER_assert(arclang_same(&now, &before) || arclang_same(&now, &after), \"an interrupt in the middle of loop() is one before it or one after it\");\n    }\n    return 0;\n#endif\n");
     }
     c.push_str(&format!(
-        "#ifdef ARCLANG_START\n    /* start: after setup() and one loop(), and after init and one step, the two correspond */\n{start_inputs}    setup();\n    arclang_ms = 0UL; /* the first loop() runs as millis() starts counting */\n    arclang_late = 0UL;\n    arclang_delayed = 0UL;\n{interrupts}    loop();\n    arclang_ms += {period_ms}UL;\n    {prefix}_init(&s);\n    {prefix}_step(&s, &in, &out);\n#else\n    /* step: from any two states that correspond, one loop() and one step leave two that correspond */\n    __CPROVER_assume(arclang_corresponds(&s));\n{before}    arclang_delayed = 0UL;\n{interrupts}    loop();\n    arclang_ms += {period_ms}UL;\n    {{ unsigned long late; __CPROVER_assume(late <= ARCLANG_LATE_MOST); arclang_late = late; }} /* what the next loop() will read */\n    {prefix}_step(&s, &in, &out);\n#endif\n{after}#ifdef ARCLANG_LINE\n    __CPROVER_assert(arclang_line(ARCLANG_LINE, &s), \"this line of the correspondence holds\");\n#else\n    __CPROVER_assert(arclang_corresponds(&s), \"the code and the model correspond\");\n#endif\n    return 0;\n}}\n"
+        "#ifdef ARCLANG_START\n    /* start: after setup() and one loop(), and after init and one step, the two correspond */\n{start_inputs}    setup();\n    arclang_ms = 0UL; /* the first loop() runs as millis() starts counting */\n    arclang_late = 0UL;\n    arclang_delayed = 0UL;\n{interrupts}    loop();\n    arclang_ms += {period_ms}UL;\n    {prefix}_init(&s);\n    {prefix}_step(&s, &in, &out);\n#else\n    /* step: from any two states that correspond, one loop() and one step leave two that correspond */\n#ifdef ARCLANG_CYCLE\n    arclang_from_any_turn(); /* the registers the cycle keeps are those the start leaves; all else is anything */\n#endif\n    __CPROVER_assume(arclang_corresponds(&s));\n{before}    arclang_delayed = 0UL;\n{interrupts}    loop();\n    arclang_ms += {period_ms}UL;\n    {{ unsigned long late; __CPROVER_assume(late <= ARCLANG_LATE_MOST); arclang_late = late; }} /* what the next loop() will read */\n    {prefix}_step(&s, &in, &out);\n#endif\n{after}#ifdef ARCLANG_LINE\n    __CPROVER_assert(arclang_line(ARCLANG_LINE, &s), \"this line of the correspondence holds\");\n#else\n    __CPROVER_assert(arclang_corresponds(&s), \"the code and the model correspond\");\n#endif\n    return 0;\n}}\n"
     ));
 
     // One step of the machine is one loop(): the machine counts its times
@@ -611,6 +627,9 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
     let unrelated = machine.variables.iter().filter(|v| !v.input && !related.contains(&v.name.as_str())).map(|v| v.name.clone()).collect();
     // The start of a binary runs its own initialisation: it copies and clears its memory byte by byte.
     let start_unwind = if correspondence.binary.is_some() { BINARY_START_UNWIND } else { unwind };
+    // A turn of a cycle is entered from the start, and a wait in it reads the time every 4 us until the period has passed.
+    // The start of a cycle runs its first turn too, and a wait in it reads the time at every tick until the period has passed.
+    let start_unwind = if correspondence.binary.as_ref().is_some_and(|binary| binary.cycle.is_some()) { start_unwind.max((period_us / correspondence.tick_us.max(4)) as usize + 300) } else { start_unwind };
     Ok(Proof { files, unwind, start_unwind, period_us, lines: lines.into_iter().map(|(_, written)| written).collect(), unrelated, define, shown: shown.into_iter().map(|(code, _, model, _)| (code, model)).collect(), inputs: inputs_shown.into_iter().map(|(name, _)| name).collect(), routines: routine_names, middle_unasked: kept.err() })
 }
 
@@ -619,6 +638,10 @@ const BINARY_START_UNWIND: usize = 2100;
 
 /// The registers of a processor are cells of small arrays: the prover follows each cell alone.
 const BINARY_FLAGS: [&str; 2] = ["--max-field-sensitivity-array-size", "256"];
+
+/// In a cycle the stack is where the start left it, so every byte of the memory is at a known
+/// place most of the time: the prover follows each byte alone, the whole memory through.
+const CYCLE_FLAGS: [&str; 2] = ["--max-field-sensitivity-array-size", "4096"];
 
 /// The line every correspondence holds without writing it.
 const UNNAMED: &str = "the code reads and writes only the pins the correspondence names";
@@ -777,6 +800,7 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
         let mut sketches = Vec::new();
         let mut machine_code = None;
         let mut vectors = None;
+        let mut cycle_clock = None;
         for source in &correspondence.sources {
             let path = base.join(source);
             let text = std::fs::read_to_string(&path).map_err(|e| format!("correspondence '{}': cannot read {}: {e}", correspondence.name, path.display()))?;
@@ -797,9 +821,38 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
                     entries.push(routine);
                 }
             }
-            let lifted = super::binary::lift(&image, &entries, &dir.join("lift")).map_err(|e| format!("{what}: {e}"))?;
-            sketches.push(("machine_code.c".to_string(), super::binary::sketch(binary, &lifted, &what)?));
+            let lifted = super::binary::lift(&image, &entries, binary.cycle, &dir.join("lift")).map_err(|e| format!("{what}: {e}"))?;
+            if binary.cycle.is_none() {
+                sketches.push(("machine_code.c".to_string(), super::binary::sketch(binary, &lifted, &what)?));
+            } else {
+                // A cycle: the whole of the code on a model of the chip. The time of that model is what the
+                // interrupt of timer 0 keeps, which is proven of it first.
+                let cut = super::binary_cycle::cut(&lifted, &what)?;
+                let (reads, writes) = super::binary_cycle::pins(&correspondence)?;
+                for (name, text) in [("board/stdint.h", STDINT_H), ("board/stdbool.h", STDBOOL_H)] {
+                    let path = dir.join(name);
+                    std::fs::create_dir_all(path.parent().unwrap_or(&dir)).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+                    std::fs::write(&path, text).map_err(|e| format!("cannot write {}: {e}", path.display()))?;
+                }
+                if let Some(vectors) = &vectors {
+                    let (start, _) = super::binary_shape::facts(&lifted)?;
+                    cycle_clock = Some(super::binary_identity::clock(vectors, start, None, &[cut.function], None, None, &lifted, &dir, seconds)?);
+                }
+                let time = cycle_clock.as_ref().and_then(|clock| clock.kept_at);
+                let scalars: Vec<String> = std::iter::once("arclang_unnamed".to_string()).chain((0..correspondence.writes.len()).map(|rank| format!("arclang_level_{rank}"))).collect();
+                sketches.push(("machine_code.c".to_string(), super::binary_cycle::sketch(&lifted, &cut, &reads, &writes, time, &scalars, &what)?));
+            }
             machine_code = Some(lifted);
+        }
+        // What was proven of the clock of a cycle, or the refutation it gives.
+        let mut cycle_refuted = None;
+        if let (Some(clock), Some(binary)) = (cycle_clock, correspondence.binary.as_mut()) {
+            if !clock.refuted.is_empty() {
+                cycle_refuted = Some(clock.refuted);
+            } else if clock.unknown.is_none() {
+                binary.clock = clock.proven;
+                binary.interrupts_settled = clock.interrupts_settled;
+            }
         }
         let written = harness(&correspondence, &model, &sketches, default_period)?;
         let Proof { files: proof, unwind, start_unwind, period_us, lines, unrelated, define, .. } = &written;
@@ -812,8 +865,9 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
             std::fs::write(&path, text).map_err(|e| format!("cannot write {}: {e}", path.display()))?;
         }
         let started = std::time::Instant::now();
+        let tick = format!("-DARCLANG_TICK_US={}UL", correspondence.tick_us);
         let model_source = format!("model/{}", model.code_name);
-        let mut outcome = None;
+        let mut outcome = cycle_refuted.map(|lines| Outcome::Refuted { obligation: "clock".to_string(), lines, case: None, seconds: 0.0 });
         // The functions a binary's correspondence names are not run in its proof: first, that each is
         // the function it is said to be, of its own machine code (those whose identity is proven yet).
         if let (Some(binary), Some(lifted)) = (correspondence.binary.as_mut(), &machine_code) {
@@ -838,8 +892,8 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
             if let (None, Some(vectors), true) = (&outcome, &vectors, count_at.is_some() || turns_at.is_some()) {
                 let (start, functions) = super::binary_shape::facts(lifted)?;
                 let named: std::collections::BTreeSet<u32> = binary.functions.iter().filter(|(name, _)| name != "loop").map(|(_, at)| *at).collect();
-                let loop_at = binary.functions.iter().find(|(name, _)| name == "loop").map(|(_, at)| *at).unwrap_or_default();
-                let loop_code = super::binary_shape::code_of(loop_at, &named, start, &functions);
+                let loop_at = binary.functions.iter().find(|(name, _)| name == "loop").map(|(_, at)| *at);
+                let loop_code = super::binary_shape::code_of(loop_at.unwrap_or_default(), &named, start, &functions);
                 let clock = super::binary_identity::clock(vectors, start, loop_at, &loop_code, count_at, turns_at, lifted, &dir, seconds)?;
                 if !clock.refuted.is_empty() {
                     outcome = Some(Outcome::Refuted { obligation: "clock".to_string(), lines: clock.refuted, case: None, seconds: started.elapsed().as_secs_f64() });
@@ -849,6 +903,15 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
                 }
             }
         }
+        // The loops of a turn of a cycle run as many times as the start counted (see `binary_cycle::bounds`).
+        let is_cycle = correspondence.binary.as_ref().is_some_and(|binary| binary.cycle.is_some());
+        let unwindset = if is_cycle && outcome.is_none() {
+            let mut flags = vec!["-DARCLANG_START", define.as_str(), "-I", "board", "--16", "-DARCLANG_INT16", "-DARCLANG_CYCLE", tick.as_str()];
+            flags.extend(CYCLE_FLAGS);
+            super::binary_cycle::bounds(&dir, &["proof.c", model_source.as_str()], &flags, start_unwind)?
+        } else {
+            String::new()
+        };
         // The start is of the code as it is initialised; the step, of any state it can hold.
         let mut unwind = step_unwind;
         for (obligation, mut flags) in [("start", vec!["-DARCLANG_START"]), ("step", vec!["--nondet-static"])] {
@@ -860,15 +923,20 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
             // The widths of the board, and its fixed-width types before any the host has.
             flags.extend(["-I", "board"]);
             flags.extend(if correspondence.int_bits == 16 { ["--16", "-DARCLANG_INT16"] } else { ["--32", "-DARCLANG_INT32"] });
-            if correspondence.binary.is_some() {
-                flags.extend(BINARY_FLAGS);
+            if let Some(binary) = &correspondence.binary {
+                flags.extend(if binary.cycle.is_some() { CYCLE_FLAGS } else { BINARY_FLAGS });
+                flags.extend(binary.cycle.map(|_| "-DARCLANG_CYCLE"));
+                flags.extend(binary.cycle.map(|_| tick.as_str()));
+                if obligation == "step" && !unwindset.is_empty() {
+                    flags.extend(["--unwindset", unwindset.as_str()]);
+                }
             }
             match decide(&dir, &["proof.c", model_source.as_str()], &flags, unwind, seconds)? {
                 Answer::Unsat => {}
                 Answer::Sat(_) => {
                     // Which lines do not hold after it: each asked alone.
                     let mut failing = Vec::new();
-                    for (rank, written) in lines.iter().enumerate() {
+                    for (rank, written) in lines.iter().enumerate().filter(|_| !is_cycle) {
                         let only = format!("-DARCLANG_LINE={rank}");
                         let mut asked = flags.clone();
                         asked.push(only.as_str());
@@ -894,14 +962,19 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
         // Proven on the clock it states: and on the clock of the board?
         let board_clock = if outcome.is_none() && int_bits == 16 {
             let mut flags = vec!["--nondet-static", define.as_str(), "-I", "board", "--16", "-DARCLANG_INT16", "-DARCLANG_BOARD_CLOCK"];
-            if correspondence.binary.is_some() {
-                flags.extend(BINARY_FLAGS);
+            if let Some(binary) = &correspondence.binary {
+                flags.extend(if binary.cycle.is_some() { CYCLE_FLAGS } else { BINARY_FLAGS });
+                flags.extend(binary.cycle.map(|_| "-DARCLANG_CYCLE"));
+                flags.extend(binary.cycle.map(|_| tick.as_str()));
+                if !unwindset.is_empty() {
+                    flags.extend(["--unwindset", unwindset.as_str()]);
+                }
             }
             Some(match decide(&dir, &["proof.c", model_source.as_str()], &flags, unwind, seconds)? {
                 Answer::Unsat => BoardClock::Holds,
                 Answer::Sat(_) => {
                     let mut failing = Vec::new();
-                    for (rank, written) in lines.iter().enumerate() {
+                    for (rank, written) in lines.iter().enumerate().filter(|_| !is_cycle) {
                         let only = format!("-DARCLANG_LINE={rank}");
                         let mut asked = flags.clone();
                         asked.push(only.as_str());
