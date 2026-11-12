@@ -498,6 +498,16 @@ mod tests {
     }
 
     #[test]
+    fn what_is_proven_of_a_function_is_no_longer_said_to_be_taken_on_trust() {
+        let mut binary = Binary { file: "a.hex".to_string(), functions: vec![("loop".to_string(), 0x102), ("millis".to_string(), 0x29c), ("delay".to_string(), 0x2fe)], identified: Vec::new() };
+        let said = trusted(&binary).join("\n");
+        assert!(said.contains("are not run (millis at 0x029c, delay at 0x02fe)") && !said.contains("proven of the machine code of the functions"), "{said}");
+        binary.identified.push(("millis".to_string(), "millis at 0x029c returns the four bytes of the memory at 0x010b and changes nothing".to_string()));
+        let said = trusted(&binary).join("\n");
+        assert!(said.contains("  millis at 0x029c returns the four bytes") && said.contains("are not run (delay at 0x02fe)") && said.contains("the four bytes millis returns count the milliseconds"), "{said}");
+    }
+
+    #[test]
     fn a_translation_whose_flash_is_not_the_image_is_not_used() {
         let image = Image { base: 0, bytes: vec![0x0C, 0x94, 0x61] };
         let lifted = |bytes: &str| format!("#define ARCLANG_FLASH_SIZE 4u\nstatic const uint8_t arclang_flash[ARCLANG_FLASH_SIZE] = {{\n    {bytes}\n}};\n");
@@ -544,6 +554,7 @@ mod tests {
                 ("delay".to_string(), 0x2fe),
                 ("analogWrite".to_string(), 0x200),
             ],
+            identified: Vec::new(),
         };
         let c = sketch(&binary, lifted, "correspondence 'B'").unwrap();
         assert!(c.contains("#define c_0102 arclang_loop_called"), "{c}");
@@ -563,6 +574,7 @@ mod tests {
         let nowhere = Binary {
             file: "a.hex".to_string(),
             functions: vec![("loop".to_string(), 0x300)],
+            identified: Vec::new(),
         };
         assert!(sketch(&nowhere, lifted, "correspondence 'B'")
             .unwrap_err()
