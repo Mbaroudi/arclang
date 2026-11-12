@@ -50,7 +50,7 @@ const EXPECTED: [&str; 4] = [
 const OPERATIONS: [&str; 4] = ["watchdog_reset", "sleep", "break", "store_program_mem"];
 
 /// The binary a correspondence names, and where its functions are.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Binary {
     pub file: String,
     /// (the function, its address in the flash)
@@ -58,6 +58,11 @@ pub struct Binary {
     /// The functions proven to be the Arduino functions they are said to be: (the function, what is proven of it).
     /// Filled by the proof; empty as the correspondence is read.
     pub identified: Vec<(String, String)>,
+    /// What is proven of the clock of the binary (the interrupt of timer 0 and the start that sets it).
+    /// Filled by the proof.
+    pub clock: Vec<String>,
+    /// The interrupts of the binary are all proven to change nothing the code of loop() reads.
+    pub interrupts_settled: bool,
 }
 
 /// An Arduino function a correspondence can name: the bytes of its
@@ -338,6 +343,23 @@ pub fn lift(image: &Image, entries: &[u32], dir: &Path) -> Result<String, String
     Ok(lifted)
 }
 
+/// The interrupt vectors of an ATmega328P: 26 jumps at the start of the
+/// flash, four bytes each. Where each goes, or none when the image does not
+/// start with such a table.
+pub fn vectors(image: &Image) -> Option<Vec<u32>> {
+    if image.base != 0 || image.bytes.len() < 26 * 4 {
+        return None;
+    }
+    (0..26).map(|vector| {
+        let at = &image.bytes[4 * vector..4 * vector + 4];
+        // jmp k, k on 16 bits: 0x940C then the address in words.
+        (at[0] == 0x0C && at[1] == 0x94).then(|| (u32::from(at[2]) | u32::from(at[3]) << 8) * 2)
+    }).collect()
+}
+
+/// The vector of the overflow of timer 0, which the Arduino core counts the time with.
+pub const TIMER0_OVERFLOW: usize = 16;
+
 /// The flash the translation gives its code to read is the image, byte for
 /// byte: checked at every translation, since a proof over another flash
 /// would be a proof of another binary.
@@ -465,10 +487,16 @@ pub fn trusted(binary: &Binary) -> Vec<String> {
     if !on_trust.is_empty() {
         said.push(format!("taken on trust: these are the Arduino functions they are said to be, and are not run ({})", on_trust.join(", ")));
     }
-    if binary.identified.iter().any(|(name, _)| name == "millis") {
+    if !binary.clock.is_empty() {
+        said.push("proven of the clock of the binary:".to_string());
+        said.extend(binary.clock.iter().map(|proven| format!("  {proven}")));
+        said.push("taken on trust: the clock of the board is 16 MHz, of which timer 0 counts the cycles".to_string());
+    } else if binary.identified.iter().any(|(name, _)| name == "millis") {
         said.push("taken on trust: the four bytes millis returns count the milliseconds (the interrupt of timer 0 keeps them)".to_string());
     }
-    said.push("taken on trust: an interrupt changes nothing the code of loop() reads (the clock is millis() and micros(), as named)".to_string());
+    if !binary.interrupts_settled {
+        said.push("taken on trust: an interrupt changes nothing the code of loop() reads (the clock is millis() and micros(), as named)".to_string());
+    }
     said
 }
 
@@ -499,12 +527,25 @@ mod tests {
 
     #[test]
     fn what_is_proven_of_a_function_is_no_longer_said_to_be_taken_on_trust() {
-        let mut binary = Binary { file: "a.hex".to_string(), functions: vec![("loop".to_string(), 0x102), ("millis".to_string(), 0x29c), ("delay".to_string(), 0x2fe)], identified: Vec::new() };
+        let mut binary = Binary { file: "a.hex".to_string(), functions: vec![("loop".to_string(), 0x102), ("millis".to_string(), 0x29c), ("delay".to_string(), 0x2fe)], ..Default::default() };
         let said = trusted(&binary).join("\n");
         assert!(said.contains("are not run (millis at 0x029c, delay at 0x02fe)") && !said.contains("proven of the machine code of the functions"), "{said}");
         binary.identified.push(("millis".to_string(), "millis at 0x029c returns the four bytes of the memory at 0x010b and changes nothing".to_string()));
         let said = trusted(&binary).join("\n");
         assert!(said.contains("  millis at 0x029c returns the four bytes") && said.contains("are not run (delay at 0x02fe)") && said.contains("the four bytes millis returns count the milliseconds"), "{said}");
+    }
+
+    #[test]
+    fn the_interrupt_vectors_are_read_at_the_start_of_the_image() {
+        let mut bytes = Vec::new();
+        for vector in 0..26u32 {
+            let to = if vector == 16 { 0x208u32 } else { 0xe6 } / 2;
+            bytes.extend([0x0C, 0x94, to as u8, (to >> 8) as u8]);
+        }
+        let read = vectors(&Image { base: 0, bytes: bytes.clone() }).unwrap();
+        assert_eq!((read[0], read[TIMER0_OVERFLOW], read.len()), (0xe6, 0x208, 26));
+        bytes[5] = 0x95;
+        assert_eq!(vectors(&Image { base: 0, bytes }), None);
     }
 
     #[test]
@@ -554,7 +595,7 @@ mod tests {
                 ("delay".to_string(), 0x2fe),
                 ("analogWrite".to_string(), 0x200),
             ],
-            identified: Vec::new(),
+            ..Default::default()
         };
         let c = sketch(&binary, lifted, "correspondence 'B'").unwrap();
         assert!(c.contains("#define c_0102 arclang_loop_called"), "{c}");
@@ -574,7 +615,7 @@ mod tests {
         let nowhere = Binary {
             file: "a.hex".to_string(),
             functions: vec![("loop".to_string(), 0x300)],
-            identified: Vec::new(),
+            ..Default::default()
         };
         assert!(sketch(&nowhere, lifted, "correspondence 'B'")
             .unwrap_err()

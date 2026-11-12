@@ -50,8 +50,9 @@ const COMMON: [(&str, &str); 4] = [
     ("(arclang_reg[0x87] == interrupts_before)", "it leaves interrupts as they were"),
 ];
 
-/// The control registers of the three timers: a digital read or write turns the PWM of its pin off there.
-const PWM_OFF: &str = "((register_at == 0x44u || register_at == 0x80u || register_at == 0xb0u) ? (arclang_io[register_at] & (uint8_t)~register_before) == 0 : arclang_io[register_at] == register_before)";
+/// The control registers of the three timers: a digital read or write turns the PWM of its pin off there,
+/// by clearing bits among the four that tie a pin to its timer; how the timer counts is left as it is.
+const PWM_OFF: &str = "((register_at == 0x44u || register_at == 0x80u || register_at == 0xb0u) ? ((arclang_io[register_at] & (uint8_t)~register_before) == 0 && ((arclang_io[register_at] ^ register_before) & 0x0fu) == 0) : arclang_io[register_at] == register_before)";
 
 /// The setting, the call and what is asked of one function: (what is declared and set before the call, the conditions after it, what is printed once proven).
 fn asked(name: &str, at: u32, reads: &[u32]) -> Option<(String, Vec<(String, String)>, String)> {
@@ -165,6 +166,143 @@ pub fn check(name: &str, at: u32, lifted: &str, dir: &Path, seconds: u64) -> Res
         Answer::Unknown(reason) => Identity::Unknown(reason),
     })
 }
+
+/// What is asked of the clock of a binary, and what was answered.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Clock {
+    /// What is proven, as it is printed.
+    pub proven: Vec<String>,
+    /// What does not hold.
+    pub refuted: Vec<String>,
+    pub unknown: Option<String>,
+    /// Every interrupt of the binary is proven to change nothing the code of loop() reads.
+    pub interrupts_settled: bool,
+}
+
+/// The proof of the interrupt of timer 0, as C: from any memory and registers, the routine run once.
+fn interrupt_harness(at: u32, count_at: u32, fraction_at: u32, overflows_at: u32, own: &[u32]) -> (String, Vec<String>) {
+    let conditions: Vec<(String, String)> = vec![
+        ("(!arclang_uncovered && !arclang_outside)".to_string(), "it runs only instructions the translation covers, within the memory and the flash".to_string()),
+        ("(arclang_reg_rd(ARCLANG_SP, 2) == sp0 && arclang_r[kept] == kept_before && arclang_reg[flag_at] == flag_before && arclang_reg[0x87] == 1)".to_string(), "it returns with the stack, every register and every flag as they were, and interrupts on".to_string()),
+        (format!("({} || arclang_mem[byte_at] == byte_before)", own.iter().map(|a| format!("byte_at == 0x{a:x}u")).collect::<Vec<_>>().join(" || ")), "of the memory, it changes only its own bytes".to_string()),
+        ("(arclang_io[register_at] == register_before)".to_string(), "it changes no register of the chip".to_string()),
+        (
+            format!("(arclang_mem[0x{fraction_at:x}u] == (uint8_t)(fraction + 3u >= 125u ? fraction + 3u - 125u : fraction + 3u) && arclang_mem_rd(0x{count_at:x}u, 4) == ((count + 1u + (fraction + 3u >= 125u ? 1u : 0u)) & UINT64_C(0xffffffff)))"),
+            format!("it adds 1 to the four bytes at 0x{count_at:04x}, and 1 more every time the byte at 0x{fraction_at:04x}, which it adds 3 to, passes 125: 1.024 a turn"),
+        ),
+        (format!("(arclang_mem_rd(0x{overflows_at:x}u, 4) == ((overflows + 1u) & UINT64_C(0xffffffff)))"), format!("it counts its turns in the four bytes at 0x{overflows_at:04x}")),
+    ];
+    let mut c = String::from("/* The proof of what the interrupt of timer 0 does (written by `arclang prove`). */\n#define ARCLANG_IDENTITY\n#include \"identity_code.c\"\n\nunsigned nondet_uint(void);\n\nint main(void)\n{\n    /* any memory, any registers: an interrupt falls anywhere */\n    __CPROVER_havoc_object(arclang_mem);\n    __CPROVER_havoc_object(arclang_r);\n    __CPROVER_havoc_object(arclang_reg);\n    __CPROVER_havoc_object(arclang_io);\n");
+    c.push_str("    for (unsigned flag = 0x80u; flag <= 0x88u; flag++) { __CPROVER_assume(arclang_reg[flag] <= 1); }\n    unsigned sp0 = (unsigned)arclang_reg_rd(ARCLANG_SP, 2);\n    __CPROVER_assume(sp0 >= 0x8c0u && sp0 <= 0x8ffu);\n");
+    c.push_str("    unsigned byte_at = nondet_uint();\n    __CPROVER_assume(byte_at >= ARCLANG_RAM_FIRST && byte_at < ARCLANG_MEM_SIZE && (byte_at > sp0 || byte_at + 32u <= sp0));\n    uint8_t byte_before = arclang_mem[byte_at];\n");
+    c.push_str("    unsigned register_at = nondet_uint();\n    __CPROVER_assume(register_at >= ARCLANG_IO_FIRST && register_at < ARCLANG_RAM_FIRST && register_at != 0x5du && register_at != 0x5eu && register_at != 0x5fu);\n    uint8_t register_before = arclang_io[register_at];\n");
+    c.push_str("    unsigned kept = nondet_uint();\n    __CPROVER_assume(kept < 32u);\n    uint8_t kept_before = arclang_r[kept];\n    unsigned flag_at = nondet_uint();\n    __CPROVER_assume(flag_at >= 0x80u && flag_at <= 0x86u);\n    uint8_t flag_before = arclang_reg[flag_at];\n");
+    c.push_str(&format!("    uint64_t count = arclang_mem_rd(0x{count_at:x}u, 4);\n    uint64_t overflows = arclang_mem_rd(0x{overflows_at:x}u, 4);\n    unsigned fraction = arclang_mem[0x{fraction_at:x}u];\n    __CPROVER_assume(fraction < 125u); /* what the routine itself keeps it under */\n"));
+    c.push_str(&format!("    /* the interrupt: the address it came from is on the stack */\n    arclang_reg_wr(ARCLANG_SP, 2, sp0 - 2u);\n    f_{at:04x}();\n"));
+    c.push_str(&format!("    __CPROVER_assert(arclang_mem[0x{fraction_at:x}u] < 125u || arclang_uncovered, \"the fraction stays under 125\");\n"));
+    c.push_str("#ifdef ARCLANG_PART\n    switch (ARCLANG_PART) {\n");
+    for (rank, (condition, written)) in conditions.iter().enumerate() {
+        c.push_str(&format!("    case {rank}: __CPROVER_assert({condition}, \"{}\"); break;\n", written.replace('"', "'")));
+    }
+    c.push_str(&format!("    }}\n#else\n    __CPROVER_assert({}, \"the interrupt of timer 0 keeps the time\");\n#endif\n    return 0;\n}}\n", conditions.iter().map(|(condition, _)| condition.as_str()).collect::<Vec<_>>().join(" && ")));
+    (c, conditions.into_iter().map(|(_, written)| written).collect())
+}
+
+/// The proof of how the start leaves timer 0, as C: the code run from its reset to its first loop().
+fn start_harness(start: u32, loop_at: u32) -> (String, Vec<String>) {
+    let conditions = [
+        ("(arclang_stop && !arclang_uncovered && !arclang_outside)", "the code reaches loop() from its reset"),
+        ("((arclang_io[0x45] & 0x0fu) == 0x03u && (arclang_io[0x44] & 0x03u) == 0x03u)", "it leaves timer 0 counting one in 64 cycles of the clock, and overflowing every 256 counts"),
+        ("((arclang_io[0x6e] & 0x01u) == 0x01u && arclang_reg[0x87] == 1)", "it leaves the overflow of timer 0 an interrupt, and interrupts on"),
+    ];
+    let mut c = format!("/* The proof of how the start of the binary leaves timer 0 (written by `arclang prove`). */\n#define ARCLANG_IDENTITY\nstatic void arclang_first_loop(void);\n#define c_{loop_at:04x} arclang_first_loop\n#include \"identity_code.c\"\n\nstatic void arclang_first_loop(void) {{ arclang_stop = true; }}\n\nint main(void)\n{{\n    /* the chip as its reset leaves it: every register at zero */\n    arclang_booting = true;\n    f_{start:04x}();\n");
+    c.push_str("#ifdef ARCLANG_PART\n    switch (ARCLANG_PART) {\n");
+    for (rank, (condition, written)) in conditions.iter().enumerate() {
+        c.push_str(&format!("    case {rank}: __CPROVER_assert({condition}, \"{written}\"); break;\n"));
+    }
+    c.push_str(&format!("    }}\n#else\n    __CPROVER_assert({}, \"the start sets the clock\");\n#endif\n    return 0;\n}}\n", conditions.iter().map(|(condition, _)| *condition).collect::<Vec<_>>().join(" && ")));
+    (c, conditions.iter().map(|(_, written)| written.to_string()).collect())
+}
+
+/// Ask one harness, and which of its parts fail when it does not hold.
+fn ask(dir: &Path, source: &str, text: &str, parts: &[String], unwind: usize, seconds: u64) -> Result<Result<(), Vec<String>>, String> {
+    std::fs::write(dir.join(source), text).map_err(|e| format!("cannot write {}: {e}", dir.join(source).display()))?;
+    let flags = ["-I", "board", "--16", "-DARCLANG_INT16", "--max-field-sensitivity-array-size", "256"];
+    match decide(dir, &[source], &flags, unwind, seconds)? {
+        Answer::Unsat => Ok(Ok(())),
+        Answer::Sat(_) => {
+            let mut failing = Vec::new();
+            for (rank, written) in parts.iter().enumerate() {
+                let part = format!("-DARCLANG_PART={rank}");
+                let mut one: Vec<&str> = flags.to_vec();
+                one.push(part.as_str());
+                if let Answer::Sat(_) = decide(dir, &[source], &one, unwind, seconds)? {
+                    failing.push(written.clone());
+                }
+            }
+            Ok(Err(failing))
+        }
+        Answer::BeyondBound => Err(format!("a loop runs more than {unwind} times")),
+        Answer::Unknown(reason) => Err(reason),
+    }
+}
+
+/// The clock of a binary: that the four bytes `millis` returns (at
+/// `count_at`) are kept by the interrupt of timer 0 as the Arduino core
+/// keeps them, that the start leaves timer 0 overflowing every 1.024 ms of
+/// a 16 MHz clock, and that no interrupt changes what the code of `loop`
+/// (the functions at `loop_code`) reads by address.
+pub fn clock(vectors: &[u32], start: u32, loop_at: u32, loop_code: &[u32], count_at: u32, lifted: &str, dir: &Path, seconds: u64) -> Result<Clock, String> {
+    let mut clock = Clock::default();
+    let Some(&routine) = vectors.get(super::binary::TIMER0_OVERFLOW) else { return Ok(clock) };
+    let (_, functions) = super::binary_shape::facts(lifted)?;
+    let Some(facts) = functions.get(&routine) else {
+        clock.unknown = Some(format!("the routine of the overflow of timer 0, at 0x{routine:04x}, was not translated"));
+        return Ok(clock);
+    };
+    // Its own bytes: the count, the turns it counts (four bytes in a row) and the fraction (the byte left).
+    let own: Vec<u32> = facts.writes.iter().copied().filter(|a| *a >= 0x100).collect();
+    let rest: Vec<u32> = own.iter().copied().filter(|a| !(count_at..count_at + 4).contains(a)).collect();
+    let overflows_at = rest.windows(4).find(|run| run[3] == run[0] + 3).map(|run| run[0]);
+    let fraction: Vec<u32> = rest.iter().copied().filter(|a| overflows_at.is_none_or(|first| !(first..first + 4).contains(a))).collect();
+    let (Some(overflows_at), [fraction_at], 9) = (overflows_at, fraction.as_slice(), own.len()) else {
+        clock.unknown = Some(format!("the routine of the overflow of timer 0, at 0x{routine:04x}, does not write the nine bytes the Arduino core's does (a count, a fraction, its turns)"));
+        return Ok(clock);
+    };
+    std::fs::write(dir.join("identity_code.c"), lifted).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join("arclang_lifted.h"), super::binary::LIFTED_H).map_err(|e| e.to_string())?;
+    let (text, parts) = interrupt_harness(routine, count_at, *fraction_at, overflows_at, &own);
+    match ask(dir, "identity_timer0.c", &text, &parts, UNWIND, seconds) {
+        Ok(Ok(())) => clock.proven.push(format!("the interrupt of timer 0 (at 0x{routine:04x}) adds 1.024 to the four bytes millis returns at each overflow of the timer, and changes nothing else but its own count of turns")),
+        Ok(Err(failing)) => clock.refuted.extend(failing.iter().map(|part| format!("the interrupt of timer 0, at 0x{routine:04x}: {part}"))),
+        Err(reason) => clock.unknown = Some(format!("the interrupt of timer 0, at 0x{routine:04x}: {reason}")),
+    }
+    let (text, parts) = start_harness(start, loop_at);
+    match ask(dir, "identity_start.c", &text, &parts, START_UNWIND, seconds) {
+        Ok(Ok(())) => clock.proven.push("the start leaves timer 0 overflowing every 256 x 64 cycles of the clock (1.024 ms at 16 MHz), its overflow an interrupt, and interrupts on".to_string()),
+        Ok(Err(failing)) => clock.refuted.extend(failing.iter().map(|part| format!("the start of the binary: {part}"))),
+        Err(reason) => clock.unknown = clock.unknown.take().or(Some(format!("the start of the binary: {reason}"))),
+    }
+    // The other interrupts: none, when every other vector goes where most go (the routine of an interrupt nobody takes).
+    let mut places: std::collections::BTreeMap<u32, usize> = std::collections::BTreeMap::new();
+    for to in &vectors[1..] {
+        *places.entry(*to).or_default() += 1;
+    }
+    let nobody = places.iter().max_by_key(|(_, count)| **count).map(|(to, _)| *to);
+    let others = vectors.iter().enumerate().skip(1).filter(|(vector, to)| *vector != super::binary::TIMER0_OVERFLOW && Some(**to) != nobody).count();
+    // What the code of loop() reads or writes by address is none of the routine's bytes, and it uses no pointer.
+    let code: Vec<&super::binary_shape::Function> = loop_code.iter().filter_map(|at| functions.get(at)).collect();
+    let shared = code.iter().flat_map(|f| f.reads.iter().chain(&f.writes)).any(|a| own.contains(a));
+    let pointers = code.iter().any(|f| f.loads + f.stores > 0);
+    if clock.refuted.is_empty() && clock.unknown.is_none() && others == 0 && !shared && !pointers {
+        clock.interrupts_settled = true;
+        clock.proven.push("it is the only interrupt of the binary, and the code of loop() reads none of its bytes: an interrupt changes nothing loop() reads".to_string());
+    }
+    Ok(clock)
+}
+
+/// The start of a binary copies and clears at most the memory of the chip.
+const START_UNWIND: usize = 2100;
 
 /// The loops of these functions are those of the C beneath the translation (the bytes of a value, at most 8).
 const UNWIND: usize = 70;

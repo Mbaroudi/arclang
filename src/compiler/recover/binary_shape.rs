@@ -338,6 +338,19 @@ pub fn propose(start: u32, functions: &BTreeMap<u32, Function>) -> Proposal {
     proposal
 }
 
+/// The functions whose machine code runs when `from` is called: itself and what it
+/// calls, the functions `named` apart (they are not run) and the reset.
+pub fn code_of(from: u32, named: &BTreeSet<u32>, start: u32, functions: &BTreeMap<u32, Function>) -> Vec<u32> {
+    let (mut own, mut queue) = (BTreeSet::new(), vec![from]);
+    while let Some(at) = queue.pop() {
+        if (at != from && (named.contains(&at) || at == start)) || !own.insert(at) {
+            continue;
+        }
+        queue.extend(functions.get(&at).map(|f| f.sites.iter().map(|site| site.to).collect::<Vec<_>>()).unwrap_or_default());
+    }
+    own.into_iter().collect()
+}
+
 /// The instructions of `setup` and of `loop`, as the translation names them
 /// (one line an instruction: its address, the instruction), the calls of
 /// the named functions said. What a person or an AI reads to write the machine.

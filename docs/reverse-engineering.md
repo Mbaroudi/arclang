@@ -698,7 +698,7 @@ for four (a `long`), low byte first. A pin is its number.
 
 ```
 $ arclang prove uno_lamp_binary.arc
-✓ Proven (189.7 s) correspondence "Uno lamp binary": uno_lamp.hex is state_machine "Lamp toggled by a button"
+✓ Proven (206.9 s) correspondence "Uno lamp binary": uno_lamp.hex is state_machine "Lamp toggled by a button"
     of the machine code of uno_lamp.hex itself, translated one instruction at a time (ATmega328P, Ghidra's description of the AVR): no source is read
     proven of the machine code of the functions it does not run, from any memory and registers, on the pins of an Arduino UNO:
       pinMode at 0x043e makes the pin an input, an input pulled up or an output, for each of the pins 0 to 19, and changes nothing else
@@ -706,8 +706,11 @@ $ arclang prove uno_lamp_binary.arc
       digitalWrite at 0x04b6 sets the level of the pin and of no other, for each of the pins 0 to 19, and changes nothing else but the PWM of the pin, turned off
       millis at 0x029c returns the four bytes of the memory at 0x010b and changes nothing
     taken on trust: these are the Arduino functions they are said to be, and are not run (delay at 0x02fe)
-    taken on trust: the four bytes millis returns count the milliseconds (the interrupt of timer 0 keeps them)
-    taken on trust: an interrupt changes nothing the code of loop() reads (the clock is millis() and micros(), as named)
+    proven of the clock of the binary:
+      the interrupt of timer 0 (at 0x0208) adds 1.024 to the four bytes millis returns at each overflow of the timer, and changes nothing else but its own count of turns
+      the start leaves timer 0 overflowing every 256 x 64 cycles of the clock (1.024 ms at 16 MHz), its overflow an interrupt, and interrupts on
+      it is the only interrupt of the binary, and the code of loop() reads none of its bytes: an interrupt changes nothing loop() reads
+    taken on trust: the clock of the board is 16 MHz, of which timer 0 counts the cycles
     on the clock of the board (an AVR's millis() counts ticks of 1.024 ms: a time read can be 1 ms short): NOT proven. ...
 ```
 
@@ -754,9 +757,28 @@ were. A function that is not the one it is said to be refutes the proof,
 with what it does not do: `digitalRead` and `digitalWrite` taken for each
 other, or a binary whose table of pins puts pin 13 on another port.
 
-Not proven yet, and said under the proof as taken on trust: `delay`,
-`micros`, the analog functions, and that the four bytes `millis` returns
-count the milliseconds (the interrupt of timer 0 keeps them).
+**The clock.** `millis` returns four bytes of the memory; that they count
+the time is proven too, of the binary's own interrupt and of its own start:
+
+- the routine of the overflow of timer 0 (found by its interrupt vector),
+  run from any memory and registers, adds 1 to those four bytes, and 1 more
+  every time a fraction it adds 3 to passes 125 (1.024 a turn, as the
+  Arduino core counts), counts its turns, changes no other byte of the
+  memory and no register of the chip, and returns with the stack, every
+  register and every flag as they were;
+- the start, run from the reset of the chip to the first `loop`, leaves
+  timer 0 counting one in 64 cycles of the clock and overflowing every 256
+  counts (1.024 ms at 16 MHz), its overflow an interrupt, and interrupts
+  on;
+- when that routine is the only interrupt of the binary (every other vector
+  goes where the vectors nobody takes go) and the code of `loop` reads none
+  of its bytes by address and uses no pointer: an interrupt changes nothing
+  `loop` reads.
+
+A binary whose routine counts otherwise, or whose start sets the timer
+otherwise, refutes the proof. What is left on trust is said under it:
+`delay`, `micros` and the analog functions, and the 16 MHz of the board's
+clock, which is not in the binary.
 
 A function that is not named is run, instruction by instruction: leave
 `pinMode` out and its code writes the direction of the port itself, which
@@ -777,7 +799,7 @@ that takes `digitalRead` and `digitalWrite` for each other.
 
 **What it does not do yet.** The chip is an ATmega328P (an Arduino UNO),
 and the image a program that starts at address 0. An interrupt of the
-binary is not read. A binary built with the Arduino IDE's link-time
+binary other than the one that keeps the time is not read. A binary built with the Arduino IDE's link-time
 optimisation has `setup` and `loop` folded into `main`, and its pin
 functions specialised: there is then no `loop` to name.
 The binary of the example was read back from the board itself, through its
