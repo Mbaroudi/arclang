@@ -70,6 +70,8 @@ pub struct Binary {
     pub clock: Vec<String>,
     /// The interrupts of the binary are all proven to change nothing the code of loop() reads.
     pub interrupts_settled: bool,
+    /// Why the clock of the binary could not be established, when it could not.
+    pub clock_unknown: Option<String>,
 }
 
 /// An Arduino function a correspondence can name: the bytes of its
@@ -520,8 +522,11 @@ pub fn trusted(binary: &Binary) -> Vec<String> {
         said.push("proven of the clock of the binary:".to_string());
         said.extend(binary.clock.iter().map(|proven| format!("  {proven}")));
         said.push("taken on trust: the clock of the board is 16 MHz, of which timer 0 counts the cycles".to_string());
-    } else if binary.identified.iter().any(|(name, _)| name == "millis" || name == "micros") {
+    } else if binary.clock_unknown.is_none() && binary.identified.iter().any(|(name, _)| name == "millis" || name == "micros") {
         said.push("taken on trust: the bytes millis and micros read count the time (the interrupt of timer 0 keeps them)".to_string());
+    }
+    if let Some(why) = &binary.clock_unknown {
+        said.push(format!("NOT established: the clock of the binary ({why}). {}", if binary.cycle.is_some() { "The bytes the interrupt of timer 0 keeps are then taken as any value in every turn, and no time is proven." } else { "That the bytes millis and micros read count the time is taken on trust." }));
     }
     if !binary.interrupts_settled {
         said.push("taken on trust: an interrupt changes nothing the code of loop() reads (the clock is millis() and micros(), as named)".to_string());
@@ -562,6 +567,13 @@ mod tests {
         binary.identified.push(("millis".to_string(), "millis at 0x029c returns the four bytes of the memory at 0x010b and changes nothing".to_string()));
         let said = trusted(&binary).join("\n");
         assert!(said.contains("  millis at 0x029c returns the four bytes") && said.contains("are not run (delay at 0x02fe)") && said.contains("the bytes millis and micros read count the time"), "{said}");
+        // A clock that could not be established is said, never left out of the verdict.
+        binary.clock_unknown = Some("the interrupt of timer 0: CBMC could not translate the code".to_string());
+        let said = trusted(&binary).join("\n");
+        assert!(said.contains("NOT established: the clock of the binary (the interrupt of timer 0: CBMC could not translate the code)") && !said.contains("taken on trust: the bytes millis"), "{said}");
+        binary.cycle = Some(0x390);
+        let said = trusted(&binary).join("\n");
+        assert!(said.contains("taken as any value in every turn, and no time is proven"), "{said}");
     }
 
     #[test]

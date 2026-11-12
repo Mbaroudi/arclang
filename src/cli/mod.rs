@@ -2553,14 +2553,13 @@ impl CliRunner {
         let wrong = |error: String| CliError::Compilation(format!("{}: {error}", input.display()));
         let image = binary::intel_hex(&std::fs::read_to_string(input).map_err(CliError::Io)?).map_err(wrong)?;
         let work = keep.map(std::path::Path::to_path_buf).unwrap_or_else(|| std::env::temp_dir().join(format!("arclang-recover-{}-{}", std::process::id(), crate::compiler::simulation::tool::run_number())));
-        let lifted = binary::lift(&image, &[], None, &work.join("lift"));
+        let read = binary_shape::recover(&image, &work.join("lift"));
         if keep.is_none() {
             let _ = std::fs::remove_dir_all(&work);
         }
-        let (start, functions) = binary_shape::facts(&lifted.map_err(wrong)?).map_err(wrong)?;
-        let proposal = binary_shape::propose(start, &functions);
-        // Nothing found is nothing written: a correspondence with no loop() would be no start.
-        if proposal.functions.is_empty() {
+        let binary_shape::Recovered { functions, proposal, .. } = read.map_err(wrong)?;
+        // Nothing found is nothing written: a correspondence with no loop() and no cycle would be no start.
+        if proposal.functions.is_empty() && proposal.cycle.is_none() {
             return Err(CliError::Compilation(format!("{}: nothing could be proposed: {}", input.display(), proposal.unknown.join("; "))));
         }
         let file = input.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
@@ -2569,7 +2568,10 @@ impl CliRunner {
             Some(path) => std::fs::write(path, &text).map_err(CliError::Io)?,
             None => print!("{text}"),
         }
-        eprintln!("Recovered from {}: {} function(s) placed of {} found in the machine code", input.display(), proposal.functions.len(), functions.len());
+        match proposal.cycle {
+            Some(head) => eprintln!("Recovered from {}: the cycle of main placed at 0x{head:04x} ({} functions found in the machine code, none named)", input.display(), functions.len()),
+            None => eprintln!("Recovered from {}: {} function(s) placed of {} found in the machine code", input.display(), proposal.functions.len(), functions.len()),
+        }
         if let Some(path) = output {
             eprintln!("  Output: {}", path.display());
         }
