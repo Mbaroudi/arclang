@@ -265,4 +265,5 @@ See also [QUICKSTART.md](QUICKSTART.md), [ARCHITECTURE.md](ARCHITECTURE.md) and
 
 ## License
 
-MIT. Authors: Malek Baroudi and Bilel Laasami.
+Business Source License 1.1, like the compiler: see the [LICENSE](../LICENSE) at the root of the repository.
+Authors: Malek Baroudi and Bilel Laasami, co-founders of ArcLang.
