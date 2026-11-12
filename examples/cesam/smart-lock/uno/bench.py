@@ -26,9 +26,12 @@ if MICROPYTHON:
         return time.ticks_diff(time.ticks_ms(), start)
 
     class Port:
-        """UART2 of the ESP32, on the UDOO KEY's UEXT header P3 (pins 3 and 4)."""
+        """UART2 of the ESP32 on the UDOO KEY's UEXT header: TX on GPIO13
+        (UEXT pin 3, 1 kOhm to the Uno's pin 2), RX on GPIO14 (UEXT pin 9,
+        from the Uno's pin 9 through a 10k/20k divider), 57600 baud: the
+        software serial of uno_live/."""
 
-        def __init__(self, tx=13, rx=26, baud=115200):
+        def __init__(self, tx=13, rx=14, baud=57600):
             from machine import UART
             self.uart = UART(2, baudrate=baud, tx=tx, rx=rx, timeout=0)
 
@@ -141,8 +144,14 @@ def run(port):
     for line in lines.drain(2500):
         if line.startswith('#'):
             print(' ', line)
-    send(port, 'R')
-    lines.drain(300)
+    # The first byte out of a UART just opened can be garbled (its line
+    # settles): an empty line first, then the reset, checked by the states.
+    send(port, '')
+    lines.drain(200)
+    for _ in range(3):
+        send(port, 'R')
+        if any(l.startswith('A') for l in lines.drain(300)):
+            break
     send(port, '?')
     for line in lines.drain(300):
         if line.startswith('I'):

@@ -53,18 +53,23 @@ sketch: `arclang export ../smart_lock.arc -f c -o <dir>` and copy them
 ### On the UDOO KEY
 
 The same `bench.py` runs on the UDOO KEY's ESP32 under MicroPython, the
-Uno wired to its UART2 on the UEXT header P3:
+Uno wired to it on the UEXT header P3, with resistors on every line that
+crosses from 5 V (the Uno) to 3.3 V (the ESP32). The sketch listens on a
+software serial, pins 2 and 9, at 57600 baud, and keeps its hardware UART
+on USB for `arclang hil`:
 
-| UDOO KEY P3 | ESP32 | Arduino Uno |
-|---|---|---|
-| pin 3, `EXT_UART2_TX` | GPIO13 | pin 0, RX |
-| pin 4, `EXT_UART2_RX` | GPIO26 | pin 1, TX, through a 5 V to 3.3 V divider (1 kΩ / 2 kΩ) |
-| pin 2, `GND` | | GND |
+| UDOO KEY P3 | ESP32 | Arduino Uno | Direction |
+|---|---|---|---|
+| pin 3 | GPIO13, UART2 TX | 1 kΩ → pin 2 (RX of the software serial) | commands |
+| pin 9 | GPIO14, UART2 RX | ← 10 kΩ / 20 kΩ divider ← pin 9 (TX of the software serial) | reports |
+| pin 7 | GPIO35 | ← 10 kΩ / 20 kΩ divider ← pin 13 (the lock's LED) | the lamp, for another bench |
+| pin 4 | GPIO26 | 1 kΩ → pin 3, kept an input | unused here |
+| | | GND, common through the USB hub | |
 
-The ESP32's pins are 3.3 V: the Uno's TX must be divided. Copy `bench.py`
-to the board's filesystem (any MicroPython tool, or paste it in the REPL)
-and run `import bench; bench.main()`. Nothing must hold the Uno's USB serial
-port open meanwhile: it is the same UART.
+Never drive a 5 V output of the Uno into the ESP32 without a divider; pin 3
+of the Uno stays an input. Copy `bench.py` to the board's filesystem (any
+MicroPython tool, or paste it in the REPL) and run `import bench;
+bench.main()`.
 
 ## What is on the board and what is not
 
