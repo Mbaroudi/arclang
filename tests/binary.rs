@@ -60,9 +60,9 @@ fn hex(image: &[u8]) -> String {
 }
 
 /// The lamp's binary and its model in a fresh directory, after the edits
-/// given to the model and the bytes changed in the binary (the two bytes
-/// that are there, the two that replace them); the proof is then asked.
-fn proof(in_model: &[(&str, &str)], in_binary: Option<([u8; 2], [u8; 2])>) -> (bool, String) {
+/// given to the model and the bytes changed in the binary (those that are
+/// there, once, and those that replace them); the proof is then asked.
+fn proof(in_model: &[(&str, &str)], in_binary: Option<(&[u8], &[u8])>) -> (bool, String) {
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sketches");
     let dir = tempfile::tempdir().unwrap();
     let mut model = std::fs::read_to_string(fixtures.join("uno_lamp_binary.arc")).unwrap();
@@ -73,16 +73,15 @@ fn proof(in_model: &[(&str, &str)], in_binary: Option<([u8; 2], [u8; 2])>) -> (b
     std::fs::write(dir.path().join("uno_lamp_binary.arc"), model).unwrap();
     let mut image = bytes(&std::fs::read_to_string(fixtures.join("uno_lamp.hex")).unwrap());
     if let Some((from, to)) = in_binary {
-        let places: Vec<usize> = (0..image.len() - 1)
-            .step_by(2)
-            .filter(|at| image[*at..*at + 2] == from)
+        let places: Vec<usize> = (0..=image.len() - from.len())
+            .filter(|at| image[*at..*at + from.len()] == *from)
             .collect();
         assert_eq!(
             places.len(),
             1,
-            "the binary has the instruction {from:02X?} once"
+            "the binary has the bytes {from:02X?} once"
         );
-        image[places[0]..places[0] + 2].copy_from_slice(&to);
+        image[places[0]..places[0] + to.len()].copy_from_slice(to);
     }
     std::fs::write(dir.path().join("uno_lamp.hex"), hex(&image)).unwrap();
     let asked = arclang(&[
@@ -118,11 +117,16 @@ fn a_binary_is_proven_to_be_the_machine_its_correspondence_says_without_its_sour
             && output.contains("no source is read"),
         "{output}"
     );
-    assert!(
-        output.contains("taken on trust: these are the Arduino functions they are said to be")
-            && output.contains("digitalRead at 0x0514"),
-        "{output}"
-    );
+    // The functions of the pins and millis are proven to be what they are said to be; what is left on trust is said.
+    for proven_of in [
+        "digitalRead at 0x0514 returns the level of the pin, for each of the pins 0 to 19",
+        "digitalWrite at 0x04b6 sets the level of the pin and of no other",
+        "pinMode at 0x043e makes the pin an input",
+        "millis at 0x029c returns the four bytes of the memory at 0x010b",
+        "taken on trust: these are the Arduino functions they are said to be, and are not run (delay at 0x02fe)",
+    ] {
+        assert!(output.contains(proven_of), "{proven_of}: {output}");
+    }
     // The same verdict as the proof of its sketch, which the board confirmed: one loop late some of the time.
     assert!(
         output.contains("on the clock of the board") && output.contains("NOT proven"),
@@ -134,7 +138,7 @@ fn a_binary_is_proven_to_be_the_machine_its_correspondence_says_without_its_sour
 #[ignore = "needs Ghidra, CBMC and Bitwuzla: tools/embedded/reverse/run.sh cargo test --test binary -- --include-ignored"]
 fn a_binary_changed_by_one_instruction_is_refuted() {
     // `sbiw r24, 0x32` (the 50 ms of the press) made `sbiw r24, 0x33`: the binary waits 51 ms.
-    let (proven, output) = proof(&[], Some(([0xC2, 0x97], [0xC3, 0x97])));
+    let (proven, output) = proof(&[], Some((&[0xC2, 0x97], &[0xC3, 0x97])));
     assert!(!proven && output.contains("✗ Refuted"), "{output}");
 }
 
@@ -175,6 +179,29 @@ fn two_functions_taken_for_each_other_are_refuted() {
         None,
     );
     assert!(!proven && output.contains("✗ Refuted"), "{output}");
+    // Before any proof of the correspondence: neither is the function it is said to be.
+    assert!(
+        output.contains("is not the Arduino function it is said to be")
+            && output.contains("digitalRead at 0x04b6: it returns the bit of the pin in the input register of its port"),
+        "{output}"
+    );
+}
+
+#[test]
+#[ignore = "needs Ghidra, CBMC and Bitwuzla: tools/embedded/reverse/run.sh cargo test --test binary -- --include-ignored"]
+fn a_function_whose_pin_table_is_not_an_unos_is_not_the_function_it_is_said_to_be() {
+    // The table that gives the port of each pin, pins 12 to 19: pin 13 moved from port B to port C.
+    let (proven, output) = proof(&[], Some((&[2, 2, 3, 3, 3, 3, 3, 3], &[2, 3, 3, 3, 3, 3, 3, 3])));
+    assert!(
+        !proven && output.contains("✗ Refuted") && output.contains("is not the Arduino function it is said to be"),
+        "{output}"
+    );
+    for not_done in [
+        "digitalWrite at 0x04b6: it sets the bit of the pin in the output register of its port to the level, and no other bit",
+        "digitalRead at 0x0514: it returns the bit of the pin in the input register of its port",
+    ] {
+        assert!(output.contains(not_done), "{not_done}: {output}");
+    }
 }
 
 #[test]

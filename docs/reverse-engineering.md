@@ -698,9 +698,15 @@ for four (a `long`), low byte first. A pin is its number.
 
 ```
 $ arclang prove uno_lamp_binary.arc
-✓ Proven (169.3 s) correspondence "Uno lamp binary": uno_lamp.hex is state_machine "Lamp toggled by a button"
+✓ Proven (189.7 s) correspondence "Uno lamp binary": uno_lamp.hex is state_machine "Lamp toggled by a button"
     of the machine code of uno_lamp.hex itself, translated one instruction at a time (ATmega328P, Ghidra's description of the AVR): no source is read
-    taken on trust: these are the Arduino functions they are said to be, and are not run (pinMode at 0x043e, digitalRead at 0x0514, digitalWrite at 0x04b6, millis at 0x029c, delay at 0x02fe)
+    proven of the machine code of the functions it does not run, from any memory and registers, on the pins of an Arduino UNO:
+      pinMode at 0x043e makes the pin an input, an input pulled up or an output, for each of the pins 0 to 19, and changes nothing else
+      digitalRead at 0x0514 returns the level of the pin, for each of the pins 0 to 19, and changes nothing but the PWM of the pin, turned off
+      digitalWrite at 0x04b6 sets the level of the pin and of no other, for each of the pins 0 to 19, and changes nothing else but the PWM of the pin, turned off
+      millis at 0x029c returns the four bytes of the memory at 0x010b and changes nothing
+    taken on trust: these are the Arduino functions they are said to be, and are not run (delay at 0x02fe)
+    taken on trust: the four bytes millis returns count the milliseconds (the interrupt of timer 0 keeps them)
     taken on trust: an interrupt changes nothing the code of loop() reads (the clock is millis() and micros(), as named)
     on the clock of the board (an AVR's millis() counts ticks of 1.024 ms: a time read can be 1 ms short): NOT proven. ...
 ```
@@ -726,7 +732,32 @@ run: they are the stand-ins of the proof, called as the compiler of the
 board calls them (the first argument in r24, the result in r24, or in r22
 to r25 for a `long`), and what such a function may change beside its
 result is anything after it. That the function at 0x0514 is `digitalRead`
-is what the correspondence says; the proof takes it on trust and says so.
+is what the correspondence says, and it is not taken on trust: before the
+proof of the correspondence, each named function is proven, of its own
+machine code and of what it calls, to be the function it is said to be on
+an Arduino UNO (pins 0 to 7 on port D, 8 to 13 on port B, 14 to 19 on port
+C). From any memory and any registers, for every pin:
+
+- `digitalRead(pin)` returns the bit of the pin in the input register of
+  its port;
+- `digitalWrite(pin, level)` sets the bit of the pin in the output register
+  of its port to the level, and no other bit;
+- `pinMode(pin, mode)` makes the pin an input, an input pulled up or an
+  output, and touches no other pin;
+- `millis()` returns the four bytes of the memory it reads;
+
+and each runs only instructions the translation covers, returns with the
+stack and the registers a function must keep as they were, changes no byte
+of the memory and no other register of the chip (the PWM of the pin apart,
+which a digital read or write turns off), and leaves interrupts as they
+were. A function that is not the one it is said to be refutes the proof,
+with what it does not do: `digitalRead` and `digitalWrite` taken for each
+other, or a binary whose table of pins puts pin 13 on another port.
+
+Not proven yet, and said under the proof as taken on trust: `delay`,
+`micros`, the analog functions, and that the four bytes `millis` returns
+count the milliseconds (the interrupt of timer 0 keeps them).
+
 A function that is not named is run, instruction by instruction: leave
 `pinMode` out and its code writes the direction of the port itself, which
 the proof refuses (*the machine code writes no port of the chip itself*),
@@ -797,9 +828,10 @@ shape name neither; a pin that is not a constant is a `?`; a binary whose
 `main` has no call in a cycle (link-time optimisation) gives no `loop`.
 
 It is a proposal. The machine is left to write, by a person or an AI, from
-those calls and from the bytes of the state; `arclang prove` then decides,
-and still takes the named Arduino functions on trust: a shape is a reason
-to name a function, not a proof that it is that function.
+those calls and from the bytes of the state; `arclang prove` then decides.
+A shape is a reason to name a function, not a proof that it is that
+function: the proof is `arclang prove`'s, for the functions of the pins and
+`millis`; the others it takes on trust and says so.
 
 ### The machine, proposed by an AI: `arclang recover firmware.hex --propose`
 
