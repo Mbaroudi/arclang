@@ -2559,6 +2559,10 @@ impl CliRunner {
         }
         let (start, functions) = binary_shape::facts(&lifted.map_err(wrong)?).map_err(wrong)?;
         let proposal = binary_shape::propose(start, &functions);
+        // Nothing found is nothing written: a correspondence with no loop() would be no start.
+        if proposal.functions.is_empty() {
+            return Err(CliError::Compilation(format!("{}: nothing could be proposed: {}", input.display(), proposal.unknown.join("; "))));
+        }
         let file = input.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         let text = binary_shape::written(&file, image.bytes.len(), &proposal);
         match output {
@@ -2572,7 +2576,7 @@ impl CliRunner {
         for unknown in &proposal.unknown {
             eprintln!("  not found: {unknown}");
         }
-        eprintln!("  a proposal, not a proof: write the machine, then `arclang prove` decides (it takes the named Arduino functions on trust)");
+        eprintln!("  a proposal, not a proof: write the machine, then `arclang prove` decides");
         Ok(())
     }
 

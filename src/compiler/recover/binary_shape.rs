@@ -202,6 +202,14 @@ pub fn propose(start: u32, functions: &BTreeMap<u32, Function>) -> Proposal {
         return proposal;
     };
     let main = &functions[&main_at];
+    // A main that only calls (init, setup, then loop in its cycle) touches no memory, no register of
+    // the chip and no table of the flash itself. One that does has setup() and loop() folded into it
+    // (a binary built with link-time optimisation, as the Arduino IDE builds): what it calls in its
+    // cycle is then not loop(), and nothing is named.
+    if main.flash > 0 || main.loads + main.stores > 0 || main.reads.iter().chain(&main.writes).any(|a| *a != STATUS) {
+        proposal.unknown.push(format!("main (0x{main_at:04x}) does the work itself: setup() and loop() are folded into it (a binary built with link-time optimisation, as the Arduino IDE builds). There is no loop() to name, and such a binary is not read yet"));
+        return proposal;
+    }
     let cycle: Vec<&Site> = main.sites.iter().filter(|site| site.to != start && in_cycle(main, site)).collect();
     let loop_at = cycle[0].to;
     proposal.functions.push(("loop".to_string(), loop_at, format!("main (0x{main_at:04x}) calls it in its cycle")));
@@ -450,6 +458,11 @@ mod tests {
         let proposal = propose(start, &functions);
         assert!(!proposal.functions.iter().any(|(name, _, _)| name == "millis"), "{proposal:?}");
         assert!(proposal.unknown.iter().any(|said| said.contains("2 functions have the shape of millis")), "{proposal:?}");
+        // A main that reads the memory itself has loop() folded into it: what it calls in its cycle is not loop().
+        let folded = FACTS.replace("//@ function 0x0100 calls\n", "//@ function 0x0100 calls\n//@ reads 0x0100 0x100 0x101\n");
+        let (start, functions) = facts(&folded).unwrap();
+        let proposal = propose(start, &functions);
+        assert!(proposal.functions.is_empty() && proposal.unknown[0].contains("setup() and loop() are folded into it"), "{proposal:?}");
         // No cycle that calls: no main, and it is said.
         let (start, functions) = facts("//@ start 0x0\n//@ function 0x0000 calls\n//@ back 0x0004 0x0002\n").unwrap();
         let proposal = propose(start, &functions);

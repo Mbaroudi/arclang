@@ -125,7 +125,7 @@ fn a_binary_is_proven_to_be_the_machine_its_correspondence_says_without_its_sour
         "millis at 0x029c returns the four bytes of the memory at 0x010b",
         "taken on trust: these are the Arduino functions they are said to be, and are not run (delay at 0x02fe)",
         // The clock: the interrupt that keeps the time, the start that sets the timer, and no other interrupt.
-        "the interrupt of timer 0 (at 0x0208) adds 1.024 to the four bytes millis returns at each overflow of the timer",
+        "the interrupt of timer 0 (at 0x0208) adds 1.024 to the count of milliseconds (the four bytes at 0x010b, which millis returns)",
         "the start leaves timer 0 overflowing every 256 x 64 cycles of the clock (1.024 ms at 16 MHz)",
         "it is the only interrupt of the binary, and the code of loop() reads none of its bytes",
         "taken on trust: the clock of the board is 16 MHz",
@@ -343,4 +343,34 @@ fn a_model_proposed_for_a_binary_is_written_only_once_proven_against_its_machine
     assert!(second.contains("STEP is refuted") && second.contains("timing: 40 ms"), "{second}");
     let third = std::fs::read_to_string(kept.path().join("prompt-2")).unwrap();
     assert!(third.contains("they must be exactly those found in the machine code"), "{third}");
+}
+
+#[test]
+#[ignore = "needs Ghidra, CBMC and Bitwuzla: tools/embedded/reverse/run.sh cargo test --test binary -- --include-ignored"]
+fn a_binary_that_times_with_micros_is_proven_and_so_is_its_micros() {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sketches");
+    let asked = arclang(&["prove", fixtures.join("uno_lamp_micros_binary.arc").to_str().unwrap(), "--timeout", "1200"]);
+    let output = text(&asked);
+    assert!(asked.status.success() && output.contains("✓ Proven"), "{output}");
+    for said in [
+        "micros at 0x029e returns the time in microseconds of a 16 MHz clock: 4 a count of timer 0, 1024 a turn (the four bytes of the memory at 0x010f)",
+        // The clock is proven of it too: the turns micros reads are those the interrupt counts.
+        "and 1 to its turns (the four bytes at 0x010f, which micros reads) at each overflow of the timer",
+        "the start leaves timer 0 overflowing every 256 x 64 cycles of the clock",
+        // As for its sketch: timed with micros, it is never a loop late on the clock of the board.
+        "on the clock of the board (an AVR's millis() counts ticks of 1.024 ms: a time read can be 1 ms short): proven too",
+    ] {
+        assert!(output.contains(said), "{said}: {output}");
+    }
+}
+
+#[test]
+#[ignore = "needs Ghidra, CBMC and Bitwuzla: tools/embedded/reverse/run.sh cargo test --test binary -- --include-ignored"]
+fn a_binary_built_with_link_time_optimisation_has_no_loop_to_name_and_nothing_is_proposed() {
+    // The lamp built as the Arduino IDE builds: setup() and loop() are folded into main.
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sketches");
+    let asked = arclang(&["recover", fixtures.join("uno_lamp_lto.hex").to_str().unwrap()]);
+    let output = text(&asked);
+    assert!(!asked.status.success() && output.contains("setup() and loop() are folded into it") && output.contains("nothing could be proposed"), "{output}");
+    assert!(!output.contains("correspondence \""), "nothing is written: {output}");
 }
