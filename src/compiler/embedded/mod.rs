@@ -31,6 +31,7 @@ pub mod fmu;
 pub mod fxc;
 pub mod glue;
 pub mod hdl;
+pub mod hil;
 pub mod pil;
 pub mod plant;
 pub mod plan;
@@ -143,6 +144,8 @@ pub fn export(ast: &Model) -> Result<(Files, Vec<String>), String> {
     let mut files = sil::files(&plan, &bindings, default_period_us(&bindings));
     files.push(("host/arclang_io_host.h".to_string(), sil::HOST_HEADER.to_string()));
     files.push(("host/arclang_io_host.c".to_string(), sil::HOST_SOURCE.to_string()));
+    // The harness SIL drives from stdin: behind a serial port, it is what `arclang hil` drives on a board.
+    files.push(("host/harness.c".to_string(), sil::direct_harness(&plan)));
     let mut notes: Vec<String> = plan.machines.iter().flat_map(|m| m.notes.iter().map(move |n| format!("state_machine '{}': {n}", m.name))).collect();
     notes.extend(bindings.iter().flat_map(|b| b.warnings.clone()));
     for m in &plan.machines {

@@ -187,6 +187,7 @@ fn attach_executed(result: &mut CompilationResult, model_path: &Path) -> std::co
         let status = with_pil(result, model_path, &dir, test, status);
         let status = with_hdl(result, model_path, &dir, test, status);
         let status = with_soc(result, model_path, &dir, test, status);
+        let status = with_hil(result, model_path, &dir, test, status);
         statuses.insert(test.id.clone(), status);
     }
     statuses
@@ -214,6 +215,14 @@ fn with_stage(result: &mut CompilationResult, model_path: &Path, dir: &Path, tes
             "pil",
             "the generated C, the case, its plant or the target package changed",
         ),
+        "hil" => (
+            crate::compiler::embedded::sil::cache_key(&result.ast, test, &base).is_ok_and(|key| key == outcome.key),
+            "board",
+            format!("board {}", outcome.target),
+            format!("its board verdict on {} is stale", outcome.target),
+            "hil",
+            "the generated C or the case changed",
+        ),
         "hdl" => (
             crate::compiler::embedded::hdl::cache_key(&result.ast, test, &outcome.tool, &base).is_ok_and(|key| key == outcome.key),
             "hdl",
@@ -231,7 +240,8 @@ fn with_stage(result: &mut CompilationResult, model_path: &Path, dir: &Path, tes
             "the generated VHDL, the fixed-point C, the application, the case, a machine it reads or its plant changed",
         ),
     };
-    let target = if kind == "pil" { outcome.target.clone() } else { format!("{} ({})", outcome.target, outcome.tool) };
+    // The target of a processor or a board is its name; a SoC or logic run names its tool too.
+    let target = if kind == "pil" || kind == "hil" { outcome.target.clone() } else { format!("{} ({})", outcome.target, outcome.tool) };
     if !fresh {
         let reason = format!("{stale} ({changed}); run `arclang {command} {} --test {}`", model_path.display(), test.id);
         result.warnings.push(format!("verification: test_case '{}': {reason}", test.name));
@@ -312,6 +322,11 @@ fn with_hdl(result: &mut CompilationResult, model_path: &Path, dir: &Path, test:
 
 fn with_soc(result: &mut CompilationResult, model_path: &Path, dir: &Path, test: &crate::compiler::ast::TestCase, status: Status) -> Status {
     with_stage(result, model_path, dir, test, status, "soc")
+}
+
+/// The generated C on a board through its serial port (`arclang hil`): the board stage too.
+fn with_hil(result: &mut CompilationResult, model_path: &Path, dir: &Path, test: &crate::compiler::ast::TestCase, status: Status) -> Status {
+    with_stage(result, model_path, dir, test, status, "hil")
 }
 
 /// Simulate the cases of a model (one, with `only`), cache and return

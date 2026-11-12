@@ -370,6 +370,40 @@ pub enum Commands {
         json: bool,
     },
 
+    /// Hardware in the loop: the generated C on a board (`export -f c`, its
+    /// `host/harness.c` behind the board's serial port), each test case that
+    /// `execute:`s sent through the port with its input vectors, the outputs
+    /// read back, compared with the model-level run step by step and its
+    /// `expects:` judged on both
+    Hil {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// The board's serial port (/dev/cu.usbmodem..., /dev/ttyACM0); opening it resets most boards
+        #[clap(long)]
+        port: Option<String>,
+
+        /// A program standing for the board (the harness built on this computer): the same protocol on its stdin and stdout
+        #[clap(long)]
+        command: Option<String>,
+
+        /// The speed of the port
+        #[clap(long, default_value_t = 115200)]
+        baud: u32,
+
+        /// Only this test case (id or name)
+        #[clap(long)]
+        test: Option<String>,
+
+        /// Seconds to wait for the board to be ready, and for each row it answers
+        #[clap(long, default_value_t = 10)]
+        timeout: u64,
+
+        /// Print the outcomes as JSON
+        #[clap(long)]
+        json: bool,
+    },
+
     /// Software in the loop: compile the C generated from the state machines
     /// (`export -f c`) on this computer, run each test case that `execute:`s
     /// with its input vectors, compare the outputs with the model-level run
@@ -1535,6 +1569,7 @@ impl CliRunner {
                 self.run_verify(input, test, json)
             }
             Commands::Sil { input, test, compilers, keep, json } => self.run_sil(&input, test, compilers, keep, json),
+            Commands::Hil { input, port, command, baud, test, timeout, json } => self.run_hil(&input, port, command, baud, test, timeout, json),
             Commands::Cosim { input, test, compiler, keep, json } => self.run_cosim(&input, test, compiler, keep, json),
             Commands::Pil { input, test, target, keep, json } => self.run_pil(&input, test, target, keep, json),
             Commands::Hdl { input, test, synth, as_if, machine, keep, json } => self.run_hdl(&input, test, synth, as_if, machine, keep, json),
@@ -2915,6 +2950,32 @@ impl CliRunner {
             Ok(())
         } else {
             Err(CliError::CiFailed(format!("{failed} of {} SIL run(s) do not pass", outcomes.len())))
+        }
+    }
+
+    fn run_hil(&self, input: &std::path::Path, port: Option<String>, command: Option<String>, baud: u32, test: Option<String>, timeout: u64, json: bool) -> Result<(), CliError> {
+        use crate::compiler::embedded::hil;
+        let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
+        let options = hil::Options { port, command, baud, only: test, timeout: std::time::Duration::from_secs(timeout.max(1)) };
+        let (outcomes, board, place) = hil::run_reporting(&result.ast, &options, &mut plants_of(input)).map_err(CliError::Compilation)?;
+        if !json {
+            println!("\nHIL {} — {board} on {place}", input.display());
+            for outcome in &outcomes {
+                self.print_stage(outcome, "board");
+            }
+        }
+        // Kept where check, gate, the tables and the ladder read verdicts.
+        let cached = hil::cache(&result.ast, input, &outcomes, &board).map_err(CliError::Compilation)?;
+        if json {
+            println!("{}", serde_json::to_string_pretty(&outcomes).unwrap_or_default());
+        } else if !cached.is_empty() {
+            println!("\n  {} verdict(s) cached in {}", cached.len(), crate::compiler::simulation::cache::dir(input).display());
+        }
+        let failed = outcomes.iter().filter(|o| o.verdict != "pass").count();
+        if failed == 0 {
+            Ok(())
+        } else {
+            Err(CliError::CiFailed(format!("{failed} of {} run(s) on the board do not pass", outcomes.len())))
         }
     }
 

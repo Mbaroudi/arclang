@@ -281,6 +281,50 @@ is the case's verdict (it is the same C, on the target); a fresh pass
 stands for a SIL verdict never run or stale, and is added to the evidence
 of a SIL verdict otherwise; a stale one is a warning only.
 
+## The C on a board: hardware in the loop
+
+```text
+arclang export model.arc -f c -o out/         # the C, and host/harness.c
+arclang hil model.arc --port /dev/cu.usbmodem21101   # every executed case, through the port
+arclang hil model.arc --command ./harness     # a program standing for the board
+```
+
+A board that is a processor with a serial port (an Arduino Uno, a Nucleo,
+any microcontroller) holds the generated C and the **direct harness**
+`host/harness.c` of `export -f c`, the one SIL drives from stdin, behind
+its serial port as stdio. The board says `# arclang hil ready <model>
+<board>` whenever it waits for a case; `arclang hil` then sends what SIL
+sends (the number of steps, one line of inputs per step), reads one CSV
+row of outputs per step (lines starting with `#` are the board's
+comments, `ERROR ...` its error) and judges the run as SIL does: compared
+with the model-level run step by step, the `expects:` on both. The
+wall time of the exchange is reported with the verdict, the serial line
+included.
+
+`examples/cesam/smart-lock/uno/` is the smart lock on an Arduino Uno:
+`smart_lock_bench.arc` imports the lock's model and adds the executed case
+`TC-7` (the lock keeps its declared verdicts and its gate; the evidence of
+the runs lands beside the bench model); `uno_hil/uno_hil.ino` puts the harness behind `Serial` (avr-libc's stdio
+over the port, the harness's `main` renamed with
+`-Dmain=arclang_harness_main`), `flash.sh` exports the C, builds the sketch
+with `arduino-cli` and flashes it. The lock's three machines take 4.7 KB
+of flash and 768 bytes of RAM; the 31 steps of `TC-7` are answered in well
+under a second. `uno_live/` and `bench.py` are the lock running free and
+the scenario replayed against it with its response times, from a PC or
+from a UDOO KEY wired to the Uno (see its README).
+
+**Verdicts.** Each case's verdict is kept as `<case>.hil.json` in
+`.arclang/sim-cache/` (kind `hil`, the board named), fresh while the
+generated C and the case are those of the run, read by `check`, `gate`,
+the tables and the realization ladder as the **board** stage. Whether the
+board still holds that C is for the one who flashes it to know: the
+command checks the model the board names, not the bytes it runs.
+
+**Not on a board yet.** A case with a plant, or through an `io_binding`
+(the board's channels are not wired to its pins): run it in SIL or PIL. A
+model with Real variables on an AVR needs the float printf
+(`-Wl,-u,vfprintf -lprintf_flt`); the harness prints them with `%.17g`.
+
 Run on the four examples with executed cases (`tests/embedded_soc.rs`):
 
 | Example | Cases | Through the I/O | Largest difference |

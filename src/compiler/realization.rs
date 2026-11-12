@@ -37,7 +37,7 @@ fn command(stage: &str) -> &'static str {
         "pil" => "pil",
         "hdl" => "hdl",
         "soc" => "soc",
-        "board" => "soc --port <serial port>",
+        "board" => "hil --port <serial port>",
         _ => "twin",
     }
 }
@@ -94,6 +94,14 @@ impl Ladder {
 /// HDL, SoC and board stages exist for its executed cases.
 fn has_logic(ast: &Model) -> bool {
     super::embedded::plan::plan(ast).ok().and_then(|plan| super::embedded::alloc::allocations(ast, &plan).ok()).is_some_and(|a| !a.is_empty())
+}
+
+/// Whether a case was run on a board holding its C (`arclang hil`): the
+/// board stage exists for the executed cases of a model without logic too.
+fn on_board(model_path: Option<&Path>, executed: &[&TestCase]) -> bool {
+    let Some(path) = model_path else { return false };
+    let dir = super::simulation::cache::dir(path);
+    executed.iter().any(|t| super::simulation::cache::read_kind(&dir, &t.id, "hil").is_some())
 }
 
 /// The requirements of the model: (key as `verifies:` names it, name).
@@ -170,7 +178,8 @@ pub fn ladders(result: &CompilationResult, model_path: Option<&Path>) -> Vec<Lad
                 let ids: Vec<String> = match stage {
                     "simulation" => simulated.iter().map(|t| t.id.clone()).collect(),
                     "sil" | "pil" => executed.iter().map(|t| t.id.clone()).collect(),
-                    "hdl" | "soc" | "board" if logic => executed.iter().map(|t| t.id.clone()).collect(),
+                    "hdl" | "soc" if logic => executed.iter().map(|t| t.id.clone()).collect(),
+                    "board" if logic || on_board(model_path, &executed) => executed.iter().map(|t| t.id.clone()).collect(),
                     "twin" => twins.iter().map(|t| t.id.clone()).collect(),
                     _ => Vec::new(),
                 };

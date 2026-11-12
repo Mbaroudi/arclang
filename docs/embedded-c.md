@@ -831,6 +831,7 @@ The loop runs around every implementation the same way:
 | `arclang hdl` | the VHDL replays the model's loop; the fixed point is measured against the model on those same inputs |
 | `arclang pil` | the processor replays the model's loop (its C matches the model within tolerance) |
 | `arclang soc` | the simulated SoC, or the board through its port, in the loop: a line a step; bit-exact with the fixed-point C run in the loop too |
+| `arclang hil` | the generated C on a board (an Arduino, any microcontroller with a serial port) through the same harness: not in the loop yet, the vectors sent, the rows read back, judged as SIL |
 
 ### An FMU from another tool
 

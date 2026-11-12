@@ -1,0 +1,3 @@
+# Generated from the model by ../flash.sh: `arclang export -f c`.
+smart_door_lock.c
+smart_door_lock.h
