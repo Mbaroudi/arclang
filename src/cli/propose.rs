@@ -275,6 +275,8 @@ fn judge(model: &str, file_name: &str, code: &str, binary: Option<&Binary>, dir:
         Outcome::Refuted { obligation, lines, case, .. } => {
             let part = if obligation == "functions" {
                 "A function the correspondence names is not the Arduino function it is said to be. Its machine code, from some memory and registers, for some pin, fails this"
+            } else if obligation == "clock" {
+                "The binary does not keep the time as the Arduino core does, so what millis returns is not what the proof takes it for"
             } else if obligation == "start" {
                 "START is refuted: after setup() and one loop(), and after the machine's start and one step, these lines do not hold"
             } else {

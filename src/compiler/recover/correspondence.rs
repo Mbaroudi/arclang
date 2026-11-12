@@ -119,7 +119,7 @@ pub fn read(declaration: &CorrespondenceDecl) -> Result<Correspondence, String> 
         }
     }
     let binary = match binary_file {
-        Some(file) => Some(super::binary::Binary { file, functions: super::binary::functions(&list("functions"), &what)?, identified: Vec::new() }),
+        Some(file) => Some(super::binary::Binary { file, functions: super::binary::functions(&list("functions"), &what)?, ..Default::default() }),
         None if declaration.attributes.contains_key("functions") => return Err(format!("{what}: functions are those of a binary (binary: \"firmware.hex\")")),
         None => None,
     };
@@ -776,6 +776,7 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
         let mut correspondence = read(declaration)?;
         let mut sketches = Vec::new();
         let mut machine_code = None;
+        let mut vectors = None;
         for source in &correspondence.sources {
             let path = base.join(source);
             let text = std::fs::read_to_string(&path).map_err(|e| format!("correspondence '{}': cannot read {}: {e}", correspondence.name, path.display()))?;
@@ -788,7 +789,14 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
             let path = base.join(&binary.file);
             let text = std::fs::read_to_string(&path).map_err(|e| format!("{what}: cannot read {}: {e}", path.display()))?;
             let image = super::binary::intel_hex(&text).map_err(|e| format!("{what}: {}: {e}", binary.file))?;
-            let entries: Vec<u32> = binary.functions.iter().map(|(_, at)| *at).collect();
+            let mut entries: Vec<u32> = binary.functions.iter().map(|(_, at)| *at).collect();
+            // The routine of the overflow of timer 0 is translated too: the clock is proven of it.
+            vectors = super::binary::vectors(&image);
+            if let Some(routine) = vectors.as_ref().map(|vectors| vectors[super::binary::TIMER0_OVERFLOW]) {
+                if !entries.contains(&routine) {
+                    entries.push(routine);
+                }
+            }
             let lifted = super::binary::lift(&image, &entries, &dir.join("lift")).map_err(|e| format!("{what}: {e}"))?;
             sketches.push(("machine_code.c".to_string(), super::binary::sketch(binary, &lifted, &what)?));
             machine_code = Some(lifted);
@@ -823,6 +831,21 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
             }
             if !not_them.is_empty() {
                 outcome = Some(Outcome::Refuted { obligation: "functions".to_string(), lines: not_them, case: None, seconds: started.elapsed().as_secs_f64() });
+            }
+            // The clock: what millis returns is what the interrupt of timer 0 keeps, as the start sets it.
+            let count_at = binary.identified.iter().find(|(name, _)| name == "millis").and_then(|(_, proven)| proven.split("the memory at 0x").nth(1)).and_then(|at| u32::from_str_radix(&at[..4.min(at.len())], 16).ok());
+            if let (None, Some(vectors), Some(count_at)) = (&outcome, &vectors, count_at) {
+                let (start, functions) = super::binary_shape::facts(lifted)?;
+                let named: std::collections::BTreeSet<u32> = binary.functions.iter().filter(|(name, _)| name != "loop").map(|(_, at)| *at).collect();
+                let loop_at = binary.functions.iter().find(|(name, _)| name == "loop").map(|(_, at)| *at).unwrap_or_default();
+                let loop_code = super::binary_shape::code_of(loop_at, &named, start, &functions);
+                let clock = super::binary_identity::clock(vectors, start, loop_at, &loop_code, count_at, lifted, &dir, seconds)?;
+                if !clock.refuted.is_empty() {
+                    outcome = Some(Outcome::Refuted { obligation: "clock".to_string(), lines: clock.refuted, case: None, seconds: started.elapsed().as_secs_f64() });
+                } else if clock.unknown.is_none() {
+                    binary.clock = clock.proven;
+                    binary.interrupts_settled = clock.interrupts_settled;
+                }
             }
         }
         // The start is of the code as it is initialised; the step, of any state it can hold.

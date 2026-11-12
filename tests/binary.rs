@@ -124,6 +124,11 @@ fn a_binary_is_proven_to_be_the_machine_its_correspondence_says_without_its_sour
         "pinMode at 0x043e makes the pin an input",
         "millis at 0x029c returns the four bytes of the memory at 0x010b",
         "taken on trust: these are the Arduino functions they are said to be, and are not run (delay at 0x02fe)",
+        // The clock: the interrupt that keeps the time, the start that sets the timer, and no other interrupt.
+        "the interrupt of timer 0 (at 0x0208) adds 1.024 to the four bytes millis returns at each overflow of the timer",
+        "the start leaves timer 0 overflowing every 256 x 64 cycles of the clock (1.024 ms at 16 MHz)",
+        "it is the only interrupt of the binary, and the code of loop() reads none of its bytes",
+        "taken on trust: the clock of the board is 16 MHz",
     ] {
         assert!(output.contains(proven_of), "{proven_of}: {output}");
     }
@@ -202,6 +207,24 @@ fn a_function_whose_pin_table_is_not_an_unos_is_not_the_function_it_is_said_to_b
     ] {
         assert!(output.contains(not_done), "{not_done}: {output}");
     }
+}
+
+#[test]
+#[ignore = "needs Ghidra, CBMC and Bitwuzla: tools/embedded/reverse/run.sh cargo test --test binary -- --include-ignored"]
+fn a_binary_that_does_not_keep_the_time_as_the_arduino_core_does_is_refuted() {
+    // In the interrupt of timer 0, `cpi r18, 125` made `cpi r18, 126`: the milliseconds drift.
+    let (proven, output) = proof(&[], Some((&[0x23, 0x0f, 0x2d, 0x37], &[0x23, 0x0f, 0x2e, 0x37])));
+    assert!(
+        !proven && output.contains("✗ Refuted") && output.contains("does not keep the time as the Arduino core does"),
+        "{output}"
+    );
+    assert!(output.contains("the interrupt of timer 0, at 0x0208: it adds 1 to the four bytes at 0x010b"), "{output}");
+    // In the start, the second bit of the prescaler of timer 0 is not set: it counts one cycle in 8, not in 64.
+    let (proven, output) = proof(&[], Some((&[0x85, 0xb5, 0x81, 0x60, 0x85, 0xbd], &[0x85, 0xb5, 0x80, 0x60, 0x85, 0xbd])));
+    assert!(
+        !proven && output.contains("✗ Refuted") && output.contains("the start of the binary: it leaves timer 0 counting one in 64 cycles of the clock"),
+        "{output}"
+    );
 }
 
 #[test]
