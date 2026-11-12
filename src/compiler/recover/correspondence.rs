@@ -852,6 +852,8 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
             } else if clock.unknown.is_none() {
                 binary.clock = clock.proven;
                 binary.interrupts_settled = clock.interrupts_settled;
+            } else {
+                binary.clock_unknown = clock.unknown;
             }
         }
         let written = harness(&correspondence, &model, &sketches, default_period)?;
@@ -900,6 +902,8 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
                 } else if clock.unknown.is_none() {
                     binary.clock = clock.proven;
                     binary.interrupts_settled = clock.interrupts_settled;
+                } else {
+                    binary.clock_unknown = clock.unknown;
                 }
             }
         }
