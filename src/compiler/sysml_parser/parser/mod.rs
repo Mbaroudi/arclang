@@ -974,6 +974,8 @@ impl Parser {
                 self.position += 1;
                 Ok(Expr::Literal(Literal::Integer(n)))
             }
+            // `[(1, 2)]`: a bound written as a parenthesized expression.
+            Some(Kind::Symbol("(")) => self.primary_expression(),
             _ => Ok(Expr::Reference(self.qualified_name()?)),
         }
     }
@@ -1254,6 +1256,13 @@ impl Parser {
             let target = self.target()?;
             node.specializations.push(Specialization { kind: SpecKind::Typing, target, conjugated: false });
             return Ok(());
+        }
+        // `of subsets s [0..*]`, `of : T`, `of :>> r`: a payload declared by
+        // its specialization part alone, with no name (the packages of the
+        // sysand index write flows this way).
+        if self.is_symbol(":") || self.is_symbol(":>") || self.is_symbol("::>") || self.is_symbol(":>>") || self.is_symbol("=>") || self.is_word("subsets") || self.is_word("redefines") || self.is_word("references") || self.is_word("crosses") || (self.is_word("defined") && self.is_word_at(1, "by")) {
+            self.feature_specialization_part(node)?;
+            return self.value_part(node);
         }
         let named = self.is_symbol("<") || (self.is_name() && (matches!(self.peek_at(1), Some(Kind::Symbol(s)) if matches!(*s, ":" | ":>" | "::>" | ":>>" | "=>" | "[" | "=" | ":=")) || matches!(self.peek_at(1), Some(Kind::Word(w)) if w == "default" || w == "defined" || w == "subsets" || w == "redefines")));
         if named {

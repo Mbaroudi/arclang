@@ -89,6 +89,29 @@ mod tests {
     }
 
     #[test]
+    fn a_payload_declared_by_its_specialization_and_a_bound_in_parentheses() {
+        // Three spellings met in packages of the sysand index: a flow's payload
+        // with no name, only `subsets` and a multiplicity; an upper bound
+        // written as a sequence in parentheses; a metadata test under `not`.
+        let text = "package P {\n  interface def I {\n    end port a : Pa;\n    end port b : ~Pa;\n    flow cmd of subsets cmds [0..*] from a.cmdOut to b.cmdIn;\n  }\n  port def Q { out item s[(1, 2)] ordered : S; }\n  package V { filter not @M::Need; }\n}";
+        let nodes = parse(text).unwrap_or_else(|e| panic!("{e}"));
+        let flow = &nodes[0].members[0].members[2];
+        assert_eq!(flow.kind, "FlowUsage");
+        let payload = &flow.members[0];
+        assert_eq!(payload.kind, "PayloadFeature");
+        assert_eq!(payload.specializations[0].kind, syntax::SpecKind::Subsetting);
+        assert!(payload.multiplicity.as_ref().is_some_and(|m| m.lower.is_some() && m.upper.is_some()));
+        let item = &nodes[0].members[1].members[0];
+        assert!(matches!(item.multiplicity.as_ref().and_then(|m| m.upper.as_ref()), Some(syntax::Expr::Sequence(items)) if items.len() == 2));
+        assert!(item.multiplicity.as_ref().is_some_and(|m| m.ordered));
+        let filter = &nodes[0].members[2].members[0];
+        assert_eq!(filter.membership, "ElementFilterMembership");
+        // The records are built from them, the payload's subsetting among them.
+        let built = records(text).unwrap_or_else(|e| panic!("{e}"));
+        assert!(built.records.iter().any(|r| r.get("@type").and_then(|t| t.as_str()) == Some("MultiplicityRange")));
+    }
+
+    #[test]
     fn public_imports_are_re_exported() {
         // The shape of the OMG vehicle model: the root imports `Definitions::*`,
         // which publicly imports the packages that hold the definitions.
