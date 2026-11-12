@@ -40,8 +40,9 @@ const LIFT_JAVA: &str = include_str!("Lift.java");
 /// The processor Ghidra reads the image as: an AVR with a program counter of 16 bits.
 const LANGUAGE: &str = "avr8:LE:16:default";
 /// What the translation must find of that processor, for the stand-ins to read the right cells.
-const EXPECTED: [&str; 4] = [
+const EXPECTED: [&str; 5] = [
     "//@ language avr8:LE:16:default",
+    "//@ memory 0x100 0x8ff",
     "//@ register SP register 0x3d 2",
     "//@ register R24 mem 0x18 1",
     "//@ register Cflg register 0x80 1",
@@ -55,6 +56,12 @@ pub struct Binary {
     pub file: String,
     /// (the function, its address in the flash)
     pub functions: Vec<(String, u32)>,
+    /// The head of the cycle of main, for a binary whose loop is folded into it (`cycle at 0x0390`):
+    /// no function is then named, and the whole of the code is run on a model of the chip.
+    pub cycle: Option<u32>,
+    /// For a cycle: the time that passes each time the code has read the timer, in microseconds.
+    /// Set by the proof from the correspondence.
+    pub tick_us: u64,
     /// The functions proven to be the Arduino functions they are said to be: (the function, what is proven of it).
     /// Filled by the proof; empty as the correspondence is read.
     pub identified: Vec<(String, String)>,
@@ -144,7 +151,7 @@ pub fn functions(lines: &[String], what: &str) -> Result<Vec<(String, u32)>, Str
         let name = read[1].to_string();
         let address =
             u32::from_str_radix(&read[2], 16).map_err(|e| format!("{what}: \"{line}\": {e}"))?;
-        if name != "loop" && !KNOWN.iter().any(|known| known.name == name) {
+        if name != "loop" && name != "cycle" && !KNOWN.iter().any(|known| known.name == name) {
             return Err(format!(
                 "{what}: '{name}' is not a function a correspondence can place (loop, {})",
                 KNOWN
@@ -168,6 +175,13 @@ pub fn functions(lines: &[String], what: &str) -> Result<Vec<(String, u32)>, Str
             ));
         }
         found.push((name, address));
+    }
+    // A cycle is the whole of the code: nothing is stood in for, so nothing else is named.
+    if found.iter().any(|(name, _)| name == "cycle") {
+        if found.len() > 1 {
+            return Err(format!("{what}: with a cycle (a binary whose loop is folded into main), every function is run: only the cycle is placed (functions: [\"cycle at 0x0390\"])"));
+        }
+        return Ok(found);
     }
     if !found.iter().any(|(name, _)| name == "loop") {
         return Err(format!("{what}: it does not say where loop is in the binary (functions: [\"loop at 0x0102\", ...])"));
@@ -251,7 +265,7 @@ pub fn intel_hex(text: &str) -> Result<Image, String> {
 /// Translate the machine code of an image to C, with Ghidra (`analyzeHeadless`,
 /// or the command `ARCLANG_GHIDRA` names), in `dir`. A translation already
 /// made of the same image, for the same functions, is read again.
-pub fn lift(image: &Image, entries: &[u32], dir: &Path) -> Result<String, String> {
+pub fn lift(image: &Image, entries: &[u32], cut: Option<u32>, dir: &Path) -> Result<String, String> {
     use std::process::{Command, Stdio};
     if image.base != 0 {
         return Err(format!("the image starts at address 0x{:04X}: only a program that starts at address 0 is read (not a bootloader)", image.base));
@@ -265,6 +279,10 @@ pub fn lift(image: &Image, entries: &[u32], dir: &Path) -> Result<String, String
     let mut hash = Sha256::new();
     hash.update(&image.bytes);
     hash.update(LIFT_JAVA.as_bytes());
+    if let Some(cut) = cut {
+        hash.update(b"cut");
+        hash.update(cut.to_le_bytes());
+    }
     for entry in entries {
         hash.update(entry.to_le_bytes());
     }
@@ -315,6 +333,7 @@ pub fn lift(image: &Image, entries: &[u32], dir: &Path) -> Result<String, String
         .arg(&scripts)
         .args(["-postScript", "Lift.java", "raw.c"]);
     command.args(entries.iter().map(|entry| format!("0x{entry:x}")));
+    command.args(cut.iter().map(|cut| format!("cut:0x{cut:x}")));
     let log = std::fs::File::create(dir.join("ghidra.log"))
         .map_err(|e| format!("cannot write {}: {e}", dir.join("ghidra.log").display()))?;
     let errors = log.try_clone().map_err(|e| e.to_string())?;
@@ -375,9 +394,9 @@ fn same_flash(image: &Image, lifted: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// The C the proof takes for the sketch: the translation, the functions the
-/// correspondence names stood in for, and `setup()` and `loop()`.
-pub fn sketch(binary: &Binary, lifted: &str, what: &str) -> Result<String, String> {
+/// The translation is of the processor and of the chip the proof was written for, and
+/// uses no operation of the chip the C beneath it does not know.
+pub fn expected(lifted: &str, what: &str) -> Result<(), String> {
     for expected in EXPECTED {
         if !lifted.lines().any(|line| line == expected) {
             return Err(format!("{what}: the translation does not say `{}`: Ghidra's description of the processor is not the one the proof was written for", expected.trim_start_matches("//@ ")));
@@ -390,6 +409,13 @@ pub fn sketch(binary: &Binary, lifted: &str, what: &str) -> Result<String, Strin
             }
         }
     }
+    Ok(())
+}
+
+/// The C the proof takes for the sketch: the translation, the functions the
+/// correspondence names stood in for, and `setup()` and `loop()`.
+pub fn sketch(binary: &Binary, lifted: &str, what: &str) -> Result<String, String> {
+    expected(lifted, what)?;
     let start = lifted
         .lines()
         .find_map(|line| line.strip_prefix("//@ start 0x"))
@@ -482,6 +508,9 @@ pub fn trusted(binary: &Binary) -> Vec<String> {
     if !binary.identified.is_empty() {
         said.push("proven of the machine code of the functions it does not run, from any memory and registers, on the pins of an Arduino UNO:".to_string());
         said.extend(binary.identified.iter().map(|(_, proven)| format!("  {proven}")));
+    }
+    if binary.cycle.is_some() {
+        said.push(format!("the whole of it is run, from its reset: no function is stood in for. The pins are bits of the registers of the chip (an Arduino UNO); the time is what the interrupt of timer 0 keeps, and {} us pass each time the code has read the timer{}", binary.tick_us.max(4), if binary.tick_us.max(4) > 4 { " (a coarser step than the timer's own 4 us: a wait is read at that step, and what the code does between two reads closer than that is not looked at)" } else { "" }));
     }
     let on_trust: Vec<String> = binary.functions.iter().filter(|(name, _)| name != "loop" && !binary.identified.iter().any(|(proven, _)| proven == name)).map(|(name, at)| format!("{name} at 0x{at:04x}")).collect();
     if !on_trust.is_empty() {
@@ -586,7 +615,7 @@ mod tests {
 
     #[test]
     fn a_named_function_is_called_as_the_compiler_of_the_board_calls_it() {
-        let lifted = "//@ language avr8:LE:16:default\n//@ start 0x0\n//@ register SP register 0x3d 2\n//@ register R24 mem 0x18 1\n//@ register Cflg register 0x80 1\n//@ operation watchdog_reset\n\nvoid f_0000(void);\nvoid f_0102(void);\nvoid f_04b6(void);\nvoid f_02fe(void);\nvoid f_0200(void);\n";
+        let lifted = "//@ language avr8:LE:16:default\n//@ memory 0x100 0x8ff\n//@ start 0x0\n//@ register SP register 0x3d 2\n//@ register R24 mem 0x18 1\n//@ register Cflg register 0x80 1\n//@ operation watchdog_reset\n\nvoid f_0000(void);\nvoid f_0102(void);\nvoid f_04b6(void);\nvoid f_02fe(void);\nvoid f_0200(void);\n";
         let binary = Binary {
             file: "a.hex".to_string(),
             functions: vec![

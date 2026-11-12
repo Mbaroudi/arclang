@@ -889,6 +889,58 @@ renames one is refused before any proof.
 names) beside CBMC and Bitwuzla. `tools/embedded/reverse` builds an image
 that holds the three.
 
+### A binary built as the Arduino IDE builds it: the cycle of `main`
+
+The Arduino IDE builds with link-time optimisation: `setup`, `loop` and most
+of the Arduino functions are folded into `main`. There is then no function to
+name, and none to stand in for. A correspondence places the cycle `main` never
+leaves, and the whole of the machine code is run, from its reset, on a model
+of the chip:
+
+```
+correspondence "Uno lamp optimised binary" {
+    machine: "Lamp toggled by a button"
+    binary: "uno_lamp_lto.hex"
+    period: 10 ms
+    tick: 1000 us
+    functions: ["cycle at 0x0390"]
+    reads: ["digitalRead(2) is button"]
+    writes: ["digitalWrite(13) is led"]
+    state: ["word(0x0108) == 0 && word(0x0106) == 0 is in Up", ...]
+}
+```
+
+- **The start** is the code from its reset to its first arrival at the head of
+  the cycle; **one turn** is from one arrival to the next. The head is where
+  the code's last loop begins, found by reading the machine code
+  (`arclang recover` does not find it for these binaries yet).
+- **A pin is a bit of a register of the chip**: `digitalRead(2)` is bit 2 of the
+  input register of port D, `digitalWrite(13)` bit 5 of the output register of
+  port B. A pin nobody names reads as anything and may not change; the pins
+  written, and no other, are outputs.
+- **The registers the cycle does not write** hold, at its head, what the start
+  left in them (an optimised cycle keeps its constants there): the proof takes
+  them from the start in every turn, and that a turn leaves them so is one of
+  the lines it holds.
+- **The time** is what the interrupt of timer 0 keeps, proven of the binary's own
+  machine code first (the section above). It is set before each turn, and
+  passes within a turn as the code reads the timer: `tick` each time it has
+  read it, so that a wait that reads the time until enough has passed ends
+  having taken that long.
+
+**`tick` is the step of the time, and it is always written.** The timer counts
+every 4 us. A wait of 10 ms read at that step is 2,500 reads of the timer, and
+the proof of it takes hours; read every 1000 us it is 10 reads, and the proof of
+the lamp takes five minutes (200 us: 43 minutes). The proof holds for that step:
+what the code does between two reads closer than a `tick` is not looked at. A
+code that times itself with `micros` over less than a `tick`, or a wait shorter
+than one, is outside what a coarse step can say; the verdict says which step it
+is for.
+
+What is not read yet for a cycle: `analogRead`, `analogWrite`, the interrupts of
+the sketch (only the one that keeps the time), a serial port, and the proposal
+of the head of the cycle by `arclang recover`.
+
 ## A board observed against the model
 
 The bench that found this is a command. An **instrument** drives the inputs

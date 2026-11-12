@@ -41,6 +41,13 @@ public class Lift extends GhidraScript {
     /** The registers r0..r31 that hold a constant where the translation is, and the instruction it is at. */
     private final Map<Long, Long> constants = new HashMap<>();
     private String place = "";
+    /**
+     * The head of the cycle the code never leaves, when the proof is of that cycle and not of a
+     * function. The translation stops there (`arclang_cut()`), and can be entered there again
+     * (`arclang_resume`): from the reset to the first arrival is the start, from one arrival to
+     * the next is one turn.
+     */
+    private Address cut = null;
     private final Set<String> userOps = new TreeSet<>();
 
     @Override
@@ -54,9 +61,17 @@ public class Lift extends GhidraScript {
         // A raw image names no entry point: a firmware image starts at its first byte.
         entry(first);
         for (int k = 1; k < args.length; k++) {
-            entry(code.getAddress(Long.decode(args[k]), false));
+            // `cut:0x0390`: the place a cycle is cut at (see `cut`); any other argument is where a function is.
+            if (args[k].startsWith("cut:")) {
+                cut = code.getAddress(Long.decode(args[k].substring(4)), false);
+            } else {
+                entry(code.getAddress(Long.decode(args[k]), false));
+            }
         }
         analyzeAll(currentProgram);
+        if (cut != null && (currentProgram.getFunctionManager().getFunctionContaining(cut) == null || currentProgram.getListing().getInstructionAt(cut) == null)) {
+            throw new IllegalArgumentException("no instruction of a function at the cut 0x" + hex(cut));
+        }
 
         List<Function> functions = new ArrayList<>();
         for (Function function : currentProgram.getFunctionManager().getFunctions(true)) {
@@ -71,6 +86,7 @@ public class Lift extends GhidraScript {
             out.println("/* Machine code translated to C by arclang (Lift.java), one instruction at a time. */");
             out.println("//@ language " + currentProgram.getLanguageID());
             out.println("//@ start 0x" + Long.toHexString(first.getOffset()));
+            out.println("//@ memory 0x" + Long.toHexString(RAM_FIRST) + " 0x" + Long.toHexString(RAM_LAST));
             for (Register register : currentProgram.getLanguage().getRegisters()) {
                 if (register.isBaseRegister() || register.getMinimumByteSize() <= 2) {
                     out.println("//@ register " + register.getName() + " " + register.getAddressSpace().getName()
@@ -151,14 +167,39 @@ public class Lift extends GhidraScript {
         if (v.isUnique()) {
             return String.format("(u_%x & %s)", v.getOffset(), mask(v.getSize()));
         }
-        if (v.isRegister()) {
-            return String.format("arclang_reg_rd(0x%xu, %d)", v.getOffset(), v.getSize());
-        }
-        String space = v.getAddress().getAddressSpace().getName();
-        if (space.equals("mem")) {
-            return String.format("arclang_mem_rd(0x%xu, %d)", v.getOffset(), v.getSize());
+        if (v.isRegister() || v.getAddress().getAddressSpace().getName().equals("mem")) {
+            // A place known where the code is written is read where it is, byte by byte, low byte first:
+            // a prover follows a cell of an array far better than a call that finds it.
+            StringBuilder value = new StringBuilder("(");
+            for (int k = 0; k < v.getSize(); k++) {
+                value.append(k == 0 ? "" : " | ").append("(uint64_t)").append(cell(v, k, true)).append(k == 0 ? "" : " << " + (8 * k));
+            }
+            return value.append(")").toString();
         }
         return String.format("arclang_flash_rd(0x%xu, %d)", v.getOffset(), v.getSize());
+    }
+
+    /** The memory of the chip that is plain memory: its RAM (an ATmega328P's). Below are the registers r0..r31 and the registers of the chip. */
+    private static final long RAM_FIRST = 0x100;
+    private static final long RAM_LAST = 0x8ff;
+
+    /**
+     * The byte `k` of a place of the registers or of the memory: the cell of the array that holds
+     * it, or the call that reads it when it is a register of the chip or lies outside the memory.
+     * `null` for a write that has to go through a call.
+     */
+    private String cell(Varnode v, int k, boolean read) {
+        long at = v.getOffset() + k;
+        if (v.isRegister()) {
+            return String.format("arclang_reg[0x%xu]", at & 0xff);
+        }
+        if (at < 32) {
+            return String.format("arclang_r[%d]", at);
+        }
+        if (at >= RAM_FIRST && at <= RAM_LAST) {
+            return String.format("arclang_mem[0x%xu]", at);
+        }
+        return read ? String.format("arclang_mem_rd1(0x%xu)", at) : null;
     }
 
     private String write(Varnode out, String value, Set<Long> temporaries) {
@@ -167,11 +208,15 @@ public class Lift extends GhidraScript {
             temporaries.add(out.getOffset());
             return String.format("u_%x = %s;", out.getOffset(), masked);
         }
-        if (out.isRegister()) {
-            return String.format("arclang_reg_wr(0x%xu, %d, %s);", out.getOffset(), out.getSize(), masked);
-        }
-        if (out.getAddress().getAddressSpace().getName().equals("mem")) {
-            return String.format("arclang_mem_wr(0x%xu, %d, %s);", out.getOffset(), out.getSize(), masked);
+        if (out.isRegister() || out.getAddress().getAddressSpace().getName().equals("mem")) {
+            // The value is taken whole before any byte of it is written: a place may be read in its own new value.
+            StringBuilder text = new StringBuilder("{ uint64_t w = " + masked + ";");
+            for (int k = 0; k < out.getSize(); k++) {
+                String byteOf = k == 0 ? "w" : "w >> " + (8 * k);
+                String cell = cell(out, k, false);
+                text.append(cell != null ? String.format(" %s = (uint8_t)(%s);", cell, byteOf) : String.format(" arclang_mem_wr1(0x%xu, %s);", out.getOffset() + k, byteOf));
+            }
+            return text.append(" }").toString();
         }
         return "arclang_uncovered = true; /* a write to the flash */";
     }
@@ -238,6 +283,43 @@ public class Lift extends GhidraScript {
                 }
             }
         }
+    }
+
+    /**
+     * The cycle a cut is the head of: from the cut to the last jump back to it. What is said of it:
+     * whether it calls, and the registers r0..r31 its own instructions write (a register it does
+     * not write, and that a function must keep, holds at the cut what the start left in it).
+     */
+    private String region(List<Instruction> instructions, String entry) {
+        Address last = cut;
+        for (Instruction instruction : instructions) {
+            for (PcodeOp op : instruction.getPcode()) {
+                boolean jump = op.getOpcode() == PcodeOp.BRANCH || op.getOpcode() == PcodeOp.CBRANCH;
+                if (jump && op.getInput(0).isAddress() && op.getInput(0).getAddress().equals(cut) && instruction.getAddress().compareTo(last) > 0) {
+                    last = instruction.getAddress();
+                }
+            }
+        }
+        Set<Long> written = new TreeSet<>();
+        boolean calls = false;
+        for (Instruction instruction : instructions) {
+            if (instruction.getAddress().compareTo(cut) < 0 || instruction.getAddress().compareTo(last) > 0) {
+                continue;
+            }
+            for (PcodeOp op : instruction.getPcode()) {
+                calls |= op.getOpcode() == PcodeOp.CALL || op.getOpcode() == PcodeOp.CALLIND;
+                if (op.getOutput() != null && isRegisterCell(op.getOutput())) {
+                    for (long k = 0; k < op.getOutput().getSize(); k++) {
+                        written.add(op.getOutput().getOffset() + k);
+                    }
+                }
+            }
+        }
+        StringBuilder said = new StringBuilder("//@ cut 0x" + hex(cut) + " in 0x" + entry + " to 0x" + hex(last) + " calls=" + (calls ? 1 : 0) + " writes");
+        for (long register : written) {
+            said.append(" ").append(register);
+        }
+        return said.append("\n").toString();
     }
 
     private static boolean isRegisterCell(Varnode v) {
@@ -314,6 +396,9 @@ public class Lift extends GhidraScript {
                 }
             }
             text.append("L_").append(at).append(": /* ").append(instruction.toString().replace("*/", "* /")).append(" */\n");
+            if (instruction.getAddress().equals(cut)) {
+                text.append("    if (arclang_cut()) { return; }\nR_").append(at).append(": ;\n");
+            }
             PcodeOp[] ops = instruction.getPcode();
             boolean inner = false;
             for (PcodeOp op : ops) {
@@ -362,6 +447,10 @@ public class Lift extends GhidraScript {
         bodies.append("\nvoid f_").append(entry).append("(void)\n{\n");
         for (long temporary : temporaries) {
             bodies.append(String.format("    uint64_t u_%x = 0;\n", temporary));
+        }
+        if (cut != null && body.contains(cut)) {
+            bodies.append("    if (arclang_resume) { arclang_resume = false; goto R_").append(hex(cut)).append("; }\n");
+            facts.append(region(instructions, entry));
         }
         // The function starts at its entry, which need not be its lowest address.
         bodies.append("    goto L_").append(entry).append(";\n");

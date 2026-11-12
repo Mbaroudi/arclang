@@ -2249,7 +2249,7 @@ impl CliRunner {
                             _ => "from two states that correspond, one loop() and one step can leave two that do not",
                         });
                         if lines.is_empty() {
-                            println!("    no line of the correspondence fails alone: the proof could not say which");
+                            println!("    no line of the correspondence fails alone: the proof could not say which (for the cycle of a binary the lines are not asked one by one, each question takes minutes: the case below shows their values)");
                         }
                         for line in lines {
                             println!("    does not hold after it: {line}");
@@ -2553,7 +2553,7 @@ impl CliRunner {
         let wrong = |error: String| CliError::Compilation(format!("{}: {error}", input.display()));
         let image = binary::intel_hex(&std::fs::read_to_string(input).map_err(CliError::Io)?).map_err(wrong)?;
         let work = keep.map(std::path::Path::to_path_buf).unwrap_or_else(|| std::env::temp_dir().join(format!("arclang-recover-{}-{}", std::process::id(), crate::compiler::simulation::tool::run_number())));
-        let lifted = binary::lift(&image, &[], &work.join("lift"));
+        let lifted = binary::lift(&image, &[], None, &work.join("lift"));
         if keep.is_none() {
             let _ = std::fs::remove_dir_all(&work);
         }
