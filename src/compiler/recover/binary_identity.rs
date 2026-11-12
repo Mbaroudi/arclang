@@ -15,6 +15,7 @@
 //!   register of its port to the level, and no other bit;
 //! - `pinMode(pin, mode)` sets the direction of the pin, and its pull-up;
 //! - `millis()` returns the four bytes of the memory it reads;
+//! - `micros()` returns the turns and the count of timer 0 as microseconds;
 //!
 //! and each, from any memory and any registers, for every pin: runs only
 //! instructions the translation covers, returns with the stack and the
@@ -23,7 +24,7 @@
 //! which a digital read or write turns off), and leaves interrupts as they
 //! were.
 //!
-//! The other functions (`delay`, `micros`, the analog ones) are not proven
+//! The other functions (`delay`, the analog ones) are not proven
 //! yet: the proof of the correspondence says it takes them on trust.
 
 use super::equivalence::{decide, Answer};
@@ -85,6 +86,22 @@ fn asked(name: &str, at: u32, reads: &[u32]) -> Option<(String, Vec<(String, Str
             ],
             format!("pinMode at 0x{at:04x} makes the pin an input, an input pulled up or an output, for each of the pins 0 to 19, and changes nothing else"),
         ),
+        "micros" => {
+            // The four bytes of the memory it reads by address are the turns of timer 0; it reads the timer too.
+            let ram: Vec<u32> = reads.iter().copied().filter(|a| *a >= 0x100).collect();
+            let [first, _, _, last] = ram.as_slice() else { return None };
+            if *last != first + 3 || !reads.contains(&0x46) || !reads.contains(&0x35) {
+                return None;
+            }
+            (
+                format!("    uint64_t turns = arclang_mem_rd(0x{first:x}u, 4);\n    uint64_t counted = arclang_io[0x46];\n    uint64_t pending = (arclang_io[0x35] & 1u) != 0 && counted < 255u ? 1u : 0u;\n"),
+                vec![
+                    ("(arclang_mem_rd(22u, 4) == (((((turns + pending) << 8) + counted) * 4u) & UINT64_C(0xffffffff)))".to_string(), format!("it returns 4 times the count of timer 0 and 256 times its turns (the four bytes at 0x{first:04x}, one more when an overflow is pending): the microseconds of a 16 MHz clock")),
+                    ("(arclang_io[register_at] == register_before)".to_string(), "it changes no register of the chip".to_string()),
+                ],
+                format!("micros at 0x{at:04x} returns the time in microseconds of a 16 MHz clock: 4 a count of timer 0, 1024 a turn (the four bytes of the memory at 0x{first:04x}), and changes nothing"),
+            )
+        }
         "millis" => {
             // The four bytes of the memory it reads by address: the count it returns.
             let ram: Vec<u32> = reads.iter().copied().filter(|a| *a >= 0x100).collect();
@@ -252,7 +269,7 @@ fn ask(dir: &Path, source: &str, text: &str, parts: &[String], unwind: usize, se
 /// keeps them, that the start leaves timer 0 overflowing every 1.024 ms of
 /// a 16 MHz clock, and that no interrupt changes what the code of `loop`
 /// (the functions at `loop_code`) reads by address.
-pub fn clock(vectors: &[u32], start: u32, loop_at: u32, loop_code: &[u32], count_at: u32, lifted: &str, dir: &Path, seconds: u64) -> Result<Clock, String> {
+pub fn clock(vectors: &[u32], start: u32, loop_at: u32, loop_code: &[u32], count_at: Option<u32>, turns_at: Option<u32>, lifted: &str, dir: &Path, seconds: u64) -> Result<Clock, String> {
     let mut clock = Clock::default();
     let Some(&routine) = vectors.get(super::binary::TIMER0_OVERFLOW) else { return Ok(clock) };
     let (_, functions) = super::binary_shape::facts(lifted)?;
@@ -260,20 +277,28 @@ pub fn clock(vectors: &[u32], start: u32, loop_at: u32, loop_code: &[u32], count
         clock.unknown = Some(format!("the routine of the overflow of timer 0, at 0x{routine:04x}, was not translated"));
         return Ok(clock);
     };
-    // Its own bytes: the count, the turns it counts (four bytes in a row) and the fraction (the byte left).
+    // Its own bytes: the count of milliseconds and its turns (four bytes in a row each) and the fraction (one byte).
+    // Which run is which is known by what millis returns (the count) or by what micros reads (the turns).
     let own: Vec<u32> = facts.writes.iter().copied().filter(|a| *a >= 0x100).collect();
-    let rest: Vec<u32> = own.iter().copied().filter(|a| !(count_at..count_at + 4).contains(a)).collect();
-    let overflows_at = rest.windows(4).find(|run| run[3] == run[0] + 3).map(|run| run[0]);
-    let fraction: Vec<u32> = rest.iter().copied().filter(|a| overflows_at.is_none_or(|first| !(first..first + 4).contains(a))).collect();
-    let (Some(overflows_at), [fraction_at], 9) = (overflows_at, fraction.as_slice(), own.len()) else {
-        clock.unknown = Some(format!("the routine of the overflow of timer 0, at 0x{routine:04x}, does not write the nine bytes the Arduino core's does (a count, a fraction, its turns)"));
+    let runs = |fraction: u32| -> Option<(u32, u32)> {
+        let rest: Vec<u32> = own.iter().copied().filter(|a| *a != fraction).collect();
+        (rest.len() == 8 && rest[3] == rest[0] + 3 && rest[7] == rest[4] + 3).then(|| (rest[0], rest[4]))
+    };
+    let layout = own.iter().find_map(|fraction| runs(*fraction).map(|(low, high)| (*fraction, low, high))).and_then(|(fraction, low, high)| match (count_at, turns_at) {
+        (Some(count), turns) if (count == low || count == high) && turns.is_none_or(|turns| turns == low + high - count) => Some((fraction, count, low + high - count)),
+        (None, Some(turns)) if turns == low || turns == high => Some((fraction, low + high - turns, turns)),
+        _ => None,
+    });
+    let Some((fraction_at, count_at, overflows_at)) = layout else {
+        clock.unknown = Some(format!("the routine of the overflow of timer 0, at 0x{routine:04x}, does not write the nine bytes the Arduino core's does (a count, a fraction, its turns) where millis and micros read them"));
         return Ok(clock);
     };
+    let fraction_at = &fraction_at;
     std::fs::write(dir.join("identity_code.c"), lifted).map_err(|e| e.to_string())?;
     std::fs::write(dir.join("arclang_lifted.h"), super::binary::LIFTED_H).map_err(|e| e.to_string())?;
     let (text, parts) = interrupt_harness(routine, count_at, *fraction_at, overflows_at, &own);
     match ask(dir, "identity_timer0.c", &text, &parts, UNWIND, seconds) {
-        Ok(Ok(())) => clock.proven.push(format!("the interrupt of timer 0 (at 0x{routine:04x}) adds 1.024 to the four bytes millis returns at each overflow of the timer, and changes nothing else but its own count of turns")),
+        Ok(Ok(())) => clock.proven.push(format!("the interrupt of timer 0 (at 0x{routine:04x}) adds 1.024 to the count of milliseconds (the four bytes at 0x{count_at:04x}, which millis returns) and 1 to its turns (the four bytes at 0x{overflows_at:04x}, which micros reads) at each overflow of the timer, and changes nothing else")),
         Ok(Err(failing)) => clock.refuted.extend(failing.iter().map(|part| format!("the interrupt of timer 0, at 0x{routine:04x}: {part}"))),
         Err(reason) => clock.unknown = Some(format!("the interrupt of timer 0, at 0x{routine:04x}: {reason}")),
     }
@@ -326,6 +351,10 @@ mod tests {
         let (setting, _, proven) = asked("millis", 0x29c, &reads(lifted, 0x29c)).unwrap();
         assert!(setting.contains("arclang_mem_rd(0x10bu, 4)") && proven.contains("the four bytes of the memory at 0x010b"));
         assert!(asked("millis", 0x300, &reads(lifted, 0x300)).is_none());
+        // micros reads its turns, the count of the timer and its pending overflow.
+        let (setting, conditions, _) = asked("micros", 0x29e, &[0x35, 0x46, 0x10f, 0x110, 0x111, 0x112]).unwrap();
+        assert!(setting.contains("arclang_mem_rd(0x10fu, 4)") && conditions[0].0.contains("* 4u"), "{setting}");
+        assert!(asked("micros", 0x29e, &[0x10f, 0x110, 0x111, 0x112]).is_none());
         assert!(asked("delay", 0x2fe, &[]).is_none());
     }
 }

@@ -833,13 +833,14 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
                 outcome = Some(Outcome::Refuted { obligation: "functions".to_string(), lines: not_them, case: None, seconds: started.elapsed().as_secs_f64() });
             }
             // The clock: what millis returns is what the interrupt of timer 0 keeps, as the start sets it.
-            let count_at = binary.identified.iter().find(|(name, _)| name == "millis").and_then(|(_, proven)| proven.split("the memory at 0x").nth(1)).and_then(|at| u32::from_str_radix(&at[..4.min(at.len())], 16).ok());
-            if let (None, Some(vectors), Some(count_at)) = (&outcome, &vectors, count_at) {
+            let read_at = |function: &str| binary.identified.iter().find(|(name, _)| name == function).and_then(|(_, proven)| proven.split("the memory at 0x").nth(1)).and_then(|at| u32::from_str_radix(&at[..4.min(at.len())], 16).ok());
+            let (count_at, turns_at) = (read_at("millis"), read_at("micros"));
+            if let (None, Some(vectors), true) = (&outcome, &vectors, count_at.is_some() || turns_at.is_some()) {
                 let (start, functions) = super::binary_shape::facts(lifted)?;
                 let named: std::collections::BTreeSet<u32> = binary.functions.iter().filter(|(name, _)| name != "loop").map(|(_, at)| *at).collect();
                 let loop_at = binary.functions.iter().find(|(name, _)| name == "loop").map(|(_, at)| *at).unwrap_or_default();
                 let loop_code = super::binary_shape::code_of(loop_at, &named, start, &functions);
-                let clock = super::binary_identity::clock(vectors, start, loop_at, &loop_code, count_at, lifted, &dir, seconds)?;
+                let clock = super::binary_identity::clock(vectors, start, loop_at, &loop_code, count_at, turns_at, lifted, &dir, seconds)?;
                 if !clock.refuted.is_empty() {
                     outcome = Some(Outcome::Refuted { obligation: "clock".to_string(), lines: clock.refuted, case: None, seconds: started.elapsed().as_secs_f64() });
                 } else if clock.unknown.is_none() {

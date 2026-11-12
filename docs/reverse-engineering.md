@@ -707,7 +707,7 @@ $ arclang prove uno_lamp_binary.arc
       millis at 0x029c returns the four bytes of the memory at 0x010b and changes nothing
     taken on trust: these are the Arduino functions they are said to be, and are not run (delay at 0x02fe)
     proven of the clock of the binary:
-      the interrupt of timer 0 (at 0x0208) adds 1.024 to the four bytes millis returns at each overflow of the timer, and changes nothing else but its own count of turns
+      the interrupt of timer 0 (at 0x0208) adds 1.024 to the count of milliseconds (the four bytes at 0x010b, which millis returns) and 1 to its turns (the four bytes at 0x010f, which micros reads) at each overflow of the timer, and changes nothing else
       the start leaves timer 0 overflowing every 256 x 64 cycles of the clock (1.024 ms at 16 MHz), its overflow an interrupt, and interrupts on
       it is the only interrupt of the binary, and the code of loop() reads none of its bytes: an interrupt changes nothing loop() reads
     taken on trust: the clock of the board is 16 MHz, of which timer 0 counts the cycles
@@ -748,6 +748,9 @@ C). From any memory and any registers, for every pin:
 - `pinMode(pin, mode)` makes the pin an input, an input pulled up or an
   output, and touches no other pin;
 - `millis()` returns the four bytes of the memory it reads;
+- `micros()` returns 4 times the count of timer 0 and 1024 times its turns
+  (the four bytes of the memory it reads, one more when an overflow is
+  pending): the microseconds of a 16 MHz clock;
 
 and each runs only instructions the translation covers, returns with the
 stack and the registers a function must keep as they were, changes no byte
@@ -777,8 +780,8 @@ the time is proven too, of the binary's own interrupt and of its own start:
 
 A binary whose routine counts otherwise, or whose start sets the timer
 otherwise, refutes the proof. What is left on trust is said under it:
-`delay`, `micros` and the analog functions, and the 16 MHz of the board's
-clock, which is not in the binary.
+`delay` and the analog functions, and the 16 MHz of the board's clock,
+which is not in the binary.
 
 A function that is not named is run, instruction by instruction: leave
 `pinMode` out and its code writes the direction of the port itself, which
@@ -846,8 +849,11 @@ loads in the register of the first argument just before the call, and the
 period the constant `loop` passes to its one `delay`.
 
 What cannot be told is said and not guessed: two functions with the same
-shape name neither; a pin that is not a constant is a `?`; a binary whose
-`main` has no call in a cycle (link-time optimisation) gives no `loop`.
+shape name neither; a pin that is not a constant is a `?`. A binary built
+with link-time optimisation, as the Arduino IDE builds, has `setup` and
+`loop` folded into `main`: a `main` that reads the memory, the registers of
+the chip or the flash itself is one, what it calls in its cycle is not
+`loop`, and nothing is proposed.
 
 It is a proposal. The machine is left to write, by a person or an AI, from
 those calls and from the bytes of the state; `arclang prove` then decides.
