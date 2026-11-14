@@ -10,6 +10,65 @@ of their MIT-licensed repository) written in ArcLang: five subsystems, their
 ports and the interfaces between them, with the units their attributes leave
 implicit.
 
+The article itself is here:
+[`paper/banagar-2026-jss-112671.pdf`](paper/banagar-2026-jss-112671.pdf)
+(27 pages, © 2025 the authors, published by Elsevier under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), copied unchanged
+from the University of Oulu repository).
+
+## Context
+
+The paper is about the gap between the people who draw the system and the
+people who simulate it. A system engineer models the architecture in SysML
+v2; domain experts (engine, battery, vehicle dynamics) build the
+physics-based simulations of each subsystem as FMUs. The authors propose a
+workflow, the *Standard System Interface* (SSI), that joins the two:
+
+- **Three standard packages**, written once with the domain experts: a
+  *general definition* package (the parts and their attributes: vehicle,
+  engine, motor, battery, control unit), a *port definition* package (one
+  port per item, outgoing; an input is the same port conjugated, `~`) and an
+  *interface definition* package (which port connects to which, carrying
+  what). Five parts, eight ports, six interface definitions in all
+  (section 4.1, Figs. 4–6).
+- **A system definition package** per architecture, built only by reusing
+  those definitions, so a system engineer can propose a new variant without
+  knowing the inside of each subsystem (section 3.1, Figs. B.4–B.5).
+- **The SSI transformer**, an open-source tool that reads the SysML v2 text,
+  checks the port types against the interfaces, and writes the co-simulation
+  architecture as an SSP System Structure Description (SSD) wiring the FMUs
+  together (section 3.2). The SSDs were opened in AVL Model Connect with
+  FMUs built in AVL Cruise M (Figs. 9–10).
+- **Two communication points** where the system engineer and the domain
+  experts meet: once to agree on the interfaces, once to review the
+  architecture before it goes to simulation (Fig. 3). The authors insist the
+  tool does not replace these meetings (section 4.4).
+
+The case study applies the workflow to two parallel hybrid powertrains,
+named after where the electric motor sits (section 4):
+
+- **P1**: the motor is on the engine's crankshaft. The engine carries a
+  second pair of mechanical ports towards the motor, and the vehicle has a
+  single torque/speed interface with the propulsion. Mild hybrid: 48 V,
+  5 kWh (Fig. 7).
+- **P4**: the motor drives the second axle directly. The vehicle gets a
+  second torque/speed interface, one for the engine and one for the motor,
+  and the engine no longer connects to the motor. The motor is larger and
+  the electrical system runs at 400 V, 10 kWh (Fig. 8).
+
+The control unit is the same in both. The paper's point is that the second
+architecture came from the same standard packages with no change beyond
+choosing the parts.
+
+This example adds two things the paper leaves open. **Units**: the authors
+note (section 4.4) that units and quantities were handled by hand and are
+not part of the transformation; here every attribute carries its unit
+(`1500 kg`, `48 V`, `5 kWh`), and requirement `SYS-HP-002` asks for it.
+**Directions**: the paper relies on SysML v2 to catch mismatches between
+ports and interfaces, but that check compares item types, not which end
+sends. The published P4 model has the motor's mechanical ports reversed, and
+nothing in their chain flags it, as the next section shows.
+
 | File | What |
 |---|---|
 | `hybrid_powertrain_p1.arc` | P1: the motor on the crankshaft, a 48 V battery of 5 kWh |
