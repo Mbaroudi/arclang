@@ -117,10 +117,10 @@ fn every_file_the_model_generates_is_compared_the_io_layer_and_the_vhdl_too() {
     let exported = arclang(&["export", model.to_str().unwrap(), "-f", "vhdl", "-o", hdl.to_str().unwrap()]);
     assert!(exported.status.success(), "{}", text(&exported));
 
-    // Untouched: the machines, the I/O layer, the host files and the logic are the model's.
+    // Untouched: the machines, the I/O layer, the host files (the harness among them) and the logic are the model's.
     let same = arclang(&["drift", model.to_str().unwrap(), c.to_str().unwrap(), "--hdl", hdl.to_str().unwrap()]);
     assert!(same.status.success(), "{}", text(&same));
-    assert!(text(&same).contains("byte for byte, the code the model generates, and so are the 11 other file(s) compared"), "{}", text(&same));
+    assert!(text(&same).contains("byte for byte, the code the model generates, and so are the 12 other file(s) compared"), "{}", text(&same));
 
     // A line of the host I/O and a line of the VHDL changed by hand, one more added.
     edit(&c.join("host/arclang_io_host.c"), "        gpio_out[k] = false;", "        gpio_out[k] = true;");
