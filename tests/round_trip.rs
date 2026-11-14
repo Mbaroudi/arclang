@@ -27,7 +27,7 @@ physical_architecture "PA" {
     node "ECU" {
         id: "PN-ECU"
         port "eth0" { id: "PP-1" }
-        behavior_component "Controller software" { id: "PC-Ctrl" allocated_component: "LC-Ctrl" allocated_functions: ["LF-Decide"] port in "bus" }
+        behavior_component "Controller software" { id: "PC-Ctrl" allocated_component: "LC-Ctrl" allocated_functions: ["LF-Decide"] port out "bus" }
     }
     node "Gateway" { id: "PN-GW" port "eth1" }
     physical_link "ethernet" { id: "PL-1" from: "PN-ECU.eth0" to: "PN-GW.eth1" protocol: "Ethernet" }

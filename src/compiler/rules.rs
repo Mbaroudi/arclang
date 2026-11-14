@@ -90,6 +90,9 @@ const RULES: &[Rule] = &[
     rule!("spatial.latency", Severity::Error, "Latency faster than light",
         "A physical link's `latency` is shorter than the time light takes to cover its length: no medium carries a signal that fast.",
         "Correct the `latency` or the length of the link."),
+    rule!("interface.direction", Severity::Warning, "Exchange between two senders or two receivers",
+        "An exchange leaves an out (or inout) port and arrives on an in (or inout) port. One that leaves an input, or arrives on an output, joins two ends that both send or both receive: the interface cannot carry what the model says.",
+        "Swap the exchange's ends, or correct the direction of the port that is wrong."),
     rule!("constraint.violated", Severity::Warning, "Constraint violated",
         "A declared `constraint` compares as false on the model's values. The production gate blocks on it.",
         "Change the values the constraint compares, or the constraint, so that the model holds what it claims."),
@@ -215,6 +218,9 @@ pub fn classify_warning(message: &str) -> Finding {
         };
         let element = rest.find("): '").and_then(|at| between(&rest[at..], "): '", "'"));
         return Finding { rule: "rule.user", severity, message: message.to_string(), element: element.map(str::to_string), fix: None };
+    }
+    if let Some(rest) = message.strip_prefix("exchange direction: ") {
+        return Finding { rule: "interface.direction", severity: Severity::Warning, message: rest.to_string(), element: between(rest, "'", "'").map(str::to_string), fix: None };
     }
     if message.starts_with("constraint: ") {
         let element = between(message, "constraint '", "'");

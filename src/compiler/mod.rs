@@ -13,6 +13,7 @@ pub mod cesam;
 pub mod cesam_rules;
 pub mod metamodel;
 pub mod metamodel_check;
+pub mod port_direction;
 pub mod spatial;
 pub mod allocations;
 pub mod identity_sites;

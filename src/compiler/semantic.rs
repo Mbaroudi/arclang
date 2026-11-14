@@ -1659,6 +1659,7 @@ impl SemanticAnalyzer {
         let mut warnings = duplicate_ids;
         warnings.extend(deferred_warnings);
         warnings.extend(Self::check_exchange_endpoints(ast, &all_elements));
+        warnings.extend(super::port_direction::check(ast));
 
         let name = ast
             .attributes
