@@ -1644,6 +1644,14 @@ impl<'g> Mapper<'g> {
                 if !written.insert(name.clone()) {
                     continue;
                 }
+                // A function's port is in or out in Arcadia: an `inout`
+                // parameter of an action is kept as an input, and said.
+                let direction = if direction == Some("inout") && self.nodes[index].shape == Shape::Action {
+                    self.notes.push(format!("port '{name}' of function '{owner_id}' is inout in SysML: kept as in (a function port is in or out)"));
+                    Some("in")
+                } else {
+                    direction
+                };
                 if physical && direction.is_none() {
                     self.ids.insert(port.id.clone(), format!("{owner_id}.{name}"));
                     self.count("ports");

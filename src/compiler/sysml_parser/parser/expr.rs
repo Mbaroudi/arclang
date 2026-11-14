@@ -280,6 +280,13 @@ impl Parser {
     /// `{ body }`, `(a, b)`.
     fn base_expression(&mut self) -> Parsed<Expr> {
         match self.peek().cloned() {
+            // `@T`, `@@T` as an operand (`filter not @Safety`): the
+            // classification test on the implicit self, below an operator.
+            Some(Kind::Symbol(s)) if s == "@" || s == "@@" => {
+                self.position += 1;
+                let ty = self.qualified_name()?;
+                Ok(Expr::TypeTest { operand: None, operator: s.to_string(), ty })
+            }
             Some(Kind::Word(w)) if w == "null" => {
                 self.position += 1;
                 Ok(Expr::Null)

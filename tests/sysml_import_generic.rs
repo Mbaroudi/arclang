@@ -344,3 +344,16 @@ fn a_connection_inside_a_connection_starts_from_its_ends() {
     let source = imported(text).source;
     assert_has(&source, "from_port: \"Wheel.nuts.lugNut\"\n        to_port: \"Hub.shanks.shank\"");
 }
+
+#[test]
+fn an_inout_parameter_of_a_performed_action_is_an_input_port_of_the_function_and_is_said() {
+    // ODE4HERA's simulation templates give their actions `inout item`
+    // parameters; a function port is in or out in Arcadia.
+    let text = "package P {\n    action def Thrust { in sap; inout item thrust; }\n    part def Plant;\n    part plant : Plant { perform action behavior : Thrust; }\n}";
+    let imported = imported(text);
+    assert_has(&imported.source, "port in \"sap\"");
+    assert_has(&imported.source, "port in \"thrust\"");
+    assert!(!imported.source.contains("port inout \"thrust\""), "{}", imported.source);
+    assert!(imported.notes.iter().any(|n| n.contains("'thrust'") && n.contains("inout") && n.contains("kept as in")), "{:?}", imported.notes);
+    arclang::Compiler::new(arclang::CompilerConfig::default()).compile_string(&imported.source).unwrap_or_else(|e| panic!("{e}\n{}", imported.source));
+}
