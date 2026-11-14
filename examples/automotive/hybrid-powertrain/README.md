@@ -38,6 +38,29 @@ kind from its role in the connection, so the co-simulation it generates is
 right while the system model says otherwise. The P1 model and the corrected
 P4 pass.
 
+## Diagrams
+
+Each sheet is the interconnection view `arclang diagram -f html` draws,
+with the interfaces `arclang check` reports in red, then every part with its
+attributes and ports, and every interface with its ends. PNG at twice the
+resolution, PDF in vector; [`hybrid-powertrain.pdf`](diagrams/hybrid-powertrain.pdf)
+holds the three sheets.
+
+| Model | PNG | PDF |
+|---|---|---|
+| P1 | [p1.png](diagrams/p1.png) | [p1.pdf](diagrams/p1.pdf) |
+| P4 as published | [p4-as-published.png](diagrams/p4-as-published.png) | [p4-as-published.pdf](diagrams/p4-as-published.pdf) |
+| P4 corrected | [p4-corrected.png](diagrams/p4-corrected.png) | [p4-corrected.pdf](diagrams/p4-corrected.pdf) |
+
+![P4 as published: int5 and int6 in red](diagrams/p4-as-published.png)
+
+They are made by `tools/hybrid_powertrain_figures.mjs` (Playwright with
+Chrome):
+
+```text
+ARCLANG_BIN=target/release/arclang node tools/hybrid_powertrain_figures.mjs
+```
+
 ## Not carried over
 
 Torque is written as a plain number (`max_torque_nm`): ArcLang has no torque
