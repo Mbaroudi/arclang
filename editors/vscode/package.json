@@ -3077,7 +3077,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
-    "@types/node": "^22.0.0",
+    "@types/node": "^26.6.6",
     "@types/path-browserify": "^1.0.3",
     "@types/vscode": "^1.104.0",
     "@vscode/test-cli": "^0.0.15",
