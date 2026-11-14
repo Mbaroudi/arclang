@@ -733,6 +733,8 @@ pub(super) fn expression_text(expr: &Expr) -> String {
             format!("{{ {result} }}")
         }
         Expr::Sequence(items) => format!("({})", items.iter().map(expression_text).collect::<Vec<_>>().join(", ")),
+        // `not x` keeps its space; `-x` and `~x` do not need one.
+        Expr::Operator { operator, operands } if operands.len() == 1 && operator.chars().all(|c| c.is_ascii_alphabetic()) => format!("{operator} {}", expression_text(&operands[0])),
         Expr::Operator { operator, operands } if operands.len() == 1 => format!("{operator}{}", expression_text(&operands[0])),
         Expr::Operator { operator, operands } => operands.iter().map(expression_text).collect::<Vec<_>>().join(&format!(" {operator} ")),
         Expr::Conditional { condition, then, otherwise } => format!("if {} ? {} else {}", expression_text(condition), expression_text(then), expression_text(otherwise)),

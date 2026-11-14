@@ -1594,6 +1594,32 @@ impl<'g> Mapper<'g> {
             .unwrap_or(Level::Sa)
     }
 
+    /// The direction a port usage takes from its definition, reversed when
+    /// the usage is conjugated (`port p : ~P`). The definition's directed
+    /// items say it: only `out` items (and `inout` ones) make an `out` port,
+    /// only `in` items an `in` port, both or only `inout` ones an `inout`
+    /// port. A definition without directed items is read from the words of
+    /// its name (`TorqueOut`, `in_signal`), never from a part of a word: a
+    /// `DockingPort` is not an `in` port.
+    fn port_type_direction(&self, port: &Element) -> Option<&'static str> {
+        let def = port.types.first().and_then(|t| self.graph.get(t))?;
+        // An API export types a conjugated port by the `~P` its definition owns.
+        let def = if def.kind == "ConjugatedPortDefinition" { def.owner.as_deref().and_then(|o| self.graph.get(o)).unwrap_or(def) } else { def };
+        let directions: Vec<&str> = def.children.iter().filter_map(|c| self.graph.get(c)).filter(|c| !c.is_end).filter_map(|c| c.direction.as_deref()).collect();
+        let (ins, outs) = (directions.contains(&"in"), directions.contains(&"out"));
+        let own = match (ins, outs) {
+            (true, false) => Some("in"),
+            (false, true) => Some("out"),
+            _ if !directions.is_empty() => Some("inout"),
+            _ => def.name.as_deref().and_then(direction_in_name),
+        };
+        if port.conjugated {
+            own.map(|d| match d { "in" => "out", "out" => "in", other => other })
+        } else {
+            own
+        }
+    }
+
     /// The ports of an element with their direction, `None` when the port
     /// states none (a physical port on a node, a component port read as `in`).
     fn ports_of(&self, element: &Element) -> Vec<(&'g Element, Option<&'static str>)> {
@@ -1604,10 +1630,7 @@ impl<'g> Mapper<'g> {
             .filter_map(|c| {
                 if c.kind == "PortUsage" {
                     let direction = c.direction.as_deref().map(|d| match d { "out" => "out", "inout" => "inout", _ => "in" });
-                    let by_type = c.types.first().and_then(|t| self.graph.get(t)).and_then(|t| t.name.as_deref()).and_then(|n| {
-                        let lower = n.to_ascii_lowercase();
-                        if lower.contains("inout") { Some("inout") } else if lower.contains("out") { Some("out") } else if lower.contains("in") { Some("in") } else { None }
-                    });
+                    let by_type = self.port_type_direction(c);
                     let tagged = if Self::has_metadata(c, &["PhysicalPort"]) { None } else if Self::has_metadata(c, &["ComponentPort"]) { Some("in") } else { direction.or(by_type) };
                     // A SysML port states no direction: both ways.
                     let tagged = if self.profiled { tagged } else { tagged.or(Some("inout")) };
@@ -2911,6 +2934,36 @@ fn keyword_is_attribute_key(key: &str) -> bool {
 
 /// A SysML expression's quantities in ArcLang's notation: `1200 [kg]` is
 /// `1200 kg`, `30 ['°C']` is `30 °C`.
+/// The direction the words of a port definition's name state: `in`, `input`,
+/// `out`, `output`, `inout`; both `in` and `out` make `inout`. The words are
+/// split at `_`, `-` and at a lower-to-upper case change (`TorqueOut`,
+/// `InOutPort`, `signal_in`).
+fn direction_in_name(name: &str) -> Option<&'static str> {
+    let mut words: Vec<String> = Vec::new();
+    let mut current = String::new();
+    let mut previous_lower = false;
+    for c in name.chars() {
+        if !c.is_ascii_alphanumeric() {
+            words.push(std::mem::take(&mut current));
+            previous_lower = false;
+            continue;
+        }
+        if c.is_ascii_uppercase() && previous_lower {
+            words.push(std::mem::take(&mut current));
+        }
+        previous_lower = c.is_ascii_lowercase() || c.is_ascii_digit();
+        current.push(c.to_ascii_lowercase());
+    }
+    words.push(current);
+    let has = |options: &[&str]| words.iter().any(|w| options.contains(&w.as_str()));
+    match (has(&["inout"]) || (has(&["in", "input"]) && has(&["out", "output"])), has(&["in", "input"]), has(&["out", "output"])) {
+        (true, _, _) => Some("inout"),
+        (_, true, _) => Some("in"),
+        (_, _, true) => Some("out"),
+        _ => None,
+    }
+}
+
 fn arclang_units(text: &str) -> String {
     static UNIT: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
     let unit = UNIT.get_or_init(|| regex::Regex::new(r"\s*\[\s*'?([^\]']+?)'?\s*\]").expect("a valid pattern"));
