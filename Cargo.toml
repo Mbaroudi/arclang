@@ -2,9 +2,9 @@
 name = "arclang"
 version = "4.12.0"
 edition = "2021"
-authors = ["ArcLang Contributors"]
+authors = ["Vernish Services"]
 description = "Industrial-grade Arcadia-as-Code compiler with Phase 1 & 2 Rendering Pipeline"
-license = "MIT"
+license = "BUSL-1.1"
 repository = "https://github.com/arclang/arclang"
 keywords = ["arcadia", "mbse", "systems-engineering", "compiler", "capella"]
 categories = ["development-tools", "compilers"]

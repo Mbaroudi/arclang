@@ -418,4 +418,4 @@ Publisher pages: [Marketplace](https://marketplace.visualstudio.com/manage/publi
 
 ## License
 
-MIT, like the compiler.
+Business Source License 1.1, like the compiler (see the LICENSE file).

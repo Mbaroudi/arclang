@@ -6,7 +6,7 @@ impact, lossless edits, exports) and its metamodel as the reference.
 """
 
 __author__ = "Malek Baroudi & Bilel Laasami"
-__license__ = "MIT"
+__license__ = "BUSL-1.1"
 
 from .server import ArcLangMCPServer, __version__
 
