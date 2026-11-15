@@ -740,6 +740,12 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
     for note in &ast.notes {
         builder.element("Note", &note.id, &note.name, &root, &note.attributes);
     }
+    for organization in &ast.organizations {
+        builder.element("Organization", &organization.id, &organization.name, &root, &organization.attributes);
+    }
+    for document in &ast.documents {
+        builder.element("Document", &document.id, &document.name, &root, &document.attributes);
+    }
     for constraint in &ast.constraints {
         builder.element("Constraint", &constraint.id, &constraint.name, &root, &constraint.attributes);
         builder.set_extra("expression", json!(constraint.expression.to_string()));
@@ -969,6 +975,32 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
         let id = crate::compiler::notes::id_of(note);
         for element in &note.about {
             builder.relate("Annotation", None, &id, element, &empty(), Vec::new());
+        }
+    }
+    // Who answers for each element and which documents describe it: only
+    // what names a declared organization or document is a relationship.
+    let named: Vec<(String, Option<String>, Vec<String>)> = builder
+        .graph
+        .elements
+        .iter()
+        .map(|element| {
+            let responsible = element.attributes.get("responsible").and_then(|v| v.as_string()).and_then(|r| super::accountability::organization(ast, r));
+            let documents = match element.attributes.get("documented_by") {
+                Some(AttributeValue::List(items)) => items.iter().filter_map(|v| v.as_string()).collect(),
+                Some(AttributeValue::String(one)) => vec![one.as_str()],
+                _ => Vec::new(),
+            };
+            let documents = documents.into_iter().filter_map(|d| super::accountability::document(ast, d)).map(str::to_string).collect();
+            (element.uuid.clone(), responsible.map(str::to_string), documents)
+        })
+        .collect();
+    for (element, responsible, documents) in named {
+        for (kind, target) in responsible.iter().map(|o| ("Responsibility", o)).chain(documents.iter().map(|d| ("Documentation", d))) {
+            let of_kind = if kind == "Responsibility" { "Organization" } else { "Document" };
+            let found = builder.graph.elements.iter().find(|e| e.kind == of_kind && &e.id == target).map(|e| e.uuid.clone());
+            if let Some(target) = found {
+                builder.relate_resolved(kind, None, element.clone(), target, &empty(), Vec::new());
+            }
         }
     }
     // Traces come from the semantic model: ends are already resolved to ids.

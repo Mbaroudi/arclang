@@ -22,6 +22,8 @@ Human or external system interacting with the system.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `category` | `text` | Actor category. |
 | `safety_level` | `enum SafetyLevel` | ASIL, DAL or SIL assigned to the element. |
@@ -43,6 +45,8 @@ Organization or system of the operational world.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `type` | `text` | Component category (free text). |
 | `layer` | `text` | Overrides the architectural layer label. |
@@ -73,6 +77,8 @@ Expected ability of the operational world. May be declared inside another operat
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `involves` | `list<ref<Element>>` | Actors, entities, activities and processes involved. |
 | `extends` | `list<ref<OperationalCapability>>` | Capabilities of the same level this one extends. |
@@ -93,6 +99,8 @@ Activity performed by an entity or actor.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `category` | `text` | Functional category (free text). |
 | `inputs` | `list<text>` | Input data names. |
@@ -121,6 +129,8 @@ Interaction between operational entities.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `from` | `ref<Element>` | Source element or port. |
 | `to` | `ref<Element>` | Target element or port. |
@@ -146,6 +156,8 @@ Ordered path of activities fulfilling a capability.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `involves` | `list<ref<Element>>` | Ordered functions, exchanges and chains of the chain. |
 | `latency_budget` | `quantity<time>` | End-to-end budget checked by the gate. |
@@ -167,6 +179,8 @@ Stakeholder, system or safety requirement.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `priority` | `enum Priority` | Business priority. |
 | `category` | `text` | Requirement category (functional, performance, safety...). |
@@ -201,6 +215,8 @@ What a stakeholder cares about, framed by the requirements that address it. Decl
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `stakeholders` | `list<text>` | Who has the concern (SysML v2 `stakeholder`). |
 | `rationale` | `text` | Why it matters. |
@@ -220,6 +236,8 @@ Someone the system matters to (CESAM stakeholder analysis): `stakeholder "Owner"
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `category` | `text` | Kind of stakeholder (user, customer, operator, authority, maintainer...). |
 | `interest` | `text` | What the stakeholder expects of the system. |
@@ -239,6 +257,8 @@ High-level goal the system contributes to.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 
 #### Capability
@@ -255,6 +275,8 @@ Expected ability of the system. May be declared inside another capability.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `mission` | `ref<Mission>` | Mission this capability contributes to. |
 | `realizes` | `ref<OperationalCapability>` | Operational capability realized. |
@@ -277,6 +299,8 @@ Function the system performs.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `category` | `text` | Functional category (free text). |
 | `inputs` | `list<text>` | Input data names. |
@@ -318,6 +342,8 @@ Data flow between function ports.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `from` | `ref<Element>` | Source element or port. |
 | `to` | `ref<Element>` | Target element or port. |
@@ -343,6 +369,8 @@ External actor at system level.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `safety_level` | `enum SafetyLevel` | ASIL, DAL or SIL assigned to the element. |
 | `asil` | `enum Asil` | ISO 26262 ASIL (QM, ASIL-A..D). |
@@ -363,6 +391,8 @@ The system or one of its external components.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `type` | `text` | Component category (free text). |
 | `layer` | `text` | Overrides the architectural layer label. |
@@ -392,6 +422,8 @@ Ordered functions, exchanges and chains realizing one dataflow path; `control` n
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `involves` | `list<ref<Element>>` | Ordered functions, exchanges and chains of the chain. |
 | `latency_budget` | `quantity<time>` | End-to-end budget checked by the gate. |
@@ -411,6 +443,8 @@ Control node of a functional chain: `control and|or|iterate "Name"`, joined to t
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `kind` | `enum ControlKind` | and | or | iterate (from the keyword). |
 
@@ -428,6 +462,8 @@ Control node of a functional chain: `control and|or|iterate "Name"`, joined to t
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `condition` | `text` | Guard of the branch. |
 
@@ -447,6 +483,8 @@ Behavioral building block, may be nested. In a product line, a component `variat
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `type` | `text` | Component category (free text). |
 | `layer` | `text` | Overrides the architectural layer label. |
@@ -479,6 +517,8 @@ Function of the logical level, declared inside the component that performs it (o
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `category` | `text` | Functional category (free text). |
 | `inputs` | `list<text>` | Input data names. |
@@ -524,6 +564,8 @@ Contract between two components.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `from` | `ref<LogicalComponent>` | Provider. |
 | `to` | `ref<LogicalComponent>` | Consumer. |
@@ -549,6 +591,8 @@ Exchange between component ports; with `ends`, between more than two.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `from` | `ref<Element>` | Source element or port. |
 | `to` | `ref<Element>` | Target element or port. |
@@ -575,6 +619,8 @@ Realization of a system capability by components. May be declared inside another
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `realizes` | `ref<Capability>` | Capability realized. |
 | `involves` | `list<ref<Element>>` | Components and chains involved. |
@@ -598,6 +644,8 @@ Hardware node hosting behavior components.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `type` | `text` | Component category (free text). |
 | `layer` | `text` | Overrides the architectural layer label. |
@@ -651,6 +699,8 @@ Software/behavior deployed on a node; declares the physical functions it perform
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `safety_level` | `enum SafetyLevel` | ASIL, DAL or SIL assigned to the element. |
 | `asil` | `enum Asil` | ISO 26262 ASIL (QM, ASIL-A..D). |
@@ -675,6 +725,8 @@ Function of the physical level, declared inside the behavior component that perf
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `category` | `text` | Functional category (free text). |
 | `inputs` | `list<text>` | Input data names. |
@@ -703,6 +755,8 @@ Hardware part of a node.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `memory` | `text` | Memory configuration, descriptive (`"2 GB DDR4, 64 GB eMMC"`). Use `ram`/`flash`/`storage` for typed sizes. |
 | `ram` | `quantity<data size>` | RAM capacity. |
@@ -727,6 +781,8 @@ Physical medium between nodes or ports.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `from` | `ref<Element>` | Source element or port. |
 | `to` | `ref<Element>` | Target element or port. |
@@ -755,6 +811,8 @@ Message routed over a link.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `from` | `ref<Element>` | Source element or port. |
 | `to` | `ref<Element>` | Target element or port. |
@@ -782,6 +840,8 @@ Allocation of a logical component to a node.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 
 #### PhysicalPath
@@ -798,6 +858,8 @@ Ordered links routing an exchange.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `involves` | `list<ref<PhysicalLink>>` | Ordered links. |
 
@@ -817,6 +879,8 @@ Top configuration item.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `location` | `location {lat, lon[, alt]}` | Where it stands on the Earth, WGS 84: `{ lat: 48.8566 deg lon: 2.3522 deg alt: 35 m }` (`alt` optional). Drawn on maps (`arclang export -f geojson`). |
 | `position` | `position {x, y, z}` | Where it stands in its owner (the model at the top), in lengths: `{ x: 1.2 m y: 0 m z: 0.4 m }`, a missing axis being 0. Placed so in CAD (`arclang export -f step`). |
@@ -837,6 +901,8 @@ Subsystem configuration item.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `location` | `location {lat, lon[, alt]}` | Where it stands on the Earth, WGS 84: `{ lat: 48.8566 deg lon: 2.3522 deg alt: 35 m }` (`alt` optional). Drawn on maps (`arclang export -f geojson`). |
 | `position` | `position {x, y, z}` | Where it stands in its owner (the model at the top), in lengths: `{ x: 1.2 m y: 0 m z: 0.4 m }`, a missing axis being 0. Placed so in CAD (`arclang export -f step`). |
@@ -857,6 +923,8 @@ Leaf configuration item or assembly.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `part_number` | `text` | Part number. |
 | `supplier` | `text` | Supplier. |
@@ -889,6 +957,8 @@ Structured data element; every attribute but `id`, `description` and `extends` i
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `extends` | `ref<Class>` | The class this one specializes. |
 
@@ -906,6 +976,8 @@ Association between two classes, as an element of its own; `from` owns the navig
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `from` | `ref<Class>` | The class owning the navigable end. |
 | `to` | `ref<Class>` | The class at the navigable end. |
@@ -927,6 +999,8 @@ Enumerated data type.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `values` | `list<text>` | Literals. |
 
@@ -944,6 +1018,8 @@ Primitive data type.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `base` | `text` | Base type. |
 | `unit` | `enum Unit` | Unit symbol of the values. |
@@ -962,6 +1038,8 @@ Set of data elements exchanged together.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `mechanism` | `enum ExchangeMechanism` | Exchange mechanism. |
 | `elements` | `list<ref<Class>>` | Grouped data elements. |
@@ -981,6 +1059,8 @@ HARA entry: hazardous event and its classification.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `severity` | `enum HazardSeverity` | ISO 26262 S0-S3 or DO-178C failure condition. |
 | `exposure` | `enum Exposure` | ISO 26262 E0-E4. |
@@ -1007,6 +1087,8 @@ FMEA line: failure mode with S/O/D rating.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `failure_mode` | `text` | Failure mode. |
 | `effect` | `text` | Effect. |
@@ -1032,6 +1114,8 @@ Threat of a cybersecurity analysis: what an attacker may achieve, applied to pri
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `kind` | `text` | Threat kind: one of `security_scales.threat_kinds` when declared. |
 | `level` | `number` | Criticality level of the threat (an integer). |
@@ -1052,6 +1136,8 @@ Primary asset of a cybersecurity analysis: a service, information or business co
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `kind` | `enum AssetKind` | What the asset is. |
 | `members` | `list<ref<Element>>` | Functions, exchange items or classes making up the asset. |
@@ -1083,6 +1169,8 @@ One product of a product line: the variant it selects in each variation. Two var
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `selects` | `list<ref<LogicalComponent>>` | The variants selected, one per variation. |
 
@@ -1116,6 +1204,8 @@ Verification case covering requirements.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `verifies` | `list<ref<Requirement>>` | Requirements verified. |
 | `method` | `enum VerificationMethod` | Verification method. |
@@ -1160,6 +1250,45 @@ Reusable definition: `type Name extends Base { ... }`. Declares typed attributes
 | `to_kind` | `text` | For an allocation definition: the kind every allocation of it goes to (`LogicalComponent`). |
 | `physics` | `enum Physics` | For a port definition: what the ports it types carry, for the Modelica export. |
 
+#### Organization
+
+Who answers for elements of the model, declared at the top of a file (`organization "Powertrain team" { id: "ORG-PT" parent: "ORG-ENG" }`). Any element names it with `responsible:`; a change of the element reaches it, and a table shows who answers for what.
+
+- Arcadia: `(none: closest OrganisationalUnit of a library)`
+- SysML v2: `part def (#Organization)`
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `id` | `identifier` | Stable identity; drives the UUIDv5. Defaults to the name. |
+| `name` | `text` | Display name; overrides the block name. |
+| `description` | `text` | Free-text description. |
+| `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
+| `parent` | `ref<Organization>` | The organization it is part of. One that is not declared, or the organization itself through its parents, is an error. |
+
+#### Document
+
+A document outside the model that describes elements of it, declared at the top of a file (`document "Interface control document" { id: "DOC-ICD" reference: "ICD-0042" version: "C" }`). Any element names it with `documented_by:`; a change of the document reaches what it describes.
+
+- Arcadia: `(none)`
+- SysML v2: `part def (#Document)`
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `id` | `identifier` | Stable identity; drives the UUIDv5. Defaults to the name. |
+| `name` | `text` | Display name; overrides the block name. |
+| `description` | `text` | Free-text description. |
+| `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
+| `reference` | `text` | Its number or code where documents are kept (`ICD-0042`). |
+| `version` | `text` | The version or revision of the document the model was written against. |
+| `uri` | `text` | Where the document is: a link or a path. |
+| `category` | `text` | What kind of document it is (specification, interface control document, plan, standard, report...). |
+
 #### Note
 
 A text about elements, declared at the top of a file (`note "Text" { about: ["LC-A"] }`): drawn on every view that draws one of them, tied to each by a dashed line. An element it names that the model does not declare is an error.
@@ -1173,6 +1302,8 @@ A text about elements, declared at the top of a file (`note "Text" { about: ["LC
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `about` | `list<ref<Element>>` | The elements the note is about. |
 
@@ -1189,6 +1320,8 @@ Dimension-checked comparison over typed attributes (`assert: <expression>`). Ill
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 
 #### Timeslice
@@ -1204,6 +1337,8 @@ A stretch of an element's life, declared in it (`timeslice "Takeoff" { start: 0 
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `start` | `quantity<time>` | When it starts. |
 | `end` | `quantity<time>` | When it ends; not before it starts. |
@@ -1221,6 +1356,8 @@ One moment of an element's life, declared in it or in one of its timeslices (`sn
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `at` | `quantity<time>` | When it is; within its timeslice. |
 | `tolerance` | `text` | How far a simulated value may be from the snapshot's and still reach it, when a test case checks it: a percentage of the value (`2 %`) or an amount (`0.5 m`). 1 % when absent. |
@@ -1239,6 +1376,8 @@ Modes and states of an element.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `initial` | `ref<State>` | Initial state. |
 | `kind` | `enum MachineKind` | CESAM role of the machine: `lifecycle` (its states are the lifecycle phases), `functional_modes` or `technical_configurations`. Without it, a machine named like a lifecycle or configurations is taken as one, else as functional modes. |
@@ -1260,6 +1399,8 @@ State (undergone) or mode (chosen behavior). In CESAM terms, a state of a `lifec
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `realizes` | `list<ref<State>>` | For a technical configuration: the functional modes it realizes (`Machine.Mode` or the mode's name). |
 | `during` | `list<ref<State>>` | For a functional mode or a technical configuration: the lifecycle phases it is available in. |
@@ -1333,6 +1474,8 @@ Sequence of messages between participants.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `participants` | `list<ref<Element>>` | Lifelines. |
 | `capability` | `ref<Element>` | The use case (mission, capability or operational capability) the scenario illustrates. |
@@ -1364,6 +1507,8 @@ A state, mode or function asserted on a lifeline: `state "Lifeline" "Armed" { ..
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 
 #### Message
@@ -1413,6 +1558,8 @@ The element graph served by the Systems Modeling API (`/api/systems-modeling`) i
 | `Trace` | element | element | A `trace` declaration; `traceKind` is one of the TraceKind values. |
 | `Verification` | TestCase | Requirement | `verifies:` of a test case. |
 | `Annotation` | Note | element | `about:` of a note. |
+| `Responsibility` | element | Organization | `responsible:` of an element naming a declared organization. |
+| `Documentation` | element | Document | `documented_by:` of an element naming a declared document. |
 | `Mitigation` | Requirement | Hazard | `mitigated_by:` of a hazard. |
 | `Stakeholding` | Concern | Stakeholder | `stakeholders:` of a concern naming a declared stakeholder. |
 | `ThreatApplication` | Threat | PrimaryAsset | `applies_to:` of a threat. |

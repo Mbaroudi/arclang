@@ -28,6 +28,26 @@ impl<'g> Mapper<'g> {
         node.usage.is_some_and(|u| u.is_variation) || node.def.is_some_and(|d| d.is_variation)
     }
 
+    /// Organizations and documents: the parts carrying `#Organization` or `#Document`.
+    pub(super) fn accountability(&mut self) {
+        for (metadata, word, counted) in [("Organization", "organization", "organizations"), ("Document", "document", "documents")] {
+            let declared: Vec<&'g Element> = self.graph.of_kinds(&["PartUsage", "PartDefinition"]).filter(|p| !self.is_library(p) && Self::has_metadata(p, &[metadata])).collect();
+            for element in declared {
+                let id = self.remember(&element.id, Self::identity_id(element), metadata);
+                self.count(counted);
+                self.line(0, &format!("{word} {} {{", string_literal(&Self::display(element))));
+                self.line(1, &format!("id: {}", string_literal(&id)));
+                if let Some(doc) = Self::description(element) {
+                    self.line(1, &format!("description: {}", string_literal(&doc)));
+                }
+                self.attributes(1, &[element], &["description", "id"]);
+                self.reference_attributes(1, &[element.id.clone()]);
+                self.line(0, "}");
+                self.line(0, "");
+            }
+        }
+    }
+
     pub(super) fn configurations(&mut self) {
         let configurations: Vec<&'g Element> = self.graph.of_kinds(&["PartUsage", "PartDefinition"]).filter(|p| !self.is_library(p) && Self::has_metadata(p, &["Configuration"])).collect();
         for config in configurations {

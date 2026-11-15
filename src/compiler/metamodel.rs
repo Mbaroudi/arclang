@@ -181,6 +181,8 @@ fn common() -> Vec<AttrSpec> {
         attr("name", AttrType::Text, "Display name; overrides the block name."),
         attr("description", AttrType::Text, "Free-text description."),
         attr("is", AttrType::Reference("Type"), "User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited."),
+        attr("responsible", AttrType::Reference("Organization"), "The organization that answers for the element (`organization \"Powertrain team\" { id: \"ORG-PT\" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship."),
+        attr("documented_by", list(AttrType::Reference("Document")), "The documents that describe the element (`document \"Interface control document\" { id: \"DOC-ICD\" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship."),
         attr("tags", list(AttrType::Text), "Tags the element carries (`[\"Safety\"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package."),
     ]
 }
@@ -549,6 +551,15 @@ impl Metamodel {
                     attr("to_kind", AttrType::Text, "For an allocation definition: the kind every allocation of it goes to (`LogicalComponent`)."),
                     attr("physics", AttrType::Enum("Physics"), "For a port definition: what the ports it types carry, for the Modelica export."),
                 ]),
+            kind("Organization", Layer::Transverse, "(none: closest OrganisationalUnit of a library)", "part def (#Organization)", "Who answers for elements of the model, declared at the top of a file (`organization \"Powertrain team\" { id: \"ORG-PT\" parent: \"ORG-ENG\" }`). Any element names it with `responsible:`; a change of the element reaches it, and a table shows who answers for what.",
+                concat(vec![common(), vec![attr("parent", AttrType::Reference("Organization"), "The organization it is part of. One that is not declared, or the organization itself through its parents, is an error.")]])),
+            kind("Document", Layer::Transverse, "(none)", "part def (#Document)", "A document outside the model that describes elements of it, declared at the top of a file (`document \"Interface control document\" { id: \"DOC-ICD\" reference: \"ICD-0042\" version: \"C\" }`). Any element names it with `documented_by:`; a change of the document reaches what it describes.",
+                concat(vec![common(), vec![
+                    attr("reference", AttrType::Text, "Its number or code where documents are kept (`ICD-0042`)."),
+                    attr("version", AttrType::Text, "The version or revision of the document the model was written against."),
+                    attr("uri", AttrType::Text, "Where the document is: a link or a path."),
+                    attr("category", AttrType::Text, "What kind of document it is (specification, interface control document, plan, standard, report...)."),
+                ]])),
             kind("Note", Layer::Transverse, "Note (diagram annotation)", "comment about", "A text about elements, declared at the top of a file (`note \"Text\" { about: [\"LC-A\"] }`): drawn on every view that draws one of them, tied to each by a dashed line. An element it names that the model does not declare is an error.",
                 concat(vec![common(), vec![attr("about", list(AttrType::Reference("Element")), "The elements the note is about.")]])),
             kind("Constraint", Layer::Transverse, "Constraint", "assert constraint", "Dimension-checked comparison over typed attributes (`assert: <expression>`). Ill-formed is a compile error; violated is a warning and a gate blocker.", common()),
@@ -668,6 +679,8 @@ impl Metamodel {
             relationship("Trace", "element", "element", "A `trace` declaration; `traceKind` is one of the TraceKind values."),
             relationship("Verification", "TestCase", "Requirement", "`verifies:` of a test case."),
             relationship("Annotation", "Note", "element", "`about:` of a note."),
+            relationship("Responsibility", "element", "Organization", "`responsible:` of an element naming a declared organization."),
+            relationship("Documentation", "element", "Document", "`documented_by:` of an element naming a declared document."),
             relationship("Mitigation", "Requirement", "Hazard", "`mitigated_by:` of a hazard."),
             relationship("Stakeholding", "Concern", "Stakeholder", "`stakeholders:` of a concern naming a declared stakeholder."),
             relationship("ThreatApplication", "Threat", "PrimaryAsset", "`applies_to:` of a threat."),

@@ -1850,6 +1850,50 @@ a `doc` stays the description of its owner. In the VS Code workbench the *Note*
 tool writes one about the selection; it is renamed, deleted and undone like any
 declaration.
 
+### 7.4 Organizations and documents
+
+An organization answers for elements of the model; a document, kept outside
+the model, describes some of them. Both are written at the top of a file, and
+any element names them, by id or by name:
+
+```arc
+organization "Engineering" { id: "ORG-ENG" }
+organization "Powertrain team" { id: "ORG-PT" parent: "ORG-ENG" }
+
+document "Battery interface control document" {
+    id: "DOC-ICD"
+    reference: "ICD-0042"               // its number where documents are kept
+    version: "C"
+    uri: "https://docs.example.org/icd-0042"
+    category: "interface control document"
+}
+
+logical_architecture "LA" {
+    component "Battery" {
+        id: "LC-BAT"
+        responsible: "ORG-PT"           // one organization
+        documented_by: ["DOC-ICD"]      // any number of documents
+    }
+}
+```
+
+`responsible:` and `documented_by:` are attributes of every kind of element:
+a requirement, a function, a component, a test case, a hazard. Each one that
+names a declared organization or document is a relationship of the element
+graph (`Responsibility`, `Documentation`), which `arclang impact` follows
+both ways: a change of a document reaches what it describes, and an
+organization is reached by a change of what it answers for. An `elements`
+table shows them as columns (`columns: ["id", "responsible", "documented_by"]`).
+
+An organization or a document declared twice is an error, and so is an
+organization part of one the model does not declare, or of itself through its
+parents. A `responsible:` or a `documented_by:` that names nothing declared is
+kept as the model's own text and ties the element to nothing; the compiler
+says so and how to declare it, it never guesses.
+
+In SysML v2 they are parts carrying `#Organization` and `#Document`, read
+back as such; the two attributes travel as attributes of the element.
+
 ---
 
 ## 8. Safety & Certification

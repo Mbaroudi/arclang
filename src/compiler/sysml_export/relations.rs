@@ -181,6 +181,12 @@ pub(super) fn register(e: &mut Exporter<'_>) {
     for config in &model.configurations {
         e.register("", &config.id, &[&config.name]);
     }
+    for organization in &model.organizations {
+        e.register("", &organization.id, &[&organization.name]);
+    }
+    for document in &model.documents {
+        e.register("", &document.id, &[&document.name]);
+    }
 }
 
 pub(super) fn write(e: &mut Exporter<'_>) {
@@ -209,6 +215,18 @@ pub(super) fn write(e: &mut Exporter<'_>) {
         for selected in &config.selects {
             dependency(e, "selects", &config.id, selected);
         }
+    }
+    // Who answers for elements, and the documents that describe them: parts
+    // told from components by their metadata. What names them
+    // (`responsible`, `documented_by`) is an attribute of the element.
+    for organization in &model.organizations {
+        e.block(&format!("#Organization part {}", text::declared(&organization.id, &organization.name)), |e| e.header("Organization", &organization.attributes, &["parent"]));
+        if let Some(parent) = organization.attributes.get("parent").and_then(|p| p.as_string()) {
+            dependency(e, "parent", &organization.id, parent);
+        }
+    }
+    for document in &model.documents {
+        e.block(&format!("#Document part {}", text::declared(&document.id, &document.name)), |e| e.header("Document", &document.attributes, &[]));
     }
     // A note: a comment about the elements it names (its id, when written, names it).
     for note in &model.notes {

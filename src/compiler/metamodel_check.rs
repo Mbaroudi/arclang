@@ -50,6 +50,7 @@ impl fmt::Display for Diagnostic {
 struct Checker<'a> {
     metamodel: &'a Metamodel,
     semantic: &'a SemanticModel,
+    ast: &'a Model,
     requirement_keys: Vec<&'a str>,
     /// Attributes the model's own types declare: never a misspelling.
     own_keys: std::collections::HashSet<&'a str>,
@@ -79,7 +80,7 @@ pub fn check_model_with(metamodel: &Metamodel, ast: &Model, semantic: &SemanticM
         .flat_map(|t| t.attributes.keys().chain(t.required.iter()))
         .map(String::as_str)
         .collect();
-    let mut checker = Checker { metamodel, semantic, requirement_keys, own_keys, out: Vec::new() };
+    let mut checker = Checker { metamodel, semantic, ast, requirement_keys, own_keys, out: Vec::new() };
     checker.walk(ast);
     // What the geometry contradicts: errors, the production gate blocks on them.
     checker.out.extend(super::spatial::checks::check(ast).into_iter().map(|f| Diagnostic {
@@ -279,6 +280,12 @@ impl<'a> Checker<'a> {
             if let Some(unit) = &data_type.unit {
                 self.check_value("DataType", &data_type.name, "unit", &AttrType::Enum("Unit"), &AttributeValue::String(unit.clone()));
             }
+        }
+        for organization in &ast.organizations {
+            self.check_attrs("Organization", &organization.id, &organization.attributes);
+        }
+        for document in &ast.documents {
+            self.check_attrs("Document", &document.id, &document.attributes);
         }
         for test_case in &ast.test_cases {
             self.check_attrs("TestCase", &test_case.name, &test_case.attributes);
@@ -554,6 +561,20 @@ impl<'a> Checker<'a> {
             if !self.requirement_keys.contains(&reference) {
                 self.push(Level::Error, kind, element, Some(key),
                     format!("references unknown requirement '{}'", reference));
+            }
+            return;
+        }
+        // Who answers for the element, what documents it: by id or by name.
+        // A text naming nothing declared is the model's own, and is said.
+        if matches!(target_kind, "Organization" | "Document") && key != "parent" {
+            let (word, known) = if target_kind == "Organization" {
+                ("organization", super::accountability::organization(self.ast, reference).is_some())
+            } else {
+                ("document", super::accountability::document(self.ast, reference).is_some())
+            };
+            if !known {
+                self.push(Level::Warning, kind, element, Some(key),
+                    format!("'{reference}' names no {word} the model declares: kept as text, it ties the element to nothing — declare `{word} \"{reference}\" {{ }}`"));
             }
             return;
         }
