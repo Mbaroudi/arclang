@@ -315,6 +315,13 @@ the long-term goal.
   values are nested attributes typed `LengthValue` and
   `AngularMeasureValue`, accepted by the OMG pilot and read back exactly.
   Example: [`examples/spatial/charging-corridor/charging_corridor.arc`](examples/spatial/charging-corridor/charging_corridor.arc).
+- **Verification by level of the V**: a `test_case` says its `level:`
+  (`component`, `subsystem`, `system`, `validation`), a requirement its
+  verification plan (`verification_levels: ["system", "validation"]`); the
+  requirement is verified when a case of each planned level verifies it, the
+  gate blocks on a level no case verifies at, and the coverage table, the
+  requirements view, the element graph and the SysML v2 round trip carry the
+  levels — see [`docs/modelica.md`](docs/modelica.md#levels-of-the-v).
 - **Requirements verified by simulation (OpenModelica)**: `arclang export -f
   modelica` writes the physical architecture as a Modelica package (one
   partial model per node and behavior component, MSL connectors from the

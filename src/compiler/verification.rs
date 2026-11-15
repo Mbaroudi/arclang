@@ -67,6 +67,41 @@ fn requirements(model: &Model) -> impl Iterator<Item = (&super::ast::Requirement
     })
 }
 
+/// The levels of the V, from the bottom up: a component against its
+/// detailed design, components integrated against the architecture, the
+/// system against its requirements, the system against the operational need.
+pub const LEVELS: [&str; 4] = ["component", "subsystem", "system", "validation"];
+
+/// The level a text names, whatever its case.
+fn level_named(text: &str) -> Option<&'static str> {
+    LEVELS.into_iter().find(|level| level.eq_ignore_ascii_case(text.trim()))
+}
+
+/// The level of the V a case says it belongs to (`level: "system"`); `None`
+/// when it says none: a level is never deduced.
+pub fn level_of(test: &TestCase) -> Option<&'static str> {
+    test.attributes.get("level").and_then(|v| v.as_string()).and_then(level_named)
+}
+
+/// The levels as an attribute writes them: a list, or one alone.
+fn levels_written(value: &AttributeValue) -> Vec<&str> {
+    match value {
+        AttributeValue::List(items) => items.iter().filter_map(|v| v.as_string()).collect(),
+        AttributeValue::String(one) => vec![one.as_str()],
+        _ => Vec::new(),
+    }
+}
+
+/// The verification plan of a requirement: the levels at which it is to be
+/// verified (`verification_levels: ["system", "validation"]`), from the
+/// bottom of the V up; empty when it plans none.
+pub fn planned_levels(model: &Model, requirement: &str) -> Vec<&'static str> {
+    let key = requirement_key(model, requirement);
+    let Some((block, _, _)) = requirements(model).find(|(_, _, id)| *id == key) else { return Vec::new() };
+    let written: Vec<&'static str> = block.attributes.get("verification_levels").map(levels_written).unwrap_or_default().into_iter().filter_map(level_named).collect();
+    LEVELS.into_iter().filter(|level| written.contains(level)).collect()
+}
+
 /// The id of a configuration named by its id or its name.
 fn configuration_key(model: &Model, reference: &str) -> Option<String> {
     model.configurations.iter().find(|c| c.id == reference || c.name == reference).map(|c| c.id.clone())
@@ -154,13 +189,15 @@ pub fn verdict(test: &TestCase, semantic: &SemanticModel) -> Verdict {
 /// by another that passes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Standing {
-    /// No case verifies it, or none runs in a configuration it applies to.
+    /// No case verifies it, or none runs in a configuration it applies to,
+    /// or none at a level it is planned to be verified at.
     Unverified,
     Fail,
     Inconclusive,
     /// A case verifies it and says no verdict yet.
     Pending,
-    /// Every case passes, in every configuration it applies to.
+    /// Every case passes, in every configuration it applies to and at
+    /// every level it is planned at.
     Pass,
 }
 
@@ -205,9 +242,29 @@ pub struct RequirementStatus<'a> {
     pub cases: Vec<(&'a TestCase, Verdict)>,
     /// The configurations it applies to that no case runs in, by id.
     pub uncovered: Vec<String>,
+    /// The levels of its plan (`verification_levels:`) no case verifies it
+    /// at, from the bottom of the V up.
+    pub unverified_levels: Vec<&'static str>,
 }
 
 impl RequirementStatus<'_> {
+    /// Where the requirement stands at one level of the V: on the cases of
+    /// that level alone, the worst first; `None` when none is of that level.
+    pub fn standing_at(&self, level: &str) -> Option<Standing> {
+        let mut words = self.cases.iter().filter(|(test, _)| level_of(test) == Some(level)).map(|(_, verdict)| verdict.word()).peekable();
+        words.peek()?;
+        let words: Vec<&str> = words.collect();
+        Some(if words.contains(&"fail") {
+            Standing::Fail
+        } else if words.contains(&"inconclusive") {
+            Standing::Inconclusive
+        } else if words.contains(&"pending") {
+            Standing::Pending
+        } else {
+            Standing::Pass
+        })
+    }
+
     pub fn satisfied(&self) -> bool {
         !self.satisfied_by.is_empty()
     }
@@ -222,7 +279,7 @@ impl RequirementStatus<'_> {
             Standing::Inconclusive
         } else if any("pending") {
             Standing::Pending
-        } else if !self.uncovered.is_empty() {
+        } else if !self.uncovered.is_empty() || !self.unverified_levels.is_empty() {
             Standing::Unverified
         } else {
             Standing::Pass
@@ -258,7 +315,8 @@ pub fn requirement_status<'a>(model: &'a Model, semantic: &'a SemanticModel, req
         .into_iter()
         .filter(|configuration| !cases.iter().any(|(test, _)| configuration_of(model, test).is_none_or(|runs_in| &runs_in == configuration)))
         .collect();
-    RequirementStatus { satisfied_by, cases, uncovered }
+    let unverified_levels = planned_levels(model, requirement).into_iter().filter(|level| !cases.iter().any(|(test, _)| level_of(test) == Some(level))).collect();
+    RequirementStatus { satisfied_by, cases, uncovered, unverified_levels }
 }
 
 /// An asserted constraint that is none is an error; a failing case, a
@@ -267,6 +325,7 @@ pub fn check(model: &Model, semantic: &SemanticModel) -> Result<Vec<String>, Str
     let mut warnings = Vec::new();
     super::simulation::check(model)?;
     check_applicability(model)?;
+    check_levels(model)?;
     for test in &model.test_cases {
         if let Some(unknown) = asserted(test).into_iter().find(|a| constraint(semantic, a).is_none()) {
             return Err(format!("test_case '{}' asserts '{unknown}', which is no constraint", test.name));
@@ -280,6 +339,35 @@ pub fn check(model: &Model, semantic: &SemanticModel) -> Result<Vec<String>, Str
         }
     }
     Ok(warnings)
+}
+
+/// A level is one of the V, and a plan names each of its levels once.
+fn check_levels(model: &Model) -> Result<(), String> {
+    let known = LEVELS.join(", ");
+    for test in &model.test_cases {
+        let Some(value) = test.attributes.get("level") else { continue };
+        if value.as_string().and_then(level_named).is_none() {
+            return Err(format!("test_case '{}': level '{}' is not a level of the V (expected one of: {known})", test.name, value.display()));
+        }
+    }
+    for (block, _, id) in requirements(model) {
+        let Some(value) = block.attributes.get("verification_levels") else { continue };
+        let written = levels_written(value);
+        if written.is_empty() {
+            return Err(format!("requirement '{id}': verification_levels names the levels it is to be verified at: verification_levels: [\"system\"] (one of: {known})"));
+        }
+        let mut seen: Vec<&str> = Vec::new();
+        for text in written {
+            let Some(level) = level_named(text) else {
+                return Err(format!("requirement '{id}': verification level '{text}' is not a level of the V (expected one of: {known})"));
+            };
+            if seen.contains(&level) {
+                return Err(format!("requirement '{id}' plans the {level} level twice"));
+            }
+            seen.push(level);
+        }
+    }
+    Ok(())
 }
 
 /// `applies_to:` names configurations; a case verifying a requirement runs in

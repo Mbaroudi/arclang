@@ -197,8 +197,9 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
     // Where each requirement stands is `verification::requirement_status`,
     // as for the tables, the impact analysis and the requirements view: a
     // case that fails, whose outcome is not known or that says no verdict
-    // is not hidden by one that passes, and a case counts only in the
-    // configurations the requirement applies to.
+    // is not hidden by one that passes, a case counts only in the
+    // configurations the requirement applies to, and each level of the V the
+    // requirement plans wants a case of that level.
     use super::verification::{self, Verdict};
 
     let mut requirements_satisfied = 0;
@@ -270,6 +271,13 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
                 "requirements.verification",
                 Severity::Blocker,
                 format!("requirement '{}' applies to configuration {}, which no verification case runs in", requirement.id, uncovered.join(", ")),
+            );
+        }
+        for level in &status.unverified_levels {
+            push(
+                "requirements.verification",
+                Severity::Blocker,
+                format!("requirement '{}' is to be verified at {level} level, which no verification case does (test_case level: \"{level}\")", requirement.id),
             );
         }
     }

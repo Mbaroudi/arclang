@@ -367,6 +367,7 @@ impl Metamodel {
                     attr("source", AttrType::Text, "Origin document or stakeholder."),
                     attr("status", AttrType::Text, "Lifecycle status."),
                     attr("verification_method", AttrType::Enum("VerificationMethod"), "Intended verification method."),
+                    attr("verification_levels", list(AttrType::Enum("VerificationLevel")), "Its verification plan: the levels of the V at which it is to be verified (`[\"system\", \"validation\"]`). A case of each level must verify it (`test_case level:`); the gate blocks on a level no case verifies at. Without it, any case verifies it."),
                     attr("parent", AttrType::Reference("Requirement"), "Requirement it sits under in its document (ReqIF SPEC-HIERARCHY); structure, not refinement."),
                     attr("reqif_id", AttrType::Text, "Identifier the requirement has in the tool it came from (ReqIF IDENTIFIER), given back on export."),
                     attr("applies_to", list(AttrType::Reference("Configuration")), "The configurations of the product line the requirement holds for; every one when absent. A case verifying it runs in one of them, and the gate wants a case in each."),
@@ -522,6 +523,7 @@ impl Metamodel {
                 concat(vec![common(), vec![
                     attr("verifies", list(AttrType::Reference("Requirement")), "Requirements verified."),
                     attr("method", AttrType::Enum("VerificationMethod"), "Verification method."),
+                    attr("level", AttrType::Enum("VerificationLevel"), "The level of the V the case belongs to: `component`, `subsystem`, `system` or `validation`. It counts for the requirements that plan that level (`verification_levels:`)."),
                     attr("procedure", AttrType::Text, "Procedure."),
                     attr("expected", AttrType::Text, "Expected result."),
                     attr("asserts", list(AttrType::Reference("Constraint")), "An analysis: the constraints whose evaluation is its verdict (pass when they all hold)."),
@@ -637,6 +639,7 @@ impl Metamodel {
             EnumSpec { name: "Controllability", values: &["C0", "C1", "C2", "C3"], doc: "ISO 26262 controllability class." },
             EnumSpec { name: "FailureCondition", values: &["Catastrophic", "Hazardous", "Major", "Minor", "No Effect"], doc: "DO-178C failure condition classification." },
             EnumSpec { name: "VerificationMethod", values: &["test", "analysis", "inspection", "demonstration"], doc: "Verification method." },
+            EnumSpec { name: "VerificationLevel", values: &crate::compiler::verification::LEVELS, doc: "Level of the V, from the bottom up: `component` (a component against its detailed design), `subsystem` (components integrated, against the architecture), `system` (the system against its requirements), `validation` (the system against the operational need)." },
             EnumSpec { name: "Physics", values: &crate::compiler::modelica::connector::PHYSICS, doc: "What a port carries, for the Modelica export: the Modelica Standard Library connector it becomes (`fluid` is not exported yet)." },
             EnumSpec { name: "Pole", values: &["positive", "negative"], doc: "The pin an electrical port is (`PositivePin`, `NegativePin`)." },
             EnumSpec { name: "Flange", values: &["a", "b"], doc: "The flange (or heat port) a mechanical or thermal port is (`Flange_a`, `Flange_b`)." },

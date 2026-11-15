@@ -733,6 +733,9 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
     for test_case in &ast.test_cases {
         builder.typed_element("TestCase", &test_case.id, &test_case.name, &root, &test_case.attributes);
         builder.set_extra("method", json!(test_case.method));
+        if let Some(level) = super::verification::level_of(test_case) {
+            builder.set_extra("level", json!(level));
+        }
     }
     for note in &ast.notes {
         builder.element("Note", &note.id, &note.name, &root, &note.attributes);
@@ -957,7 +960,9 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
     }
     for test_case in &ast.test_cases {
         for requirement in &test_case.verifies {
-            builder.relate("Verification", None, &test_case.id, requirement, &empty(), vec![("method", json!(test_case.method))]);
+            let mut extra = vec![("method", json!(test_case.method))];
+            extra.extend(super::verification::level_of(test_case).map(|level| ("level", json!(level))));
+            builder.relate("Verification", None, &test_case.id, requirement, &empty(), extra);
         }
     }
     for note in &ast.notes {

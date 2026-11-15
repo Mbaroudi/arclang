@@ -10,7 +10,7 @@ use std::collections::{BTreeMap, BTreeSet};
 pub const DEFAULT_COLUMNS: [&str; 8] = ["id", "name", "text", "priority", "satisfied_by", "verified_by", "verdict", "status"];
 /// Shown by default when a verification case has evidence (a simulation).
 const EVIDENCE: &str = "evidence";
-const COMPUTED: [(&str, &str); 13] = [
+const COMPUTED: [(&str, &str); 14] = [
     ("id", "text"),
     ("name", "text"),
     ("text", "text"),
@@ -19,6 +19,7 @@ const COMPUTED: [(&str, &str); 13] = [
     ("satisfied_by", "links"),
     ("verified_by", "links"),
     ("verdict", "status"),
+    ("levels", "status"),
     ("evidence", "text"),
     ("refined_by", "links"),
     ("mitigates", "links"),
@@ -34,6 +35,7 @@ fn column(key: &str, ty: &str) -> Column {
         "verdict" => "Verdict".to_string(),
         "evidence" => "Key values".to_string(),
         "gate" => "Gate".to_string(),
+        "levels" => "Levels of the V".to_string(),
         other => label_of(other),
     };
     Column { key: key.to_string(), label, ty: ty.to_string() }
@@ -104,6 +106,8 @@ fn row(context: &Context, index: usize, keys: &[String]) -> Row {
         Standing::Pass => ("pass", "ok"),
     };
     let blockers = context.blockers_of(index);
+    // Each level of its plan, from the bottom of the V up, and where it stands there.
+    let levels: Vec<(&str, Option<Standing>)> = verification::planned_levels(&context.result.ast, &element.id).into_iter().map(|level| (level, status.standing_at(level))).collect();
 
     let mut issues = Vec::new();
     if satisfied.is_empty() {
@@ -111,6 +115,9 @@ fn row(context: &Context, index: usize, keys: &[String]) -> Row {
     }
     if tests.is_empty() {
         issues.push("verified by no test case".to_string());
+    }
+    for (level, _) in levels.iter().filter(|(_, standing)| standing.is_none() && !tests.is_empty()) {
+        issues.push(format!("verified at {level} level by no test case"));
     }
     for (link, (_, verdict)) in test_links.iter().zip(&tests) {
         let why = verdict.why().map(|w| format!(": {w}")).unwrap_or_default();
@@ -122,7 +129,7 @@ fn row(context: &Context, index: usize, keys: &[String]) -> Row {
         }
     }
     // The gate's blockers that say something more than the lines above.
-    const RESTATED: [&str; 5] = ["satisfied by no", "no verification case", "cases fail", "cases are inconclusive", "cases have no verdict"];
+    const RESTATED: [&str; 6] = ["satisfied by no", "no verification case", "cases fail", "cases are inconclusive", "cases have no verdict", "is to be verified at"];
     for blocker in &blockers {
         if !issues.iter().any(|i| blocker.contains(i.as_str())) && !RESTATED.iter().any(|said| blocker.contains(said)) {
             issues.push(blocker.clone());
@@ -143,6 +150,7 @@ fn row(context: &Context, index: usize, keys: &[String]) -> Row {
         "gap" if tests.is_empty() => "Not verified",
         "gap" if standing == Standing::Inconclusive => "Verdict inconclusive",
         "gap" if standing == Standing::Pending => "Verdict pending",
+        "gap" if levels.iter().any(|(_, standing)| standing.is_none()) => "Level not verified",
         "gap" => "Gate blocked",
         _ => "Covered",
     };
@@ -166,6 +174,20 @@ fn row(context: &Context, index: usize, keys: &[String]) -> Row {
                 if tests.is_empty() { cell.with_status("gap") } else { cell }
             }
             "verdict" => Cell::text(verdict_text).with_status(verdict_status),
+            "levels" if levels.is_empty() => Cell::text(""),
+            "levels" => {
+                let text = levels.iter().map(|(level, standing)| format!("{level}: {}", standing.map(Standing::word).unwrap_or("no case"))).collect::<Vec<_>>().join(", ");
+                let worst = if levels.iter().any(|(_, s)| *s == Some(Standing::Fail)) {
+                    "fail"
+                } else if levels.iter().any(|(_, s)| s.is_none()) {
+                    "gap"
+                } else if levels.iter().all(|(_, s)| *s == Some(Standing::Pass)) {
+                    "ok"
+                } else {
+                    "warn"
+                };
+                Cell::text(text).with_status(worst)
+            }
             "evidence" => Cell::text(
                 test_links.iter().filter_map(|l| context.evidence.get(&l.id).map(|e| format!("{}: {e}", l.id))).collect::<Vec<_>>().join(" | "),
             ),

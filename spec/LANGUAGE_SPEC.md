@@ -1738,6 +1738,30 @@ namespace requirements {
 }
 ```
 
+#### Verification by level of the V
+
+A verification case says the level of the V it belongs to, and a requirement
+the levels at which it is to be verified, its verification plan:
+
+```arc
+requirement "Stops before the obstacle" {
+    id: "REQ-STOP"
+    verification_levels: ["system", "validation"]
+}
+
+test_case "Braking on the bench" { id: "TC-BENCH" verifies: ["REQ-STOP"] level: "system" verdict: "pass" }
+test_case "Braking on the track" { id: "TC-TRACK" verifies: ["REQ-STOP"] level: "validation" method: "demonstration" }
+```
+
+The levels are `component`, `subsystem`, `system` and `validation`, from the
+bottom of the V up. A requirement that plans levels is verified when a case
+of each of them verifies it and every case passes; a planned level no case
+verifies at blocks the production gate, which names it. A case that states
+no level is at none: a level is never deduced. A requirement that plans no
+level is verified as before, by any case. A level that is none of the four,
+or a plan naming one twice, is an error. See
+[`docs/modelica.md`](../docs/modelica.md#levels-of-the-v).
+
 ### 7.2 Traceability Matrix
 
 ```arc

@@ -174,6 +174,7 @@ Stakeholder, system or safety requirement.
 | `source` | `text` | Origin document or stakeholder. |
 | `status` | `text` | Lifecycle status. |
 | `verification_method` | `enum VerificationMethod` | Intended verification method. |
+| `verification_levels` | `list<enum VerificationLevel>` | Its verification plan: the levels of the V at which it is to be verified (`["system", "validation"]`). A case of each level must verify it (`test_case level:`); the gate blocks on a level no case verifies at. Without it, any case verifies it. |
 | `parent` | `ref<Requirement>` | Requirement it sits under in its document (ReqIF SPEC-HIERARCHY); structure, not refinement. |
 | `reqif_id` | `text` | Identifier the requirement has in the tool it came from (ReqIF IDENTIFIER), given back on export. |
 | `applies_to` | `list<ref<Configuration>>` | The configurations of the product line the requirement holds for; every one when absent. A case verifying it runs in one of them, and the gate wants a case in each. |
@@ -1118,6 +1119,7 @@ Verification case covering requirements.
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `verifies` | `list<ref<Requirement>>` | Requirements verified. |
 | `method` | `enum VerificationMethod` | Verification method. |
+| `level` | `enum VerificationLevel` | The level of the V the case belongs to: `component`, `subsystem`, `system` or `validation`. It counts for the requirements that plan that level (`verification_levels:`). |
 | `procedure` | `text` | Procedure. |
 | `expected` | `text` | Expected result. |
 | `asserts` | `list<ref<Constraint>>` | An analysis: the constraints whose evaluation is its verdict (pass when they all hold). |
@@ -1458,6 +1460,7 @@ Values match ignoring case and the separators `-`, `_` and space.
 | Controllability | `C0`, `C1`, `C2`, `C3` | ISO 26262 controllability class. |
 | FailureCondition | `Catastrophic`, `Hazardous`, `Major`, `Minor`, `No Effect` | DO-178C failure condition classification. |
 | VerificationMethod | `test`, `analysis`, `inspection`, `demonstration` | Verification method. |
+| VerificationLevel | `component`, `subsystem`, `system`, `validation` | Level of the V, from the bottom up: `component` (a component against its detailed design), `subsystem` (components integrated, against the architecture), `system` (the system against its requirements), `validation` (the system against the operational need). |
 | Physics | `signal`, `electrical`, `mechanical_translational`, `mechanical_rotational`, `thermal`, `fluid` | What a port carries, for the Modelica export: the Modelica Standard Library connector it becomes (`fluid` is not exported yet). |
 | Pole | `positive`, `negative` | The pin an electrical port is (`PositivePin`, `NegativePin`). |
 | Flange | `a`, `b` | The flange (or heat port) a mechanical or thermal port is (`Flange_a`, `Flange_b`). |

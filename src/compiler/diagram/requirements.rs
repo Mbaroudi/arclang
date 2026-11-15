@@ -283,6 +283,7 @@ fn concern_node(concern: &Concern, id: &str) -> Node {
 
 fn case_node(case: &TestCase, id: &str) -> Node {
     let mut compartment = vec![format!("method: {}", case.method)];
+    compartment.extend(crate::compiler::verification::level_of(case).map(|level| format!("level: {level}")));
     if case.attributes.contains_key("simulate") {
         compartment.push("by simulation".to_string());
     }
