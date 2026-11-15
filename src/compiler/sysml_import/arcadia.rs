@@ -924,6 +924,9 @@ impl<'g> Mapper<'g> {
         entries.sort();
         for (def_id, name) in entries {
             let Some(def) = self.graph.get(&def_id) else { continue };
+            // A type is designated by its name, which no element's id may repeat: an
+            // individual written `part johnYoung : JohnYoung` must not take the type's name.
+            self.taken.insert(name.clone());
             self.count("types");
             let parent = def.specializes.first().and_then(|s| self.types.get(s)).cloned();
             match parent {
@@ -1172,13 +1175,15 @@ impl<'g> Mapper<'g> {
                     (Some(value), _) => value.clone(),
                     // A value that is not a literal, a quantity or a list (a
                     // computation, a reference) is kept as text, and counted.
-                    (None, Some(expression)) => match self.expression_text(expression) {
+                    (None, Some(expression)) => match self.expression_text(expression).map(|text| bare_quantity(&text).unwrap_or(text)) {
                         Ok(text) if expression::is_attribute_value(&text) => text,
                         Ok(text) => {
                             computed.push(format!("'{}': attribute '{name}' = {text} kept as text", Self::display(element)));
                             is_formula = true;
                             string_literal(&text)
                         }
+                        // `2 [m/s]`: a quantity, written the way ArcLang writes one.
+                        Err(_) if child.source_text.as_deref().and_then(bare_quantity).is_some() => child.source_text.as_deref().and_then(bare_quantity).unwrap_or_default(),
                         Err(_) => match child.source_text.clone() {
                             Some(source) => {
                                 computed.push(format!("'{}': attribute '{name}' = {source} kept as text", Self::display(element)));
@@ -1594,6 +1599,32 @@ impl<'g> Mapper<'g> {
             .unwrap_or(Level::Sa)
     }
 
+    /// The direction a port usage takes from its definition, reversed when
+    /// the usage is conjugated (`port p : ~P`). The definition's directed
+    /// items say it: only `out` items (and `inout` ones) make an `out` port,
+    /// only `in` items an `in` port, both or only `inout` ones an `inout`
+    /// port. A definition without directed items is read from the words of
+    /// its name (`TorqueOut`, `in_signal`), never from a part of a word: a
+    /// `DockingPort` is not an `in` port.
+    fn port_type_direction(&self, port: &Element) -> Option<&'static str> {
+        let def = port.types.first().and_then(|t| self.graph.get(t))?;
+        // An API export types a conjugated port by the `~P` its definition owns.
+        let def = if def.kind == "ConjugatedPortDefinition" { def.owner.as_deref().and_then(|o| self.graph.get(o)).unwrap_or(def) } else { def };
+        let directions: Vec<&str> = def.children.iter().filter_map(|c| self.graph.get(c)).filter(|c| !c.is_end).filter_map(|c| c.direction.as_deref()).collect();
+        let (ins, outs) = (directions.contains(&"in"), directions.contains(&"out"));
+        let own = match (ins, outs) {
+            (true, false) => Some("in"),
+            (false, true) => Some("out"),
+            _ if !directions.is_empty() => Some("inout"),
+            _ => def.name.as_deref().and_then(direction_in_name),
+        };
+        if port.conjugated {
+            own.map(|d| match d { "in" => "out", "out" => "in", other => other })
+        } else {
+            own
+        }
+    }
+
     /// The ports of an element with their direction, `None` when the port
     /// states none (a physical port on a node, a component port read as `in`).
     fn ports_of(&self, element: &Element) -> Vec<(&'g Element, Option<&'static str>)> {
@@ -1604,10 +1635,7 @@ impl<'g> Mapper<'g> {
             .filter_map(|c| {
                 if c.kind == "PortUsage" {
                     let direction = c.direction.as_deref().map(|d| match d { "out" => "out", "inout" => "inout", _ => "in" });
-                    let by_type = c.types.first().and_then(|t| self.graph.get(t)).and_then(|t| t.name.as_deref()).and_then(|n| {
-                        let lower = n.to_ascii_lowercase();
-                        if lower.contains("inout") { Some("inout") } else if lower.contains("out") { Some("out") } else if lower.contains("in") { Some("in") } else { None }
-                    });
+                    let by_type = self.port_type_direction(c);
                     let tagged = if Self::has_metadata(c, &["PhysicalPort"]) { None } else if Self::has_metadata(c, &["ComponentPort"]) { Some("in") } else { direction.or(by_type) };
                     // A SysML port states no direction: both ways.
                     let tagged = if self.profiled { tagged } else { tagged.or(Some("inout")) };
@@ -2911,15 +2939,73 @@ fn keyword_is_attribute_key(key: &str) -> bool {
 
 /// A SysML expression's quantities in ArcLang's notation: `1200 [kg]` is
 /// `1200 kg`, `30 ['°C']` is `30 °C`.
+/// The direction the words of a port definition's name state: `in`, `input`,
+/// `out`, `output`, `inout`; both `in` and `out` make `inout`. The words are
+/// split at `_`, `-` and at a lower-to-upper case change (`TorqueOut`,
+/// `InOutPort`, `signal_in`).
+fn direction_in_name(name: &str) -> Option<&'static str> {
+    let mut words: Vec<String> = Vec::new();
+    let mut current = String::new();
+    let mut previous_lower = false;
+    for c in name.chars() {
+        if !c.is_ascii_alphanumeric() {
+            words.push(std::mem::take(&mut current));
+            previous_lower = false;
+            continue;
+        }
+        if c.is_ascii_uppercase() && previous_lower {
+            words.push(std::mem::take(&mut current));
+        }
+        previous_lower = c.is_ascii_lowercase() || c.is_ascii_digit();
+        current.push(c.to_ascii_lowercase());
+    }
+    words.push(current);
+    let has = |options: &[&str]| words.iter().any(|w| options.contains(&w.as_str()));
+    match (has(&["inout"]) || (has(&["in", "input"]) && has(&["out", "output"])), has(&["in", "input"]), has(&["out", "output"])) {
+        (true, _, _) => Some("inout"),
+        (_, true, _) => Some("in"),
+        (_, _, true) => Some("out"),
+        _ => None,
+    }
+}
+
+/// `2 [m/s]` (a number and its unit in brackets, as SysML v2 writes a quantity) as ArcLang
+/// writes it: the quantity `2 m/s` when ArcLang knows the unit, the text `"30 d"` when it
+/// does not. `None` for anything else (an index `a[1]`, a computation).
+pub(super) fn bare_quantity(text: &str) -> Option<String> {
+    let (number, unit) = text.trim().split_once(" [")?;
+    let unit = unit.strip_suffix(']')?.trim().trim_matches('\'');
+    if number.parse::<f64>().is_err() || unit.is_empty() || unit.contains(['[', ']', ',', '"']) {
+        return None;
+    }
+    let written = format!("{number} {unit}");
+    Some(if crate::compiler::quantity::lookup_unit(unit).is_some() { written } else { string_literal(&written) })
+}
+
 fn arclang_units(text: &str) -> String {
     static UNIT: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
     let unit = UNIT.get_or_init(|| regex::Regex::new(r"\s*\[\s*'?([^\]']+?)'?\s*\]").expect("a valid pattern"));
-    unit.replace_all(text, " $1").into_owned()
+    // The unit is rebuilt from an expression (`m / s`): written as the table writes it (`m/s`).
+    static SPACES: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let spaces = SPACES.get_or_init(|| regex::Regex::new(r"\s*([/^*])\s*").expect("a valid pattern"));
+    unit.replace_all(text, |found: &regex::Captures<'_>| format!(" {}", spaces.replace_all(&found[1], "$1"))).into_owned()
 }
 
 #[cfg(test)]
 mod tests {
-    use super::record_source;
+    use super::{arclang_units, bare_quantity, record_source};
+
+    #[test]
+    fn a_unit_rebuilt_from_an_expression_is_written_without_spaces() {
+        assert_eq!(arclang_units("0.5 [m / s]"), "0.5 m/s");
+        assert_eq!(arclang_units("3 [W / m ^ 2]"), "3 W/m^2");
+        assert_eq!(arclang_units("40 ['mΩ']"), "40 mΩ");
+        assert_eq!(bare_quantity("2 [m/s]").as_deref(), Some("2 m/s"));
+        // A unit ArcLang does not know: the value is kept, as text.
+        assert_eq!(bare_quantity("30 [d]").as_deref(), Some("\"30 d\""));
+        assert_eq!(bare_quantity("a [1]"), None);
+        assert_eq!(bare_quantity("x + 2 [s]"), None);
+    }
 
     #[test]
     fn a_string_is_a_block_only_when_it_is_one_block_and_nothing_else() {

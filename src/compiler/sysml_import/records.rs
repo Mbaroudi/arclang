@@ -37,6 +37,8 @@ pub struct Element {
     pub subsets: Vec<String>,
     /// `in`, `out`, `inout` when the feature declares one.
     pub direction: Option<String>,
+    /// A port typed by the conjugate of its definition (`port p : ~P`).
+    pub conjugated: bool,
     pub is_end: bool,
     pub is_abstract: bool,
     /// A state whose nested states are concurrent regions (`state S parallel { ... }`).
@@ -175,7 +177,7 @@ const RELATIONSHIPS: &[&str] = &[
     "ObjectiveMembership", "RequirementVerificationMembership", "RequirementConstraintMembership", "SubjectMembership", "ActorMembership",
     "StakeholderMembership", "VariantMembership", "EndFeatureMembership", "ElementFilterMembership", "StateSubactionMembership",
     "TransitionFeatureMembership", "FramedConcernMembership", "ViewRenderingMembership",
-    "FeatureTyping", "Subclassification", "Specialization", "Subsetting", "Redefinition", "ReferenceSubsetting", "CrossSubsetting",
+    "FeatureTyping", "ConjugatedPortTyping", "Subclassification", "Specialization", "Subsetting", "Redefinition", "ReferenceSubsetting", "CrossSubsetting",
     "FeatureValue", "Conjugation", "PortConjugation", "Disjoining", "Intersecting", "Unioning", "Differencing", "FeatureInverting",
     "FeatureChaining", "TypeFeaturing", "Import", "MembershipImport", "NamespaceImport", "Annotation", "TextualRepresentation",
 ];
@@ -223,7 +225,8 @@ fn literal(graph_kinds: &HashMap<String, (String, Value)>, id: &str) -> Option<S
         }),
         "OperatorExpression" | "InvocationExpression" | "FeatureChainExpression" => {
             // Kept as text when the record carries one; else left out.
-            text(record, "textualRepresentation").map(|t| crate::compiler::source_edit::string_literal(&t))
+            // A number and its unit in brackets (`2 [m/s]`) is a quantity, written as ArcLang writes one.
+            text(record, "textualRepresentation").map(|t| super::arcadia::bare_quantity(&t).unwrap_or_else(|| crate::compiler::source_edit::string_literal(&t)))
         }
         _ => None,
     }
@@ -256,6 +259,7 @@ pub fn load(records: &[Value]) -> Result<Graph, String> {
             short_name: text(record, "declaredShortName").or_else(|| text(record, "shortName")),
             owner,
             direction: text(record, "direction").map(|d| d.to_ascii_lowercase()),
+            conjugated: false,
             is_end: record.get("isEnd").and_then(Value::as_bool).unwrap_or(false),
             is_abstract: record.get("isAbstract").and_then(Value::as_bool).unwrap_or(false),
             is_parallel: record.get("isParallel").and_then(Value::as_bool).unwrap_or(false),
@@ -330,7 +334,16 @@ pub fn load(records: &[Value]) -> Result<Graph, String> {
     for record in records {
         let kind = local_kind(record);
         match kind.as_str() {
-            "FeatureTyping" => link(&mut graph, first_id(record, &["typedFeature", "specific"]), first_id(record, &["type", "general"]), |e, t| e.types.push(t)),
+            // `port p : ~P`: typed by P, its directions reversed. The API
+            // says it with a ConjugatedPortTyping, ArcLang's own records
+            // with a FeatureTyping that names the conjugated definition.
+            "FeatureTyping" | "ConjugatedPortTyping" => {
+                let conjugated = kind == "ConjugatedPortTyping" || record.get("conjugatedPortDefinition").is_some_and(|v| !v.is_null());
+                link(&mut graph, first_id(record, &["typedFeature", "specific"]), first_id(record, &["type", "conjugatedPortDefinition", "general"]), |e, t| {
+                    e.types.push(t);
+                    e.conjugated |= conjugated;
+                })
+            }
             "Subclassification" | "Specialization" => link(&mut graph, first_id(record, &["subclassifier", "specific"]), first_id(record, &["superclassifier", "general"]), |e, t| e.specializes.push(t)),
             "Redefinition" => link(&mut graph, first_id(record, &["redefiningFeature", "specific"]), first_id(record, &["redefinedFeature", "general"]), |e, t| e.redefines.push(t)),
             "Subsetting" | "ReferenceSubsetting" => link(&mut graph, first_id(record, &["subsettingFeature", "referencingFeature", "specific"]), first_id(record, &["subsettedFeature", "referencedFeature", "general"]), |e, t| e.subsets.push(t)),

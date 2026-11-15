@@ -32,6 +32,10 @@ pub struct Declaration {
     pub metaclass: &'static str,
     /// Metaclass of the membership through which the owner holds it.
     pub membership: &'static str,
+    /// `require` or `assume`: which constraint of a requirement a `RequirementConstraintMembership` holds.
+    pub membership_kind: Option<&'static str>,
+    /// `timeslice` or `snapshot`: the usage is a portion of the life of what owns it.
+    pub portion: Option<&'static str>,
     pub name: Option<String>,
     pub short_name: Option<String>,
     /// Index of the owning declaration; `None` for the root package.
@@ -91,6 +95,8 @@ const KINDS: &[(&[&str], &str, Option<&str>)] = &[
     (&["use", "case"], "UseCaseUsage", Some("UseCaseDefinition")),
     (&["verification"], "VerificationCaseUsage", Some("VerificationCaseDefinition")),
     (&["occurrence"], "OccurrenceUsage", Some("OccurrenceDefinition")),
+    (&["timeslice"], "OccurrenceUsage", None),
+    (&["snapshot"], "OccurrenceUsage", None),
     (&["enum"], "EnumerationUsage", Some("EnumerationDefinition")),
     (&["view"], "ViewUsage", Some("ViewDefinition")),
     (&["allocation"], "AllocationUsage", Some("AllocationDefinition")),
@@ -421,6 +427,14 @@ impl Reader {
             declaration.metaclass = "ReferenceUsage";
             declaration.membership = "SubjectMembership";
             self.named(&mut head, &mut declaration)?;
+        } else if is_word(head.peek(), "require") || is_word(head.peek(), "assume") {
+            // `require constraint { ... }` / `assume constraint { ... }`: a constraint of a requirement.
+            declaration.membership_kind = Some(if is_word(head.peek(), "assume") { "assume" } else { "require" });
+            head.position += 1;
+            Self::expect_word(&mut head, "constraint")?;
+            declaration.metaclass = "ConstraintUsage";
+            declaration.membership = "RequirementConstraintMembership";
+            self.named(&mut head, &mut declaration)?;
         } else if head.take_word("objective") {
             declaration.metaclass = "RequirementUsage";
             declaration.membership = "ObjectiveMembership";
@@ -482,6 +496,7 @@ impl Reader {
             KINDS.iter().find(|(keywords, _, _)| keywords.iter().enumerate().all(|(k, word)| is_word(tokens.get(head.position + k), word)))
         {
             head.position += keywords.len();
+            declaration.portion = keywords.first().copied().filter(|word| matches!(*word, "timeslice" | "snapshot"));
             declaration.metaclass = match (head.take_word("def"), definition) {
                 (true, Some(definition)) => definition,
                 (true, None) => return Err(head.unexpected("no `def`")),
