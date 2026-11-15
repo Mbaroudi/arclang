@@ -645,6 +645,27 @@ pub fn generate_explorer_html_arranged(
     ast: &Model,
     source: Option<&std::path::Path>,
 ) -> Result<(String, String), CompilerError> {
+    explorer_html(model, ast, source, None)
+}
+
+/// The explorer of a compiled model, its views given all that ties the
+/// layers together (see `diagram::link_layers`). `model` is the semantic
+/// model to title the page with: the compiled one, or a copy named after
+/// the file when the model has no header.
+pub fn generate_explorer_html_linked(
+    result: &super::CompilationResult,
+    model: &SemanticModel,
+    source: Option<&std::path::Path>,
+) -> Result<(String, String), CompilerError> {
+    explorer_html(model, &result.ast, source, Some(result))
+}
+
+fn explorer_html(
+    model: &SemanticModel,
+    ast: &Model,
+    source: Option<&std::path::Path>,
+    linked: Option<&super::CompilationResult>,
+) -> Result<(String, String), CompilerError> {
     let doc = ArchitectureDocument::from_model(model, ast)?;
     let json = serde_json::to_string_pretty(&doc)
         .map_err(|e| CompilerError::Semantic(format!("JSON error: {}", e)))?;
@@ -656,6 +677,9 @@ pub fn generate_explorer_html_arranged(
     // model text carried in. Keep that order when editing the template.
     // In the data, `</` is escaped so no model string can close the script.
     let mut diagrams = super::diagram::build_diagrams(ast);
+    if let Some(result) = linked {
+        super::diagram::link_layers(&mut diagrams, result);
+    }
     if let Some(source) = source {
         // What the file names and the model no longer draws lands in the
         // diagnostics, which the viewer shows. A file that is not a layout

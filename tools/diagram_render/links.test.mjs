@@ -72,3 +72,9 @@ test('a trace type named like a built-in property is still plain text', () => {
     assert.match(label, /\(from\)$/);
   }
 });
+
+test('a link the compiler words both ways reads back as the compiler says', () => {
+  const model = index(graphs, [{ kind: 'deployed on', back: 'hosts', source: 'LC-1', target: 'PN-1', source_layer: 'LA', target_layer: 'PA' }]);
+  assert.deepEqual(model.relationsOf('LC-1').map((r) => [r.label, r.id, r.direction]), [['Deployed on', 'PN-1', 'out'], ['Realized by', 'PN-1/Perception', 'in']]);
+  assert.deepEqual(model.relationsOf('PN-1').map((r) => [r.label, r.id, r.direction]), [['Hosts', 'LC-1', 'in']]);
+});

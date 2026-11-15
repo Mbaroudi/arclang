@@ -3664,7 +3664,7 @@ impl CliRunner {
                         // The explorer is the renderer that actually draws the
                         // diagram (layers, components, ports, labeled edges).
                         // The ELK v2 pipeline's to_html only dumps layout JSON.
-                        use crate::compiler::arcviz_explorer::generate_explorer_html_arranged;
+                        use crate::compiler::arcviz_explorer::generate_explorer_html_linked;
 
                         let mut semantic_model = result.semantic_model.clone();
                         if semantic_model.name.is_none() {
@@ -3673,7 +3673,7 @@ impl CliRunner {
                                 .file_stem()
                                 .map(|stem| stem.to_string_lossy().to_string());
                         }
-                        let (html, _json) = generate_explorer_html_arranged(&semantic_model, &result.ast, Some(&input))
+                        let (html, _json) = generate_explorer_html_linked(&result, &semantic_model, Some(&input))
                             .map_err(|e| CliError::Compilation(format!("HTML generation failed: {}", e)))?;
                         html
                     }
@@ -4253,7 +4253,7 @@ impl CliRunner {
         
         match compiler.compile_file(&input) {
             Ok(result) => {
-                use crate::compiler::arcviz_explorer::generate_explorer_html_arranged;
+                use crate::compiler::arcviz_explorer::generate_explorer_html_linked;
 
                 let mut semantic_model = result.semantic_model.clone();
                 if semantic_model.name.is_none() {
@@ -4262,7 +4262,7 @@ impl CliRunner {
                         .file_stem()
                         .map(|stem| stem.to_string_lossy().to_string());
                 }
-                let (html, json) = generate_explorer_html_arranged(&semantic_model, &result.ast, Some(&input))
+                let (html, json) = generate_explorer_html_linked(&result, &semantic_model, Some(&input))
                     .map_err(|e| CliError::Compilation(e.to_string()))?;
                 
                 let output_html = output.unwrap_or_else(|| {
@@ -4337,6 +4337,7 @@ impl CliRunner {
             .map_err(|e| CliError::Compilation(e.to_string()))?;
 
         let mut set = build_diagrams(&result.ast);
+        crate::compiler::diagram::link_layers(&mut set, &result);
         crate::compiler::diagram::judge_requirements(&mut set, &result.ast, &result.semantic_model);
         // The layout is checked against every view before one is selected:
         // a view left out by `--view` is not a stale entry of the file.

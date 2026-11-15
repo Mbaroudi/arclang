@@ -138,6 +138,7 @@ impl<'d> Model2<'d> {
             ports,
             children,
             realizes: Vec::new(),
+            layer: None,
             compartment,
             properties,
         }

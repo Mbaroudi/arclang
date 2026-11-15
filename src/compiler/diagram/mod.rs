@@ -40,6 +40,7 @@ mod named;
 pub mod tags;
 pub mod theme;
 pub mod layout_file;
+mod layers;
 mod links;
 mod logical;
 mod operational;
@@ -68,8 +69,10 @@ pub struct DiagramSet {
     /// prefixed with the id of the diagram it concerns (`[lab] ...`,
     /// `[msm:OperatingModes] ...`).
     pub diagnostics: Vec<String>,
-    /// Traces of the model, their ends resolved to drawn elements: how a
-    /// reader goes from one view to another.
+    /// What ties the views together, the ends resolved to drawn elements:
+    /// the traces of the model, and once the diagrams are linked
+    /// ([`build_linked_diagrams`]) every realization, allocation,
+    /// deployment, satisfaction and verification the compiler knows.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub links: Vec<Link>,
     /// How a reader arranged these diagrams, from the layout file kept next
@@ -314,6 +317,11 @@ pub struct Node {
     /// Ids of the higher-level elements this node realizes (PA -> LA).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub realizes: Vec<String>,
+    /// The Arcadia layer of the element (`OA`, `SA`, `LA`, `PA`, `EPBS`,
+    /// `Data`, `Transverse`), once the diagrams are linked
+    /// ([`build_linked_diagrams`]); a notation mark has none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub layer: Option<&'static str>,
     /// Lines listed inside the box: a class's fields, an enumeration's
     /// values.
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -529,6 +537,23 @@ pub fn build_diagrams(model: &Model) -> DiagramSet {
         layout: None,
         layout_name: None,
     }
+}
+
+/// The diagrams of a compiled model with all that ties its layers together:
+/// each drawn element says its layer, and the links hold every realization,
+/// allocation, deployment, satisfaction and verification of the model, with
+/// the layer and the identity of both ends. The links are those `arclang
+/// impact` follows: one source, so a view and an analysis never disagree.
+pub fn build_linked_diagrams(result: &super::CompilationResult) -> DiagramSet {
+    let mut set = build_diagrams(&result.ast);
+    link_layers(&mut set, result);
+    set
+}
+
+/// Complete diagrams already built (see [`build_linked_diagrams`]).
+pub fn link_layers(set: &mut DiagramSet, result: &super::CompilationResult) {
+    let context = super::tables::Context::new(result, "ISO26262");
+    layers::complete(set, &context);
 }
 
 impl Diagram {

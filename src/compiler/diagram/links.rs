@@ -12,14 +12,29 @@ use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 /// One trace, its ends resolved to the ids the diagrams use.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize)]
 pub struct Link {
-    /// The trace type as written: `realizes`, `satisfies`, `refines`...
+    /// The words of the link read from its source: the trace type as
+    /// written (`realizes`, `satisfies`, `refines`...), `deployed on`,
+    /// `allocated to`.
     pub kind: String,
     /// Id of a drawn element, or the reference as written when no view
     /// draws it (a requirement) or several drawn elements answer to it.
     pub source: String,
     pub target: String,
+    /// The words of the link read from its target (`realized by`, `hosts`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub back: Option<String>,
+    /// The layer of each end (`OA`, `SA`, `LA`, `PA`, `EPBS`...) and its
+    /// stable identity, for the ends that are elements of the model.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_layer: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_layer: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_uuid: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_uuid: Option<String>,
 }
 
 /// Every trace of the model, in declared order. Two traces of one type
@@ -38,6 +53,7 @@ pub(super) fn cross_links(model: &Model, diagrams: &[Diagram]) -> Vec<Link> {
             kind: trace.trace_type.clone(),
             source: drawn.resolve(&trace.from),
             target: drawn.resolve(&trace.to),
+            ..Link::default()
         })
         .filter(|link| seen.insert(link.clone()))
         .collect()
@@ -141,6 +157,7 @@ pub(super) fn draw_notes(model: &Model, diagrams: &mut [Diagram]) {
                 ports: Vec::new(),
                 children: Vec::new(),
                 realizes: Vec::new(),
+                layer: None,
                 compartment: wrapped(&note.name, 36),
                 properties: BTreeMap::from([("text".to_string(), note.name.clone())]),
             });
@@ -252,7 +269,7 @@ fn undrawn_names(model: &Model) -> HashSet<&str> {
 /// Nodes that are an element of the model, as opposed to a stand-in for one
 /// (a lifeline, a component shown on the node it is deployed on) or a
 /// notation mark.
-fn stands_for_an_element(kind: NodeKind) -> bool {
+pub(super) fn stands_for_an_element(kind: NodeKind) -> bool {
     !matches!(
         kind,
         NodeKind::Lifeline | NodeKind::DeployedComponent | NodeKind::InitialState | NodeKind::Region | NodeKind::Junction | NodeKind::ValueProperty

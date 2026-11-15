@@ -160,6 +160,7 @@ impl Builder {
                 ports: Vec::new(),
                 children: Vec::new(),
                 realizes: Vec::new(),
+                layer: None,
                 compartment: Vec::new(),
                 properties,
             },

@@ -275,6 +275,9 @@ fn elk_node(node: &Node, wired: &HashSet<&str>) -> Value {
             "properties": node.properties,
         },
     });
+    if let Some(layer) = node.layer {
+        out["arc"]["layer"] = json!(layer);
+    }
     if is_container {
         let top = CONTAINER_PADDING_TOP + realizes_height;
         layout["elk.padding"] = json!(format!(
