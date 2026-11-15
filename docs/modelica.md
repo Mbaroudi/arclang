@@ -419,6 +419,43 @@ stands for every configuration its requirements apply to. A configuration
 that does not exist, or one that differs from the one in `simulate:`, is an
 error.
 
+### Levels of the V
+
+A verification case says the level of the V it belongs to, and a requirement
+says at which levels it is to be verified: its verification plan.
+
+```arc
+requirement "Stops before the obstacle" {
+    id: "REQ-STOP"
+    verification_levels: ["system", "validation"]
+}
+
+test_case "Braking on the bench" { id: "TC-BENCH" verifies: ["REQ-STOP"] level: "system" verdict: "pass" }
+test_case "Braking on the track" { id: "TC-TRACK" verifies: ["REQ-STOP"] level: "validation" method: "demonstration" }
+```
+
+The levels are, from the bottom of the V up: `component` (a component
+against its detailed design), `subsystem` (components integrated, against
+the architecture), `system` (the system against its requirements) and
+`validation` (the system against the operational need).
+
+A requirement that plans levels is verified when a case of **each** of them
+verifies it and every case passes. A level no case verifies at blocks the
+gate: `requirement 'REQ-STOP' is to be verified at validation level, which
+no verification case does (test_case level: "validation")`. A case that
+states no level is at none: the compiler never deduces a level. A case that
+fails at a planned level is a failure, said by its verdict, not a missing
+level.
+
+A requirement that plans no level is verified as before, by any case; a
+`level:` on a case is then only information. A level that is none of the
+four, or a plan naming one twice, is an error.
+
+The coverage table has a `levels` column (`system: pass, validation: no
+case`), the requirements view shows the level of each case, and the element
+graph carries it on the case and on each `Verification` relationship, where
+the SysML v2 export and import keep it.
+
 ### When a run ends
 
 `stop_time` is a bound, not the end of the story: a run that should stop on
