@@ -20,6 +20,7 @@ pub mod identity_sites;
 pub mod verification;
 pub mod execution;
 pub mod fta;
+pub mod accountability;
 pub mod notes;
 pub mod occurrences;
 pub mod variability;
@@ -416,6 +417,9 @@ impl Compiler {
                 right: outcome.right.to_string(),
             });
         }
+
+        // Who answers for elements and which documents describe them.
+        accountability::check(&ast, &mut semantic_model).map_err(CompilerError::Semantic)?;
 
         // Typed metamodel: attribute type violations are reported, never
         // fatal (semver MINOR); the production gate turns errors into blockers.

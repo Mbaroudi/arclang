@@ -433,6 +433,8 @@ fn kinds_of(keyword: &str) -> &'static [&'static str] {
         "hazard" => &["Hazard"],
         "fmea" => &["FmeaEntry"],
         "note" => &["Note"],
+        "organization" => &["Organization"],
+        "document" => &["Document"],
         "configuration" => &["Configuration"],
         "threat" => &["Threat"],
         "asset" => &["PrimaryAsset"],

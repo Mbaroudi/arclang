@@ -24,7 +24,8 @@ interface (ports), chain (functional chains, capabilities), satisfies,
 verifies (test cases, `asserts`), safety (hazards, mitigations, threats),
 containment, typing (`is:` users of a type), constraint (a constraint that
 reads an attribute), view (declared diagrams and tables), behavior
-(scenario messages, transitions), reference.
+(scenario messages, transitions), reference (among them the organization
+an element is `responsible:` to and the documents it is `documented_by:`).
 
 Three rules keep the set to what a change carries: a link is never walked
 straight back (a component reaches its requirement, not every other

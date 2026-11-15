@@ -399,6 +399,8 @@ impl ImpactGraph {
                 }
                 "Transition" => self.link(source, target, LinkKind::Behavior, "transitions to", "transitions from", false),
                 "Association" => self.link(source, target, LinkKind::Reference, "associated with", "associated with", true),
+                "Responsibility" => self.link(source, target, LinkKind::Reference, "assigned to", "responsible for", true),
+                "Documentation" => self.link(source, target, LinkKind::Reference, "documented by", "documents", true),
                 other => {
                     let forward = other.to_ascii_lowercase();
                     self.link(source, target, LinkKind::Reference, &forward, &format!("{forward} (back)"), true);

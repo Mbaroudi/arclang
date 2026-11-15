@@ -100,6 +100,8 @@ SysML says most Arcadia kinds by itself; metadata names the rest.
 | ArcLang `type` | `part def` / `action def`, its ports and attributes; `type X extends Y` by specialization | |
 | requirement | `requirement` with `doc` and attributes; its subject as `subject default = <element>;` (a bound subject cannot also be satisfied by another element); the configurations it applies to by `dependency applies_to` | `#Named` when it is written by its name with an `id` (`#Named requirement <'REQ-1'> 'Hover endurance'`) |
 | stakeholder | `part def` in the requirements | `#Stakeholder` |
+| organization | `part` at the top of the model, what it is part of as a `parent` dependency | `#Organization` |
+| document | `part` at the top of the model, its reference, version and link as attributes | `#Document` |
 | hazard | `requirement` | `#Hazard` |
 | mission / capability / operational capability / capability realization | `use case def` of the level | `#Mission`, `#Capability` |
 | state machine | `state def` exhibited by the part or action it belongs to; `state`/`mode` usages, `transition` with `accept`/`if`/`do`. What the machine computes is text ArcLang reads back: `attribute variables : String [*]`, `attribute equations : String [*]`, a transition's `guard`, `action` and `timing`, a state's `entry`/`exit` actions and what it `realizes`. A block that only computes is a `state def` without states | `#Mode` on a mode |

@@ -272,6 +272,14 @@ the long-term goal.
   `docs/VERSIONING.md`; tool-qualification support kit (ISO 26262-8 §11
   TCL analysis, DO-330 TQL, function/malfunction inventory, evidence
   matrix into the test suite) in `docs/qualification/`.
+- **Who answers for an element, and what documents it**: `organization` and
+  `document` are elements of the model; any element names the organization
+  responsible for it (`responsible:`) and the documents that describe it
+  (`documented_by:`), by id or by name. Both are relationships of the element
+  graph that `arclang impact` follows and tables show, and both cross the
+  SysML v2 round trip; a name that is no declared organization or document
+  is said, never guessed — see
+  [`spec/LANGUAGE_SPEC.md`](spec/LANGUAGE_SPEC.md) §7.4.
 - **Semantic diff**: `arclang diff old.arc new.arc [--json]` compares two
   model versions by stable identity — reformatting or moving blocks is an
   empty diff, renaming an element (same id) is a modification with

@@ -54,6 +54,12 @@ pub struct Model {
     /// Notes on the diagrams: a text about some elements.
     #[serde(default)]
     pub notes: Vec<Note>,
+    /// Those who answer for elements of the model (`responsible:`).
+    #[serde(default)]
+    pub organizations: Vec<Organization>,
+    /// The documents that describe elements of the model (`documented_by:`).
+    #[serde(default)]
+    pub documents: Vec<Document>,
     /// Rules the authors want the model to hold (`rule "..." { kind: ... require: ... }`).
     #[serde(default)]
     pub rules: Vec<RuleDecl>,
@@ -142,6 +148,8 @@ impl Model {
             twins: Vec::new(),
             configurations: Vec::new(),
             notes: Vec::new(),
+            organizations: Vec::new(),
+            documents: Vec::new(),
             rules: Vec::new(),
             constraints: Vec::new(),
             types: Vec::new(),
@@ -188,6 +196,8 @@ impl Model {
             twins,
             configurations,
             notes,
+            organizations,
+            documents,
             rules,
             constraints,
             types,
@@ -221,6 +231,8 @@ impl Model {
         self.twins.extend(twins);
         self.configurations.extend(configurations);
         self.notes.extend(notes);
+        self.organizations.extend(organizations);
+        self.documents.extend(documents);
         self.rules.extend(rules);
         self.constraints.extend(constraints);
         self.types.extend(types);
@@ -1478,6 +1490,29 @@ pub struct Configuration {
 /// A rule of the model, as written: its name and its block (see `user_rules`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuleDecl {
+    pub name: String,
+    pub attributes: HashMap<String, AttributeValue>,
+}
+
+/// `organization "Powertrain team" { id: "ORG-PT" parent: "ORG-ENG" }`: who
+/// answers for elements of the model (`responsible: "ORG-PT"` on any of
+/// them), possibly part of another organization.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Organization {
+    /// `id:` when written, else its name.
+    pub id: String,
+    pub name: String,
+    pub attributes: HashMap<String, AttributeValue>,
+}
+
+/// `document "Interface control document" { id: "DOC-ICD" reference: "ICD-0042" version: "C" }`:
+/// a document outside the model that describes elements of it
+/// (`documented_by: ["DOC-ICD"]` on any of them).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Document {
+    /// `id:` when written, else its title.
+    pub id: String,
+    /// Its title.
     pub name: String,
     pub attributes: HashMap<String, AttributeValue>,
 }

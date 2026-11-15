@@ -299,7 +299,7 @@ impl<'g> Mapper<'g> {
     /// Whether a usage is structure (a component, a function) rather than a
     /// reference inside a scenario, a requirement, a connector or a chain.
     fn is_structural_usage(&self, usage: &Element) -> bool {
-        if usage.is_end || self.is_library(usage) || Self::has_metadata(usage, security::SECURITY_METADATA) || Self::has_metadata(usage, &["Configuration"]) || Self::is_declaration(usage) {
+        if usage.is_end || self.is_library(usage) || Self::has_metadata(usage, security::SECURITY_METADATA) || Self::has_metadata(usage, &["Configuration", "Organization", "Document"]) || Self::is_declaration(usage) {
             return false;
         }
         let mut current = usage.owner.as_deref().and_then(|o| self.graph.get(o));
@@ -748,6 +748,7 @@ impl<'g> Mapper<'g> {
         self.test_cases();
         self.security();
         self.configurations();
+        self.accountability();
         self.declarations();
         self.constraints();
         self.traces();
