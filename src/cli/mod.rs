@@ -4337,6 +4337,7 @@ impl CliRunner {
             .map_err(|e| CliError::Compilation(e.to_string()))?;
 
         let mut set = build_diagrams(&result.ast);
+        crate::compiler::diagram::link_layers(&mut set, &result);
         crate::compiler::diagram::judge_requirements(&mut set, &result.ast, &result.semantic_model);
         // The layout is checked against every view before one is selected:
         // a view left out by `--view` is not a stale entry of the file.

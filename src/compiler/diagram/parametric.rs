@@ -101,6 +101,7 @@ fn constraint_node(id: &str, name: &str, expression: &Expr, scope: &Scope) -> No
         ports: Vec::new(),
         children: Vec::new(),
         realizes: Vec::new(),
+        layer: None,
         compartment,
         properties,
     }
@@ -116,6 +117,7 @@ fn value_node(id: &str, read: &Read, scope: &Scope) -> Node {
         ports: Vec::new(),
         children: Vec::new(),
         realizes: Vec::new(),
+        layer: None,
         compartment: vec![format!("= {written}")],
         properties: BTreeMap::from([("value".to_string(), written)]),
     }
@@ -138,6 +140,7 @@ fn owner_node(nodes: &mut Vec<Node>, element: &str, index: &std::collections::Ha
             ports: Vec::new(),
             children: Vec::new(),
             realizes: Vec::new(),
+            layer: None,
             compartment: Vec::new(),
             properties: BTreeMap::new(),
         });

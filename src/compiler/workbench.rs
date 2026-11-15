@@ -204,7 +204,7 @@ fn snapshot_of(compiled: Result<crate::CompilationResult, crate::CompilerError>,
                 .unwrap_or_else(|| "System Architecture".to_string());
             let findings = crate::compiler::rules::findings(&result);
             let realization = crate::compiler::realization::ladders(&result, model_path);
-            let mut diagrams = crate::compiler::diagram::build_diagrams(&result.ast);
+            let mut diagrams = crate::compiler::diagram::build_linked_diagrams(&result);
             crate::compiler::diagram::judge_requirements(&mut diagrams, &result.ast, model);
             let cesam = cesam_view(&result, &diagrams, options.gate_standard);
             let diagrams = crate::compiler::diagram::html::viewer_payload(&diagrams, &title);

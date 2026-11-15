@@ -18,6 +18,7 @@ fn link(kind: &str, source: &str, target: &str) -> Link {
         kind: kind.to_string(),
         source: source.to_string(),
         target: target.to_string(),
+        ..Link::default()
     }
 }
 

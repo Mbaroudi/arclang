@@ -33,7 +33,7 @@
   /**
    * Index the payload.
    * @param {Array<object>} graphs ELK graphs of every view, in tab order.
-   * @param {Array<{kind: string, source: string, target: string}>} links traces of the model.
+   * @param {Array<{kind: string, source: string, target: string, back?: string}>} links what ties the views together.
    */
   function index(graphs, links) {
     const places = new Map(); // element id -> [{ graph, view, title }]
@@ -81,7 +81,8 @@
     };
     for (const link of links || []) {
       relate(link.source, outgoingLabel(link.kind), link.target, 'out');
-      relate(link.target, incomingLabel(link.kind), link.source, 'in');
+      // The compiler says how a link reads back when it knows (`hosts`, `realized by`).
+      relate(link.target, link.back ? capitalized(link.back) : incomingLabel(link.kind), link.source, 'in');
     }
     for (const graph of graphs) (graph.children || []).forEach(realizing);
 

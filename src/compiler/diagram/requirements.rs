@@ -102,6 +102,7 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
             ports: Vec::new(),
             children: Vec::new(),
             realizes: Vec::new(),
+            layer: None,
             compartment: Vec::new(),
             properties: BTreeMap::new(),
         });
@@ -142,6 +143,7 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
                 ports: Vec::new(),
                 children: Vec::new(),
                 realizes: Vec::new(),
+                layer: None,
                 compartment: Vec::new(),
                 properties: BTreeMap::new(),
             });
@@ -251,6 +253,7 @@ fn requirement_node(requirement: &Requirement, id: &str, title: &str) -> Node {
         ports: Vec::new(),
         children: Vec::new(),
         realizes: Vec::new(),
+        layer: None,
         compartment,
         properties: properties(&requirement.attributes),
     }
@@ -276,6 +279,7 @@ fn concern_node(concern: &Concern, id: &str) -> Node {
         ports: Vec::new(),
         children: Vec::new(),
         realizes: Vec::new(),
+        layer: None,
         compartment,
         properties: properties(&concern.attributes),
     }
@@ -296,6 +300,7 @@ fn case_node(case: &TestCase, id: &str) -> Node {
         ports: Vec::new(),
         children: Vec::new(),
         realizes: Vec::new(),
+        layer: None,
         compartment,
         properties: node_properties,
     }
