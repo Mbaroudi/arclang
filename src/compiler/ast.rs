@@ -60,6 +60,12 @@ pub struct Model {
     /// The documents that describe elements of the model (`documented_by:`).
     #[serde(default)]
     pub documents: Vec<Document>,
+    /// The risks of the project: what may go wrong, how likely, how severe.
+    #[serde(default)]
+    pub risks: Vec<Risk>,
+    /// What functions consume and produce (`consumes:`, `produces:`).
+    #[serde(default)]
+    pub resources: Vec<Resource>,
     /// Rules the authors want the model to hold (`rule "..." { kind: ... require: ... }`).
     #[serde(default)]
     pub rules: Vec<RuleDecl>,
@@ -150,6 +156,8 @@ impl Model {
             notes: Vec::new(),
             organizations: Vec::new(),
             documents: Vec::new(),
+            risks: Vec::new(),
+            resources: Vec::new(),
             rules: Vec::new(),
             constraints: Vec::new(),
             types: Vec::new(),
@@ -198,6 +206,8 @@ impl Model {
             notes,
             organizations,
             documents,
+            risks,
+            resources,
             rules,
             constraints,
             types,
@@ -233,6 +243,8 @@ impl Model {
         self.notes.extend(notes);
         self.organizations.extend(organizations);
         self.documents.extend(documents);
+        self.risks.extend(risks);
+        self.resources.extend(resources);
         self.rules.extend(rules);
         self.constraints.extend(constraints);
         self.types.extend(types);
@@ -1513,6 +1525,27 @@ pub struct Document {
     /// `id:` when written, else its title.
     pub id: String,
     /// Its title.
+    pub name: String,
+    pub attributes: HashMap<String, AttributeValue>,
+}
+
+/// `risk "Cell supplier delay" { id: "RISK-1" likelihood: "medium" severity: "high" bears_on: ["LC-BAT"] mitigated_by: ["REQ-2"] }`:
+/// a risk of the project, the elements it bears on and what mitigates it
+/// (see `risks`). A hazard of the product is in the safety analysis.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Risk {
+    /// `id:` when written, else its name.
+    pub id: String,
+    pub name: String,
+    pub attributes: HashMap<String, AttributeValue>,
+}
+
+/// `resource "28 V bus power" { id: "RES-PWR" capacity: "1.2 kW" }`:
+/// something functions consume and produce.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Resource {
+    /// `id:` when written, else its name.
+    pub id: String,
     pub name: String,
     pub attributes: HashMap<String, AttributeValue>,
 }

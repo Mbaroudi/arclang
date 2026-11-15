@@ -280,6 +280,13 @@ the long-term goal.
   SysML v2 round trip; a name that is no declared organization or document
   is said, never guessed — see
   [`spec/LANGUAGE_SPEC.md`](spec/LANGUAGE_SPEC.md) §7.4.
+- **Risks, resources and what elicits a requirement**: `risk` is a risk of
+  the project (likelihood, severity, what it bears on, what mitigates it),
+  its level computed and a high one left open with no mitigation reported;
+  `resource` is what functions `consumes:` and `produces:`; `trace "CAP-1"
+  elicits "REQ-1"` says what gives rise to a requirement. All are in the
+  element graph, followed by `arclang impact`, and cross the SysML v2 round
+  trip — see [`spec/LANGUAGE_SPEC.md`](spec/LANGUAGE_SPEC.md) §7.5 and §7.6.
 - **Semantic diff**: `arclang diff old.arc new.arc [--json]` compares two
   model versions by stable identity — reformatting or moving blocks is an
   empty diff, renaming an element (same id) is a modification with

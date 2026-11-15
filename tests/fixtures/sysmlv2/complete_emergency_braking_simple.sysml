@@ -49,6 +49,8 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
         metadata def Interaction;
         metadata def Organization;
         metadata def Document;
+        metadata def Risk;
+        metadata def Resource;
     }
     private import ArcadiaProfile::*;
     doc /* Detects an imminent collision, warns the driver and brakes autonomously */

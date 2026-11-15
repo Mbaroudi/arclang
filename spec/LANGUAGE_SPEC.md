@@ -1894,6 +1894,71 @@ says so and how to declare it, it never guesses.
 In SysML v2 they are parts carrying `#Organization` and `#Document`, read
 back as such; the two attributes travel as attributes of the element.
 
+### 7.5 Risks
+
+A risk is a risk of the project: a supplier that may be late, a technology
+that may not be ready. A hazard of the product is not one; it belongs to the
+safety analysis (§8).
+
+```arc
+risk "Cell supplier delay" {
+    id: "RISK-CELL"
+    likelihood: "medium"                // low, medium, high
+    severity: "high"                    // low, medium, high
+    bears_on: ["LC-BAT"]                // the elements at risk
+    mitigated_by: ["REQ-SECOND-SOURCE"] // requirements, components, functions
+    status: "open"                      // open (when not said), mitigated, accepted, closed
+    responsible: "ORG-BUY"
+}
+```
+
+Its level is computed, never given: `low` when both are low or one is low
+and the other medium, `high` when one is high and the other at least medium,
+`medium` between. A risk that does not say both has no level, and the
+compiler says so; it never assumes one. A high risk left `open` with nothing
+mitigating it is a warning: name what mitigates it, or say the decision
+taken (`status: "accepted"`).
+
+An element a risk names that the model does not declare is an error, and so
+is a likelihood, a severity or a status that is no value of its scale. A
+change of an element reaches the risks that bear on it (`arclang impact`).
+
+### 7.6 Resources
+
+A resource is something functions consume and produce: power, heat, fuel,
+bandwidth, an operator's attention.
+
+```arc
+resource "28 V bus power" { id: "RES-PWR" capacity: "1.2 kW" }
+resource "Waste heat" { id: "RES-HEAT" }
+
+function "Convert power" { id: "SF-CONV" consumes: ["RES-PWR"] produces: ["RES-HEAT"] }
+function "Cool" { id: "SF-COOL" consumes: ["RES-HEAT"] }
+```
+
+`consumes:` and `produces:` are attributes of the functions of every level
+and of operational activities, by id or by name. A change of a resource
+reaches what consumes it, a change of a function what it produces and so who
+consumes that. A resource no function consumes or produces is a warning; a
+`consumes:` naming no declared resource is kept as the model's own text and
+said. `capacity` is text: a budget over typed quantities is a `constraint`.
+
+In SysML v2 risks and resources are parts carrying `#Risk` and `#Resource`.
+
+### 7.7 What elicits a requirement
+
+A capability, a mission, a scenario, an actor or a concern gives rise to
+requirements. The `elicits` trace says so:
+
+```arc
+trace "CAP-DAY" elicits "REQ-RANGE" { rationale: "A day of use is 300 km" }
+```
+
+It points at a requirement (anything else is a warning). A change of its
+source reaches the requirement, and from there what satisfies and verifies
+it. What a requirement asks of an element is the `satisfies` trace read
+back: `trace "LC-BAT" satisfies "REQ-RANGE"`.
+
 ---
 
 ## 8. Safety & Certification

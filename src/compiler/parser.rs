@@ -131,6 +131,14 @@ impl Parser {
                     let (id, name, attributes) = self.parse_declared()?;
                     model.documents.push(Document { id, name, attributes });
                 }
+                Token::Identifier(ref id) if id == "risk" && !self.peek_is_colon() => {
+                    let (id, name, attributes) = self.parse_declared()?;
+                    model.risks.push(Risk { id, name, attributes });
+                }
+                Token::Identifier(ref id) if id == "resource" && !self.peek_is_colon() => {
+                    let (id, name, attributes) = self.parse_declared()?;
+                    model.resources.push(Resource { id, name, attributes });
+                }
                 Token::Identifier(ref id) if id == "rule" && !self.peek_is_colon() => {
                     model.rules.push(self.parse_rule()?);
                 }
@@ -311,6 +319,14 @@ impl Parser {
                     let (id, name, attributes) = self.parse_declared()?;
                     model.documents.push(Document { id, name, attributes });
                 }
+                Token::Identifier(ref id) if id == "risk" && !self.peek_is_colon() => {
+                    let (id, name, attributes) = self.parse_declared()?;
+                    model.risks.push(Risk { id, name, attributes });
+                }
+                Token::Identifier(ref id) if id == "resource" && !self.peek_is_colon() => {
+                    let (id, name, attributes) = self.parse_declared()?;
+                    model.resources.push(Resource { id, name, attributes });
+                }
                 Token::Identifier(ref id) if id == "rule" && !self.peek_is_colon() => {
                     model.rules.push(self.parse_rule()?);
                 }
@@ -449,6 +465,14 @@ impl Parser {
                 Token::Identifier(ref id) if id == "document" && !self.peek_is_colon() => {
                     let (id, name, attributes) = self.parse_declared()?;
                     model.documents.push(Document { id, name, attributes });
+                }
+                Token::Identifier(ref id) if id == "risk" && !self.peek_is_colon() => {
+                    let (id, name, attributes) = self.parse_declared()?;
+                    model.risks.push(Risk { id, name, attributes });
+                }
+                Token::Identifier(ref id) if id == "resource" && !self.peek_is_colon() => {
+                    let (id, name, attributes) = self.parse_declared()?;
+                    model.resources.push(Resource { id, name, attributes });
                 }
                 Token::Identifier(ref id) if id == "rule" && !self.peek_is_colon() => {
                     model.rules.push(self.parse_rule()?);
@@ -657,6 +681,14 @@ impl Parser {
                 Token::Identifier(ref id) if id == "document" && !self.peek_is_colon() => {
                     let (id, name, attributes) = self.parse_declared()?;
                     model.documents.push(Document { id, name, attributes });
+                }
+                Token::Identifier(ref id) if id == "risk" && !self.peek_is_colon() => {
+                    let (id, name, attributes) = self.parse_declared()?;
+                    model.risks.push(Risk { id, name, attributes });
+                }
+                Token::Identifier(ref id) if id == "resource" && !self.peek_is_colon() => {
+                    let (id, name, attributes) = self.parse_declared()?;
+                    model.resources.push(Resource { id, name, attributes });
                 }
                 Token::Identifier(ref id) if id == "rule" && !self.peek_is_colon() => {
                     model.rules.push(self.parse_rule()?);
@@ -3472,7 +3504,7 @@ impl Parser {
     /// `organization "Name" { id: "ORG-1" ... }` or `document "Title" { id: "DOC-1" ... }`:
     /// the id (the name when none is written), the name and the block, which is optional.
     fn parse_declared(&mut self) -> Result<(String, String, HashMap<String, AttributeValue>), String> {
-        self.advance(); // organization, document
+        self.advance(); // organization, document, risk, resource
         let name = self.expect_name()?;
         let attributes = if self.check(&Token::LeftBrace) { self.parse_attributes_block()? } else { HashMap::new() };
         let id = attributes.get("id").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_else(|| name.clone());
@@ -3621,6 +3653,9 @@ impl Parser {
         } else if matches!(self.current(), Token::Identifier(ref k) if k == "derives") {
             self.advance();
             ("derives".to_string(), self.expect_name()?)
+        } else if matches!(self.current(), Token::Identifier(ref k) if k == "elicits") {
+            self.advance();
+            ("elicits".to_string(), self.expect_name()?)
         } else {
             return Err(self.err("Expected trace type (satisfies, implements, validates, etc.) or arrow"));
         };

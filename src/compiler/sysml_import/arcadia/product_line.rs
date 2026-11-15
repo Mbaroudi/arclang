@@ -28,9 +28,9 @@ impl<'g> Mapper<'g> {
         node.usage.is_some_and(|u| u.is_variation) || node.def.is_some_and(|d| d.is_variation)
     }
 
-    /// Organizations and documents: the parts carrying `#Organization` or `#Document`.
+    /// Organizations, documents, resources and risks: the parts carrying their metadata.
     pub(super) fn accountability(&mut self) {
-        for (metadata, word, counted) in [("Organization", "organization", "organizations"), ("Document", "document", "documents")] {
+        for (metadata, word, counted) in [("Organization", "organization", "organizations"), ("Document", "document", "documents"), ("Resource", "resource", "resources"), ("Risk", "risk", "risks")] {
             let declared: Vec<&'g Element> = self.graph.of_kinds(&["PartUsage", "PartDefinition"]).filter(|p| !self.is_library(p) && Self::has_metadata(p, &[metadata])).collect();
             for element in declared {
                 let id = self.remember(&element.id, Self::identity_id(element), metadata);

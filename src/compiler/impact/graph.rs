@@ -377,6 +377,7 @@ impl ImpactGraph {
                         "allocates" => (LinkKind::Allocation, "allocated by".to_string()),
                         "verifies" => (LinkKind::Verifies, "verified by".to_string()),
                         "validates" => (LinkKind::Verifies, "validated by".to_string()),
+                        "elicits" => (LinkKind::Reference, "elicited by".to_string()),
                         other => (LinkKind::Reference, format!("{other} (back)")),
                     };
                     self.link(source, target, link, &trace, &backward, true);
@@ -399,6 +400,10 @@ impl ImpactGraph {
                 }
                 "Transition" => self.link(source, target, LinkKind::Behavior, "transitions to", "transitions from", false),
                 "Association" => self.link(source, target, LinkKind::Reference, "associated with", "associated with", true),
+                "RiskSubject" => self.link(source, target, LinkKind::Reference, "bears on", "at risk from", true),
+                "RiskMitigation" => self.link(source, target, LinkKind::Reference, "mitigates", "mitigated by", false),
+                "Consumption" => self.link(source, target, LinkKind::Reference, "consumes", "consumed by", true),
+                "Production" => self.link(source, target, LinkKind::Reference, "produces", "produced by", false),
                 "Responsibility" => self.link(source, target, LinkKind::Reference, "assigned to", "responsible for", true),
                 "Documentation" => self.link(source, target, LinkKind::Reference, "documented by", "documents", true),
                 other => {

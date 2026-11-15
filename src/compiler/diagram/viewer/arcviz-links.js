@@ -22,6 +22,7 @@
     validates: 'Validated by',
     allocates: 'Allocated by',
     derives: 'Derived by',
+    elicits: 'Elicited by',
     traces: 'Traced from',
   };
 
