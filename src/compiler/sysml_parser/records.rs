@@ -744,7 +744,8 @@ pub(super) fn expression_text(expr: &Expr) -> String {
         },
         Expr::Extent(ty) => format!("all {}", ty.text()),
         Expr::Chain { base, chain } => format!("{}.{}", expression_text(base), chain.text()),
-        Expr::Bracket { base, index } => format!("{} [{}]", expression_text(base), expression_text(index)),
+        // A unit (`[m/s]`) is written as the quantity table writes it, without spaces around `/`, `*`, `^`.
+        Expr::Bracket { base, index } => format!("{} [{}]", expression_text(base), expression_text(index).replace(" / ", "/").replace(" * ", "*").replace(" ^ ", "^")),
         Expr::Index { base, index } => format!("{}#({})", expression_text(base), expression_text(index)),
         Expr::Arrow { base, ty, argument } => {
             let argument = match argument {

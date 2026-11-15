@@ -389,6 +389,9 @@ impl<'d> Builder<'d> {
         extra.insert("memberName".into(), json!(declaration.name));
         extra.insert("memberShortName".into(), json!(declaration.short_name));
         extra.insert("visibility".into(), json!("public"));
+        if let Some(kind) = declaration.membership_kind {
+            extra.insert("kind".into(), json!(if kind == "assume" { "assumption" } else { "requirement" }));
+        }
         self.relationship(declaration.membership, &child_id, owner, Some(child_id.clone()), extra)
     }
 }
@@ -503,6 +506,10 @@ pub fn build(declarations: &[Declaration]) -> Records {
             if matches!(declaration.metaclass, "StateUsage" | "StateDefinition") {
                 object.insert("isParallel".into(), json!(declaration.is_parallel));
             }
+        }
+        if let Some(portion) = declaration.portion {
+            object.insert("isPortion".into(), json!(true));
+            object.insert("portionKind".into(), json!(portion));
         }
         if is_feature(declaration.metaclass) {
             object.insert("direction".into(), json!(declaration.direction));

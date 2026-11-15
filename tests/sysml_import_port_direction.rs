@@ -71,8 +71,7 @@ fn the_staging_interface_leaves_an_out_port_and_arrives_on_an_in_port() {
 
 #[test]
 fn a_negation_keeps_the_space_after_not() {
-    // ArcLang's `require` reads a comparison, so the import is refused; the
-    // text it refuses says `not contaminated`, not `notcontaminated`.
+    // The constraint reads `not contaminated`, not `notcontaminated`.
     let refused = match sysml_import::import_text(
         "package P {
     requirement def R {
@@ -87,4 +86,27 @@ fn a_negation_keeps_the_space_after_not() {
     };
     assert!(!refused.contains("notcontaminated"), "{refused}");
     assert_has(&refused, "require: [\"not contaminated\"]");
+}
+
+#[test]
+fn an_individual_does_not_take_the_name_of_its_type_as_its_id() {
+    // Apollo 11: `part def 'John Young'` and `part 'John Young' : 'John Young'`.
+    // A type is designated by its name: an element with that id would be edited
+    // in its place.
+    let source = imported(
+        "package P {
+    abstract part def 'John Young' { attribute dateOfBirth : String; }
+    part def Crew {
+        part 'John Young' : 'John Young';
+    }
+    part crew : Crew;
+}
+",
+    );
+    let types: Vec<&str> = source.lines().filter_map(|l| l.strip_prefix("type \"")).filter_map(|l| l.split('"').next()).collect();
+    assert!(types.contains(&"John Young"), "{source}");
+    for line in source.lines().map(str::trim).filter(|l| l.starts_with("id: \"")) {
+        let id = line.trim_start_matches("id: \"").trim_end_matches('"');
+        assert!(!types.contains(&id), "`{id}` is both a type and an id:\n{source}");
+    }
 }
