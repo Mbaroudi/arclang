@@ -51,6 +51,8 @@ struct Checker<'a> {
     metamodel: &'a Metamodel,
     semantic: &'a SemanticModel,
     ast: &'a Model,
+    /// The resources a function consumes or produces, by id.
+    used_resources: std::collections::HashSet<&'a str>,
     requirement_keys: Vec<&'a str>,
     /// Attributes the model's own types declare: never a misspelling.
     own_keys: std::collections::HashSet<&'a str>,
@@ -80,8 +82,11 @@ pub fn check_model_with(metamodel: &Metamodel, ast: &Model, semantic: &SemanticM
         .flat_map(|t| t.attributes.keys().chain(t.required.iter()))
         .map(String::as_str)
         .collect();
-    let mut checker = Checker { metamodel, semantic, ast, requirement_keys, own_keys, out: Vec::new() };
+    let mut checker = Checker { metamodel, semantic, ast, used_resources: Default::default(), requirement_keys, own_keys, out: Vec::new() };
     checker.walk(ast);
+    for resource in ast.resources.iter().filter(|r| !checker.used_resources.contains(r.id.as_str())) {
+        checker.out.push(Diagnostic { level: Level::Warning, kind: "Resource", element: resource.id.clone(), attribute: None, message: "no function consumes or produces it (consumes: [...], produces: [...] on a function)".to_string() });
+    }
     // What the geometry contradicts: errors, the production gate blocks on them.
     checker.out.extend(super::spatial::checks::check(ast).into_iter().map(|f| Diagnostic {
         level: Level::Error,
@@ -287,6 +292,12 @@ impl<'a> Checker<'a> {
         for document in &ast.documents {
             self.check_attrs("Document", &document.id, &document.attributes);
         }
+        for risk in &ast.risks {
+            self.check_attrs("Risk", &risk.id, &risk.attributes);
+        }
+        for resource in &ast.resources {
+            self.check_attrs("Resource", &resource.id, &resource.attributes);
+        }
         for test_case in &ast.test_cases {
             self.check_attrs("TestCase", &test_case.name, &test_case.attributes);
         }
@@ -409,6 +420,11 @@ impl<'a> Checker<'a> {
                             self.push(Level::Warning, "Trace", &label, None,
                                 format!("'{}' targets a {} — `{}` links must point at a requirement", trace.trace_type, kind, trace.trace_type));
                         }
+                    }
+                }
+                "elicits" => {
+                    if target_kind.is_some_and(|kind| kind != "Requirement") {
+                        self.push(Level::Warning, "Trace", &label, None, "`elicits` links what gives rise to a requirement to that requirement".to_string());
                     }
                 }
                 "refines" | "derives" => {
@@ -566,11 +582,15 @@ impl<'a> Checker<'a> {
         }
         // Who answers for the element, what documents it: by id or by name.
         // A text naming nothing declared is the model's own, and is said.
-        if matches!(target_kind, "Organization" | "Document") && key != "parent" {
-            let (word, known) = if target_kind == "Organization" {
-                ("organization", super::accountability::organization(self.ast, reference).is_some())
-            } else {
-                ("document", super::accountability::document(self.ast, reference).is_some())
+        if matches!(target_kind, "Organization" | "Document" | "Resource") && key != "parent" {
+            let (word, known) = match target_kind {
+                "Organization" => ("organization", super::accountability::organization(self.ast, reference).is_some()),
+                "Document" => ("document", super::accountability::document(self.ast, reference).is_some()),
+                _ => {
+                    let found = super::risks::resource(self.ast, reference);
+                    self.used_resources.extend(found);
+                    ("resource", found.is_some())
+                }
             };
             if !known {
                 self.push(Level::Warning, kind, element, Some(key),

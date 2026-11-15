@@ -105,6 +105,8 @@ Activity performed by an entity or actor.
 | `category` | `text` | Functional category (free text). |
 | `inputs` | `list<text>` | Input data names. |
 | `outputs` | `list<text>` | Output data names. |
+| `consumes` | `list<ref<Resource>>` | The resources the function consumes (`resource "28 V bus power" { id: "RES-PWR" }`), by id or by name. A text that names no declared resource is kept as the model's own and makes no relationship. |
+| `produces` | `list<ref<Resource>>` | The resources the function produces, by id or by name. |
 | `latency` | `quantity<time>` | Execution latency; summed along functional chains by the gate. |
 | `execution_time` | `quantity<time>` | Alias of latency. |
 | `wcet` | `quantity<time>` | Worst-case execution time. |
@@ -305,6 +307,8 @@ Function the system performs.
 | `category` | `text` | Functional category (free text). |
 | `inputs` | `list<text>` | Input data names. |
 | `outputs` | `list<text>` | Output data names. |
+| `consumes` | `list<ref<Resource>>` | The resources the function consumes (`resource "28 V bus power" { id: "RES-PWR" }`), by id or by name. A text that names no declared resource is kept as the model's own and makes no relationship. |
+| `produces` | `list<ref<Resource>>` | The resources the function produces, by id or by name. |
 | `latency` | `quantity<time>` | Execution latency; summed along functional chains by the gate. |
 | `execution_time` | `quantity<time>` | Alias of latency. |
 | `wcet` | `quantity<time>` | Worst-case execution time. |
@@ -523,6 +527,8 @@ Function of the logical level, declared inside the component that performs it (o
 | `category` | `text` | Functional category (free text). |
 | `inputs` | `list<text>` | Input data names. |
 | `outputs` | `list<text>` | Output data names. |
+| `consumes` | `list<ref<Resource>>` | The resources the function consumes (`resource "28 V bus power" { id: "RES-PWR" }`), by id or by name. A text that names no declared resource is kept as the model's own and makes no relationship. |
+| `produces` | `list<ref<Resource>>` | The resources the function produces, by id or by name. |
 | `latency` | `quantity<time>` | Execution latency; summed along functional chains by the gate. |
 | `execution_time` | `quantity<time>` | Alias of latency. |
 | `wcet` | `quantity<time>` | Worst-case execution time. |
@@ -731,6 +737,8 @@ Function of the physical level, declared inside the behavior component that perf
 | `category` | `text` | Functional category (free text). |
 | `inputs` | `list<text>` | Input data names. |
 | `outputs` | `list<text>` | Output data names. |
+| `consumes` | `list<ref<Resource>>` | The resources the function consumes (`resource "28 V bus power" { id: "RES-PWR" }`), by id or by name. A text that names no declared resource is kept as the model's own and makes no relationship. |
+| `produces` | `list<ref<Resource>>` | The resources the function produces, by id or by name. |
 | `latency` | `quantity<time>` | Execution latency; summed along functional chains by the gate. |
 | `execution_time` | `quantity<time>` | Alias of latency. |
 | `wcet` | `quantity<time>` | Worst-case execution time. |
@@ -1289,6 +1297,46 @@ A document outside the model that describes elements of it, declared at the top 
 | `uri` | `text` | Where the document is: a link or a path. |
 | `category` | `text` | What kind of document it is (specification, interface control document, plan, standard, report...). |
 
+#### Risk
+
+A risk of the project, declared at the top of a file (`risk "Cell supplier delay" { id: "RISK-1" likelihood: "medium" severity: "high" bears_on: ["LC-BAT"] mitigated_by: ["REQ-2"] }`): not a hazard of the product, which is in the safety analysis. Its level is computed from its likelihood and its severity (low, medium, high), never given; a high risk left open with nothing mitigating it is a warning.
+
+- Arcadia: `(none)`
+- SysML v2: `part (#Risk)`
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `id` | `identifier` | Stable identity; drives the UUIDv5. Defaults to the name. |
+| `name` | `text` | Display name; overrides the block name. |
+| `description` | `text` | Free-text description. |
+| `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
+| `likelihood` | `enum RiskScale` | How likely it is. |
+| `severity` | `enum RiskScale` | How severe its consequence would be. |
+| `status` | `enum RiskStatus` | Where it stands; `open` when not said. |
+| `bears_on` | `list<ref<Element>>` | The elements it bears on: a change of one of them reaches the risk. One the model does not declare is an error. |
+| `mitigated_by` | `list<ref<Element>>` | What mitigates it: requirements, components, functions. One the model does not declare is an error. |
+
+#### Resource
+
+Something functions consume and produce, declared at the top of a file (`resource "28 V bus power" { id: "RES-PWR" capacity: "1.2 kW" }`). A function names it with `consumes:` or `produces:`; a change of the resource reaches what consumes it, a change of a function what it produces. One no function consumes or produces is a warning.
+
+- Arcadia: `(none)`
+- SysML v2: `part (#Resource)`
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `id` | `identifier` | Stable identity; drives the UUIDv5. Defaults to the name. |
+| `name` | `text` | Display name; overrides the block name. |
+| `description` | `text` | Free-text description. |
+| `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `responsible` | `ref<Organization>` | The organization that answers for the element (`organization "Powertrain team" { id: "ORG-PT" }`), by id or by name. A text that names no declared organization is kept as the model's own and makes no relationship. |
+| `documented_by` | `list<ref<Document>>` | The documents that describe the element (`document "Interface control document" { id: "DOC-ICD" }`), by id or by name. A text that names no declared document is kept as the model's own and makes no relationship. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
+| `capacity` | `text` | How much of it there is, as text; a budget over typed quantities is a `constraint`. |
+
 #### Note
 
 A text about elements, declared at the top of a file (`note "Text" { about: ["LC-A"] }`): drawn on every view that draws one of them, tied to each by a dashed line. An element it names that the model does not declare is an error.
@@ -1558,6 +1606,10 @@ The element graph served by the Systems Modeling API (`/api/systems-modeling`) i
 | `Trace` | element | element | A `trace` declaration; `traceKind` is one of the TraceKind values. |
 | `Verification` | TestCase | Requirement | `verifies:` of a test case. |
 | `Annotation` | Note | element | `about:` of a note. |
+| `RiskSubject` | Risk | element | `bears_on:` of a risk. |
+| `RiskMitigation` | element | Risk | `mitigated_by:` of a risk, from what mitigates it. |
+| `Consumption` | function | Resource | `consumes:` of a function naming a declared resource. |
+| `Production` | function | Resource | `produces:` of a function naming a declared resource. |
 | `Responsibility` | element | Organization | `responsible:` of an element naming a declared organization. |
 | `Documentation` | element | Document | `documented_by:` of an element naming a declared document. |
 | `Mitigation` | Requirement | Hazard | `mitigated_by:` of a hazard. |
@@ -1614,7 +1666,9 @@ Values match ignoring case and the separators `-`, `_` and space.
 | FaultGate | `or`, `and` | How the failure modes of a hazard combine in its fault tree. |
 | Verdict | `pass`, `fail`, `inconclusive`, `error` | Verdict of a verification case (SysML v2 `VerdictKind`). |
 | ExchangeMechanism | `EVENT`, `FLOW`, `OPERATION`, `DATA`, `SHARED_DATA` | Arcadia exchange item mechanism. |
-| TraceKind | `satisfies`, `implements`, `validates`, `verifies`, `realizes`, `refines`, `derives`, `allocates` | Traceability link kinds. |
+| TraceKind | `satisfies`, `implements`, `validates`, `verifies`, `realizes`, `refines`, `derives`, `allocates`, `elicits` | Traceability link kinds. |
+| RiskScale | `low`, `medium`, `high` | How likely a risk is, how severe. |
+| RiskStatus | `open`, `mitigated`, `accepted`, `closed` | Where a risk stands. |
 | PortKind | `data`, `control`, `event` | Function port nature. |
 | MessageKind | `sync`, `async` | Scenario message kind. |
 | Unit | (unit table) | Any symbol of the unit table below. |
@@ -1723,4 +1777,5 @@ Dangling endpoints are compile errors. Kind mismatches are `metamodel:` warnings
 | `realizes` | lower-layer element | upper-layer element | Inter-layer realization: SA→OA, LA→SA, PA→LA, EPBS→PA. |
 | `refines` | Requirement | Requirement | Requirement decomposition. |
 | `derives` | Requirement | Requirement | A requirement derived from another (SysML `derive`): `trace "REQ-CELL-TEMP" derives "REQ-RANGE"`. Drawn on the requirements view. |
+| `elicits` | Capability, Mission, Scenario, actor, Concern | Requirement | What gives rise to a requirement: `trace "CAP-DAY" elicits "REQ-RANGE"`. A change of the source reaches the requirement. |
 | `allocates` | component, node | function, component | Allocation (also expressed by nesting and `deployment`). |

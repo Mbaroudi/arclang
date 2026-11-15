@@ -746,6 +746,15 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
     for document in &ast.documents {
         builder.element("Document", &document.id, &document.name, &root, &document.attributes);
     }
+    for resource in &ast.resources {
+        builder.element("Resource", &resource.id, &resource.name, &root, &resource.attributes);
+    }
+    for risk in &ast.risks {
+        builder.element("Risk", &risk.id, &risk.name, &root, &risk.attributes);
+        if let Some(level) = super::risks::level(risk) {
+            builder.set_extra("level", json!(level));
+        }
+    }
     for constraint in &ast.constraints {
         builder.element("Constraint", &constraint.id, &constraint.name, &root, &constraint.attributes);
         builder.set_extra("expression", json!(constraint.expression.to_string()));
@@ -975,6 +984,31 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
         let id = crate::compiler::notes::id_of(note);
         for element in &note.about {
             builder.relate("Annotation", None, &id, element, &empty(), Vec::new());
+        }
+    }
+    for risk in &ast.risks {
+        for element in super::risks::names(&risk.attributes, "bears_on") {
+            builder.relate("RiskSubject", None, &risk.id, element, &empty(), Vec::new());
+        }
+        for mitigation in super::risks::names(&risk.attributes, "mitigated_by") {
+            builder.relate("RiskMitigation", None, mitigation, &risk.id, &empty(), Vec::new());
+        }
+    }
+    // What each function consumes and produces: only a declared resource is a relationship.
+    let flows: Vec<(String, &'static str, String)> = builder
+        .graph
+        .elements
+        .iter()
+        .flat_map(|element| {
+            [("Consumption", "consumes"), ("Production", "produces")].into_iter().flat_map(move |(kind, key)| {
+                super::risks::names(&element.attributes, key).into_iter().filter_map(|r| super::risks::resource(ast, r)).map(move |resource| (element.uuid.clone(), kind, resource.to_string()))
+            })
+        })
+        .collect();
+    for (function, kind, resource) in flows {
+        let found = builder.graph.elements.iter().find(|e| e.kind == "Resource" && e.id == resource).map(|e| e.uuid.clone());
+        if let Some(target) = found {
+            builder.relate_resolved(kind, None, function, target, &empty(), Vec::new());
         }
     }
     // Who answers for each element and which documents describe it: only

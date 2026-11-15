@@ -187,6 +187,12 @@ pub(super) fn register(e: &mut Exporter<'_>) {
     for document in &model.documents {
         e.register("", &document.id, &[&document.name]);
     }
+    for risk in &model.risks {
+        e.register("", &risk.id, &[&risk.name]);
+    }
+    for resource in &model.resources {
+        e.register("", &resource.id, &[&resource.name]);
+    }
 }
 
 pub(super) fn write(e: &mut Exporter<'_>) {
@@ -227,6 +233,16 @@ pub(super) fn write(e: &mut Exporter<'_>) {
     }
     for document in &model.documents {
         e.block(&format!("#Document part {}", text::declared(&document.id, &document.name)), |e| e.header("Document", &document.attributes, &[]));
+    }
+    // A risk of the project and what mitigates it; a resource functions consume and produce.
+    for risk in &model.risks {
+        e.block(&format!("#Risk part {}", text::declared(&risk.id, &risk.name)), |e| e.header("Risk", &risk.attributes, &[]));
+        for mitigation in crate::compiler::risks::names(&risk.attributes, "mitigated_by") {
+            dependency(e, "mitigated_by", &risk.id, mitigation);
+        }
+    }
+    for resource in &model.resources {
+        e.block(&format!("#Resource part {}", text::declared(&resource.id, &resource.name)), |e| e.header("Resource", &resource.attributes, &[]));
     }
     // A note: a comment about the elements it names (its id, when written, names it).
     for note in &model.notes {

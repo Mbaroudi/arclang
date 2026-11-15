@@ -22,6 +22,7 @@ pub mod execution;
 pub mod fta;
 pub mod accountability;
 pub mod notes;
+pub mod risks;
 pub mod occurrences;
 pub mod variability;
 pub mod rules;
@@ -440,6 +441,9 @@ impl Compiler {
 
         // Notes on the diagrams: about elements the model declares.
         warnings.extend(notes::check(&ast, &mut semantic_model).map_err(CompilerError::Semantic)?);
+
+        // Risks of the project and resources of the system.
+        warnings.extend(risks::check(&ast, &mut semantic_model).map_err(CompilerError::Semantic)?);
 
         // Rules the model declares, and traces whose end changed since they were reviewed.
         if let Some(found) = user_rules::violations(&ast, &semantic_model).map_err(CompilerError::Semantic)? {
