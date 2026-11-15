@@ -225,7 +225,8 @@ fn literal(graph_kinds: &HashMap<String, (String, Value)>, id: &str) -> Option<S
         }),
         "OperatorExpression" | "InvocationExpression" | "FeatureChainExpression" => {
             // Kept as text when the record carries one; else left out.
-            text(record, "textualRepresentation").map(|t| crate::compiler::source_edit::string_literal(&t))
+            // A number and its unit in brackets (`2 [m/s]`) is a quantity, written as ArcLang writes one.
+            text(record, "textualRepresentation").map(|t| super::arcadia::bare_quantity(&t).unwrap_or_else(|| crate::compiler::source_edit::string_literal(&t)))
         }
         _ => None,
     }

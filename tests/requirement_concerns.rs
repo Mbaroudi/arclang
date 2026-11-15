@@ -50,11 +50,31 @@ fn the_subject_is_an_element_of_the_model() {
 }
 
 #[test]
-fn a_constraint_is_a_comparison_with_consistent_units() {
-    let error = compile(&MODEL.replace("mass <= 1200 kg", "mass")).unwrap_err();
-    assert!(error.contains(r#"require "mass""#) && error.contains("comparison"), "{error}");
+fn a_constraint_is_a_condition_with_consistent_units() {
     let error = compile(&MODEL.replace("mass <= 1200 kg", "mass <= ")).unwrap_err();
     assert!(error.contains("REQ-MASS"), "{error}");
+    let error = compile(&MODEL.replace("mass <= 1200 kg", "mass <= 1200 foo")).unwrap_err();
+    assert!(error.contains("REQ-MASS"), "{error}");
+}
+
+#[test]
+fn comparisons_join_with_and_or_not_and_a_boolean_feature_may_stand_alone() {
+    for ok in ["mass <= 1200 kg and not recalled", "integrityMaintained", "(mass <= 1200 kg or towing) and not recalled", "mass <= 1200 kg implies range >= 400 km"] {
+        compile(&MODEL.replace("mass <= 1200 kg", ok)).unwrap_or_else(|e| panic!("{ok}: {e}"));
+    }
+    for bad in ["mass <= 1200 kg and", "not", "and recalled", "(mass <= 1200 kg", "mass <= 1200 kg recalled"] {
+        let error = compile(&MODEL.replace("mass <= 1200 kg", bad)).unwrap_err();
+        assert!(error.contains("REQ-MASS"), "{bad}: {error}");
+    }
+}
+
+#[test]
+fn a_condition_goes_to_sysml_v2_and_back_unchanged() {
+    let condition = "mass <= 1200 kg and not recalled";
+    let result = compile(&MODEL.replace("mass <= 1200 kg", condition)).unwrap();
+    let text = arclang::compiler::sysmlv2_generator::generate_sysmlv2(&result.semantic_model, &result.ast);
+    let back = compile(&import_sysml(&text)).unwrap();
+    assert_eq!(back.ast.system_analysis[0].requirements[0].attributes["require"].display(), format!("[{condition}]"));
 }
 
 fn import_sysml(text: &str) -> String {

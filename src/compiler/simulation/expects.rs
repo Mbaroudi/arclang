@@ -85,6 +85,25 @@ pub struct Expect {
     pub rhs: Term,
 }
 
+/// A requirement's constraint (`require:`, `assume:`): comparisons joined by
+/// `and`, `or`, `xor`, `implies`, negated by `not`, or a bare boolean feature
+/// (`structuralIntegrityMaintained`). A simulation `expects:` stays one comparison.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Condition {
+    Compare { lhs: Term, cmp: Cmp, rhs: Term, tolerance: Option<Term> },
+    /// A boolean feature of the subject, read as it is.
+    Flag(String),
+    Const(bool),
+    Not(Box<Condition>),
+    And(Box<Condition>, Box<Condition>),
+    Or(Box<Condition>, Box<Condition>),
+    Xor(Box<Condition>, Box<Condition>),
+    Implies(Box<Condition>, Box<Condition>),
+}
+
+/// Words that join or negate conditions: never a variable name.
+const LOGIC_WORDS: [&str; 7] = ["and", "or", "xor", "implies", "not", "true", "false"];
+
 /// A token of an expectation, and of the action language
 /// (`execution::expr`), which shares the lexer: numbers with their unit,
 /// names, quoted ids, operators.
@@ -301,6 +320,8 @@ impl Parser<'_> {
                 self.expect(Token::Close)?;
                 Ok(Term::Call { function, at, variable })
             }
+            Some(Token::Name(word)) if self.values && (word == "true" || word == "false") => Ok(Term::Number { value: if word == "true" { 1.0 } else { 0.0 }, dim: DimVec::NONE, unit: None }),
+            Some(Token::Name(word)) if self.values && LOGIC_WORDS.contains(&word.as_str()) => Err(format!("unexpected '{word}'")),
             Some(Token::Name(_)) | Some(Token::Quoted(_)) if self.values => {
                 self.at -= 1;
                 Ok(Term::Call { function: "value".to_string(), at: None, variable: self.variable()? })
@@ -312,6 +333,117 @@ impl Parser<'_> {
             )),
             other => Err(format!("unexpected {}", describe(other.as_ref()))),
         }
+    }
+
+    /// `lhs cmp rhs [within tol]`.
+    fn comparison(&mut self, wrap: &dyn Fn(String) -> String) -> Result<(Term, Cmp, Term, Option<Term>), String> {
+        let lhs = self.sum().map_err(wrap)?;
+        let cmp = match self.next() {
+            Some(Token::Op(">=")) => Cmp::Ge,
+            Some(Token::Op("<=")) => Cmp::Le,
+            Some(Token::Op(">")) => Cmp::Gt,
+            Some(Token::Op("<")) => Cmp::Lt,
+            Some(Token::Op("==")) => Cmp::Eq,
+            Some(Token::Op("!=")) => Cmp::Ne,
+            other => return Err(wrap(format!("expected a comparison (>=, <=, >, <, ==, !=), got {}", describe(other.as_ref())))),
+        };
+        let rhs = self.sum().map_err(wrap)?;
+        let tolerance = if self.peek() == Some(&Token::Name("within".to_string())) {
+            self.at += 1;
+            if !matches!(cmp, Cmp::Eq | Cmp::Ne) {
+                return Err(wrap("`within` says how far equal may be: it goes with == or !=".to_string()));
+            }
+            Some(self.sum().map_err(wrap)?)
+        } else {
+            None
+        };
+        Ok((lhs, cmp, rhs, tolerance))
+    }
+
+    fn is_word(&self, words: &[&str]) -> bool {
+        match self.peek() {
+            Some(Token::Name(n)) => words.contains(&n.as_str()),
+            Some(Token::Op("&&")) => words.contains(&"and"),
+            Some(Token::Op("||")) => words.contains(&"or"),
+            _ => false,
+        }
+    }
+
+    /// `a implies b` (right-associative, the loosest).
+    fn condition(&mut self, wrap: &dyn Fn(String) -> String) -> Result<Condition, String> {
+        let lhs = self.disjunction(wrap)?;
+        if self.is_word(&["implies"]) {
+            self.at += 1;
+            let rhs = self.condition(wrap)?;
+            return Ok(Condition::Implies(Box::new(lhs), Box::new(rhs)));
+        }
+        Ok(lhs)
+    }
+
+    fn disjunction(&mut self, wrap: &dyn Fn(String) -> String) -> Result<Condition, String> {
+        let mut lhs = self.conjunction(wrap)?;
+        while self.is_word(&["or", "xor"]) {
+            let xor = self.is_word(&["xor"]);
+            self.at += 1;
+            let rhs = self.conjunction(wrap)?;
+            lhs = if xor { Condition::Xor(Box::new(lhs), Box::new(rhs)) } else { Condition::Or(Box::new(lhs), Box::new(rhs)) };
+        }
+        Ok(lhs)
+    }
+
+    fn conjunction(&mut self, wrap: &dyn Fn(String) -> String) -> Result<Condition, String> {
+        let mut lhs = self.negation(wrap)?;
+        while self.is_word(&["and"]) {
+            self.at += 1;
+            let rhs = self.negation(wrap)?;
+            lhs = Condition::And(Box::new(lhs), Box::new(rhs));
+        }
+        Ok(lhs)
+    }
+
+    fn negation(&mut self, wrap: &dyn Fn(String) -> String) -> Result<Condition, String> {
+        if self.is_word(&["not"]) || self.peek() == Some(&Token::Op("!")) {
+            self.at += 1;
+            return Ok(Condition::Not(Box::new(self.negation(wrap)?)));
+        }
+        self.atom(wrap)
+    }
+
+    /// A comparison, a bare boolean feature, `true`/`false`, or a condition in parentheses.
+    fn atom(&mut self, wrap: &dyn Fn(String) -> String) -> Result<Condition, String> {
+        let start = self.at;
+        let first = self.comparison(wrap);
+        let error = match first {
+            Ok((lhs, cmp, rhs, tolerance)) => return Ok(Condition::Compare { lhs, cmp, rhs, tolerance }),
+            Err(e) => e,
+        };
+        self.at = start;
+        let ends_here = |p: &Parser<'_>, at: usize| {
+            let saved = p.tokens.get(at);
+            matches!(saved, None | Some(Token::Close)) || matches!(saved, Some(Token::Name(n)) if ["and", "or", "xor", "implies"].contains(&n.as_str())) || matches!(saved, Some(Token::Op("&&" | "||")))
+        };
+        match self.peek().cloned() {
+            Some(Token::Name(n)) if n == "true" || n == "false" => {
+                self.at += 1;
+                return Ok(Condition::Const(n == "true"));
+            }
+            Some(Token::Name(n)) if !FUNCTIONS.contains(&n.as_str()) && !LOGIC_WORDS.contains(&n.as_str()) && ends_here(self, start + 1) => {
+                self.at += 1;
+                return Ok(Condition::Flag(n));
+            }
+            Some(Token::Quoted(_)) if ends_here(self, start + 1) => return Ok(Condition::Flag(self.variable()?)),
+            Some(Token::Open) => {
+                self.at += 1;
+                if let Ok(inner) = self.condition(wrap) {
+                    if self.peek() == Some(&Token::Close) {
+                        self.at += 1;
+                        return Ok(inner);
+                    }
+                }
+            }
+            _ => {}
+        }
+        Err(error)
     }
 
     fn expect(&mut self, token: Token) -> Result<(), String> {
@@ -404,7 +536,27 @@ fn syntax(full: &str, values: bool) -> Result<(), String> {
 /// expectation is (`mass <= 1200 kg`, `max(cabin.T) <= 30 °C`), its variables the subject's
 /// features. Its syntax and units are checked; it is not evaluated here.
 pub fn check_constraint(text: &str) -> Result<(), String> {
-    syntax(text, true).map_err(|e| e.trim_start_matches(&format!("expects \"{text}\": ")).to_string())
+    parse_constraint(text).map(|_| ())
+}
+
+/// A requirement's constraint as a condition tree. The syntax and the units
+/// are checked, as `check_constraint` does.
+pub fn parse_constraint(text: &str) -> Result<Condition, String> {
+    let tokens = tokens(text)?;
+    let aliases: BTreeMap<String, String> = tokens
+        .iter()
+        .filter_map(|t| match t {
+            Token::Quoted(q) => q.split_once('\u{0}').map(|(e, _)| (e.to_string(), "x".to_string())),
+            _ => None,
+        })
+        .collect();
+    let mut parser = Parser { tokens, at: 0, aliases: &aliases, values: true };
+    let wrap = |e: String| e;
+    let condition = parser.condition(&wrap)?;
+    match parser.peek() {
+        None => Ok(condition),
+        Some(extra) => Err(format!("unexpected {} after the condition", describe(Some(extra)))),
+    }
 }
 
 /// A value in SI; `dim` is `None` when a variable's unit is unknown.
@@ -808,8 +960,41 @@ mod constraint_tests {
         for ok in ["mass <= 1200 kg", "max(cabin.T) <= 30 °C", "range >= 400 km", "ambient.T >= -20 °C"] {
             assert!(check_constraint(ok).is_ok(), "{ok}: {:?}", check_constraint(ok));
         }
-        assert!(check_constraint("mass").unwrap_err().contains("comparison"));
         assert!(check_constraint("mass <= ").is_err());
+    }
+
+    #[test]
+    fn comparisons_join_with_and_or_not_and_a_bare_boolean_stands_alone() {
+        use super::{parse_constraint, Condition};
+        for ok in [
+            "structuralIntegrityMaintained",
+            "not contaminated",
+            "!contaminated",
+            "a >= 1 and b <= 2",
+            "a >= 1 && b <= 2 || not c",
+            "mass <= 1200 kg and not failed and ready",
+            "(a >= 1 or b >= 1) and c",
+            "(a + b) * 2 >= c and d",
+            "flag == true",
+            "a >= 1 implies b >= 2",
+            "x xor y",
+            "((a))",
+            "true",
+        ] {
+            assert!(check_constraint(ok).is_ok(), "{ok}: {:?}", check_constraint(ok));
+        }
+        // `and` binds tighter than `or`, `not` tighter than `and`.
+        match parse_constraint("a or b and not c").unwrap() {
+            Condition::Or(_, rhs) => assert!(matches!(*rhs, Condition::And(_, ref n) if matches!(**n, Condition::Not(_)))),
+            other => panic!("{other:?}"),
+        }
+        // A name that only starts with `not` is a name.
+        assert_eq!(parse_constraint("notwasteDetected").unwrap(), Condition::Flag("notwasteDetected".to_string()));
+        for bad in ["and a", "a and", "a >= 1 and", "not", "(a and b", "a b", "a >= 1 b", "mass <= "] {
+            assert!(check_constraint(bad).is_err(), "{bad}");
+        }
+        // Units are still checked inside a condition.
+        assert!(check_constraint("mass <= 5 foo and a").is_err());
     }
 }
 

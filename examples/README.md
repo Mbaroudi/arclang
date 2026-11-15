@@ -56,6 +56,7 @@ Simulation needs OpenModelica: on the desktop, *ArcLang: Set up OpenModelica*; o
 | [Fly-by-wire flight control](aerospace/flight-control/) | Intermediate | Pilot inputs to control surfaces through two dissimilar computers, with what a DO-178C / ARP4754A review asks for. |
 | [Inspection drone hover endurance](aerospace/drone-endurance/) | Advanced | Each drone configuration flown in OpenModelica: climb to 50 m, hold, and see how long the battery lasts. |
 | [Aircraft electrical network, generator loss](aerospace/electrical-network/) | Advanced | A 28 V DC network loses its generator: load shedding and the battery must carry the essential bus for 30 minutes. |
+| [Apollo 11, from SysML v2](aerospace/apollo-11/) | Advanced | The Airbus model of the mission, 297 requirements in five layers, read by `arclang import`: what it took, and the 14 requirements nothing satisfies. |
 
 ## Defense
 

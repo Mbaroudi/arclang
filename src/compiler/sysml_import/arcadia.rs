@@ -924,6 +924,9 @@ impl<'g> Mapper<'g> {
         entries.sort();
         for (def_id, name) in entries {
             let Some(def) = self.graph.get(&def_id) else { continue };
+            // A type is designated by its name, which no element's id may repeat: an
+            // individual written `part johnYoung : JohnYoung` must not take the type's name.
+            self.taken.insert(name.clone());
             self.count("types");
             let parent = def.specializes.first().and_then(|s| self.types.get(s)).cloned();
             match parent {
@@ -1172,13 +1175,15 @@ impl<'g> Mapper<'g> {
                     (Some(value), _) => value.clone(),
                     // A value that is not a literal, a quantity or a list (a
                     // computation, a reference) is kept as text, and counted.
-                    (None, Some(expression)) => match self.expression_text(expression) {
+                    (None, Some(expression)) => match self.expression_text(expression).map(|text| bare_quantity(&text).unwrap_or(text)) {
                         Ok(text) if expression::is_attribute_value(&text) => text,
                         Ok(text) => {
                             computed.push(format!("'{}': attribute '{name}' = {text} kept as text", Self::display(element)));
                             is_formula = true;
                             string_literal(&text)
                         }
+                        // `2 [m/s]`: a quantity, written the way ArcLang writes one.
+                        Err(_) if child.source_text.as_deref().and_then(bare_quantity).is_some() => child.source_text.as_deref().and_then(bare_quantity).unwrap_or_default(),
                         Err(_) => match child.source_text.clone() {
                             Some(source) => {
                                 computed.push(format!("'{}': attribute '{name}' = {source} kept as text", Self::display(element)));
@@ -2964,15 +2969,43 @@ fn direction_in_name(name: &str) -> Option<&'static str> {
     }
 }
 
+/// `2 [m/s]` (a number and its unit in brackets, as SysML v2 writes a quantity) as ArcLang
+/// writes it: the quantity `2 m/s` when ArcLang knows the unit, the text `"30 d"` when it
+/// does not. `None` for anything else (an index `a[1]`, a computation).
+pub(super) fn bare_quantity(text: &str) -> Option<String> {
+    let (number, unit) = text.trim().split_once(" [")?;
+    let unit = unit.strip_suffix(']')?.trim().trim_matches('\'');
+    if number.parse::<f64>().is_err() || unit.is_empty() || unit.contains(['[', ']', ',', '"']) {
+        return None;
+    }
+    let written = format!("{number} {unit}");
+    Some(if crate::compiler::quantity::lookup_unit(unit).is_some() { written } else { string_literal(&written) })
+}
+
 fn arclang_units(text: &str) -> String {
     static UNIT: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
     let unit = UNIT.get_or_init(|| regex::Regex::new(r"\s*\[\s*'?([^\]']+?)'?\s*\]").expect("a valid pattern"));
-    unit.replace_all(text, " $1").into_owned()
+    // The unit is rebuilt from an expression (`m / s`): written as the table writes it (`m/s`).
+    static SPACES: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let spaces = SPACES.get_or_init(|| regex::Regex::new(r"\s*([/^*])\s*").expect("a valid pattern"));
+    unit.replace_all(text, |found: &regex::Captures<'_>| format!(" {}", spaces.replace_all(&found[1], "$1"))).into_owned()
 }
 
 #[cfg(test)]
 mod tests {
-    use super::record_source;
+    use super::{arclang_units, bare_quantity, record_source};
+
+    #[test]
+    fn a_unit_rebuilt_from_an_expression_is_written_without_spaces() {
+        assert_eq!(arclang_units("0.5 [m / s]"), "0.5 m/s");
+        assert_eq!(arclang_units("3 [W / m ^ 2]"), "3 W/m^2");
+        assert_eq!(arclang_units("40 ['mΩ']"), "40 mΩ");
+        assert_eq!(bare_quantity("2 [m/s]").as_deref(), Some("2 m/s"));
+        // A unit ArcLang does not know: the value is kept, as text.
+        assert_eq!(bare_quantity("30 [d]").as_deref(), Some("\"30 d\""));
+        assert_eq!(bare_quantity("a [1]"), None);
+        assert_eq!(bare_quantity("x + 2 [s]"), None);
+    }
 
     #[test]
     fn a_string_is_a_block_only_when_it_is_one_block_and_nothing_else() {
