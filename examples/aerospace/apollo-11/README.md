@@ -22,8 +22,8 @@ arclang gate apollo11.arc
 ## What it shows
 
 A model written by others, for another tool, is the test an importer and a
-checker cannot pass by being written for each other. Reading it found four
-defects in ArcLang, fixed since:
+checker cannot pass by being written for each other. Reading it, and writing it
+back to SysML v2, found these defects in ArcLang, fixed since:
 
 - a port's direction was guessed from letters in the name of its type, so a
   `StagingPort` and a `DockingPort` both became inputs; it now comes from the
@@ -32,6 +32,10 @@ defects in ArcLang, fixed since:
 - an astronaut written `part 'John Young' : 'John Young'` took the id of its type, so
   `arclang edit` of the type's attributes landed on the astronaut; an individual now
   never takes a type's name as its id;
+- `2 [m/s]` was kept as a text, and written `m / s`; it is now the quantity `2 m/s`, and
+  a unit ArcLang does not know (`30 [d]`, `4 [gn]`) stays a text;
+- ArcLang's own SysML v2 export of the model did not read back for the views:
+  `require constraint`, `timeslice` and `snapshot` were written and not read;
 - a requirement's `require` was one comparison. The model writes
   `a >= b and not c`, `structuralIntegrityMaintained`: 56 constraints, 33 of
   them with `and`, `not` or a bare boolean. A condition is now comparisons
