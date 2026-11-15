@@ -45,7 +45,7 @@ async def test_workbench_counts_the_elements_and_names_the_diagrams(server, aeb)
         "Automotive Emergency Braking System (AEB) | "
         'description="Emergency brake control" safety_level="ASIL-D" type="Controller"'
     ) in answer
-    assert "Relationships: 96 (" in answer and "traces: 15." in answer
+    assert "Relationships: 96 (" in answer and "links between views: 54." in answer
     assert "Findings: 0" in answer
     assert "Gate: PASS, 7/7 requirements verified." in answer
     assert "Diagrams: 22 (id | view | title)" in answer

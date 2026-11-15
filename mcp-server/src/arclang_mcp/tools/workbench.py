@@ -397,7 +397,7 @@ def describe_model(document: Dict[str, Any], layers: Dict[str, str], selection: 
         lines.append("Outgoing: " + ("; ".join(outgoing) or "none"))
     if not selection.element:
         kinds = ", ".join(dict.fromkeys(str(r.get("kind")) for r in relationships))
-        lines.append(f"Relationships: {len(relationships)} ({kinds}); traces: {len(links)}.")
+        lines.append(f"Relationships: {len(relationships)} ({kinds}); links between views: {len(links)}.")
 
     lines += finding_lines(document.get("findings") or [])
     gate = document.get("gate")

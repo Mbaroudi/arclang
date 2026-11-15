@@ -188,10 +188,7 @@ fn snapshot_of(compiled: Result<crate::CompilationResult, crate::CompilerError>,
                 capabilities: model.capabilities.len(),
                 functional_chains: model.functional_chains.len(),
             };
-            let explorer = crate::compiler::arcviz_explorer::generate_explorer_html(
-                model,
-                &result.ast,
-            )
+            let explorer = crate::compiler::arcviz_explorer::generate_explorer_html_linked(&result, model, None)
             .ok();
             let explorer_html = if options.explorer_html { explorer.as_ref().map(|(html, _json)| html.clone()) } else { None };
             let document = explorer

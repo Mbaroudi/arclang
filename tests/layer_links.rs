@@ -183,3 +183,16 @@ fn an_element_without_an_id_is_still_found_under_the_component_drawing_it() {
     let realizes = found(&set, "realizes", "Radar.Acquire frames", "SF-Sense");
     assert_eq!((realizes.source_layer, realizes.target_layer), (Some("LA"), Some("SA")));
 }
+
+#[test]
+fn the_explorer_page_of_a_compiled_model_carries_the_layers_and_the_links() {
+    use arclang::compiler::arcviz_explorer::{generate_explorer_html, generate_explorer_html_linked};
+    let result = Compiler::new(CompilerConfig::default()).compile_string(MODEL).expect("test model compiles");
+
+    let (linked, _) = generate_explorer_html_linked(&result, &result.semantic_model, None).expect("the explorer renders");
+    assert!(linked.contains(r#""layer":"LA""#), "the views of the page say the layers");
+    assert!(linked.contains(r#""kind":"deployed on""#) && linked.contains(r#""back":"hosts""#), "the deployment is a link of the page");
+
+    let (plain, _) = generate_explorer_html(&result.semantic_model, &result.ast).expect("the explorer renders");
+    assert!(!plain.contains(r#""kind":"deployed on""#), "from the syntax tree alone, the page has the traces only");
+}
