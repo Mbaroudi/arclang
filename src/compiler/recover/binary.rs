@@ -463,7 +463,7 @@ fn indirect_targets(lifted: &str, dir: &Path) -> Result<(Vec<u32>, StartState), 
     write("arclang_lifted.h", LIFTED_H)?;
     // The run ends itself after the time it is given (alarm): killing the command that started it does not end it
     // when that command is a container's client, and a start that never reaches the cut would run for ever.
-    write("discover.c", &format!("#define ARCLANG_NATIVE_DISCOVER\n#include <unistd.h>\n#include \"lifted.c\"\nunsigned char nondet_uchar(void) {{ return 0; }}\nint main(void)\n{{\n    alarm({DISCOVER_SECONDS}u);\n    arclang_booting = true;\n    f_{start:04x}();\n    printf(\"reached %d\\n\", (int)arclang_stop);\n    printf(\"registers\");\n    for (unsigned k = 0; k < 32u; k++) {{ printf(\" %u\", (unsigned)arclang_r[k]); }}\n    printf(\"\\nsp %u\\n\", (unsigned)arclang_reg_rd(ARCLANG_SP, 2));\n    printf(\"low_sp %u\\n\", arclang_low_sp);\n    printf(\"settings\");\n    for (unsigned k = 0; k < 0x100u; k++) {{ if (arclang_is_setting(k)) {{ printf(\" %u:%u\", k, (unsigned)arclang_settings[k]); }} }}\n    printf(\"\\n\");\n    printf(\"memory\");\n    for (unsigned k = ARCLANG_RAM_FIRST; k < ARCLANG_MEM_SIZE; k++) {{ printf(\" %u\", (unsigned)arclang_mem[k]); }}\n    printf(\"\\n\");\n    return 0;\n}}\n"))?;
+    write("discover.c", &format!("#define ARCLANG_NATIVE_DISCOVER\n#include <signal.h>\n#include <unistd.h>\n#include \"lifted.c\"\nunsigned char nondet_uchar(void) {{ return 0; }}\n/* Out of its time (a start that reaches no cut: it runs the loop of the code for ever): what it found is said, and it ends. */\nstatic void arclang_out_of_time(int signal) {{ (void)signal; fflush(stdout); _exit(0); }}\nint main(void)\n{{\n    signal(SIGALRM, arclang_out_of_time);\n    alarm({DISCOVER_SECONDS}u);\n    arclang_booting = true;\n    f_{start:04x}();\n    printf(\"reached %d\\n\", (int)arclang_stop);\n    printf(\"registers\");\n    for (unsigned k = 0; k < 32u; k++) {{ printf(\" %u\", (unsigned)arclang_r[k]); }}\n    printf(\"\\nsp %u\\n\", (unsigned)arclang_reg_rd(ARCLANG_SP, 2));\n    printf(\"low_sp %u\\n\", arclang_low_sp);\n    printf(\"settings\");\n    for (unsigned k = 0; k < 0x100u; k++) {{ if (arclang_is_setting(k)) {{ printf(\" %u:%u\", k, (unsigned)arclang_settings[k]); }} }}\n    printf(\"\\n\");\n    printf(\"memory\");\n    for (unsigned k = ARCLANG_RAM_FIRST; k < ARCLANG_MEM_SIZE; k++) {{ printf(\" %u\", (unsigned)arclang_mem[k]); }}\n    printf(\"\\n\");\n    return 0;\n}}\n"))?;
     // Compiled and run in the same place: the command ARCLANG_NATIVE names (it is given discover.c, and compiles and
     // runs it, as a container does), or the C compiler of this computer.
     let _ = std::fs::remove_file(dir.join("discover"));
@@ -504,6 +504,8 @@ fn indirect_targets(lifted: &str, dir: &Path) -> Result<(Vec<u32>, StartState), 
         let _ = err.read_to_string(&mut complaint);
     }
     let status = child.wait().map_err(|e| e.to_string())?;
+    // Ended by its own alarm (128 + SIGALRM, as a shell says it) is out of time too, not a translation that does not compile.
+    let killed = killed || status.code() == Some(142);
     if !status.success() && !killed {
         return Err(format!("the translation could not be compiled and run to find the targets of computed jumps ({status}):\n{}", complaint.lines().take(6).collect::<Vec<_>>().join("\n")));
     }
