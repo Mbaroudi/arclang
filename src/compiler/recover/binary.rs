@@ -72,7 +72,25 @@ pub struct Binary {
     pub interrupts_settled: bool,
     /// Why the clock of the binary could not be established, when it could not.
     pub clock_unknown: Option<String>,
+    /// For a cycle: the routine of the interrupt of the UART (the serial port), run to empty the transmit buffer.
+    pub uart: Option<u32>,
+    /// For a cycle: the pins driven by a timer (`analogWrite`).
+    pub pwm: Vec<u8>,
 }
+
+/// The default target of the interrupt vectors, where the ones nobody takes go, and the routine the vector
+/// of the UART's transmit buffer (data register empty) goes to when it is another: the binary has a serial port.
+pub fn uart_routine(vectors: &[u32]) -> Option<u32> {
+    let mut places: std::collections::BTreeMap<u32, usize> = std::collections::BTreeMap::new();
+    for to in vectors.iter().skip(1) {
+        *places.entry(*to).or_default() += 1;
+    }
+    let nobody = places.iter().max_by_key(|(_, count)| **count).map(|(to, _)| *to)?;
+    vectors.get(UART_DATA_EMPTY).copied().filter(|to| *to != nobody)
+}
+
+/// The vector of the UART data register empty on an ATmega328P.
+pub const UART_DATA_EMPTY: usize = 19;
 
 /// An Arduino function a correspondence can name: the bytes of its
 /// arguments, the bytes of what it returns, and whether its last argument
@@ -381,6 +399,132 @@ pub fn vectors(image: &Image) -> Option<Vec<u32>> {
 /// The vector of the overflow of timer 0, which the Arduino core counts the time with.
 pub const TIMER0_OVERFLOW: usize = 16;
 
+/// What the start leaves, found by running it: whether it reached the cut (or the first loop), the registers
+/// r0..r31 there and the stack pointer. The start is deterministic: it is run once, natively, on the translation.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct StartState {
+    pub reached: bool,
+    pub registers: Vec<u8>,
+    pub sp: u16,
+    /// The lowest the stack pointer went while the start ran; 0 when it was not said.
+    pub low_sp: u16,
+    /// The memory the start leaves, from its first address (`//@ memory`) on; empty when it was not read.
+    pub memory: Vec<u8>,
+    /// What the start leaves in the settings of the timers (their control registers, the interrupts they raise):
+    /// registers only the code writes. Empty when it was not said.
+    pub settings: Vec<(u32, u8)>,
+}
+
+/// The settings of the timers of an ATmega328P: TCCR0A, TCCR0B, TIMSK0 to TIMSK2, TCCR1A to TCCR1C, TCCR2A, TCCR2B.
+pub const SETTINGS: [u32; 10] = [0x44, 0x45, 0x6e, 0x6f, 0x70, 0x80, 0x81, 0x82, 0xb0, 0xb1];
+
+/// How many times the translation is made again with the targets of computed jumps found by running the start.
+const DISCOVER_ROUNDS: usize = 6;
+/// The time the start may take when it is run to find them, in seconds.
+const DISCOVER_SECONDS: u64 = 30;
+
+/// Translate the machine code, as `lift` does, then run its start (deterministic: from the reset, until it
+/// reaches the cut or the first loop) on the translation itself, natively, to find the functions a computed
+/// jump goes to: the global constructors of C++ objects, which the start calls by a table of the flash. The
+/// code is translated again with them as functions, until the start meets no target it does not know. A
+/// target left unknown stays not covered (a flag of the proof): nothing is guessed.
+pub fn lift_discovering(image: &Image, entries: &[u32], cut: Option<u32>, dir: &Path) -> Result<String, String> {
+    lift_with_start(image, entries, cut, dir).map(|(lifted, _)| lifted)
+}
+
+/// `lift_discovering`, and what the start of the final translation leaves.
+pub fn lift_with_start(image: &Image, entries: &[u32], cut: Option<u32>, dir: &Path) -> Result<(String, StartState), String> {
+    lift_with_entries(image, entries, cut, dir).map(|(lifted, state, _)| (lifted, state))
+}
+
+/// `lift_with_start`, and the functions the final translation was made with: those given and those found.
+pub fn lift_with_entries(image: &Image, entries: &[u32], cut: Option<u32>, dir: &Path) -> Result<(String, StartState, Vec<u32>), String> {
+    let mut entries = entries.to_vec();
+    let mut lifted = lift(image, &entries, cut, dir)?;
+    let mut state = StartState::default();
+    for _ in 0..DISCOVER_ROUNDS {
+        let (targets, left) = indirect_targets(&lifted, dir)?;
+        state = left;
+        let found: Vec<u32> = targets.into_iter().filter(|at| !entries.contains(at)).collect();
+        if found.is_empty() {
+            break;
+        }
+        entries.extend(found);
+        lifted = lift(image, &entries, cut, dir)?;
+    }
+    Ok((lifted, state, entries))
+}
+
+/// The targets of the computed jumps the start of a translation takes that are no function of it.
+fn indirect_targets(lifted: &str, dir: &Path) -> Result<(Vec<u32>, StartState), String> {
+    use std::process::{Command, Stdio};
+    let start = lifted.lines().find_map(|line| line.strip_prefix("//@ start 0x")).and_then(|at| u32::from_str_radix(at, 16).ok()).ok_or("the translation does not say where the code starts")?;
+    let write = |name: &str, text: &str| std::fs::write(dir.join(name), text).map_err(|e| format!("cannot write {}: {e}", dir.join(name).display()));
+    write("arclang_lifted.h", LIFTED_H)?;
+    // The run ends itself after the time it is given (alarm): killing the command that started it does not end it
+    // when that command is a container's client, and a start that never reaches the cut would run for ever.
+    write("discover.c", &format!("#define ARCLANG_NATIVE_DISCOVER\n#include <signal.h>\n#include <unistd.h>\n#include \"lifted.c\"\nunsigned char nondet_uchar(void) {{ return 0; }}\n/* Out of its time (a start that reaches no cut: it runs the loop of the code for ever): what it found is said, and it ends. */\nstatic void arclang_out_of_time(int signal) {{ (void)signal; fflush(stdout); _exit(0); }}\nint main(void)\n{{\n    signal(SIGALRM, arclang_out_of_time);\n    alarm({DISCOVER_SECONDS}u);\n    arclang_booting = true;\n    f_{start:04x}();\n    printf(\"reached %d\\n\", (int)arclang_stop);\n    printf(\"registers\");\n    for (unsigned k = 0; k < 32u; k++) {{ printf(\" %u\", (unsigned)arclang_r[k]); }}\n    printf(\"\\nsp %u\\n\", (unsigned)arclang_reg_rd(ARCLANG_SP, 2));\n    printf(\"low_sp %u\\n\", arclang_low_sp);\n    printf(\"settings\");\n    for (unsigned k = 0; k < 0x100u; k++) {{ if (arclang_is_setting(k)) {{ printf(\" %u:%u\", k, (unsigned)arclang_settings[k]); }} }}\n    printf(\"\\n\");\n    printf(\"memory\");\n    for (unsigned k = ARCLANG_RAM_FIRST; k < ARCLANG_MEM_SIZE; k++) {{ printf(\" %u\", (unsigned)arclang_mem[k]); }}\n    printf(\"\\n\");\n    return 0;\n}}\n"))?;
+    // Compiled and run in the same place: the command ARCLANG_NATIVE names (it is given discover.c, and compiles and
+    // runs it, as a container does), or the C compiler of this computer.
+    let _ = std::fs::remove_file(dir.join("discover"));
+    let mut command = match std::env::var("ARCLANG_NATIVE").ok().filter(|v| !v.trim().is_empty()) {
+        Some(runner) => {
+            let mut command = Command::new(runner);
+            command.arg("discover.c");
+            command
+        }
+        None => {
+            let mut command = Command::new("sh");
+            command.args(["-c", "${CC:-cc} -O1 -w -o discover discover.c && ./discover"]);
+            command
+        }
+    };
+    let mut child = command.current_dir(dir).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().map_err(|e| format!("cannot run the translation to find the targets of computed jumps ({e}): set ARCLANG_NATIVE to a command that compiles and runs a C file"))?;
+    let began = std::time::Instant::now();
+    let mut killed = false;
+    loop {
+        match child.try_wait().map_err(|e| e.to_string())? {
+            Some(_) => break,
+            None if began.elapsed().as_secs() > DISCOVER_SECONDS => {
+                let _ = child.kill();
+                killed = true;
+                break;
+            }
+            None => std::thread::sleep(std::time::Duration::from_millis(20)),
+        }
+    }
+    let mut said = String::new();
+    if let Some(mut out) = child.stdout.take() {
+        use std::io::Read;
+        let _ = out.read_to_string(&mut said);
+    }
+    let mut complaint = String::new();
+    if let Some(mut err) = child.stderr.take() {
+        use std::io::Read;
+        let _ = err.read_to_string(&mut complaint);
+    }
+    let status = child.wait().map_err(|e| e.to_string())?;
+    // Ended by its own alarm (128 + SIGALRM, as a shell says it) is out of time too, not a translation that does not compile.
+    let killed = killed || status.code() == Some(142);
+    if !status.success() && !killed {
+        return Err(format!("the translation could not be compiled and run to find the targets of computed jumps ({status}):\n{}", complaint.lines().take(6).collect::<Vec<_>>().join("\n")));
+    }
+    let mut found: Vec<u32> = said.lines().filter_map(|line| line.strip_prefix("target 0x")).filter_map(|at| u32::from_str_radix(at.trim(), 16).ok()).filter(|at| at % 2 == 0 && *at < 0x8000).collect();
+    found.sort_unstable();
+    found.dedup();
+    let registers: Vec<u8> = said.lines().find_map(|line| line.strip_prefix("registers ")).map(|rest| rest.split_whitespace().filter_map(|value| value.parse::<u8>().ok()).collect()).unwrap_or_default();
+    let sp = said.lines().find_map(|line| line.strip_prefix("sp ")).and_then(|value| value.trim().parse::<u16>().ok()).unwrap_or_default();
+    let reached = said.lines().any(|line| line.trim() == "reached 1");
+    let memory: Vec<u8> = said.lines().find_map(|line| line.strip_prefix("memory ")).map(|rest| rest.split_whitespace().filter_map(|value| value.parse::<u8>().ok()).collect()).unwrap_or_default();
+    let low_sp = said.lines().find_map(|line| line.strip_prefix("low_sp ")).and_then(|value| value.trim().parse::<u32>().ok()).filter(|value| *value < 0xffff).map(|value| value as u16).unwrap_or_default();
+    let settings: Vec<(u32, u8)> = said
+        .lines()
+        .find_map(|line| line.strip_prefix("settings "))
+        .map(|rest| rest.split_whitespace().filter_map(|pair| pair.split_once(':')).filter_map(|(at, value)| Some((at.parse::<u32>().ok()?, value.parse::<u8>().ok()?))).filter(|(at, _)| SETTINGS.contains(at)).collect())
+        .unwrap_or_default();
+    Ok((found, StartState { reached, registers: if registers.len() == 32 { registers } else { Vec::new() }, sp, low_sp, memory, settings }))
+}
+
 /// The flash the translation gives its code to read is the image, byte for
 /// byte: checked at every translation, since a proof over another flash
 /// would be a proof of another binary.
@@ -524,6 +668,14 @@ pub fn trusted(binary: &Binary) -> Vec<String> {
         said.push("taken on trust: the clock of the board is 16 MHz, of which timer 0 counts the cycles".to_string());
     } else if binary.clock_unknown.is_none() && binary.identified.iter().any(|(name, _)| name == "millis" || name == "micros") {
         said.push("taken on trust: the bytes millis and micros read count the time (the interrupt of timer 0 keeps them)".to_string());
+    }
+    if binary.cycle.is_some() && !binary.pwm.is_empty() {
+        let pins = binary.pwm.iter().map(u8::to_string).collect::<Vec<_>>().join(", ");
+        let (subject, its) = if binary.pwm.len() == 1 { (format!("pin {pins} is"), "it") } else { (format!("the pins {pins} are"), "them") };
+        said.push(format!("taken on trust: {subject} driven by the timer when it is connected to {its}, by the level of the pin otherwise; the start leaves the timer counting in 8 bits (proven: a line), and a value of 0 to 255 in its compare register is that duty"));
+    }
+    if let Some(uart) = binary.uart {
+        said.push(format!("taken on trust: the serial port is not looked at, what the code prints included; its transmit buffer is empty at the head of each turn (its interrupt, at 0x{uart:04x}, has emptied it: it is run to do so, and proven to empty it within 64 bytes and to return); a byte received changes nothing the code reads"));
     }
     if let Some(why) = &binary.clock_unknown {
         said.push(format!("NOT established: the clock of the binary ({why}). {}", if binary.cycle.is_some() { "The bytes the interrupt of timer 0 keeps are then taken as any value in every turn, and no time is proven." } else { "That the bytes millis and micros read count the time is taken on trust." }));

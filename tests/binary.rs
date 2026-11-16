@@ -379,7 +379,7 @@ fn a_binary_built_with_link_time_optimisation_has_its_cycle_placed_and_no_functi
         "functions: [\"cycle at 0x0390\"]",
         "tick: 1000 us",
         "0x0100 to 0x0109 (10 bytes) (the clock, kept by the interrupt of timer 0, is left out)",
-        "3 places could be the head of the cycle (0x0390 (2 jumps back, the longest 0x14e bytes)",
+        "found: main (0x0272) has one loop it never leaves (134 instructions), entered at 0x0390 only: that is the head of the cycle",
         "the pins and the period are not found",
     ] {
         assert!(output.contains(said), "{said}: {output}");
@@ -427,6 +427,90 @@ fn a_binary_built_as_the_arduino_ide_builds_it_is_proven_with_no_function_named(
 
 #[test]
 #[ignore = "needs Ghidra, CBMC and Bitwuzla (about 10 minutes): tools/embedded/reverse/run.sh cargo test --test binary -- --include-ignored"]
+fn a_pwm_pin_of_an_optimised_binary_is_proven_by_the_registers_of_its_timer_and_a_wrong_duty_refuted() {
+    // analogWrite(9, 128) on a press, analogWrite(9, 0) otherwise: the value of the pin is what timer 1 gives.
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sketches");
+    let asked = arclang(&["prove", fixtures.join("uno_pwm_lto_binary.arc").to_str().unwrap(), "--timeout", "1800"]);
+    let output = text(&asked);
+    assert!(asked.status.success() && output.contains("✓ Proven"), "{output}");
+    for said in [
+        "the whole of it is run, from its reset: no function is stood in for",
+        "taken on trust: pin 9 is driven by the timer when it is connected to it, by the level of the pin otherwise",
+    ] {
+        assert!(output.contains(said), "{said}: {output}");
+    }
+    // The machine has one state and no line names it: it is in it, and a model that says another duty is refuted.
+    let dir = tempfile::tempdir().unwrap();
+    let model = std::fs::read_to_string(fixtures.join("uno_pwm_lto_binary.arc")).unwrap();
+    std::fs::write(dir.path().join("m.arc"), model.replacen("duty := 128", "duty := 127", 1)).unwrap();
+    std::fs::copy(fixtures.join("uno_pwm_lto.hex"), dir.path().join("uno_pwm_lto.hex")).unwrap();
+    let asked = arclang(&["prove", dir.path().join("m.arc").to_str().unwrap(), "--timeout", "1800"]);
+    let output = text(&asked);
+    assert!(!asked.status.success() && output.contains("✗ Refuted") && output.contains("`the value written to 9` and `duty`: after 128 and 127"), "{output}");
+}
+
+#[test]
+#[ignore = "needs Ghidra, CBMC and Bitwuzla (about 10 minutes): tools/embedded/reverse/run.sh cargo test --test binary -- --include-ignored"]
+fn an_optimised_binary_that_prints_a_text_on_the_serial_port_is_proven_and_a_wrong_line_refuted() {
+    // A lamp toggled by a button, that says "on" or "off" through Print::write and the vtable of the serial port.
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sketches");
+    let asked = arclang(&["prove", fixtures.join("uno_serial_text_lto_binary.arc").to_str().unwrap(), "--timeout", "1800"]);
+    let output = text(&asked);
+    assert!(asked.status.success() && output.contains("✓ Proven"), "{output}");
+    for said in [
+        "the whole of it is run, from its reset: no function is stood in for",
+        "taken on trust: the serial port is not looked at, what the code prints included; its transmit buffer is empty at the head of each turn",
+    ] {
+        assert!(output.contains(said), "{said}: {output}");
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let model = std::fs::read_to_string(fixtures.join("uno_serial_text_lto_binary.arc")).unwrap();
+    std::fs::write(dir.path().join("m.arc"), model.replacen("word(0x01b9) == 1 is led", "word(0x01b9) == 0 is led", 1)).unwrap();
+    std::fs::copy(fixtures.join("uno_serial_text_lto.hex"), dir.path().join("uno_serial_text_lto.hex")).unwrap();
+    let asked = arclang(&["prove", dir.path().join("m.arc").to_str().unwrap(), "--timeout", "1800"]);
+    let output = text(&asked);
+    assert!(!asked.status.success() && output.contains("✗ Refuted") && output.contains("does not hold after it: word(0x01b9) == 0 is led"), "{output}");
+}
+
+#[test]
+#[ignore = "needs Ghidra, CBMC and Bitwuzla (about 20 minutes): tools/embedded/reverse/run.sh cargo test --test binary -- --include-ignored"]
+fn an_optimised_dimmer_with_a_pwm_pin_and_a_serial_port_is_proven_and_a_wrong_step_refuted() {
+    // More than a quarter of an hour of proof: run when asked (ARCLANG_LONG_PROOFS=1), not at every change.
+    if std::env::var_os("ARCLANG_LONG_PROOFS").is_none() {
+        eprintln!("skipped: set ARCLANG_LONG_PROOFS=1 to run this proof");
+        return;
+    }
+    // digitalRead(3) disconnects timer 2, which could drive that pin: a write of its setting that changes nothing,
+    // the settings of the timers being at the head of each turn as the start leaves them.
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sketches");
+    let asked = arclang(&["prove", fixtures.join("uno_dimmer_lto_binary.arc").to_str().unwrap(), "--timeout", "2400"]);
+    let output = text(&asked);
+    assert!(asked.status.success() && output.contains("✓ Proven"), "{output}");
+    let dir = tempfile::tempdir().unwrap();
+    let model = std::fs::read_to_string(fixtures.join("uno_dimmer_lto_binary.arc")).unwrap();
+    std::fs::write(dir.path().join("m.arc"), model.replacen("level := min(level + 85, 255)", "level := min(level + 84, 255)", 1)).unwrap();
+    std::fs::copy(fixtures.join("uno_dimmer_lto.hex"), dir.path().join("uno_dimmer_lto.hex")).unwrap();
+    let asked = arclang(&["prove", dir.path().join("m.arc").to_str().unwrap(), "--timeout", "2400"]);
+    let output = text(&asked);
+    assert!(!asked.status.success() && output.contains("✗ Refuted") && output.contains("`the value written to 9` and `level`: after 85 and 84"), "{output}");
+}
+
+#[test]
+#[ignore = "needs Ghidra, CBMC and Bitwuzla (about 25 minutes): tools/embedded/reverse/run.sh cargo test --test binary -- --include-ignored"]
+fn an_optimised_binary_that_prints_a_number_on_the_serial_port_is_proven() {
+    // More than a quarter of an hour of proof: run when asked (ARCLANG_LONG_PROOFS=1), not at every change.
+    if std::env::var_os("ARCLANG_LONG_PROOFS").is_none() {
+        eprintln!("skipped: set ARCLANG_LONG_PROOFS=1 to run this proof");
+        return;
+    }
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sketches");
+    let asked = arclang(&["prove", fixtures.join("uno_serial_lto_binary.arc").to_str().unwrap(), "--timeout", "2400"]);
+    let output = text(&asked);
+    assert!(asked.status.success() && output.contains("✓ Proven"), "{output}");
+}
+
+#[test]
+#[ignore = "needs Ghidra, CBMC and Bitwuzla (about 10 minutes): tools/embedded/reverse/run.sh cargo test --test binary -- --include-ignored"]
 fn a_correspondence_that_reads_the_wrong_bytes_of_an_optimised_binary_is_refuted() {
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sketches");
     let dir = tempfile::tempdir().unwrap();
@@ -435,8 +519,10 @@ fn a_correspondence_that_reads_the_wrong_bytes_of_an_optimised_binary_is_refuted
     std::fs::copy(fixtures.join("uno_lamp_lto.hex"), dir.path().join("uno_lamp_lto.hex")).unwrap();
     let asked = arclang(&["prove", dir.path().join("m.arc").to_str().unwrap(), "--timeout", "1800"]);
     let output = text(&asked);
-    // The lines of a cycle are not asked one by one (each question takes minutes): the refutation is said, and why not more.
-    assert!(!asked.status.success() && output.contains("✗ Refuted") && output.contains("the lines are not asked one by one"), "{output}");
+    // The lines of a cycle are not asked one by one (each question takes minutes): the case says which do not hold.
+    assert!(!asked.status.success() && output.contains("✗ Refuted"), "{output}");
+    assert!(output.contains("does not hold after it: word(0x010a) == 1 is led"), "the line that fails is named: {output}");
+    assert!(!output.contains("does not hold after it: word(0x0108) == 0 && word(0x0106) == 0 is in Up"), "a line that holds is not named: {output}");
 }
 
 #[test]

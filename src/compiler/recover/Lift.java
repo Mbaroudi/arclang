@@ -61,7 +61,8 @@ public class Lift extends GhidraScript {
         // A raw image names no entry point: a firmware image starts at its first byte.
         entry(first);
         for (int k = 1; k < args.length; k++) {
-            // `cut:0x0390`: the place a cycle is cut at (see `cut`); any other argument is where a function is.
+            // `cut:0x0390`: the place a cycle is cut at (see `cut`); any other argument is where a function is
+            // (a target of a computed jump, found by running the start, is one).
             if (args[k].startsWith("cut:")) {
                 cut = code.getAddress(Long.decode(args[k].substring(4)), false);
             } else {
@@ -110,6 +111,12 @@ public class Lift extends GhidraScript {
             for (String name : userOps) {
                 out.println("void arclang_op_" + name + "(void);");
             }
+            // The computed jumps and calls: to the entry of a function, by its word address.
+            out.println("static void arclang_ijmp(uint64_t word)\n{\n    switch (word) {");
+            for (Function function : functions) {
+                out.println("    case 0x" + Long.toHexString(function.getEntryPoint().getOffset() / 2) + "u: c_" + hex(function.getEntryPoint()) + "(); return;");
+            }
+            out.println("    default: arclang_unknown_target(word * 2u); return;\n    }\n}");
             out.print(bodies);
         }
     }
@@ -322,6 +329,213 @@ public class Lift extends GhidraScript {
         return said.append("\n").toString();
     }
 
+    /**
+     * What a loop head says of the registers: the registers the straight-line code from it reads before it
+     * writes them (what the previous turn leaves in them is used), and the registers the loop writes
+     * (from the head to the last jump back to it). A register in both carries state across the head: the
+     * state of the code is then not all in the memory, and a machine cannot be related to the head.
+     */
+    private String head(List<Instruction> instructions, Address head, String entry) {
+        Address last = head;
+        for (Instruction instruction : instructions) {
+            for (PcodeOp op : instruction.getPcode()) {
+                boolean jump = op.getOpcode() == PcodeOp.BRANCH || op.getOpcode() == PcodeOp.CBRANCH;
+                if (jump && op.getInput(0).isAddress() && op.getInput(0).getAddress().equals(head) && instruction.getAddress().compareTo(last) > 0) {
+                    last = instruction.getAddress();
+                }
+            }
+        }
+        Set<Long> written = new TreeSet<>();
+        for (Instruction instruction : instructions) {
+            if (instruction.getAddress().compareTo(head) < 0 || instruction.getAddress().compareTo(last) > 0) {
+                continue;
+            }
+            for (PcodeOp op : instruction.getPcode()) {
+                if (op.getOutput() != null && isRegisterCell(op.getOutput())) {
+                    for (long k = 0; k < op.getOutput().getSize(); k++) {
+                        written.add(op.getOutput().getOffset() + k);
+                    }
+                }
+            }
+        }
+        // The straight line from the head, to the first jump, call or return.
+        Set<Long> defined = new TreeSet<>();
+        Set<Long> reads = new TreeSet<>();
+        boolean started = false;
+        int count = 0;
+        scan:
+        for (Instruction instruction : instructions) {
+            if (!started) {
+                started = instruction.getAddress().equals(head);
+            }
+            if (!started) {
+                continue;
+            }
+            for (PcodeOp op : instruction.getPcode()) {
+                for (Varnode in : op.getInputs()) {
+                    if (isRegisterCell(in)) {
+                        for (long k = 0; k < in.getSize(); k++) {
+                            if (!defined.contains(in.getOffset() + k)) {
+                                reads.add(in.getOffset() + k);
+                            }
+                        }
+                    }
+                }
+                Varnode out = op.getOutput();
+                if (out != null && isRegisterCell(out)) {
+                    for (long k = 0; k < out.getSize(); k++) {
+                        defined.add(out.getOffset() + k);
+                    }
+                }
+            }
+            for (PcodeOp op : instruction.getPcode()) {
+                int code = op.getOpcode();
+                if (code == PcodeOp.BRANCH || code == PcodeOp.CBRANCH || code == PcodeOp.CALL || code == PcodeOp.CALLIND || code == PcodeOp.BRANCHIND || code == PcodeOp.RETURN) {
+                    break scan;
+                }
+            }
+            if (++count >= 60) {
+                break;
+            }
+        }
+        StringBuilder said = new StringBuilder("//@ head 0x" + hex(head) + " in 0x" + entry + " to 0x" + hex(last) + " reads");
+        for (long register : reads) {
+            said.append(" ").append(register);
+        }
+        said.append(" writes");
+        for (long register : written) {
+            said.append(" ").append(register);
+        }
+        return said.append("\n").toString();
+    }
+
+    /**
+     * The loops of a function that nothing leaves: the groups of instructions that reach one another (by a
+     * jump or by falling through) and from which no jump and no fall goes out. A firmware's cycle is one;
+     * a wait for ever (one instruction jumping to itself) is not said. For each, where it is entered from
+     * the rest of the function: `//@ cycle in 0xENTRY size N heads 0xA 0xB`.
+     */
+    private String neverLeft(List<Instruction> instructions, AddressSetView body, String entry) {
+        int n = instructions.size();
+        Map<Address, Integer> rankOf = new HashMap<>();
+        for (int i = 0; i < n; i++) {
+            rankOf.put(instructions.get(i).getAddress(), i);
+        }
+        List<List<Integer>> next = new ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            Instruction instruction = instructions.get(i);
+            List<Integer> to = new ArrayList<>();
+            Address falls = instruction.getFallThrough();
+            if (falls != null && rankOf.containsKey(falls)) {
+                to.add(rankOf.get(falls));
+            }
+            for (PcodeOp op : instruction.getPcode()) {
+                if ((op.getOpcode() == PcodeOp.BRANCH || op.getOpcode() == PcodeOp.CBRANCH) && op.getInput(0).isAddress()) {
+                    Integer target = rankOf.get(op.getInput(0).getAddress());
+                    if (target != null && !to.contains(target)) {
+                        to.add(target);
+                    }
+                }
+            }
+            next.add(to);
+        }
+        // Strongly connected components (Tarjan, without recursion: a function may be long).
+        int[] index = new int[n];
+        int[] low = new int[n];
+        int[] component = new int[n];
+        boolean[] onStack = new boolean[n];
+        java.util.Arrays.fill(index, -1);
+        java.util.Arrays.fill(component, -1);
+        List<Integer> stack = new ArrayList<>();
+        int counter = 0;
+        int components = 0;
+        for (int root = 0; root < n; root++) {
+            if (index[root] != -1) {
+                continue;
+            }
+            List<int[]> work = new ArrayList<>();
+            work.add(new int[] { root, 0 });
+            while (!work.isEmpty()) {
+                int[] frame = work.get(work.size() - 1);
+                int v = frame[0];
+                if (frame[1] == 0) {
+                    index[v] = low[v] = counter++;
+                    stack.add(v);
+                    onStack[v] = true;
+                }
+                if (frame[1] < next.get(v).size()) {
+                    int w = next.get(v).get(frame[1]++);
+                    if (index[w] == -1) {
+                        work.add(new int[] { w, 0 });
+                    } else if (onStack[w]) {
+                        low[v] = Math.min(low[v], index[w]);
+                    }
+                    continue;
+                }
+                if (low[v] == index[v]) {
+                    while (true) {
+                        int w = stack.remove(stack.size() - 1);
+                        onStack[w] = false;
+                        component[w] = components;
+                        if (w == v) {
+                            break;
+                        }
+                    }
+                    components++;
+                }
+                work.remove(work.size() - 1);
+                if (!work.isEmpty()) {
+                    int parent = work.get(work.size() - 1)[0];
+                    low[parent] = Math.min(low[parent], low[v]);
+                }
+            }
+        }
+        int[] size = new int[components];
+        boolean[] leaves = new boolean[components];
+        boolean[] loops = new boolean[components];
+        for (int v = 0; v < n; v++) {
+            size[component[v]]++;
+            for (int w : next.get(v)) {
+                if (component[w] != component[v]) {
+                    leaves[component[v]] = true;
+                } else {
+                    loops[component[v]] = true;
+                }
+            }
+            // The last instruction of the body falling out of it, a return, a computed jump: a way out.
+            Instruction instruction = instructions.get(v);
+            Address falls = instruction.getFallThrough();
+            if ((falls != null && !rankOf.containsKey(falls)) || instruction.getFlowType().isTerminal() || instruction.getFlowType().isComputed()) {
+                leaves[component[v]] = true;
+            }
+            for (PcodeOp op : instruction.getPcode()) {
+                if ((op.getOpcode() == PcodeOp.BRANCH || op.getOpcode() == PcodeOp.CBRANCH) && op.getInput(0).isAddress() && !rankOf.containsKey(op.getInput(0).getAddress())) {
+                    leaves[component[v]] = true;
+                }
+            }
+        }
+        StringBuilder said = new StringBuilder();
+        for (int c = 0; c < components; c++) {
+            if (!loops[c] || leaves[c] || size[c] < 2) {
+                continue;
+            }
+            Set<Long> heads = new TreeSet<>();
+            for (int v = 0; v < n; v++) {
+                for (int w : next.get(v)) {
+                    if (component[w] == c && component[v] != c) {
+                        heads.add(instructions.get(w).getAddress().getOffset());
+                    }
+                }
+            }
+            said.append("//@ cycle in 0x").append(entry).append(" size ").append(size[c]).append(" heads");
+            for (long head : heads) {
+                said.append(" 0x").append(String.format("%04x", head));
+            }
+            said.append("\n");
+        }
+        return said.toString();
+    }
+
     private static boolean isRegisterCell(Varnode v) {
         return v.isAddress() && v.getAddress().getAddressSpace().getName().equals("mem") && v.getOffset() < 32;
     }
@@ -360,6 +574,7 @@ public class Lift extends GhidraScript {
                 }
             }
         }
+        sites.append(neverLeft(instructions, body, hex(function.getEntryPoint())));
         for (int rank = 0; rank < instructions.size(); rank++) {
             Instruction instruction = instructions.get(rank);
             String at = hex(instruction.getAddress());
@@ -428,6 +643,19 @@ public class Lift extends GhidraScript {
             }
         }
         String entry = hex(function.getEntryPoint());
+        // Every head a jump comes back to is described: the one a cycle is cut at is chosen among them.
+        Set<Address> heads = new TreeSet<>();
+        for (Instruction instruction : instructions) {
+            for (PcodeOp op : instruction.getPcode()) {
+                boolean jump = op.getOpcode() == PcodeOp.BRANCH || op.getOpcode() == PcodeOp.CBRANCH;
+                if (jump && op.getInput(0).isAddress() && body.contains(op.getInput(0).getAddress()) && op.getInput(0).getAddress().compareTo(instruction.getAddress()) <= 0) {
+                    heads.add(op.getInput(0).getAddress());
+                }
+            }
+        }
+        for (Address head : heads) {
+            facts.append(head(instructions, head, entry));
+        }
         facts.append("//@ function 0x").append(entry).append(" calls");
         for (String callee : calls) {
             facts.append(" 0x").append(callee);
@@ -564,8 +792,11 @@ public class Lift extends GhidraScript {
                 return "arclang_op_" + name + "();";
             }
             case PcodeOp.BRANCHIND:
+                // A computed jump: to a function (the table jump helpers and the indirect calls of the compiler
+                // end in one), by the dispatch written after the declarations. Any other target is not covered.
+                return "{ arclang_ijmp(" + a + "); return; } /* a computed jump */";
             case PcodeOp.CALLIND:
-                return "{ arclang_uncovered = true; return; } /* a computed jump */";
+                return "arclang_ijmp(" + a + "); if (arclang_stop) { return; } /* a computed call */";
             default:
                 return "{ arclang_uncovered = true; return; } /* " + op.getMnemonic() + ": not translated */";
         }

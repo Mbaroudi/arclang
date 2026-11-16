@@ -121,7 +121,8 @@ jobs:
         run: docker build -t arclang-embedded-reverse:1 tools/embedded/reverse
 
       - name: Run the proofs of a binary
-        run: tools/embedded/reverse/run.sh cargo test --release --test binary -- --include-ignored
+        # Three at a time: each proof of a cycle takes some gigabytes.
+        run: tools/embedded/reverse/run.sh cargo test --release --test binary -- --include-ignored --test-threads=3
 
   # The processor and the logic together: a LiteX SoC (VexRiscv, Zephyr, the
   # generated blocks) simulated cycle by cycle in Verilator, and the same SoC

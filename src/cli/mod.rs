@@ -2284,7 +2284,7 @@ impl CliRunner {
                             _ => "from two states that correspond, one loop() and one step can leave two that do not",
                         });
                         if lines.is_empty() {
-                            println!("    no line of the correspondence fails alone: the proof could not say which (for the cycle of a binary the lines are not asked one by one, each question takes minutes: the case below shows their values)");
+                            println!("    no line of the correspondence fails: the code read or wrote a pin the correspondence does not name, or the case could not be read in time");
                         }
                         for line in lines {
                             println!("    does not hold after it: {line}");
@@ -2609,6 +2609,9 @@ impl CliRunner {
         }
         if let Some(path) = output {
             eprintln!("  Output: {}", path.display());
+        }
+        for found in &proposal.found {
+            eprintln!("  found: {found}");
         }
         for unknown in &proposal.unknown {
             eprintln!("  not found: {unknown}");

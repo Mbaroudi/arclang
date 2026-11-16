@@ -5,6 +5,9 @@
 #define ARCLANG_LIFTED_H
 #include <stdbool.h>
 #include <stdint.h>
+#ifdef ARCLANG_NATIVE_DISCOVER
+#include <stdio.h>
+#endif
 
 #define ARCLANG_MEM_SIZE 0x900u /* the registers r0..r31, the registers of the chip, 2 KiB of RAM */
 #define ARCLANG_IO_FIRST 0x20u
@@ -25,12 +28,26 @@ static uint8_t arclang_io[0x100];
 /* The chip beneath the code (its pins, its time), written by the proof after the code. */
 static uint8_t arclang_chip_rd(unsigned at);
 static void arclang_chip_wr(unsigned at, uint8_t value);
+/* The bytes the start sets up once and the code only reads after (a cycle: vtables, objects): after the start a
+   read gives the value the start left, a write is not kept and is said (a line of the proof holds that there is
+   none). Kept apart from the memory, so that a write at an address the prover does not know cannot hide them. */
+static int arclang_constant(uint64_t at); /* its value, or -1 */
+static bool arclang_wrote_constant;
 #endif
 static bool arclang_uncovered;      /* an instruction ran that the translation does not cover */
 static bool arclang_outside;        /* an address outside the memory or the flash was used */
 static bool arclang_wrote_register; /* a register of the chip was written by the code itself */
 static bool arclang_booting;        /* the code runs from reset, before its first loop() */
 static bool arclang_stop;           /* the first loop() was reached: every function returns */
+/* The target of a computed jump that is no function of the translation: not covered. Run natively to find
+   the targets (`arclang prove` translates again with them), it says them. */
+static void arclang_unknown_target(uint64_t byte_address)
+{
+    arclang_uncovered = true;
+#ifdef ARCLANG_NATIVE_DISCOVER
+    printf("target 0x%llx\n", (unsigned long long)byte_address);
+#endif
+}
 static bool arclang_resume;         /* enter the function that holds the cut at the cut */
 /* The cut: the head of the cycle the code never leaves. Arriving there ends the start, or a turn. */
 static bool arclang_cut(void)
@@ -69,8 +86,16 @@ static uint64_t arclang_reg_rd(unsigned at, int size)
     return value;
 }
 
+#ifdef ARCLANG_NATIVE_DISCOVER
+/* The lowest the stack pointer goes while the start runs: what lies above it was the start's stack, and
+   what the start left there is no object of the code. */
+static unsigned arclang_low_sp = 0xffffu;
+#endif
 static void arclang_reg_wr(unsigned at, int size, uint64_t value)
 {
+#ifdef ARCLANG_NATIVE_DISCOVER
+    if (at == ARCLANG_SP && size == 2 && (unsigned)(value & 0xffffu) < arclang_low_sp) { arclang_low_sp = (unsigned)(value & 0xffffu); }
+#endif
     arclang_reg[at & 0xffu] = (uint8_t)value;
     if (size > 1) { arclang_reg[(at + 1u) & 0xffu] = (uint8_t)(value >> 8); }
     if (size > 2) { arclang_reg[(at + 2u) & 0xffu] = (uint8_t)(value >> 16); }
@@ -81,6 +106,15 @@ static void arclang_reg_wr(unsigned at, int size, uint64_t value)
     if (size > 7) { arclang_reg[(at + 7u) & 0xffu] = (uint8_t)(value >> 56); }
 }
 
+#ifdef ARCLANG_NATIVE_DISCOVER
+/* The settings of the timers (their control registers, the interrupts they raise): registers only the code writes.
+   What the start leaves in them is kept while it runs, to be said when it has run. */
+static uint8_t arclang_settings[0x100];
+static bool arclang_is_setting(unsigned at)
+{
+    return at == 0x44u || at == 0x45u || at == 0x6eu || at == 0x6fu || at == 0x70u || at == 0x80u || at == 0x81u || at == 0x82u || at == 0xb0u || at == 0xb1u;
+}
+#endif
 static uint64_t arclang_mem_rd1(uint64_t at)
 {
     at &= 0xffffu;
@@ -97,15 +131,36 @@ static uint64_t arclang_mem_rd1(uint64_t at)
 #elif defined(ARCLANG_CHIP)
         return arclang_chip_rd((unsigned)at);
 #else
+#ifdef ARCLANG_NATIVE_DISCOVER
+        if (arclang_is_setting((unsigned)at)) { return arclang_settings[at]; }
+#endif
         return arclang_any();
 #endif
     }
+#ifdef ARCLANG_CHIP
+    if (!arclang_booting && arclang_constant(at) >= 0) { return (uint64_t)arclang_constant(at); }
+#endif
     return arclang_mem[at];
 }
 
 static void arclang_mem_wr1(uint64_t at, uint64_t value)
 {
     at &= 0xffffu;
+#ifdef ARCLANG_NATIVE_DISCOVER
+    if (arclang_is_setting((unsigned)at)) { arclang_settings[at] = (uint8_t)value; }
+#endif
+#ifdef ARCLANG_NATIVE_DISCOVER
+    {
+        /* The translation moves the stack pointer in its cells, with no call here: it is read at each write of the
+           memory. A write at the pointer or above it is a write of the stack (a push, the address a call keeps, a
+           local): the pointer was at least one below it. */
+        unsigned sp = (unsigned)arclang_reg[ARCLANG_SP] | (unsigned)arclang_reg[ARCLANG_SP + 1u] << 8;
+        if (sp >= ARCLANG_RAM_FIRST && sp < ARCLANG_MEM_SIZE) {
+            if (sp < arclang_low_sp) { arclang_low_sp = sp; }
+            if (at >= ARCLANG_RAM_FIRST && at >= sp && at - 1u < arclang_low_sp) { arclang_low_sp = (unsigned)at - 1u; }
+        }
+    }
+#endif
     if (at < 32u) { arclang_r[at] = (uint8_t)value; return; }
     if (at >= ARCLANG_MEM_SIZE) { arclang_outside = true; return; }
     if (at >= ARCLANG_IO_FIRST && at < ARCLANG_RAM_FIRST) {
@@ -126,6 +181,9 @@ static void arclang_mem_wr1(uint64_t at, uint64_t value)
         arclang_wrote_register = true;
         return;
     }
+#ifdef ARCLANG_CHIP
+    if (!arclang_booting && arclang_constant(at) >= 0) { arclang_wrote_constant = true; return; }
+#endif
     arclang_mem[at] = (uint8_t)value;
 }
 
