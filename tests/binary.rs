@@ -603,6 +603,7 @@ fn the_step_of_three_machines_folded_into_main_is_proven_on_the_memory_of_the_bi
         "the state (43 bytes at 0x0439), the inputs (40 bytes at 0x0411), the outputs (8 bytes at 0x0409)",
         "writes no byte of the memory outside the state, the outputs and the 64 bytes under the stack pointer",
         "taken, not proven here: at the first instruction of the block the stack pointer (2301) and the registers the cycle keeps (r1 = 0,",
+        "the start, run once from the reset to the head of the cycle (0x0fc6), leaves in the state what the init of the model leaves",
         "NOT said: when the block runs",
     ] {
         assert!(output.contains(said), "{said}: {output}");

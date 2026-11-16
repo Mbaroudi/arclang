@@ -1006,7 +1006,8 @@ $ arclang prove lock.arc
     the structures of the generated header are laid out as avr-gcc lays them out (no padding, the low byte first): the state (43 bytes at 0x0439), the inputs (40 bytes at 0x0411), the outputs (8 bytes at 0x0409)
     proven with it: the block runs only instructions the translation covers, writes no register of the chip, leaves the stack pointer and the registers the cycle keeps, and writes no byte of the memory outside the state, the outputs and the 64 bytes under the stack pointer
     taken, not proven here: at the first instruction of the block the stack pointer (2301) and the registers the cycle keeps (r1 = 0, ...) are as the start leaves them at the head of the cycle (0x0fc6), found by running the start once
-    NOT said: when the block runs (its period, the time of the model), that the rest of the cycle leaves the state alone between two runs of the block, that the start leaves the initial state, where the inputs come from and what the outputs drive
+    the start, run once from the reset to the head of the cycle (0x0fc6), leaves in the state what the init of the model leaves (run, not proven: the pins and the serial port read as that run gives them)
+    NOT said: when the block runs (its period, the time of the model), that the rest of the cycle leaves the state alone between two runs of the block, where the inputs come from and what the outputs drive
 ```
 
 - **What is proven.** From any memory, the block leaves in every byte of the
@@ -1018,6 +1019,11 @@ $ arclang prove lock.arc
   (and of the machines that read it) do not hold, and the others still do. A
   block that runs one instruction past the step is refuted by what that
   instruction writes.
+- **The start.** Once the block is proven, the bytes the start leaves in the
+  state at the head of the cycle are compared, field by field, with what
+  `<model>_init` leaves. The start is run once, not proven (it is the run
+  that finds the registers the cycle keeps); a start that leaves another
+  state refutes the correspondence, by its fields.
 - **What it does not say** is printed with every proof, as above. The lock's
   sketch resets the state on a command of its serial port, which no step of
   the model does: the proof is of the block, not of the cycle around it.

@@ -44,6 +44,8 @@ pub struct Block {
     pub sizes: [u32; 3],
     pub sp: u16,
     pub kept: Vec<(u8, u8)>,
+    /// Filled by the proof: the start, run once, leaves in the state what the init of the model leaves.
+    pub starts_initial: bool,
 }
 
 /// The bytes under the stack pointer a block may use (what it pushes, the addresses its calls keep).
@@ -296,6 +298,25 @@ fn harness(block: &Block, cut: &super::binary_cycle::Cut, lifted: &str, header_n
     Ok((vec![("proof.c".to_string(), c), ("machine_code.c".to_string(), machine_code), ("arclang_lifted.h".to_string(), super::binary::LIFTED_H.to_string())], lines.into_iter().map(|(_, written)| written).collect(), UNWIND.max(longest + 4)))
 }
 
+/// The check that the state the start leaves is the one the init of the model leaves: (its C, its lines). The
+/// start is not proven: it is run once (see `binary::StartState`), and the bytes it leaves at the head of the cycle
+/// are compared with the structure `<model>_init` fills. None when the run did not give the memory.
+fn start_check(name: &str, header_name: &str, state: &[Field], at: u32, memory: &[u8]) -> Option<(String, Vec<String>)> {
+    let byte = |address: u32| address.checked_sub(RAM.0).and_then(|rank| memory.get(rank as usize)).copied();
+    let mut c = format!("/* The state the start of the binary leaves, against the init of the model (written by `arclang prove`). */\n#include <stdbool.h>\n#include <stdint.h>\n#include \"model/{header_name}\"\n\nint main(void)\n{{\n    static {name}_state s;\n    {name}_init(&s);\n");
+    let mut lines = Vec::new();
+    for field in state {
+        let left = (0..field.size).try_fold(0u64, |value, k| byte(at + field.offset + k).map(|byte| value | u64::from(byte) << (8 * k)))?;
+        let wide = if field.size > 4 { "unsigned long long" } else { "unsigned long" };
+        let model = if field.boolean { format!("({wide})s.{}", field.path) } else { format!("({wide})(u{})s.{}", field.ty.trim_start_matches('u'), field.path) };
+        let written = format!("start: {} (0x{:04x}), which the start leaves at {left}, is what the init of the model leaves", field.path, at + field.offset);
+        c.push_str(&format!("    __CPROVER_assert({model} == {left}{}, \"{written}\");\n", if field.size > 4 { "ULL" } else { "UL" }));
+        lines.push(written);
+    }
+    c.push_str("    return 0;\n}\n");
+    Some((c, lines))
+}
+
 /// What CBMC says of the checks of a proof.
 enum Said {
     /// Every check holds, and no loop runs past its bound.
@@ -400,8 +421,22 @@ pub fn prove(block: &mut Block, cycle: u32, image: &super::binary::Image, model:
     // Every byte of the memory is followed alone, as in a cycle: the stack is where the start left it.
     let flags = ["--nondet-static", "-I", "board", "--16", "-DARCLANG_INT16", "--max-field-sensitivity-array-size", "4096"];
     let sources = ["proof.c", model_source.as_str()];
+    // The start: what it leaves in the state, when the run that found the registers gave the memory too.
+    let (name, found) = structures(block, header, what)?;
+    let start = cut.start.as_ref().and_then(|state| start_check(&name, header_name, &found[0].2, block.state, &state.memory));
     Ok(match asked(dir, &sources, &flags, unwind, seconds)? {
-        Said::Holds => Outcome::Proven { seconds: started.elapsed().as_secs_f64(), period_us: 0, int_bits: 16, unrelated: Vec::new(), board_clock: None, interrupts: None },
+        Said::Holds => {
+            if let Some((c, start_lines)) = start {
+                std::fs::write(dir.join("start.c"), c).map_err(|e| format!("cannot write {}: {e}", dir.join("start.c").display()))?;
+                match asked(dir, &["start.c", model_source.as_str()], &["-I", "board", "--16", "-DARCLANG_INT16"], unwind, seconds)? {
+                    Said::Holds => block.starts_initial = true,
+                    Said::Fails(refuted) => return Ok(Outcome::Refuted { obligation: "block start".to_string(), lines: start_lines.into_iter().filter(|line| refuted.contains(line)).collect(), case: None, seconds: started.elapsed().as_secs_f64() }),
+                    Said::BeyondBound => return Ok(Outcome::Unknown { reason: format!("a loop of the init of the model runs more than {unwind} times: the proof does not cover it") }),
+                    Said::Unknown(reason) => return Ok(Outcome::Unknown { reason: format!("the start of the block: {reason}") }),
+                }
+            }
+            Outcome::Proven { seconds: started.elapsed().as_secs_f64(), period_us: 0, int_bits: 16, unrelated: Vec::new(), board_clock: None, interrupts: None }
+        }
         // In the order of the proof, each once (a line can be refuted on several paths).
         Said::Fails(refuted) => Outcome::Refuted { obligation: "block".to_string(), lines: lines.iter().filter(|line| refuted.contains(line)).cloned().collect(), case: None, seconds: started.elapsed().as_secs_f64() },
         Said::BeyondBound => Outcome::Unknown { reason: format!("a loop of the block or of the model runs more than {unwind} times: the proof does not cover it") },
@@ -524,13 +559,19 @@ pub fn written(file: &str, bytes: usize, cycle: u32, placed: &Placed) -> String 
 /// What the proof of a block is of, what it takes without proving it, and what it does not say, as it is printed under it.
 pub fn said(file: &str, cycle: u32, block: &Block) -> Vec<String> {
     let kept = block.kept.iter().map(|(register, value)| format!("r{register} = {value}")).collect::<Vec<_>>().join(", ");
+    let start = if block.starts_initial {
+        format!("the start, run once from the reset to the head of the cycle (0x{cycle:04x}), leaves in the state what the init of the model leaves (run, not proven: the pins and the serial port read as that run gives them)")
+    } else {
+        "NOT said: that the start leaves the initial state (the run of the start did not give the memory it leaves)".to_string()
+    };
     vec![
         format!("of the machine code of {file} itself, translated one instruction at a time (ATmega328P, Ghidra's description of the AVR): no source is read"),
         format!("the block is the instructions from 0x{:04x} up to 0x{:04x} of the function at 0x{:04x}, run from any memory in which the booleans of the state and of the inputs are 0 or 1 and a queue holds no more events than its size", block.from, block.to, block.function),
         format!("the structures of the generated header are laid out as avr-gcc lays them out (no padding, the low byte first): the state ({} bytes at 0x{:04x}), the inputs ({} bytes at 0x{:04x}), the outputs ({} bytes at 0x{:04x})", block.sizes[0], block.state, block.sizes[1], block.inputs, block.sizes[2], block.outputs),
         format!("proven with it: the block runs only instructions the translation covers, writes no register of the chip, leaves the stack pointer and the registers the cycle keeps, and writes no byte of the memory outside the state, the outputs and the {STACK} bytes under the stack pointer"),
         format!("taken, not proven here: at the first instruction of the block the stack pointer ({}) and the registers the cycle keeps ({kept}) are as the start leaves them at the head of the cycle (0x{cycle:04x}), found by running the start once", block.sp),
-        "NOT said: when the block runs (its period, the time of the model), that the rest of the cycle leaves the state alone between two runs of the block, that the start leaves the initial state, where the inputs come from and what the outputs drive".to_string(),
+        start,
+        "NOT said: when the block runs (its period, the time of the model), that the rest of the cycle leaves the state alone between two runs of the block, where the inputs come from and what the outputs drive".to_string(),
     ]
 }
 
@@ -644,6 +685,22 @@ mod tests {
         let unread = FOLDED.replace("lds R24,0x0229", "nop").replace("lds R24,0x0228", "nop");
         assert!(place(&unread, 0x100, HEADER).unwrap_err().contains("its inputs could be at"), "{:?}", place(&unread, 0x100, HEADER));
         assert!(place(FOLDED, 0x400, HEADER).unwrap_err().contains("no function at 0x0400"));
+    }
+
+    #[test]
+    fn the_state_the_start_leaves_is_compared_field_by_field_with_the_init_of_the_model() {
+        let state = layout(HEADER, "m_state").unwrap();
+        // The memory from 0x0100: the state at 0x0104, its second counter left at 0x01020304.
+        let mut memory = vec![0u8; 32];
+        memory[4 + 7..4 + 11].copy_from_slice(&[4, 3, 2, 1]);
+        let (c, lines) = start_check("m", "m.h", &state, 0x104, &memory).unwrap();
+        assert!(c.contains("    static m_state s;\n    m_init(&s);\n"), "{c}");
+        assert!(c.contains("__CPROVER_assert((unsigned long)s.lamp_started == 0UL, \"start: lamp_started (0x0104), which the start leaves at 0, is what the init of the model leaves\");"), "{c}");
+        assert!(c.contains("__CPROVER_assert((unsigned long)(uint32_t)s.lamp.in_state[1] == 16909060UL,"), "{c}");
+        assert_eq!(lines.len(), state.len());
+        // A run that did not give the memory, or not all of the state: nothing is compared.
+        assert!(start_check("m", "m.h", &state, 0x104, &[]).is_none());
+        assert!(start_check("m", "m.h", &state, 0x104, &memory[..10]).is_none());
     }
 
     #[test]

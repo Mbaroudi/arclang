@@ -2295,10 +2295,11 @@ impl CliRunner {
                             "functions" => "a function the correspondence names is not the Arduino function it is said to be: its machine code, from some memory and registers, for some pin",
                             "clock" => "the binary does not keep the time as the Arduino core does: what millis returns is not what the proof takes it for",
                             "start" => "after setup() and one loop(), and after init and one step, the code and the model do not correspond",
+                            "block start" => "the block is one step of the machines of the model, but the start of the binary, run once, does not leave in the state what the init of the model leaves",
                             "block" => "from some memory, the block and one step of the machines of the model do not leave the same: the state or the outputs differ, or the block does what a step does not",
                             _ => "from two states that correspond, one loop() and one step can leave two that do not",
                         });
-                        if lines.is_empty() && obligation == "block" {
+                        if lines.is_empty() && obligation.starts_with("block") {
                             println!("    which lines do not hold could not be read in time");
                         } else if lines.is_empty() {
                             println!("    no line of the correspondence fails: the code read or wrote a pin the correspondence does not name, or the case could not be read in time");
