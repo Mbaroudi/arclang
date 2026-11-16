@@ -409,6 +409,118 @@ pub fn prove(block: &mut Block, cycle: u32, image: &super::binary::Image, model:
     })
 }
 
+/// The step of a model found in a binary: its block and its three structures, and how each was found.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Placed {
+    pub block: Block,
+    pub found: Vec<String>,
+}
+
+/// Look for the step of the model's generated code in the function of the cycle of a binary, without its symbols.
+///
+/// A step folded into `main` reads and writes its structures by their addresses (`lds`, `sts`), and the header of
+/// the model says which bytes it must touch:
+/// - the state is where the flag of every machine (`<machine>_started`) is read and written, and the flag of every
+///   state (`active[k]`) read, each at its place in the structure;
+/// - the block starts at the first read of the first of these flags (a step begins by asking whether it has started);
+/// - the outputs are bytes all written after that, none read before the last of them is written: the block ends there;
+/// - the inputs are where the most of their scalars are read, none written in the block.
+///
+/// It is a proposal: `arclang prove` decides. What is not found, or found at several places, is said (`Err`).
+pub fn place(lifted: &str, function: u32, header: &str) -> Result<Placed, String> {
+    let name = prefix(header)?;
+    let (state, inputs, outputs) = (layout(header, &format!("{name}_state"))?, layout(header, &format!("{name}_inputs"))?, layout(header, &format!("{name}_outputs"))?);
+    let size = |fields: &[Field]| fields.last().map_or(0, |last| last.offset + last.size);
+    // The instructions of the function, and the bytes of the memory each reads or writes by its address.
+    let head = format!("void f_{function:04x}(void)");
+    let label = Regex::new(r"^L_([0-9a-f]{4}): /\* (.*) \*/$").expect("a pattern of the block");
+    let (load, store) = (Regex::new(r"^lds \w+,0x([0-9a-f]+)$").expect("a pattern of the block"), Regex::new(r"^sts 0x([0-9a-f]+),\w+$").expect("a pattern of the block"));
+    let mut instructions: Vec<u32> = Vec::new();
+    let (mut reads, mut writes): (BTreeMap<u32, Vec<u32>>, BTreeMap<u32, Vec<u32>>) = (BTreeMap::new(), BTreeMap::new());
+    for found in lifted.lines().skip_while(|line| *line != head).take_while(|line| *line != "}").filter_map(|line| label.captures(line)) {
+        let Ok(at) = u32::from_str_radix(&found[1], 16) else { continue };
+        instructions.push(at);
+        for (form, kept) in [(&load, &mut reads), (&store, &mut writes)] {
+            if let Some(byte) = form.captures(&found[2]).and_then(|byte| u32::from_str_radix(&byte[1], 16).ok()) {
+                kept.entry(byte).or_default().push(at);
+            }
+        }
+    }
+    if instructions.is_empty() {
+        return Err(format!("the translation has no function at 0x{function:04x}"));
+    }
+    let read = |byte: u32| reads.contains_key(&byte);
+    let written = |byte: u32| writes.contains_key(&byte);
+    let places = |bytes: u32| RAM.0..=(RAM.1 + 1).saturating_sub(bytes);
+    let apart = |a: u32, a_size: u32, b: u32, b_size: u32| a + a_size <= b || b + b_size <= a;
+    let list = |places: &[u32]| places.iter().map(|at| format!("0x{at:04x}")).collect::<Vec<_>>().join(", ");
+
+    // The state: the flags of the machines and of their states.
+    let started: Vec<u32> = state.iter().filter(|field| field.boolean && field.path.ends_with("_started") && !field.path.contains('.')).map(|field| field.offset).collect();
+    let active: Vec<u32> = state.iter().filter(|field| field.boolean && field.path.contains(".active[")).map(|field| field.offset).collect();
+    let Some(first_flag) = started.first().copied() else { return Err("the state of the model has no flag of a machine to look for".to_string()) };
+    let state_at: Vec<u32> = places(size(&state)).filter(|at| started.iter().all(|flag| read(at + flag) && written(at + flag)) && active.iter().all(|flag| read(at + flag))).collect();
+    let state_at = match state_at.as_slice() {
+        [one] => *one,
+        [] => return Err(format!("the function of the cycle (0x{function:04x}) reads and writes no place of the memory, by address, as a step reads and writes its state (the flags of {} machine(s) and {} state(s), {} bytes): the step is not folded into it, or the binary is not built from this model", started.len(), active.len(), size(&state))),
+        several => return Err(format!("the state of the step could be at {}: each is read and written as the flags of the machines are", list(several))),
+    };
+    // The block starts where the step asks whether its first machine has started.
+    let from = reads[&(state_at + first_flag)].iter().copied().min().unwrap_or_default();
+
+    // The outputs: bytes all written from there on, none read before the last is written.
+    let mut outputs_at: Vec<(u32, u32, u32)> = Vec::new();
+    for at in places(size(&outputs)).filter(|at| apart(*at, size(&outputs), state_at, size(&state))) {
+        let bytes: Vec<u32> = outputs.iter().flat_map(|field| (0..field.size).map(move |k| at + field.offset + k)).collect();
+        let lasts: Option<Vec<u32>> = bytes.iter().map(|byte| writes.get(byte).and_then(|by| by.iter().copied().filter(|by| *by >= from).max())).collect();
+        let Some(last) = lasts.and_then(|lasts| lasts.into_iter().max()) else { continue };
+        let Some(to) = instructions.iter().copied().filter(|next| *next > last).min() else { continue };
+        if bytes.iter().all(|byte| !reads.get(byte).is_some_and(|by| by.iter().any(|by| *by >= from && *by < to))) {
+            outputs_at.push((at, last, to));
+        }
+    }
+    let (outputs_at, last, to) = match outputs_at.as_slice() {
+        [one] => *one,
+        [] => return Err(format!("the state of the step is at 0x{state_at:04x}, read first at 0x{from:04x}; but no {} bytes of the memory are all written by address after it and before any is read, as a step writes its outputs", size(&outputs))),
+        several => return Err(format!("the state of the step is at 0x{state_at:04x}; its outputs could be at {}: each is written as outputs are", list(&several.iter().map(|(at, ..)| *at).collect::<Vec<_>>()))),
+    };
+
+    // The inputs: where the most of their scalars are read (a queue is read through a pointer), none written in the block.
+    let asked: Vec<u32> = inputs.iter().filter(|field| !field.path.contains(".queue[")).map(|field| field.offset).collect();
+    let in_block = |byte: u32| writes.get(&byte).is_some_and(|by| by.iter().any(|by| *by >= from && *by < to));
+    let scored: Vec<(usize, u32)> = places(size(&inputs))
+        .filter(|at| apart(*at, size(&inputs), state_at, size(&state)) && apart(*at, size(&inputs), outputs_at, size(&outputs)))
+        .filter(|at| !(0..size(&inputs)).any(|k| in_block(at + k)))
+        .map(|at| (asked.iter().filter(|offset| read(at + **offset)).count(), at))
+        .collect();
+    let most = scored.iter().map(|(score, _)| *score).max().unwrap_or(0);
+    let inputs_at: Vec<u32> = scored.iter().filter(|(score, _)| *score == most).map(|(_, at)| *at).collect();
+    let inputs_at = match inputs_at.as_slice() {
+        [one] if most > 0 && 2 * most >= asked.len() => *one,
+        [_] | [] => return Err(format!("the state of the step is at 0x{state_at:04x} and its outputs at 0x{outputs_at:04x}; but nowhere are more than {most} of the {} inputs of the model read by address", asked.len())),
+        several => return Err(format!("the state of the step is at 0x{state_at:04x} and its outputs at 0x{outputs_at:04x}; its inputs could be at {}: {most} of the {} inputs are read at each", list(several), asked.len())),
+    };
+    let found = vec![
+        format!("the state of the step is at 0x{state_at:04x} ({} bytes): the only place where the function of the cycle (0x{function:04x}) reads and writes, by address, the flags of the {} machine(s) and reads those of their {} state(s)", size(&state), started.len(), active.len()),
+        format!("the step starts at 0x{from:04x}, the first read of the flag of its first machine, and ends before 0x{to:04x}, after the last write of its outputs (at 0x{last:04x})"),
+        format!("the outputs are at 0x{outputs_at:04x} ({} bytes): the only bytes all written by address in the step and not read in it", size(&outputs)),
+        format!("the inputs are at 0x{inputs_at:04x} ({} bytes): {most} of their {} scalars are read there by address, and none is written in the step", size(&inputs), asked.len()),
+    ];
+    Ok(Placed { block: Block { from, to, state: state_at, inputs: inputs_at, outputs: outputs_at, function, ..Default::default() }, found })
+}
+
+/// The correspondence of a block as it is proposed, to be put in the model the binary was generated from.
+pub fn written(file: &str, bytes: usize, cycle: u32, placed: &Placed) -> String {
+    let stem = Path::new(file).file_stem().map(|stem| stem.to_string_lossy().into_owned()).unwrap_or_else(|| file.to_string());
+    let block = &placed.block;
+    let mut text = format!("// Proposed by `arclang recover {file} --model ...` from the machine code alone ({bytes} bytes): the step of the\n// machines of the model, folded into the function at 0x{:04x}. A proposal, not a proof: put it in the model,\n// beside the binary, and `arclang prove` decides.\n", block.function);
+    for found in &placed.found {
+        text.push_str(&format!("// found: {found}\n"));
+    }
+    text.push_str(&format!("\ncorrespondence \"{stem} step\" {{\n    binary: \"{file}\"\n    functions: [\"cycle at 0x{cycle:04x}\", \"step from 0x{:04x} to 0x{:04x}\"]\n    memory: [\"state at 0x{:04x}\", \"inputs at 0x{:04x}\", \"outputs at 0x{:04x}\"]\n}}\n", block.from, block.to, block.state, block.inputs, block.outputs));
+    text
+}
+
 /// What the proof of a block is of, what it takes without proving it, and what it does not say, as it is printed under it.
 pub fn said(file: &str, cycle: u32, block: &Block) -> Vec<String> {
     let kept = block.kept.iter().map(|(register, value)| format!("r{register} = {value}")).collect::<Vec<_>>().join(", ");
@@ -499,6 +611,39 @@ mod tests {
         let beyond = "[f_0100.unwind.2] line 40 unwinding assertion loop 2: FAILURE\n** 1 of 9 failed (2 iterations)\nVERIFICATION FAILED\n";
         assert!(matches!(read_answer(beyond, Some(10)), Said::BeyondBound));
         assert!(matches!(read_answer("**** WARNING: no body for function f_0632\nVERIFICATION SUCCESSFUL\n** 0 of 1 failed\n", Some(0)), Said::Unknown(reason) if reason.contains("f_0632")));
+    }
+
+    /// A function that reads and writes the structures of HEADER by address, as a folded step does: the state at
+    /// 0x0200 (11 bytes), the inputs at 0x0220 (10), the outputs at 0x0240 (3).
+    const FOLDED: &str = "void f_0100(void)\n{\nL_0100: /* lds R24,0x0300 */\nL_0104: /* sts 0x0300,R24 */\nL_0108: /* lds R24,0x0200 */\nL_010c: /* sts 0x0200,R1 */\nL_0110: /* lds R24,0x0229 */\nL_0114: /* lds R24,0x0228 */\nL_0118: /* lds R24,0x0201 */\nL_011c: /* lds R25,0x0202 */\nL_0120: /* sts 0x0201,R25 */\nL_0124: /* sts 0x0203,R1 */\nL_0128: /* sts 0x0240,R24 */\nL_012c: /* sts 0x0241,R24 */\nL_0130: /* sts 0x0242,R25 */\nL_0134: /* sts 0x0228,R1 */\nL_0138: /* lds R24,0x0240 */\nL_013c: /* ret */\n    return;\n}\n";
+
+    #[test]
+    fn the_step_and_its_structures_are_placed_by_the_bytes_the_code_reads_and_writes() {
+        let placed = place(FOLDED, 0x100, HEADER).unwrap();
+        let block = &placed.block;
+        // From the first read of the flag of the machine to the instruction after the last write of the outputs:
+        // the queue emptied after the step, and the outputs read after it, are outside.
+        assert_eq!((block.from, block.to, block.state, block.inputs, block.outputs, block.function), (0x108, 0x134, 0x200, 0x220, 0x240, 0x100));
+        assert!(placed.found[1].contains("starts at 0x0108") && placed.found[1].contains("ends before 0x0134"), "{:?}", placed.found);
+        let text = written("lamp.hex", 400, 0x100, &placed);
+        assert!(text.contains("    functions: [\"cycle at 0x0100\", \"step from 0x0108 to 0x0134\"]\n    memory: [\"state at 0x0200\", \"inputs at 0x0220\", \"outputs at 0x0240\"]\n"), "{text}");
+        // What is written is what a correspondence reads.
+        let (read, _) = read(&lines(&["cycle at 0x0100", "step from 0x0108 to 0x0134"]), &lines(&["state at 0x0200", "inputs at 0x0220", "outputs at 0x0240"]), "c").unwrap();
+        assert_eq!(read.map(|read| (read.from, read.to, read.state, read.inputs, read.outputs)), Some((0x108, 0x134, 0x200, 0x220, 0x240)));
+    }
+
+    #[test]
+    fn a_step_that_is_not_found_or_found_twice_is_said_not_guessed() {
+        // No flag read and written by address: the step is a function called with pointers, or another model's.
+        let called = FOLDED.replace("L_010c: /* sts 0x0200,R1 */\n", "");
+        assert!(place(&called, 0x100, HEADER).unwrap_err().contains("as a step reads and writes its state"));
+        // Outputs read before the last is written are not outputs.
+        let read_back = FOLDED.replace("L_012c: /* sts 0x0241,R24 */", "L_012c: /* lds R24,0x0240 */");
+        assert!(place(&read_back, 0x100, HEADER).unwrap_err().contains("as a step writes its outputs"));
+        // The inputs read nowhere by address.
+        let unread = FOLDED.replace("lds R24,0x0229", "nop").replace("lds R24,0x0228", "nop");
+        assert!(place(&unread, 0x100, HEADER).unwrap_err().contains("its inputs could be at"), "{:?}", place(&unread, 0x100, HEADER));
+        assert!(place(FOLDED, 0x400, HEADER).unwrap_err().contains("no function at 0x0400"));
     }
 
     #[test]
