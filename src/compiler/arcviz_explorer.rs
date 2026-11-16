@@ -151,6 +151,20 @@ pub struct DocumentMetadata {
     pub total_components: usize,
     pub total_interfaces: usize,
     pub total_functions: usize,
+    /// Set when the model was recovered from code: the page says so.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recovery: Option<Recovery>,
+}
+
+/// Where a recovered model comes from, and what its recovery is worth.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Recovery {
+    /// The files the model was read from.
+    pub from: Vec<String>,
+    /// `proven`, `refuted`, or `unproven` when nothing was compared.
+    pub verdict: String,
+    /// What was compared and what it gave, in a sentence.
+    pub says: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -392,6 +406,7 @@ impl ArchitectureDocument {
             total_components: model.components.len(),
             total_interfaces: model.interfaces.len(),
             total_functions: model.functions.len(),
+            recovery: None,
         };
         
         // Group requirements by category
@@ -645,7 +660,7 @@ pub fn generate_explorer_html_arranged(
     ast: &Model,
     source: Option<&std::path::Path>,
 ) -> Result<(String, String), CompilerError> {
-    explorer_html(model, ast, source, None)
+    explorer_html(model, ast, source, None, None)
 }
 
 /// The explorer of a compiled model, its views given all that ties the
@@ -657,7 +672,18 @@ pub fn generate_explorer_html_linked(
     model: &SemanticModel,
     source: Option<&std::path::Path>,
 ) -> Result<(String, String), CompilerError> {
-    explorer_html(model, &result.ast, source, Some(result))
+    explorer_html(model, &result.ast, source, Some(result), None)
+}
+
+/// The explorer of a model recovered from code: the page says what it was
+/// read from and whether the recovery is proven.
+pub fn generate_explorer_html_recovered(
+    result: &super::CompilationResult,
+    model: &SemanticModel,
+    source: Option<&std::path::Path>,
+    recovery: &Recovery,
+) -> Result<(String, String), CompilerError> {
+    explorer_html(model, &result.ast, source, Some(result), Some(recovery))
 }
 
 fn explorer_html(
@@ -665,8 +691,10 @@ fn explorer_html(
     ast: &Model,
     source: Option<&std::path::Path>,
     linked: Option<&super::CompilationResult>,
+    recovery: Option<&Recovery>,
 ) -> Result<(String, String), CompilerError> {
-    let doc = ArchitectureDocument::from_model(model, ast)?;
+    let mut doc = ArchitectureDocument::from_model(model, ast)?;
+    doc.metadata.recovery = recovery.cloned();
     let json = serde_json::to_string_pretty(&doc)
         .map_err(|e| CompilerError::Semantic(format!("JSON error: {}", e)))?;
     

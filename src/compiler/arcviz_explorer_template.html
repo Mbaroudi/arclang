@@ -36,6 +36,20 @@
             font-size: 14px;
         }
         
+        .header .recovery {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 6px 12px;
+            border-radius: 4px;
+            border-left: 4px solid #ffb300;
+            background: rgba(255,255,255,0.14);
+            opacity: 1;
+            font-size: 13px;
+        }
+        .header .recovery[hidden] { display: none; }
+        .header .recovery.proven { border-left-color: #66bb6a; }
+        .header .recovery.refuted { border-left-color: #ef5350; }
+
         .stats {
             display: flex;
             gap: 30px;
@@ -512,6 +526,7 @@
     <div class="header">
         <h1 id="doc-title">🏗️ Architecture Explorer</h1>
         <p id="doc-description">Loading...</p>
+        <p id="doc-recovery" class="recovery" hidden></p>
         <div class="stats">
             <div class="stat">
                 <div class="stat-value" id="req-count">0</div>
@@ -845,6 +860,14 @@
         function loadStats() {
             document.getElementById('doc-title').textContent = '🏗️ ' + archData.metadata.title;
             document.getElementById('doc-description').textContent = archData.metadata.description;
+            const recovery = archData.metadata.recovery;
+            if (recovery) {
+                const band = document.getElementById('doc-recovery');
+                const verdict = { proven: '✓ Proven', refuted: '✗ Not proven', unproven: 'Not proven' }[recovery.verdict] || 'Not proven';
+                band.textContent = 'Recovered from ' + recovery.from.join(' and ') + '. ' + verdict + ': ' + recovery.says;
+                band.classList.add(recovery.verdict === 'proven' || recovery.verdict === 'refuted' ? recovery.verdict : 'unproven');
+                band.hidden = false;
+            }
             document.getElementById('req-count').textContent = archData.metadata.total_requirements;
             document.getElementById('comp-count').textContent = archData.metadata.total_components;
             document.getElementById('iface-count').textContent = archData.metadata.total_interfaces;
