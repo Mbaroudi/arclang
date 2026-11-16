@@ -308,7 +308,9 @@ pub fn sketch(lifted: &str, cut: &Cut, chip: &Chip, time: Option<(u32, u32)>, sc
     // With a serial port run on the chip, a turn does not wait in its write().
     let write = if chip.uart.is_some() { set_up.as_ref().and_then(|constants| serial_write(constants)) } else { None };
     let machine_code = write.map_or(guarded.clone(), |at| refuse_wait(&guarded, at));
-    c.push_str(&if std::env::var("ARCLANG_IN_LINE").is_ok() { super::binary_order::in_line(&machine_code) } else { machine_code });
+    // The pieces a compiler places after a loop are written before the label they go back to (see `binary_order`):
+    // what runs is the same, and the prover unwinds fewer loops (the lamp: half the time).
+    c.push_str(&super::binary_order::in_line(&machine_code));
     c.push_str("\n/* ---- the chip: its pins, its time ---- */\n_Bool nondet_bool(void);\nstatic bool arclang_lost;          /* the code did not reach the head of its cycle */\nstatic unsigned long arclang_waited; /* the microseconds passed in this turn */\nstatic unsigned long arclang_last_read; /* the time, from the start of the turn, the last read of the timer returned */\n#ifndef ARCLANG_TICK_US\n#define ARCLANG_TICK_US 4UL /* what passes each time the code has read the timer: one count of it */\n#endif\nstatic uint8_t arclang_kept[32];   /* the registers at the head of the cycle, as the start left them */\nstatic unsigned arclang_kept_sp;\n");
     // The time: what the interrupt of timer 0 keeps, as it would be now.
     c.push_str("static unsigned long arclang_now_us(void) { return arclang_ms * 1000UL + arclang_waited; }\nstatic void arclang_set_time(void)\n{\n");

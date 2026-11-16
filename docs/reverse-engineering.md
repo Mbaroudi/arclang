@@ -1057,8 +1057,30 @@ It is a proposal, as every `recover` of a binary is: `arclang prove` decides,
 and a block or an address placed wrong is refuted by its lines. A place that is
 not found, or found twice, is said and nothing is written: a binary built from
 another model has no place that is read and written as this model's state is.
-A step that is a function of its own (a binary built without link-time
-optimisation reaches its structures through pointers) is not placed yet.
+
+**A step that is a function of its own.** A binary built without link-time
+optimisation calls its step, with the addresses of the three structures in the
+registers avr-gcc passes pointers in. The correspondence then places the
+function, and nothing else:
+
+```
+correspondence "uno_lock_nolto step" {
+    binary: "uno_lock_nolto.hex"
+    functions: ["step at 0x0466"]
+    memory: ["state at 0x03ee", "inputs at 0x03c6", "outputs at 0x03be"]
+}
+```
+
+The function is run from its call to its return (r25:r24 the state, r23:r22
+the inputs, r21:r20 the outputs, r1 at zero, every other register anything), and
+what is proven is what is proven of a block, with the registers a function
+must keep (r2 to r17, r28, r29) in place of those the cycle keeps. No start is
+run: the proof is for a stack pointer it states, and it does not say that the
+code calls the function with these addresses. `recover --model` finds it by
+that call: the function called with three addresses of the memory where the
+structures of the model fit, apart. When several calls do (a function that
+reads a line takes a port, a buffer and a count), the step is the one whose
+three structures lie side by side in the memory; the others are named.
 
 The translation writes the instructions of a function in the order of their
 addresses. A compiler places the rare paths of a loop after the code that
