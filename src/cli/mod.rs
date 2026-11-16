@@ -669,7 +669,8 @@ pub enum Commands {
 
         /// Write the view of the recovered model to this file: its machines
         /// drawn, what it was read from and whether the recovery is proven
-        /// (`--check`). The model is written beside it unless -o names it
+        /// (`--check`). The model is written beside it unless -o names it.
+        /// With --propose, the view is that of the model once proven
         #[clap(long, value_name = "HTML")]
         view: Option<PathBuf>,
 
@@ -1596,9 +1597,9 @@ impl CliRunner {
             Commands::Soc { input, test, bitstream, board, no_sim, gate_level, port, keep, json } => self.run_soc(&input, test, bitstream || board.is_some(), board, !no_sim && port.is_none(), gate_level, port, keep, json),
             Commands::Observe { model, correspondence, instrument, drive, watch, changes, seed, recorded, keep, json } => Self::run_observe(&model, correspondence.as_deref(), instrument.as_deref(), &drive, &watch, changes, seed, recorded.as_deref(), keep.as_deref(), json),
             Commands::Prove { model, correspondence, timeout, keep, json } => self.run_prove(&model, correspondence.as_deref(), timeout, keep, json),
-            Commands::Recover { input, propose, view: Some(_), .. } if propose || input.extension().is_some_and(|e| e == "dts" || e == "hex") => Err(CliError::Compilation("--view draws the model recovered from the C a model generates (a directory holding `<model>.h` and `<model>.c`): it takes no --propose, no device tree and no binary".to_string())),
+            Commands::Recover { input, propose: false, view: Some(_), .. } if input.extension().is_some_and(|e| e == "dts" || e == "hex") => Err(CliError::Compilation("--view draws a recovered model: the one read from the C a model generates, or the one --propose has proven. A device tree, and a binary read without --propose, give no machine to draw".to_string())),
             Commands::Recover { open: true, view: None, .. } => Err(CliError::Compilation("--open opens the view --view writes".to_string())),
-            Commands::Recover { input, output, propose: true, with, turns, timeout, keep, .. } => propose::run(&input, propose::Options { with, turns, timeout, output, keep }),
+            Commands::Recover { input, output, propose: true, with, turns, timeout, keep, view, open, .. } => propose::run(&input, propose::Options { with, turns, timeout, output, keep, view: view.map(|view| (view, open)) }),
             Commands::Recover { input, output, .. } if input.extension().is_some_and(|e| e == "dts") => Self::run_recover_board(&input, output.as_deref()),
             Commands::Recover { input, output, keep, model, .. } if input.extension().is_some_and(|e| e == "hex") => Self::run_recover_binary(&input, output.as_deref(), keep.as_deref(), model.as_deref()),
             Commands::Recover { input, output, check, hdl, view, open, .. } => self.run_recover(&input, output.as_deref(), check, hdl.as_deref(), view.as_deref().map(|view| (view, open))),

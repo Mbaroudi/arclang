@@ -67,8 +67,10 @@ is worth: proven, not proven (a difference was found: the page is still
 written, the command fails), or not compared when `--check` was not asked.
 A drawing never says more than the proof did. The model is written beside
 the page (`recovered.arc`) unless `-o` names it; `--open` opens the page in
-the browser. `--view` takes the C a model generates: a device tree, a binary
-and `--propose` are refused with it.
+the browser. With `--propose` (a sketch or a binary, below) the page is
+written once a proposed model is proven, and says what was proven of what;
+none proven, no page. A device tree, and a binary read without `--propose`,
+give no machine to draw: `--view` is refused with them.
 
 ## What is not recovered
 

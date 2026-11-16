@@ -296,7 +296,7 @@ fn the_command_writes_the_view_of_what_it_recovers_with_its_verdict() {
     let page = std::fs::read_to_string(&wrong).unwrap();
     assert!(page.contains(r#""verdict": "refuted""#) && page.contains("of the C differ from what the recovered model generates."), "{}", text(&refuted));
 
-    // A binary has no model to draw yet: said, not ignored.
+    // A binary read without a proposer gives no machine to draw: said, not ignored.
     let refused = arclang(&["recover", "firmware.hex", "--view", view.to_str().unwrap()]);
-    assert!(!refused.status.success() && text(&refused).contains("--view draws the model recovered from the C a model generates"), "{}", text(&refused));
+    assert!(!refused.status.success() && text(&refused).contains("give no machine to draw"), "{}", text(&refused));
 }
