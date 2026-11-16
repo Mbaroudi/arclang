@@ -260,3 +260,43 @@ fn the_ranges_and_constants_of_the_logic_come_back_and_a_changed_vhdl_is_not_pro
     let earlier = arclang(&["recover", header.to_str().unwrap(), "--hdl", hdl.to_str().unwrap()]);
     assert!(!earlier.status.success() && text(&earlier).contains("was written by an earlier compiler"), "{}", text(&earlier));
 }
+
+#[test]
+fn the_command_writes_the_view_of_what_it_recovers_with_its_verdict() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let text = |output: &std::process::Output| format!("{}{}", String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr));
+    let c = dir.path().join("sm");
+    let model = root.join("examples/automotive/speed-monitor/speed_monitor.arc");
+    assert!(arclang(&["export", model.to_str().unwrap(), "-f", "c", "-o", c.to_str().unwrap()]).status.success());
+
+    // Proven: the page draws the machine and says what the recovery is worth; the model is written beside it.
+    let view = dir.path().join("recovered.html");
+    let proven = arclang(&["recover", c.to_str().unwrap(), "--check", "--view", view.to_str().unwrap()]);
+    assert!(proven.status.success(), "{}", text(&proven));
+    let page = std::fs::read_to_string(&view).unwrap();
+    assert!(page.contains(r#""verdict": "proven""#) && page.contains(r#""speed_monitor.h""#) && page.contains("the recovered model generates both files as they were read."), "the verdict is in the page");
+    assert!(page.contains("msm:"), "the machine is drawn");
+    assert!(arclang(&["check", dir.path().join("recovered.arc").to_str().unwrap()]).status.success());
+
+    // Not asked: the page does not say proven. A named output is the model drawn.
+    let plain = dir.path().join("plain.html");
+    let unproven = arclang(&["recover", c.to_str().unwrap(), "--view", plain.to_str().unwrap(), "-o", dir.path().join("named.arc").to_str().unwrap()]);
+    assert!(unproven.status.success() && dir.path().join("named.arc").exists() && !dir.path().join("plain.arc").exists(), "{}", text(&unproven));
+    let page = std::fs::read_to_string(&plain).unwrap();
+    assert!(page.contains(r#""verdict": "unproven""#) && !page.contains(r#""verdict": "proven""#));
+
+    // Refuted: the command fails, and the page says the model drawn is not the code.
+    let code = c.join("speed_monitor.c");
+    let edited = std::fs::read_to_string(&code).unwrap().replace("(in->v_speed > st->v_on_above)", "(in->v_speed > st->v_on_above && in->v_speed > 0)");
+    std::fs::write(&code, edited).unwrap();
+    let wrong = dir.path().join("wrong.html");
+    let refuted = arclang(&["recover", c.to_str().unwrap(), "--check", "--view", wrong.to_str().unwrap()]);
+    assert!(!refuted.status.success(), "{}", text(&refuted));
+    let page = std::fs::read_to_string(&wrong).unwrap();
+    assert!(page.contains(r#""verdict": "refuted""#) && page.contains("of the C differ from what the recovered model generates."), "{}", text(&refuted));
+
+    // A binary has no model to draw yet: said, not ignored.
+    let refused = arclang(&["recover", "firmware.hex", "--view", view.to_str().unwrap()]);
+    assert!(!refused.status.success() && text(&refused).contains("--view draws the model recovered from the C a model generates"), "{}", text(&refused));
+}

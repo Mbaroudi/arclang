@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **`arclang recover c/ --check --view recovered.html` draws what it recovers.** One command reads the C, writes the model and the page that draws its machines; the head of the page says what the model was read from and whether the recovery is proven, refuted (the page is written, the command fails) or was not compared. `--open` opens it in the browser.
 - **A step that is a function of its own is proven and found too** (`functions: ["step at 0x0466"]`): a binary built without link-time optimisation calls its step with the addresses of its three structures. The function is run from its call to its return and proven as a block is; `arclang recover firmware.hex --model` finds it by the call that passes three addresses where the structures of the model fit side by side.
 - The proofs of a cycle write the pieces a compiler places after a loop before the label they go back to, as the proofs of a block do: the lamp built as the Arduino IDE builds it is proven in about half the time (measured once: 341 s against 655 s, three proofs running together); a binary with none of these pieces is unchanged.
 - A refuted cycle whose prover was killed for lack of memory while it looked for the case is asked for that case once more, so that the refutation names its lines when other proofs run beside it.

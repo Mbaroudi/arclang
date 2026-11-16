@@ -666,6 +666,16 @@ pub enum Commands {
         /// proposed is the one `arclang prove` proves on the memory
         #[clap(long, value_name = "MODEL")]
         model: Option<PathBuf>,
+
+        /// Write the view of the recovered model to this file: its machines
+        /// drawn, what it was read from and whether the recovery is proven
+        /// (`--check`). The model is written beside it unless -o names it
+        #[clap(long, value_name = "HTML")]
+        view: Option<PathBuf>,
+
+        /// With --view: open the view in the browser
+        #[clap(long)]
+        open: bool,
     },
 
     /// Observe a board against the model: an instrument (a second board
@@ -1586,10 +1596,12 @@ impl CliRunner {
             Commands::Soc { input, test, bitstream, board, no_sim, gate_level, port, keep, json } => self.run_soc(&input, test, bitstream || board.is_some(), board, !no_sim && port.is_none(), gate_level, port, keep, json),
             Commands::Observe { model, correspondence, instrument, drive, watch, changes, seed, recorded, keep, json } => Self::run_observe(&model, correspondence.as_deref(), instrument.as_deref(), &drive, &watch, changes, seed, recorded.as_deref(), keep.as_deref(), json),
             Commands::Prove { model, correspondence, timeout, keep, json } => self.run_prove(&model, correspondence.as_deref(), timeout, keep, json),
+            Commands::Recover { input, propose, view: Some(_), .. } if propose || input.extension().is_some_and(|e| e == "dts" || e == "hex") => Err(CliError::Compilation("--view draws the model recovered from the C a model generates (a directory holding `<model>.h` and `<model>.c`): it takes no --propose, no device tree and no binary".to_string())),
+            Commands::Recover { open: true, view: None, .. } => Err(CliError::Compilation("--open opens the view --view writes".to_string())),
             Commands::Recover { input, output, propose: true, with, turns, timeout, keep, .. } => propose::run(&input, propose::Options { with, turns, timeout, output, keep }),
             Commands::Recover { input, output, .. } if input.extension().is_some_and(|e| e == "dts") => Self::run_recover_board(&input, output.as_deref()),
             Commands::Recover { input, output, keep, model, .. } if input.extension().is_some_and(|e| e == "hex") => Self::run_recover_binary(&input, output.as_deref(), keep.as_deref(), model.as_deref()),
-            Commands::Recover { input, output, check, hdl, .. } => self.run_recover(&input, output.as_deref(), check, hdl.as_deref()),
+            Commands::Recover { input, output, check, hdl, view, open, .. } => self.run_recover(&input, output.as_deref(), check, hdl.as_deref(), view.as_deref().map(|view| (view, open))),
             Commands::Drift { model, code, hdl, json, prove, timeout } => self.run_drift(&model, &code, hdl.as_deref(), json, prove.then_some(timeout)),
             Commands::Realize { input, requirement, up_to, dry_run, keep_going, board, json } => realize::run(&input, realize::Options { requirement, up_to, dry_run, keep_going, board, json }),
             Commands::Twin { input, twin, json, list, live, for_seconds } => {
@@ -2702,8 +2714,23 @@ impl CliRunner {
         Ok(())
     }
 
-    fn run_recover(&self, input: &std::path::Path, output: Option<&std::path::Path>, check: bool, hdl: Option<&std::path::Path>) -> Result<(), CliError> {
+    /// The view of a recovered model: its explorer, saying what it was read from and what the recovery is worth.
+    fn recovered_view(model: &std::path::Path, view: &std::path::Path, open: bool, recovery: &crate::compiler::arcviz_explorer::Recovery) -> Result<(), CliError> {
+        let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(model).map_err(|error| CliError::Compilation(format!("the recovered model {} is not drawn: {error}", model.display())))?;
+        let (html, _) = crate::compiler::arcviz_explorer::generate_explorer_html_recovered(&result, &result.semantic_model, Some(model), recovery).map_err(|error| CliError::Compilation(error.to_string()))?;
+        std::fs::write(view, html).map_err(CliError::Io)?;
+        eprintln!("  View: {}", view.display());
+        if open {
+            opener::open(view).map_err(|error| CliError::Io(std::io::Error::other(error)))?;
+        }
+        Ok(())
+    }
+
+    fn run_recover(&self, input: &std::path::Path, output: Option<&std::path::Path>, check: bool, hdl: Option<&std::path::Path>, view: Option<(&std::path::Path, bool)>) -> Result<(), CliError> {
         use crate::compiler::recover;
+        // The view draws a file: the model is written beside it when no output names one.
+        let beside = view.map(|(view, _)| view.with_extension("arc"));
+        let output = output.or(beside.as_deref());
         let (header_path, code_path) = Self::generated_c(input)?;
         let header = std::fs::read_to_string(&header_path).map_err(CliError::Io)?;
         let code = std::fs::read_to_string(&code_path).map_err(CliError::Io)?;
@@ -2740,9 +2767,14 @@ impl CliRunner {
         for note in &recovered.notes {
             eprintln!("  note: {note}");
         }
+        let show = |verdict: &str, says: String| -> Result<(), CliError> {
+            let (Some((view, open)), Some(model)) = (view, output) else { return Ok(()) };
+            let recovery = crate::compiler::arcviz_explorer::Recovery { from: vec![header_name.clone(), code_name.clone()], verdict: verdict.to_string(), says };
+            Self::recovered_view(model, view, open, &recovery)
+        };
         if !check {
             eprintln!("  Not proven: `--check` generates the C of this model again and compares it with the C read.");
-            return Ok(());
+            return show("unproven", "`--check` generates the C of this model again and compares it with the C read.".to_string());
         }
         let outcome = recover::check(&source, &generated);
         for (macro_name, read, again) in &outcome.periods {
@@ -2750,17 +2782,17 @@ impl CliRunner {
         }
         if outcome.proven() {
             eprintln!("✓ Proven: the recovered model generates {header_name} and {code_name} as they were read");
-            let Some(dir) = hdl else { return Ok(()) };
+            let Some(dir) = hdl else { return show("proven", "the recovered model generates both files as they were read.".to_string()) };
             // The logic: every file the recovered model generates for it, against the file read.
             let read = |name: &str| std::fs::read_to_string(dir.join(name)).ok();
             let compared = recover::logic::check(&source, &read).map_err(|error| CliError::Compilation(format!("the logic is not proven: {error}")))?;
             let unlike: Vec<&recover::drift::FileDrift> = compared.iter().filter(|file| file.missing || file.differs()).collect();
             if unlike.is_empty() {
                 eprintln!("✓ Proven: the recovered model generates the {} file(s) of the logic in {} as they were read", compared.len(), dir.display());
-                return Ok(());
+                return show("proven", format!("the recovered model generates both files and the {} file(s) of the logic as they were read.", compared.len()));
             }
             eprintln!("✗ Not proven: {} of the {} file(s) of the logic differ from what the recovered model generates", unlike.len(), compared.len());
-            for file in unlike {
+            for file in &unlike {
                 if file.missing {
                     eprintln!("  {}: not in {}", file.file, dir.display());
                     continue;
@@ -2773,6 +2805,7 @@ impl CliRunner {
                     eprintln!("    regenerated: {}", line.trim());
                 }
             }
+            show("refuted", format!("{} of the {} file(s) of the logic differ from what the recovered model generates.", unlike.len(), compared.len()))?;
             return Err(CliError::Compilation("the recovered model is not the logic".to_string()));
         }
         if let Some(error) = &outcome.error {
@@ -2783,6 +2816,10 @@ impl CliRunner {
                 eprintln!("  {}:{}\n    read:        {}\n    regenerated: {}", difference.file, difference.line, difference.read, difference.regenerated);
             }
         }
+        show("refuted", match &outcome.error {
+            Some(error) => error.clone(),
+            None => format!("{} line(s) of the C differ from what the recovered model generates.", outcome.differing_lines),
+        })?;
         Err(CliError::Compilation("the recovered model is not the code".to_string()))
     }
 
