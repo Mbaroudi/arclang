@@ -34,6 +34,9 @@ pub struct Block {
     /// The address of its first instruction, and of the first instruction after it.
     pub from: u32,
     pub to: u32,
+    /// The step is a function of its own (`step at 0x0466`), called with the addresses of its structures: `from` is
+    /// where it is, and there is no `to`.
+    pub called: bool,
     /// Where the structures of the generated header are in the memory.
     pub state: u32,
     pub inputs: u32,
@@ -44,8 +47,15 @@ pub struct Block {
     pub sizes: [u32; 3],
     pub sp: u16,
     pub kept: Vec<(u8, u8)>,
+    /// Filled by the proof: the start, run once, leaves in the state what the init of the model leaves.
+    pub starts_initial: bool,
 }
 
+/// The stack pointer a step that is a function is called with: where a `main` that has called `loop` leaves it,
+/// with room under it. The proof is for that value (the code only pushes and pops).
+const CALL_SP: u16 = 0x08df;
+/// The registers a function of avr-gcc leaves as it found them (r1 is zero when it is called and when it returns).
+const CALLEE_SAVED: [u8; 19] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 28, 29];
 /// The bytes under the stack pointer a block may use (what it pushes, the addresses its calls keep).
 const STACK: u32 = 64;
 /// The memory of the chip: its first and last address.
@@ -68,13 +78,17 @@ pub fn read(functions: &[String], memory: &[String], what: &str) -> Result<(Opti
     if steps.len() > 1 {
         return Err(format!("{what}: one block is the step: \"{}\" is a second", steps[1]));
     }
-    let found = step.captures(line.trim()).ok_or_else(|| format!("{what}: \"{line}\" does not say where the step is (`step from 0x1026 to 0x1294`: from its first instruction to the first after it)"))?;
+    let function = Regex::new(r"^step at 0[xX]([0-9a-fA-F]{1,6})$").expect("a pattern of the block");
     let address = |text: &str| u32::from_str_radix(text, 16).map_err(|e| format!("{what}: \"{line}\": {e}"));
-    let (from, to) = (address(&found[1])?, address(&found[2])?);
+    let (from, to, called) = match (step.captures(line.trim()), function.captures(line.trim())) {
+        (Some(found), _) => (address(&found[1])?, address(&found[2])?, false),
+        (None, Some(found)) => (address(&found[1])?, 0, true),
+        (None, None) => return Err(format!("{what}: \"{line}\" does not say where the step is (`step from 0x1026 to 0x1294`: from its first instruction to the first after it; or `step at 0x0466`, a function of its own)")),
+    };
     if from % 2 != 0 || to % 2 != 0 {
         return Err(format!("{what}: \"{line}\": an instruction of the chip starts at an even address"));
     }
-    if to <= from {
+    if !called && to <= from {
         return Err(format!("{what}: \"{line}\": the block ends after it starts"));
     }
     let mut at: BTreeMap<String, u32> = BTreeMap::new();
@@ -85,7 +99,7 @@ pub fn read(functions: &[String], memory: &[String], what: &str) -> Result<(Opti
         }
     }
     let of = |name: &str| at.get(name).copied().ok_or_else(|| format!("{what}: memory does not say where the {name} of the step {} (memory: [\"state at 0x...\", \"inputs at 0x...\", \"outputs at 0x...\"])", if name == "state" { "is" } else { "are" }));
-    Ok((Some(Block { from, to, state: of("state")?, inputs: of("inputs")?, outputs: of("outputs")?, ..Default::default() }), others))
+    Ok((Some(Block { from, to, called, state: of("state")?, inputs: of("inputs")?, outputs: of("outputs")?, ..Default::default() }), others))
 }
 
 /// A scalar of a structure: its path from the structure, where it is from the first byte, and its type.
@@ -242,19 +256,55 @@ fn cut_at(lifted: &str, block: &Block, cycle: u32, function: u32, what: &str) ->
 
 /// The files of the proof of a block, and its lines in the order the proof holds them: (the files, the lines, the bound of its loops).
 #[allow(clippy::type_complexity)]
-fn harness(block: &Block, cut: &super::binary_cycle::Cut, lifted: &str, header_name: &str, header: &str, what: &str) -> Result<(Vec<(String, String)>, Vec<String>, usize), String> {
+fn harness(block: &Block, cut: Option<&super::binary_cycle::Cut>, lifted: &str, header_name: &str, header: &str, what: &str) -> Result<(Vec<(String, String)>, Vec<String>, usize), String> {
     let (name, found) = structures(block, header, what)?;
-    let start = cut.start.as_ref().filter(|state| state.reached && state.registers.len() == 32).ok_or_else(|| format!("{what}: the start of the binary, run to find what it leaves, did not reach the head of the cycle at 0x{:04x}", cut.at))?;
-    let machine_code = super::binary_order::in_line(&cut_at(lifted, block, cut.at, cut.function, what)?);
+    // How the code is entered: the registers known there, the stack pointer, the registers it must leave as they
+    // were, the C that runs it, and what is said of its run and of what it leaves.
+    let (machine_code, known, sp, kept, run, ran, left): (String, Vec<(u8, u8)>, u16, Vec<u8>, String, String, &str) = match cut {
+        Some(cut) => {
+            let start = cut.start.as_ref().filter(|state| state.reached && state.registers.len() == 32).ok_or_else(|| format!("{what}: the start of the binary, run to find what it leaves, did not reach the head of the cycle at 0x{:04x}", cut.at))?;
+            (
+                cut_at(lifted, block, cut.at, cut.function, what)?,
+                cut.kept.iter().map(|register| (*register, start.registers[usize::from(*register)])).collect(),
+                start.sp,
+                cut.kept.clone(),
+                format!("    arclang_resume = true;\n    f_{:04x}();\n", cut.function),
+                format!("the block runs from 0x{:04x} to 0x{:04x} on instructions the translation covers, within the memory of the chip, and writes no register of the chip", block.from, block.to),
+                "the block leaves the stack pointer and the registers the cycle keeps as they were",
+            )
+        }
+        None => {
+            if !lifted.lines().any(|line| line == format!("void f_{:04x}(void)", block.from)) {
+                return Err(format!("{what}: the translation has no function at 0x{:04x}, where the step is said to be", block.from));
+            }
+            // avr-gcc passes the first three pointers in r25:r24, r23:r22 and r21:r20, and keeps r1 at zero.
+            let pointer = |low: u8, at: u32| [(low, at as u8), (low + 1, (at >> 8) as u8)];
+            let known: Vec<(u8, u8)> = [vec![(1u8, 0u8)], pointer(20, block.outputs).to_vec(), pointer(22, block.inputs).to_vec(), pointer(24, block.state).to_vec()].concat();
+            (
+                lifted.to_string(),
+                known,
+                CALL_SP,
+                CALLEE_SAVED.to_vec(),
+                // The call has pushed the address it returns to: two bytes, which the return takes back.
+                format!("    arclang_reg_wr(ARCLANG_SP, 2, {}u);\n    f_{:04x}();\n    arclang_block_end = !arclang_stop;\n", CALL_SP - 2, block.from),
+                format!("the function at 0x{:04x} runs to its return on instructions the translation covers, within the memory of the chip, and writes no register of the chip", block.from),
+                "the function leaves the stack pointer and the registers a function keeps (r1 at zero, r2 to r17, r28, r29) as they were",
+            )
+        }
+    };
+    let machine_code = super::binary_order::in_line(&machine_code);
     let mut c = format!("/* The proof that a block of the machine code is one step of the machines of the model (written by `arclang prove`). */\n#include <stdbool.h>\n#include <stdint.h>\n#include \"model/{header_name}\"\nstatic bool arclang_block_end; /* the block ran to the first instruction after it */\n#include \"machine_code.c\"\nunsigned int nondet_uint(void);\n\nint main(void)\n{{\n    static {name}_state s;\n    static {name}_inputs in;\n    static {name}_outputs out;\n");
-    c.push_str("    /* Any memory; any registers, but those the cycle keeps and the stack pointer, which are as the start leaves them. */\n    __CPROVER_havoc_object(arclang_mem);\n");
+    c.push_str("    /* Any memory; any registers, but those known where the code is entered, and the stack pointer. */\n    __CPROVER_havoc_object(arclang_mem);\n");
     for register in 0u8..32 {
-        c.push_str(&match cut.kept.contains(&register) {
-            true => format!("    arclang_r[{register}] = {}u;\n", start.registers[usize::from(register)]),
-            false => format!("    arclang_r[{register}] = nondet_uchar();\n"),
+        c.push_str(&match known.iter().find(|(known, _)| *known == register) {
+            Some((_, value)) => format!("    arclang_r[{register}] = {value}u;\n"),
+            None => format!("    arclang_r[{register}] = nondet_uchar();\n"),
         });
     }
-    c.push_str(&format!("    for (unsigned flag = 0x80u; flag <= 0x88u; flag++) {{ arclang_reg[flag] = nondet_uchar() & 1u; }}\n    arclang_reg_wr(ARCLANG_SP, 2, {}u);\n    arclang_booting = false;\n    arclang_stop = false;\n    arclang_uncovered = false;\n    arclang_outside = false;\n    arclang_wrote_register = false;\n    arclang_block_end = false;\n", start.sp));
+    for register in &kept {
+        c.push_str(&format!("    uint8_t was_r{register} = arclang_r[{register}];\n"));
+    }
+    c.push_str(&format!("    for (unsigned flag = 0x80u; flag <= 0x88u; flag++) {{ arclang_reg[flag] = nondet_uchar() & 1u; }}\n    arclang_reg_wr(ARCLANG_SP, 2, {}u);\n    arclang_booting = false;\n    arclang_stop = false;\n    arclang_uncovered = false;\n    arclang_outside = false;\n    arclang_wrote_register = false;\n    arclang_block_end = false;\n", sp));
     // The structures of the model are what the memory holds: a boolean is 0 or 1, a queue holds no more than its size.
     for (_, variable, fields, at) in found.iter().filter(|(said, ..)| *said != "outputs") {
         for field in fields {
@@ -270,13 +320,10 @@ fn harness(block: &Block, cut: &super::binary_cycle::Cut, lifted: &str, header_n
     // A byte of the memory that is neither of the state, nor of the outputs, nor under the stack pointer: any one.
     let bytes = |fields: &[Field]| fields.last().map_or(0, |last| last.offset + last.size);
     let apart: Vec<String> = found.iter().filter(|(said, ..)| *said != "inputs").map(|(_, _, fields, at)| format!("!(other >= 0x{at:04x}u && other < 0x{:04x}u)", at + bytes(fields))).collect();
-    let sp = u32::from(start.sp);
+    let sp = u32::from(sp);
     c.push_str(&format!("    unsigned other = nondet_uint();\n    __CPROVER_assume(other >= 0x{:04x}u && other <= 0x{:04x}u && {} && !(other > {}u && other <= {sp}u));\n    uint8_t was = arclang_mem[other];\n", RAM.0, RAM.1, apart.join(" && "), sp.saturating_sub(STACK)));
-    c.push_str(&format!("\n    arclang_resume = true;\n    f_{:04x}();\n    {name}_step(&s, &in, &out);\n\n", cut.function));
-    let mut lines: Vec<(String, String)> = vec![(
-        "arclang_block_end && !arclang_uncovered && !arclang_outside && !arclang_wrote_register".to_string(),
-        format!("the block runs from 0x{:04x} to 0x{:04x} on instructions the translation covers, within the memory of the chip, and writes no register of the chip", block.from, block.to),
-    )];
+    c.push_str(&format!("\n{run}    {name}_step(&s, &in, &out);\n\n"));
+    let mut lines: Vec<(String, String)> = vec![("arclang_block_end && !arclang_uncovered && !arclang_outside && !arclang_wrote_register".to_string(), ran)];
     for (said, variable, fields, at) in found.iter().filter(|(said, ..)| *said != "inputs") {
         for field in fields {
             let wide = if field.size > 4 { "unsigned long long" } else { "unsigned long" };
@@ -285,15 +332,34 @@ fn harness(block: &Block, cut: &super::binary_cycle::Cut, lifted: &str, header_n
             lines.push((format!("{model} == {}", bytes_of(field, *at)), format!("{said}: {} (0x{:04x}) is what the step of the model leaves", field.path, at + field.offset)));
         }
     }
-    let kept: String = cut.kept.iter().map(|register| format!(" && arclang_r[{register}] == {}u", start.registers[usize::from(*register)])).collect();
-    lines.push((format!("arclang_reg_rd(ARCLANG_SP, 2) == {}u{kept}", start.sp), "the block leaves the stack pointer and the registers the cycle keeps as they were".to_string()));
-    lines.push(("arclang_mem[other] == was".to_string(), format!("the block writes no byte of the memory outside the state, the outputs and the {STACK} bytes under the stack pointer: its inputs and everything else are as they were")));
+    let same: String = kept.iter().map(|register| format!(" && arclang_r[{register}] == was_r{register}")).collect();
+    lines.push((format!("arclang_reg_rd(ARCLANG_SP, 2) == {sp}u{same}"), left.to_string()));
+    lines.push(("arclang_mem[other] == was".to_string(), format!("the {} writes no byte of the memory outside the state, the outputs and the {STACK} bytes under the stack pointer: its inputs and everything else are as they were", if block.called { "function" } else { "block" })));
     for (condition, written) in &lines {
         c.push_str(&format!("    __CPROVER_assert({condition}, \"{}\");\n", written.replace('"', "'")));
     }
     c.push_str("    return 0;\n}\n");
     let longest = found.iter().flat_map(|(_, _, fields, _)| fields.iter().filter_map(|field| field.at_most)).max().unwrap_or(0) as usize;
     Ok((vec![("proof.c".to_string(), c), ("machine_code.c".to_string(), machine_code), ("arclang_lifted.h".to_string(), super::binary::LIFTED_H.to_string())], lines.into_iter().map(|(_, written)| written).collect(), UNWIND.max(longest + 4)))
+}
+
+/// The check that the state the start leaves is the one the init of the model leaves: (its C, its lines). The
+/// start is not proven: it is run once (see `binary::StartState`), and the bytes it leaves at the head of the cycle
+/// are compared with the structure `<model>_init` fills. None when the run did not give the memory.
+fn start_check(name: &str, header_name: &str, state: &[Field], at: u32, memory: &[u8]) -> Option<(String, Vec<String>)> {
+    let byte = |address: u32| address.checked_sub(RAM.0).and_then(|rank| memory.get(rank as usize)).copied();
+    let mut c = format!("/* The state the start of the binary leaves, against the init of the model (written by `arclang prove`). */\n#include <stdbool.h>\n#include <stdint.h>\n#include \"model/{header_name}\"\n\nint main(void)\n{{\n    static {name}_state s;\n    {name}_init(&s);\n");
+    let mut lines = Vec::new();
+    for field in state {
+        let left = (0..field.size).try_fold(0u64, |value, k| byte(at + field.offset + k).map(|byte| value | u64::from(byte) << (8 * k)))?;
+        let wide = if field.size > 4 { "unsigned long long" } else { "unsigned long" };
+        let model = if field.boolean { format!("({wide})s.{}", field.path) } else { format!("({wide})(u{})s.{}", field.ty.trim_start_matches('u'), field.path) };
+        let written = format!("start: {} (0x{:04x}), which the start leaves at {left}, is what the init of the model leaves", field.path, at + field.offset);
+        c.push_str(&format!("    __CPROVER_assert({model} == {left}{}, \"{written}\");\n", if field.size > 4 { "ULL" } else { "UL" }));
+        lines.push(written);
+    }
+    c.push_str("    return 0;\n}\n");
+    Some((c, lines))
 }
 
 /// What CBMC says of the checks of a proof.
@@ -371,15 +437,22 @@ fn read_answer(text: &str, exit: Option<i32>) -> Said {
 /// Prove the block of a correspondence against the step of the model. `model`: (the header, the source) of its
 /// generated C, by file name. The block is filled with what the proof found of it.
 #[allow(clippy::too_many_arguments)]
-pub fn prove(block: &mut Block, cycle: u32, image: &super::binary::Image, model: (&str, &str, &str, &str), board: &[(&str, &str)], dir: &Path, seconds: u64, what: &str) -> Result<super::correspondence::Outcome, String> {
+pub fn prove(block: &mut Block, cycle: Option<u32>, image: &super::binary::Image, model: (&str, &str, &str, &str), board: &[(&str, &str)], dir: &Path, seconds: u64, what: &str) -> Result<super::correspondence::Outcome, String> {
     use super::correspondence::Outcome;
     let (header_name, header, code_name, code) = model;
     // Before any tool is run: the structures are those of the header, where the correspondence places them.
     check(block, header, what)?;
-    let (lifted, start) = super::binary::lift_with_start(image, &[], Some(cycle), &dir.join("lift")).map_err(|e| format!("{what}: {e}"))?;
-    let mut cut = super::binary_cycle::cut(&lifted, what)?;
-    cut.start = Some(start);
-    let (files, lines, unwind) = harness(block, &cut, &lifted, header_name, header, what)?;
+    // A block is of the cycle: the start is run to its head. A function is translated as it is, and run from its call.
+    let (lifted, cut) = match cycle.filter(|_| !block.called) {
+        Some(cycle) => {
+            let (lifted, start) = super::binary::lift_with_start(image, &[], Some(cycle), &dir.join("lift")).map_err(|e| format!("{what}: {e}"))?;
+            let mut cut = super::binary_cycle::cut(&lifted, what)?;
+            cut.start = Some(start);
+            (lifted, Some(cut))
+        }
+        None => (super::binary::lift(image, &[block.from], None, &dir.join("lift")).map_err(|e| format!("{what}: {e}"))?, None),
+    };
+    let (files, lines, unwind) = harness(block, cut.as_ref(), &lifted, header_name, header, what)?;
     let model_source = format!("model/{code_name}");
     let model_files = [(format!("model/{header_name}"), header.to_string()), (model_source.clone(), code.to_string())];
     for (name, text) in files.iter().chain(&model_files).map(|(name, text)| (name.as_str(), text.as_str())).chain(board.iter().copied()) {
@@ -389,19 +462,37 @@ pub fn prove(block: &mut Block, cycle: u32, image: &super::binary::Image, model:
         }
         std::fs::write(&path, text).map_err(|e| format!("cannot write {}: {e}", path.display()))?;
     }
-    if let Some(state) = &cut.start {
+    {
         let (_, found) = structures(block, header, what)?;
+        block.sizes = [0, 1, 2].map(|rank| found[rank].2.last().map_or(0, |last| last.offset + last.size));
+        block.function = block.from;
+        block.sp = CALL_SP;
+    }
+    if let Some((cut, state)) = cut.as_ref().and_then(|cut| Some((cut, cut.start.as_ref()?))) {
         block.function = cut.function;
         block.sp = state.sp;
         block.kept = cut.kept.iter().map(|register| (*register, state.registers[usize::from(*register)])).collect();
-        block.sizes = [0, 1, 2].map(|rank| found[rank].2.last().map_or(0, |last| last.offset + last.size));
     }
     let started = std::time::Instant::now();
     // Every byte of the memory is followed alone, as in a cycle: the stack is where the start left it.
     let flags = ["--nondet-static", "-I", "board", "--16", "-DARCLANG_INT16", "--max-field-sensitivity-array-size", "4096"];
     let sources = ["proof.c", model_source.as_str()];
+    // The start: what it leaves in the state, when the run that found the registers gave the memory too.
+    let (name, found) = structures(block, header, what)?;
+    let start = cut.as_ref().and_then(|cut| cut.start.as_ref()).and_then(|state| start_check(&name, header_name, &found[0].2, block.state, &state.memory));
     Ok(match asked(dir, &sources, &flags, unwind, seconds)? {
-        Said::Holds => Outcome::Proven { seconds: started.elapsed().as_secs_f64(), period_us: 0, int_bits: 16, unrelated: Vec::new(), board_clock: None, interrupts: None },
+        Said::Holds => {
+            if let Some((c, start_lines)) = start {
+                std::fs::write(dir.join("start.c"), c).map_err(|e| format!("cannot write {}: {e}", dir.join("start.c").display()))?;
+                match asked(dir, &["start.c", model_source.as_str()], &["-I", "board", "--16", "-DARCLANG_INT16"], unwind, seconds)? {
+                    Said::Holds => block.starts_initial = true,
+                    Said::Fails(refuted) => return Ok(Outcome::Refuted { obligation: "block start".to_string(), lines: start_lines.into_iter().filter(|line| refuted.contains(line)).collect(), case: None, seconds: started.elapsed().as_secs_f64() }),
+                    Said::BeyondBound => return Ok(Outcome::Unknown { reason: format!("a loop of the init of the model runs more than {unwind} times: the proof does not cover it") }),
+                    Said::Unknown(reason) => return Ok(Outcome::Unknown { reason: format!("the start of the block: {reason}") }),
+                }
+            }
+            Outcome::Proven { seconds: started.elapsed().as_secs_f64(), period_us: 0, int_bits: 16, unrelated: Vec::new(), board_clock: None, interrupts: None }
+        }
         // In the order of the proof, each once (a line can be refuted on several paths).
         Said::Fails(refuted) => Outcome::Refuted { obligation: "block".to_string(), lines: lines.iter().filter(|line| refuted.contains(line)).cloned().collect(), case: None, seconds: started.elapsed().as_secs_f64() },
         Said::BeyondBound => Outcome::Unknown { reason: format!("a loop of the block or of the model runs more than {unwind} times: the proof does not cover it") },
@@ -509,28 +600,116 @@ pub fn place(lifted: &str, function: u32, header: &str) -> Result<Placed, String
     Ok(Placed { block: Block { from, to, state: state_at, inputs: inputs_at, outputs: outputs_at, function, ..Default::default() }, found })
 }
 
+/// Look for the step of the model as a function of its own: the function the code calls with, in the registers
+/// avr-gcc passes three pointers in (r25:r24, r23:r22, r21:r20), three addresses of the memory where the state, the
+/// inputs and the outputs of the model fit, apart. A binary built without link-time optimisation calls its step so.
+pub fn place_called(lifted: &str, header: &str) -> Result<Placed, String> {
+    let name = prefix(header)?;
+    let sizes = [layout(header, &format!("{name}_state"))?, layout(header, &format!("{name}_inputs"))?, layout(header, &format!("{name}_outputs"))?].map(|fields| fields.last().map_or(0, |last| last.offset + last.size));
+    let label = Regex::new(r"^L_([0-9a-f]{4}): /\* (.*) \*/$").expect("a pattern of the block");
+    let load = Regex::new(r"^ldi R(\d+),0x([0-9a-f]+)$").expect("a pattern of the block");
+    let call = Regex::new(r"^call 0x([0-9a-f]+)$").expect("a pattern of the block");
+    // The constants loaded in the registers since the last jump, call or label a jump comes to: a straight line.
+    let mut loaded: BTreeMap<u32, u32> = BTreeMap::new();
+    let mut calls: Vec<(u32, u32, [u32; 3])> = Vec::new();
+    for line in lifted.lines() {
+        let Some(found) = label.captures(line) else {
+            if line.starts_with("void f_") {
+                loaded.clear();
+            }
+            continue;
+        };
+        let (at, text) = (u32::from_str_radix(&found[1], 16).unwrap_or_default(), &found[2]);
+        if let Some(constant) = load.captures(text) {
+            if let (Ok(register), Ok(value)) = (constant[1].parse::<u32>(), u32::from_str_radix(&constant[2], 16)) {
+                loaded.insert(register, value);
+            }
+            continue;
+        }
+        if let Some(to) = call.captures(text).and_then(|to| u32::from_str_radix(&to[1], 16).ok()) {
+            let pointer = |low: u32| Some(loaded.get(&low)? | loaded.get(&(low + 1))? << 8);
+            if let (Some(state), Some(inputs), Some(outputs)) = (pointer(24), pointer(22), pointer(20)) {
+                calls.push((at, to, [state, inputs, outputs]));
+            }
+        }
+        // Anything but a load of a constant ends the straight line the pointers are read on, when it can go elsewhere.
+        if text.starts_with("call") || text.starts_with("rcall") || text.starts_with("rjmp") || text.starts_with("jmp") || text.starts_with("br") || text.starts_with("ret") || text.starts_with("cpse") || text.starts_with("sb") || text.starts_with("icall") || text.starts_with("ijmp") {
+            loaded.clear();
+        }
+    }
+    let fits = |places: &[u32; 3]| {
+        let within = (0..3).all(|rank| places[rank] >= RAM.0 && places[rank] + sizes[rank] - 1 <= RAM.1);
+        let apart = (0..3).all(|a| (a + 1..3).all(|b| places[a] + sizes[a] <= places[b] || places[b] + sizes[b] <= places[a]));
+        within && apart
+    };
+    let mut steps: Vec<(u32, [u32; 3], u32)> = Vec::new();
+    for (at, to, places) in calls.into_iter().filter(|(_, _, places)| fits(places)) {
+        if !steps.iter().any(|(known, with, _)| *known == to && *with == places) {
+            steps.push((to, places, at));
+        }
+    }
+    // Several calls pass three such addresses (a function that reads a line takes a port, a buffer and a count): the
+    // structures of a step are three variables of one sketch, which the linker places side by side.
+    let side_by_side = |places: &[u32; 3]| {
+        let (first, last) = ((0..3).map(|rank| places[rank]).min().unwrap_or(0), (0..3).map(|rank| places[rank] + sizes[rank]).max().unwrap_or(0));
+        last - first == sizes.iter().sum::<u32>()
+    };
+    let others: Vec<String> = steps.iter().filter(|(_, places, _)| !side_by_side(places)).map(|(function, _, at)| format!("0x{function:04x} called at 0x{at:04x}")).collect();
+    let chosen: Vec<(u32, [u32; 3], u32)> = if steps.len() > 1 { steps.iter().filter(|(_, places, _)| side_by_side(places)).copied().collect() } else { steps.clone() };
+    let steps = if chosen.len() == 1 { chosen } else { steps };
+    let why = if others.is_empty() || steps.len() != 1 { "the only one called".to_string() } else { format!("of the calls that pass three such addresses, the only one whose three structures lie side by side in the memory (not taken: {}), called", others.join(", ")) };
+    match steps.as_slice() {
+        [(function, [state, inputs, outputs], at)] => Ok(Placed {
+            block: Block { from: *function, called: true, state: *state, inputs: *inputs, outputs: *outputs, function: *function, ..Default::default() },
+            found: vec![format!(
+                "the step is the function at 0x{function:04x}: {why} (at 0x{at:04x}) with three addresses of the memory where the state ({} bytes at 0x{state:04x}), the inputs ({} bytes at 0x{inputs:04x}) and the outputs ({} bytes at 0x{outputs:04x}) of the model fit, apart",
+                sizes[0], sizes[1], sizes[2]
+            )],
+        }),
+        [] => Err("no function is called with three addresses of the memory where the state, the inputs and the outputs of the model fit".to_string()),
+        several => Err(format!("{} calls could be that of the step ({}): each passes three addresses where the structures of the model fit", several.len(), several.iter().map(|(function, _, at)| format!("0x{function:04x} called at 0x{at:04x}")).collect::<Vec<_>>().join(", "))),
+    }
+}
+
 /// The correspondence of a block as it is proposed, to be put in the model the binary was generated from.
 pub fn written(file: &str, bytes: usize, cycle: u32, placed: &Placed) -> String {
     let stem = Path::new(file).file_stem().map(|stem| stem.to_string_lossy().into_owned()).unwrap_or_else(|| file.to_string());
     let block = &placed.block;
-    let mut text = format!("// Proposed by `arclang recover {file} --model ...` from the machine code alone ({bytes} bytes): the step of the\n// machines of the model, folded into the function at 0x{:04x}. A proposal, not a proof: put it in the model,\n// beside the binary, and `arclang prove` decides.\n", block.function);
+    let mut text = format!("// Proposed by `arclang recover {file} --model ...` from the machine code alone ({bytes} bytes): the step of the\n// machines of the model, {} the function at 0x{:04x}. A proposal, not a proof: put it in the model,\n// beside the binary, and `arclang prove` decides.\n", if block.called { "which is" } else { "folded into" }, block.function);
     for found in &placed.found {
         text.push_str(&format!("// found: {found}\n"));
     }
-    text.push_str(&format!("\ncorrespondence \"{stem} step\" {{\n    binary: \"{file}\"\n    functions: [\"cycle at 0x{cycle:04x}\", \"step from 0x{:04x} to 0x{:04x}\"]\n    memory: [\"state at 0x{:04x}\", \"inputs at 0x{:04x}\", \"outputs at 0x{:04x}\"]\n}}\n", block.from, block.to, block.state, block.inputs, block.outputs));
+    let functions = if block.called { format!("\"step at 0x{:04x}\"", block.from) } else { format!("\"cycle at 0x{cycle:04x}\", \"step from 0x{:04x} to 0x{:04x}\"", block.from, block.to) };
+    text.push_str(&format!("\ncorrespondence \"{stem} step\" {{\n    binary: \"{file}\"\n    functions: [{functions}]\n    memory: [\"state at 0x{:04x}\", \"inputs at 0x{:04x}\", \"outputs at 0x{:04x}\"]\n}}\n", block.state, block.inputs, block.outputs));
     text
 }
 
 /// What the proof of a block is of, what it takes without proving it, and what it does not say, as it is printed under it.
 pub fn said(file: &str, cycle: u32, block: &Block) -> Vec<String> {
+    if block.called {
+        return vec![
+            format!("of the machine code of {file} itself, translated one instruction at a time (ATmega328P, Ghidra's description of the AVR): no source is read"),
+            format!("the step is the function at 0x{:04x}, called as avr-gcc calls it with the addresses of its three structures (the state in r25:r24, the inputs in r23:r22, the outputs in r21:r20), run from any memory in which the booleans of the state and of the inputs are 0 or 1 and a queue holds no more events than its size, and any other registers", block.from),
+            format!("the structures of the generated header are laid out as avr-gcc lays them out (no padding, the low byte first): the state ({} bytes at 0x{:04x}), the inputs ({} bytes at 0x{:04x}), the outputs ({} bytes at 0x{:04x})", block.sizes[0], block.state, block.sizes[1], block.inputs, block.sizes[2], block.outputs),
+            format!("proven with it: the function runs only instructions the translation covers, returns, writes no register of the chip, leaves the stack pointer and the registers a function keeps, and writes no byte of the memory outside the state, the outputs and the {STACK} bytes under the stack pointer"),
+            format!("taken, not proven here: the function is called with r1 at zero and the stack pointer at {} (0x{:04x}); the proof is for that stack pointer and for these addresses", block.sp, block.sp),
+            "NOT said: that the code calls the function with these addresses, when it calls it (its period, the time of the model), what else writes the state, that the start leaves the initial state, where the inputs come from and what the outputs drive".to_string(),
+        ];
+    }
     let kept = block.kept.iter().map(|(register, value)| format!("r{register} = {value}")).collect::<Vec<_>>().join(", ");
+    let start = if block.starts_initial {
+        format!("the start, run once from the reset to the head of the cycle (0x{cycle:04x}), leaves in the state what the init of the model leaves (run, not proven: the pins and the serial port read as that run gives them)")
+    } else {
+        "NOT said: that the start leaves the initial state (the run of the start did not give the memory it leaves)".to_string()
+    };
     vec![
         format!("of the machine code of {file} itself, translated one instruction at a time (ATmega328P, Ghidra's description of the AVR): no source is read"),
         format!("the block is the instructions from 0x{:04x} up to 0x{:04x} of the function at 0x{:04x}, run from any memory in which the booleans of the state and of the inputs are 0 or 1 and a queue holds no more events than its size", block.from, block.to, block.function),
         format!("the structures of the generated header are laid out as avr-gcc lays them out (no padding, the low byte first): the state ({} bytes at 0x{:04x}), the inputs ({} bytes at 0x{:04x}), the outputs ({} bytes at 0x{:04x})", block.sizes[0], block.state, block.sizes[1], block.inputs, block.sizes[2], block.outputs),
         format!("proven with it: the block runs only instructions the translation covers, writes no register of the chip, leaves the stack pointer and the registers the cycle keeps, and writes no byte of the memory outside the state, the outputs and the {STACK} bytes under the stack pointer"),
         format!("taken, not proven here: at the first instruction of the block the stack pointer ({}) and the registers the cycle keeps ({kept}) are as the start leaves them at the head of the cycle (0x{cycle:04x}), found by running the start once", block.sp),
-        "NOT said: when the block runs (its period, the time of the model), that the rest of the cycle leaves the state alone between two runs of the block, that the start leaves the initial state, where the inputs come from and what the outputs drive".to_string(),
+        start,
+        "NOT said: when the block runs (its period, the time of the model), that the rest of the cycle leaves the state alone between two runs of the block, where the inputs come from and what the outputs drive".to_string(),
     ]
 }
 
@@ -579,7 +758,7 @@ mod tests {
     fn what_a_block_cannot_say_is_refused_with_the_reason() {
         let memory = lines(&["state at 0x0439", "inputs at 0x0411", "outputs at 0x0409"]);
         let wrong = |functions: &[&str], memory: &[String]| read(&lines(functions), memory, "c").unwrap_err();
-        assert!(wrong(&["step at 0x1026"], &memory).contains("does not say where the step is"));
+        assert!(wrong(&["step near 0x1026"], &memory).contains("does not say where the step is"));
         assert!(wrong(&["step from 0x1027 to 0x1294"], &memory).contains("even address"));
         assert!(wrong(&["step from 0x1294 to 0x1026"], &memory).contains("ends after it starts"));
         assert!(wrong(&["step from 0x1026 to 0x1294", "step from 0x1300 to 0x1400"], &memory).contains("is a second"));
@@ -644,6 +823,48 @@ mod tests {
         let unread = FOLDED.replace("lds R24,0x0229", "nop").replace("lds R24,0x0228", "nop");
         assert!(place(&unread, 0x100, HEADER).unwrap_err().contains("its inputs could be at"), "{:?}", place(&unread, 0x100, HEADER));
         assert!(place(FOLDED, 0x400, HEADER).unwrap_err().contains("no function at 0x0400"));
+    }
+
+    #[test]
+    fn the_state_the_start_leaves_is_compared_field_by_field_with_the_init_of_the_model() {
+        let state = layout(HEADER, "m_state").unwrap();
+        // The memory from 0x0100: the state at 0x0104, its second counter left at 0x01020304.
+        let mut memory = vec![0u8; 32];
+        memory[4 + 7..4 + 11].copy_from_slice(&[4, 3, 2, 1]);
+        let (c, lines) = start_check("m", "m.h", &state, 0x104, &memory).unwrap();
+        assert!(c.contains("    static m_state s;\n    m_init(&s);\n"), "{c}");
+        assert!(c.contains("__CPROVER_assert((unsigned long)s.lamp_started == 0UL, \"start: lamp_started (0x0104), which the start leaves at 0, is what the init of the model leaves\");"), "{c}");
+        assert!(c.contains("__CPROVER_assert((unsigned long)(uint32_t)s.lamp.in_state[1] == 16909060UL,"), "{c}");
+        assert_eq!(lines.len(), state.len());
+        // A run that did not give the memory, or not all of the state: nothing is compared.
+        assert!(start_check("m", "m.h", &state, 0x104, &[]).is_none());
+        assert!(start_check("m", "m.h", &state, 0x104, &memory[..10]).is_none());
+    }
+
+    #[test]
+    fn a_step_that_is_a_function_is_read_and_found_by_the_addresses_it_is_called_with() {
+        let (block, others) = read(&lines(&["step at 0x0466"]), &lines(&["state at 0x03ee", "inputs at 0x03c6", "outputs at 0x03be"]), "c").unwrap();
+        let block = block.unwrap();
+        assert!(block.called && others.is_empty());
+        assert_eq!((block.from, block.to, block.state), (0x466, 0, 0x3ee));
+        // The state of HEADER is 11 bytes, its inputs 10, its outputs 3.
+        let code = "void f_0800(void)\n{\nL_0800: /* ldi R24,0x10 */\nL_0802: /* ldi R25,0x2 */\nL_0804: /* call 0x700 */\nL_0808: /* ldi R20,0x40 */\nL_080a: /* ldi R21,0x2 */\nL_080c: /* ldi R22,0x20 */\nL_080e: /* ldi R23,0x2 */\nL_0810: /* ldi R24,0x0 */\nL_0812: /* ldi R25,0x2 */\nL_0814: /* call 0x466 */\nL_0818: /* ret */\n}\n";
+        let placed = place_called(code, HEADER).unwrap();
+        assert_eq!((placed.block.from, placed.block.called, placed.block.state, placed.block.inputs, placed.block.outputs), (0x466, true, 0x200, 0x220, 0x240));
+        assert!(written("lamp.hex", 400, 0, &placed).contains("    functions: [\"step at 0x0466\"]\n    memory: [\"state at 0x0200\", \"inputs at 0x0220\", \"outputs at 0x0240\"]\n"));
+        // Pointers that are not all loaded before the call, or where the structures do not fit apart: no step.
+        assert!(place_called(&code.replace("L_080c: /* ldi R22,0x20 */", "L_080c: /* rjmp 0x80e */"), HEADER).unwrap_err().contains("no function is called"));
+        assert!(place_called(&code.replace("ldi R22,0x20", "ldi R22,0x5"), HEADER).unwrap_err().contains("no function is called"));
+        // A function that takes three other addresses where the structures would fit, far apart: the step is the one whose structures lie side by side.
+        let poll = code.replace("L_0818: /* ret */", "L_0818: /* ldi R20,0x0 */\nL_081a: /* ldi R21,0x3 */\nL_081c: /* ldi R22,0x0 */\nL_081e: /* ldi R23,0x4 */\nL_0820: /* ldi R24,0x0 */\nL_0822: /* ldi R25,0x5 */\nL_0824: /* call 0x500 */");
+        assert!(place_called(&poll, HEADER).unwrap_err().contains("2 calls could be that of the step"), "the structures of the test are not side by side either");
+        let beside = poll.replace("ldi R22,0x20", "ldi R22,0xb").replace("ldi R20,0x40", "ldi R20,0x15");
+        let placed = place_called(&beside, HEADER).unwrap();
+        assert_eq!((placed.block.from, placed.block.state, placed.block.inputs, placed.block.outputs), (0x466, 0x200, 0x20b, 0x215));
+        assert!(placed.found[0].contains("side by side in the memory (not taken: 0x0500 called at 0x0824)"), "{:?}", placed.found);
+        // Two functions called so: said, not chosen.
+        let twice = code.replace("L_0818: /* ret */", "L_0818: /* ldi R20,0x40 */\nL_081a: /* ldi R21,0x2 */\nL_081c: /* ldi R22,0x20 */\nL_081e: /* ldi R23,0x2 */\nL_0820: /* ldi R24,0x0 */\nL_0822: /* ldi R25,0x2 */\nL_0824: /* call 0x500 */");
+        assert!(place_called(&twice, HEADER).unwrap_err().contains("2 calls could be that of the step"));
     }
 
     #[test]

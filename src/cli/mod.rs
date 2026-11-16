@@ -2267,6 +2267,7 @@ impl CliRunner {
             for (c, outcome) in &outcomes {
                 let block = c.binary.as_ref().and_then(|binary| binary.block.as_ref().map(|block| (binary, block)));
                 let of = match block {
+                    Some((binary, block)) if block.called => format!("correspondence \"{}\": the function at 0x{:04x} of {} is one step of the machines of the model", c.name, block.from, binary.file),
                     Some((binary, block)) => format!("correspondence \"{}\": the block from 0x{:04x} to 0x{:04x} of {} is one step of the machines of the model", c.name, block.from, block.to, binary.file),
                     None => format!("correspondence \"{}\": {} is state_machine \"{}\"", c.name, c.binary.as_ref().map(|binary| binary.file.clone()).unwrap_or_else(|| c.sources.join(", ")), c.machine),
                 };
@@ -2295,10 +2296,11 @@ impl CliRunner {
                             "functions" => "a function the correspondence names is not the Arduino function it is said to be: its machine code, from some memory and registers, for some pin",
                             "clock" => "the binary does not keep the time as the Arduino core does: what millis returns is not what the proof takes it for",
                             "start" => "after setup() and one loop(), and after init and one step, the code and the model do not correspond",
-                            "block" => "from some memory, the block and one step of the machines of the model do not leave the same: the state or the outputs differ, or the block does what a step does not",
+                            "block start" => "the block is one step of the machines of the model, but the start of the binary, run once, does not leave in the state what the init of the model leaves",
+                            "block" => "from some memory, the code of the binary and one step of the machines of the model do not leave the same: the state or the outputs differ, or the code does what a step does not",
                             _ => "from two states that correspond, one loop() and one step can leave two that do not",
                         });
-                        if lines.is_empty() && obligation == "block" {
+                        if lines.is_empty() && obligation.starts_with("block") {
                             println!("    which lines do not hold could not be read in time");
                         } else if lines.is_empty() {
                             println!("    no line of the correspondence fails: the code read or wrote a pin the correspondence does not name, or the case could not be read in time");
@@ -2653,12 +2655,35 @@ impl CliRunner {
     fn recover_step(input: &std::path::Path, output: Option<&std::path::Path>, bytes: usize, lifted: &str, proposal: &crate::compiler::recover::binary_shape::Proposal, header: &str) -> Result<(), CliError> {
         use crate::compiler::recover::binary_block;
         let not_found = |why: String| CliError::Compilation(format!("{}: the step of the model is not found: {why}", input.display()));
-        let (Some(cycle), Some(function)) = (proposal.cycle, proposal.folded) else {
-            return Err(not_found("the binary has no cycle folded into main to look in (a step that is a function of its own is not placed yet)".to_string()));
+        // Folded into the function of the cycle, or a function of its own called with its structures.
+        let folded = match (proposal.cycle, proposal.folded) {
+            (Some(cycle), Some(function)) => binary_block::place(lifted, function, header).map(|placed| (cycle, placed)),
+            _ => Err("the binary has no cycle folded into main to look in".to_string()),
         };
-        let placed = binary_block::place(lifted, function, header).map_err(not_found)?;
+        let (cycle, placed) = match folded {
+            Ok(found) => found,
+            Err(not_folded) => match binary_block::place_called(lifted, header) {
+                Ok(placed) => (0, placed),
+                Err(not_called) => return Err(not_found(format!("as a block of the cycle: {not_folded}; as a function of its own: {not_called}"))),
+            },
+        };
         let file = input.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         let text = binary_block::written(&file, bytes, cycle, &placed);
+        if placed.block.called {
+            match output {
+                Some(path) => std::fs::write(path, &text).map_err(CliError::Io)?,
+                None => print!("{text}"),
+            }
+            eprintln!("Recovered from {}: the step of the model is the function at 0x{:04x}", input.display(), placed.block.from);
+            if let Some(path) = output {
+                eprintln!("  Output: {}", path.display());
+            }
+            for found in &placed.found {
+                eprintln!("  found: {found}");
+            }
+            eprintln!("  a proposal, not a proof: put the correspondence in the model, then `arclang prove` decides");
+            return Ok(());
+        }
         match output {
             Some(path) => std::fs::write(path, &text).map_err(CliError::Io)?,
             None => print!("{text}"),

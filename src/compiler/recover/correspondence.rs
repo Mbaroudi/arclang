@@ -116,10 +116,17 @@ pub fn read(declaration: &CorrespondenceDecl) -> Result<Correspondence, String> 
         }
         let cycle = match function_lines.as_slice() {
             [] => None,
+            _ if block.called => None,
             lines => super::binary::functions(lines, &what)?.into_iter().find(|(name, _)| name == "cycle").map(|(_, at)| at),
         };
-        let cycle = cycle.ok_or_else(|| format!("{what}: a step is a block of the cycle of the binary: the functions say where the cycle is too (functions: [\"cycle at 0x0fc6\", \"step from 0x1026 to 0x1294\"])"))?;
-        let binary = super::binary::Binary { file, cycle: Some(cycle), block: Some(block), ..Default::default() };
+        // A step that is a function is run from its call: no cycle is placed with it. A block is of the cycle.
+        if block.called && !function_lines.is_empty() {
+            return Err(format!("{what}: a step that is a function of its own is run from its call: nothing else is placed with it (functions: [\"step at 0x0466\"])"));
+        }
+        if !block.called && cycle.is_none() {
+            return Err(format!("{what}: a step is a block of the cycle of the binary: the functions say where the cycle is too (functions: [\"cycle at 0x0fc6\", \"step from 0x1026 to 0x1294\"])"));
+        }
+        let binary = super::binary::Binary { file, cycle, block: Some(block), ..Default::default() };
         return Ok(Correspondence { name: declaration.name.clone(), machine: String::new(), sources: Vec::new(), binary: Some(binary), tick_us: 4, period_us: None, reads: Vec::new(), writes: Vec::new(), events: Vec::new(), pwm: Vec::new(), state: Vec::new(), invariants: Vec::new(), int_bits: 16 });
     }
     let machine = text("machine").ok_or_else(|| format!("{what}: it names no machine (machine: \"...\")"))?;
@@ -754,19 +761,28 @@ fn case(dir: &Path, sources: &[&str], flags: &[&str], unwind: usize, proof: &Pro
     use std::process::{Command, Stdio};
     let cbmc = std::env::var("ARCLANG_CBMC").ok().filter(|v| !v.trim().is_empty()).unwrap_or_else(|| "cbmc".to_string());
     let trace = dir.join("case.txt");
-    let file = std::fs::File::create(&trace).ok()?;
-    let mut child = Command::new(cbmc).args(sources).args(flags).args(["-DARCLANG_WITNESS", "--no-standard-checks", "--unwind", &unwind.to_string(), "--no-unwinding-assertions", "--trace"]).current_dir(dir).stdout(file).stderr(Stdio::null()).spawn().ok()?;
     let started = std::time::Instant::now();
-    loop {
-        match child.try_wait().ok()? {
-            Some(_) => break,
-            None if started.elapsed().as_secs() > seconds => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return None;
+    // A prover killed for lack of memory (other proofs run beside it) is asked once more: an incident of the machine
+    // must not leave a refutation without the lines it refutes.
+    for attempt in 0..2 {
+        let file = std::fs::File::create(&trace).ok()?;
+        let mut child = Command::new(&cbmc).args(sources).args(flags).args(["-DARCLANG_WITNESS", "--no-standard-checks", "--unwind", &unwind.to_string(), "--no-unwinding-assertions", "--trace"]).current_dir(dir).stdout(file).stderr(Stdio::null()).spawn().ok()?;
+        let status = loop {
+            match child.try_wait().ok()? {
+                Some(status) => break status,
+                None if started.elapsed().as_secs() > seconds => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return None;
+                }
+                None => std::thread::sleep(std::time::Duration::from_millis(50)),
             }
-            None => std::thread::sleep(std::time::Duration::from_millis(50)),
+        };
+        if attempt == 0 && super::equivalence::killed(&status) {
+            std::thread::sleep(std::time::Duration::from_secs(20));
+            continue;
         }
+        break;
     }
     let text = std::fs::read_to_string(&trace).ok()?;
     let recorded = Regex::new(r"(?m)^  arclang_w(i|bc|bm|ac|am|l)_(\d+)=(-?\d+)").expect("a pattern of the case");
@@ -854,7 +870,7 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
         }
         let dir = work.join(correspondence.name.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect::<String>());
         // A block that is the step of the model: its own proof, on the memory (see `binary_block`).
-        if let Some((cycle, mut block)) = correspondence.binary.as_ref().and_then(|binary| Some((binary.cycle?, binary.block.clone()?))) {
+        if let Some((cycle, mut block)) = correspondence.binary.as_ref().and_then(|binary| Some((binary.cycle, binary.block.clone()?))) {
             let what = format!("correspondence '{}'", correspondence.name);
             let path = base.join(correspondence.binary.as_ref().map(|binary| binary.file.as_str()).unwrap_or_default());
             let text = std::fs::read_to_string(&path).map_err(|e| format!("{what}: cannot read {}: {e}", path.display()))?;

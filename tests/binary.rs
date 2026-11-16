@@ -569,7 +569,7 @@ fn a_step_that_is_a_block_of_a_binary_is_checked_before_any_proof() {
     assert!(!ok && output.contains("the functions say where the cycle is too"), "{output}");
     let (ok, output) = check(model.replacen("    binary: \"uno_lock.hex\"\n", "    binary: \"uno_lock.hex\"\n    machine: \"Lock modes\"\n", 1));
     assert!(!ok && output.contains("not 'machine'"), "{output}");
-    let (ok, output) = check(model.replacen("\"step from 0x1026 to 0x1294\"", "\"step at 0x1026\"", 1));
+    let (ok, output) = check(model.replacen("\"step from 0x1026 to 0x1294\"", "\"step near 0x1026\"", 1));
     assert!(!ok && output.contains("does not say where the step is"), "{output}");
     // The structures are those the model generates, where the correspondence places them.
     let (ok, output) = check(model.replacen(", \"outputs at 0x0409\"", "", 1));
@@ -603,6 +603,7 @@ fn the_step_of_three_machines_folded_into_main_is_proven_on_the_memory_of_the_bi
         "the state (43 bytes at 0x0439), the inputs (40 bytes at 0x0411), the outputs (8 bytes at 0x0409)",
         "writes no byte of the memory outside the state, the outputs and the 64 bytes under the stack pointer",
         "taken, not proven here: at the first instruction of the block the stack pointer (2301) and the registers the cycle keeps (r1 = 0,",
+        "the start, run once from the reset to the head of the cycle (0x0fc6), leaves in the state what the init of the model leaves",
         "NOT said: when the block runs",
     ] {
         assert!(output.contains(said), "{said}: {output}");
@@ -616,7 +617,7 @@ fn the_step_of_three_machines_folded_into_main_is_proven_on_the_memory_of_the_bi
 fn a_model_whose_guard_is_not_the_one_of_the_binary_is_refuted_on_the_machine_it_changes() {
     let (ok, output) = block_proof("trigger: \"SF-2\" guard: \"door closed\"", "trigger: \"SF-2\" guard: \"credential accepted\"");
     assert!(!ok && output.contains("✗ Refuted"), "{output}");
-    assert!(output.contains("from some memory, the block and one step of the machines of the model do not leave the same"), "{output}");
+    assert!(output.contains("from some memory, the code of the binary and one step of the machines of the model do not leave the same"), "{output}");
     assert!(output.contains("does not hold after it: state: lock_modes.active[0] (0x044a) is what the step of the model leaves"), "{output}");
     // The machine the edit does not touch is still the one of the binary.
     assert!(!output.contains("state: lock_lifecycle."), "{output}");
@@ -661,4 +662,74 @@ fn the_step_of_a_model_and_its_structures_are_found_in_a_binary_without_its_symb
     let asked = arclang(&["recover", fixtures.join("uno_lock.hex").to_str().unwrap(), "--model", other.to_str().unwrap()]);
     let output = text(&asked);
     assert!(!asked.status.success() && output.contains("the step of the model is not found") && !output.contains("correspondence \""), "{output}");
+}
+
+/// The lock built without link-time optimisation (`-fno-lto`): its step is a function of its own. The model is the
+/// one of `uno_lock_block.arc`, its correspondence placed on that binary; the proof is asked after an edit.
+fn called_step_proof(from: &str, to: &str) -> (bool, String) {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sketches");
+    let dir = tempfile::tempdir().unwrap();
+    let mut model = std::fs::read_to_string(fixtures.join("uno_lock_block.arc")).unwrap();
+    for (folded, called) in [
+        ("binary: \"uno_lock.hex\"", "binary: \"uno_lock_nolto.hex\""),
+        ("functions: [\"cycle at 0x0fc6\", \"step from 0x1026 to 0x1294\"]", "functions: [\"step at 0x0466\"]"),
+        ("memory: [\"state at 0x0439\", \"inputs at 0x0411\", \"outputs at 0x0409\"]", "memory: [\"state at 0x03ee\", \"inputs at 0x03c6\", \"outputs at 0x03be\"]"),
+        (from, to),
+    ] {
+        assert!(folded.is_empty() || model.contains(folded), "the model has `{folded}`");
+        model = model.replacen(folded, called, 1);
+    }
+    std::fs::write(dir.path().join("lock.arc"), model).unwrap();
+    std::fs::copy(fixtures.join("uno_lock_nolto.hex"), dir.path().join("uno_lock_nolto.hex")).unwrap();
+    let asked = arclang(&["prove", dir.path().join("lock.arc").to_str().unwrap(), "--timeout", "900"]);
+    (asked.status.success(), text(&asked))
+}
+
+#[test]
+#[ignore = "needs Ghidra and CBMC (about 3 minutes): tools/embedded/reverse/run.sh cargo test --test binary -- --include-ignored"]
+fn a_step_that_is_a_function_of_its_own_is_found_by_its_call_and_proven_from_it() {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sketches");
+    // Found: the function called with three addresses where the structures of the model fit, side by side.
+    let asked = arclang(&["recover", fixtures.join("uno_lock_nolto.hex").to_str().unwrap(), "--model", fixtures.join("uno_lock_block.arc").to_str().unwrap()]);
+    let output = text(&asked);
+    assert!(asked.status.success(), "{output}");
+    for said in [
+        "    functions: [\"step at 0x0466\"]\n    memory: [\"state at 0x03ee\", \"inputs at 0x03c6\", \"outputs at 0x03be\"]\n",
+        "the only one whose three structures lie side by side in the memory (not taken: 0x0566 called at 0x087e)",
+    ] {
+        assert!(output.contains(said), "{said}: {output}");
+    }
+    // Proven, from its call.
+    let (ok, output) = called_step_proof("", "");
+    assert!(ok && output.contains("✓ Proven"), "{output}");
+    for said in [
+        "the function at 0x0466 of uno_lock_nolto.hex is one step of the machines of the model",
+        "called as avr-gcc calls it with the addresses of its three structures (the state in r25:r24, the inputs in r23:r22, the outputs in r21:r20)",
+        "taken, not proven here: the function is called with r1 at zero and the stack pointer at 2271 (0x08df)",
+        "NOT said: that the code calls the function with these addresses",
+    ] {
+        assert!(output.contains(said), "{said}: {output}");
+    }
+    // A model with another guard is refuted on the machine it changes; a function that is not the step, on everything.
+    let (ok, output) = called_step_proof("trigger: \"SF-2\" guard: \"door closed\"", "trigger: \"SF-2\" guard: \"credential accepted\"");
+    assert!(!ok && output.contains("✗ Refuted") && output.contains("state: lock_modes.active[0] (0x03ff) is what the step of the model leaves") && !output.contains("state: lock_lifecycle."), "{output}");
+    let (ok, output) = called_step_proof("step at 0x0466", "step at 0x0198");
+    assert!(!ok && output.contains("✗ Refuted") && output.contains("state: lock_modes"), "{output}");
+}
+
+#[test]
+fn a_step_that_is_a_function_places_nothing_else() {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sketches");
+    let model = std::fs::read_to_string(fixtures.join("uno_lock_block.arc")).unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let check = |edited: String| {
+        let path = dir.path().join("m.arc");
+        std::fs::write(&path, edited).unwrap();
+        let asked = arclang(&["check", path.to_str().unwrap()]);
+        (asked.status.success(), text(&asked))
+    };
+    let (ok, output) = check(model.replacen("\"cycle at 0x0fc6\", \"step from 0x1026 to 0x1294\"", "\"step at 0x0466\"", 1));
+    assert!(ok, "{output}");
+    let (ok, output) = check(model.replacen("\"step from 0x1026 to 0x1294\"", "\"step at 0x0466\"", 1));
+    assert!(!ok && output.contains("nothing else is placed with it"), "{output}");
 }

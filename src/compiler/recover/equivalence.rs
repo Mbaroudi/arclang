@@ -271,7 +271,7 @@ pub(super) enum Answer {
 const KILLED: &str = "CBMC was killed before it answered (the memory of the machine or of its container ran out: exit 137): the question is too large as it is asked";
 
 /// A process killed by a signal, or a container whose process was (`docker run` exits 128 + the signal: 137 for SIGKILL, the out-of-memory killer).
-fn killed(status: &std::process::ExitStatus) -> bool {
+pub(super) fn killed(status: &std::process::ExitStatus) -> bool {
     #[cfg(unix)]
     {
         use std::os::unix::process::ExitStatusExt;
