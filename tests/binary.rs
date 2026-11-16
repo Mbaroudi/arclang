@@ -551,3 +551,86 @@ fn a_proposal_for_a_cycle_cannot_move_the_head_or_change_the_step_and_is_refused
     let third = std::fs::read_to_string(kept.path().join("prompt-2")).unwrap();
     assert!(third.contains("it must be `tick: 1000 us`"), "{third}");
 }
+
+#[test]
+fn a_step_that_is_a_block_of_a_binary_is_checked_before_any_proof() {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sketches");
+    let model = std::fs::read_to_string(fixtures.join("uno_lock_block.arc")).unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let check = |edited: String| {
+        let path = dir.path().join("m.arc");
+        std::fs::write(&path, edited).unwrap();
+        let asked = arclang(&["check", path.to_str().unwrap()]);
+        (asked.status.success(), text(&asked))
+    };
+    assert!(check(model.clone()).0, "{}", check(model.clone()).1);
+    // The block is of the cycle, and of every machine: no machine, no pin and no time are named with it.
+    let (ok, output) = check(model.replacen("\"cycle at 0x0fc6\", ", "", 1));
+    assert!(!ok && output.contains("the functions say where the cycle is too"), "{output}");
+    let (ok, output) = check(model.replacen("    binary: \"uno_lock.hex\"\n", "    binary: \"uno_lock.hex\"\n    machine: \"Lock modes\"\n", 1));
+    assert!(!ok && output.contains("not 'machine'"), "{output}");
+    let (ok, output) = check(model.replacen("\"step from 0x1026 to 0x1294\"", "\"step at 0x1026\"", 1));
+    assert!(!ok && output.contains("does not say where the step is"), "{output}");
+    // The structures are those the model generates, where the correspondence places them.
+    let (ok, output) = check(model.replacen(", \"outputs at 0x0409\"", "", 1));
+    assert!(!ok && output.contains("where the outputs of the step are"), "{output}");
+    let (ok, output) = check(model.replacen("\"state at 0x0439\"", "\"state at 0x08f0\"", 1));
+    assert!(!ok && output.contains("the state (43 bytes at 0x08f0) is not within the memory of the chip"), "{output}");
+    let (ok, output) = check(model.replacen("\"inputs at 0x0411\"", "\"inputs at 0x0430\"", 1));
+    assert!(!ok && output.contains("share bytes of the memory"), "{output}");
+}
+
+/// The lock's binary and its model in a fresh directory, after an edit of the model; the proof is then asked.
+fn block_proof(from: &str, to: &str) -> (bool, String) {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sketches");
+    let dir = tempfile::tempdir().unwrap();
+    let model = std::fs::read_to_string(fixtures.join("uno_lock_block.arc")).unwrap();
+    assert!(from.is_empty() || model.contains(from), "uno_lock_block.arc has `{from}`");
+    std::fs::write(dir.path().join("uno_lock_block.arc"), model.replacen(from, to, 1)).unwrap();
+    std::fs::copy(fixtures.join("uno_lock.hex"), dir.path().join("uno_lock.hex")).unwrap();
+    let asked = arclang(&["prove", dir.path().join("uno_lock_block.arc").to_str().unwrap(), "--timeout", "900"]);
+    (asked.status.success(), text(&asked))
+}
+
+#[test]
+#[ignore = "needs Ghidra and CBMC (about 2 minutes): tools/embedded/reverse/run.sh cargo test --test binary -- --include-ignored"]
+fn the_step_of_three_machines_folded_into_main_is_proven_on_the_memory_of_the_binary() {
+    // The firmware read back from an Arduino UNO: the step the model generates is a run of instructions of main.
+    let (ok, output) = block_proof("", "");
+    assert!(ok && output.contains("✓ Proven"), "{output}");
+    for said in [
+        "the block from 0x1026 to 0x1294 of uno_lock.hex is one step of the machines of the model",
+        "the state (43 bytes at 0x0439), the inputs (40 bytes at 0x0411), the outputs (8 bytes at 0x0409)",
+        "writes no byte of the memory outside the state, the outputs and the 64 bytes under the stack pointer",
+        "taken, not proven here: at the first instruction of the block the stack pointer (2301) and the registers the cycle keeps (r1 = 0,",
+        "NOT said: when the block runs",
+    ] {
+        assert!(output.contains(said), "{said}: {output}");
+    }
+    // What a proof of a cycle says of its time and its pins is not said of a block.
+    assert!(!output.contains("for one loop() a step of"), "{output}");
+}
+
+#[test]
+#[ignore = "needs Ghidra and CBMC (about 2 minutes): tools/embedded/reverse/run.sh cargo test --test binary -- --include-ignored"]
+fn a_model_whose_guard_is_not_the_one_of_the_binary_is_refuted_on_the_machine_it_changes() {
+    let (ok, output) = block_proof("trigger: \"SF-2\" guard: \"door closed\"", "trigger: \"SF-2\" guard: \"credential accepted\"");
+    assert!(!ok && output.contains("✗ Refuted"), "{output}");
+    assert!(output.contains("from some memory, the block and one step of the machines of the model do not leave the same"), "{output}");
+    assert!(output.contains("does not hold after it: state: lock_modes.active[0] (0x044a) is what the step of the model leaves"), "{output}");
+    // The machine the edit does not touch is still the one of the binary.
+    assert!(!output.contains("state: lock_lifecycle."), "{output}");
+}
+
+#[test]
+#[ignore = "needs Ghidra and CBMC (about 2 minutes): tools/embedded/reverse/run.sh cargo test --test binary -- --include-ignored"]
+fn a_block_that_runs_on_past_the_step_is_refuted_by_what_it_writes_besides() {
+    // One instruction more: the sketch empties the queue of events after the step, which a step does not do.
+    let (ok, output) = block_proof("step from 0x1026 to 0x1294", "step from 0x1026 to 0x1298");
+    assert!(!ok && output.contains("✗ Refuted"), "{output}");
+    assert!(output.contains("does not hold after it: the block writes no byte of the memory outside the state, the outputs and the 64 bytes under the stack pointer"), "{output}");
+    assert!(!output.contains("does not hold after it: state:") && !output.contains("does not hold after it: outputs:"), "{output}");
+    // A block that is not of the function of the cycle is refused, with the address.
+    let (ok, output) = block_proof("step from 0x1026 to 0x1294", "step from 0x1026 to 0x1d00");
+    assert!(!ok && output.contains("0x1d00, the second address of the step, is not an instruction of the function of the cycle (0x0d5c)"), "{output}");
+}

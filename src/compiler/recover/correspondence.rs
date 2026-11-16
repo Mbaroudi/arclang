@@ -99,9 +99,28 @@ pub fn read(declaration: &CorrespondenceDecl) -> Result<Correspondence, String> 
         }
     };
     for key in declaration.attributes.keys() {
-        if !["machine", "source", "binary", "functions", "tick", "period", "reads", "writes", "events", "state", "invariant", "int", "description"].contains(&key.as_str()) {
-            return Err(format!("{what}: '{key}' is not something a correspondence says (machine, source, binary, functions, tick, period, reads, writes, events, state, invariant, int)"));
+        if !["machine", "source", "binary", "functions", "memory", "tick", "period", "reads", "writes", "events", "state", "invariant", "int", "description"].contains(&key.as_str()) {
+            return Err(format!("{what}: '{key}' is not something a correspondence says (machine, source, binary, functions, memory, tick, period, reads, writes, events, state, invariant, int)"));
         }
+    }
+    // A block of a binary that is the step of the model: the proof is on the memory, of every machine at once.
+    let (block, function_lines) = super::binary_block::read(&list("functions"), &list("memory"), &what)?;
+    if let Some(block) = block {
+        if let Some(key) = ["machine", "source", "tick", "period", "reads", "writes", "events", "state", "invariant", "int"].iter().find(|key| declaration.attributes.contains_key(**key)) {
+            return Err(format!("{what}: a step is a block of a binary proven against the step of every machine of the model, on the memory: it says its binary, its functions and its memory, not '{key}'"));
+        }
+        let file = text("binary").ok_or_else(|| format!("{what}: a step is a block of a binary (binary: \"firmware.hex\")"))?;
+        let path = Path::new(&file);
+        if path.is_absolute() || path.components().any(|part| !matches!(part, std::path::Component::Normal(_))) {
+            return Err(format!("{what}: the source \"{file}\" is not a file beside the model or below it (no absolute path, no `..`)"));
+        }
+        let cycle = match function_lines.as_slice() {
+            [] => None,
+            lines => super::binary::functions(lines, &what)?.into_iter().find(|(name, _)| name == "cycle").map(|(_, at)| at),
+        };
+        let cycle = cycle.ok_or_else(|| format!("{what}: a step is a block of the cycle of the binary: the functions say where the cycle is too (functions: [\"cycle at 0x0fc6\", \"step from 0x1026 to 0x1294\"])"))?;
+        let binary = super::binary::Binary { file, cycle: Some(cycle), block: Some(block), ..Default::default() };
+        return Ok(Correspondence { name: declaration.name.clone(), machine: String::new(), sources: Vec::new(), binary: Some(binary), tick_us: 4, period_us: None, reads: Vec::new(), writes: Vec::new(), events: Vec::new(), pwm: Vec::new(), state: Vec::new(), invariants: Vec::new(), int_bits: 16 });
     }
     let machine = text("machine").ok_or_else(|| format!("{what}: it names no machine (machine: \"...\")"))?;
     let sources = list("source");
@@ -122,7 +141,7 @@ pub fn read(declaration: &CorrespondenceDecl) -> Result<Correspondence, String> 
     }
     let binary = match binary_file {
         Some(file) => {
-            let placed = super::binary::functions(&list("functions"), &what)?;
+            let placed = super::binary::functions(&function_lines, &what)?;
             let cycle = placed.iter().find(|(name, _)| name == "cycle").map(|(_, at)| *at);
             Some(super::binary::Binary { file, functions: placed.into_iter().filter(|(name, _)| name != "cycle").collect(), cycle, ..Default::default() })
         }
@@ -802,7 +821,11 @@ pub fn check(ast: &Model) -> Result<(), String> {
     let (header, code, default_period) = machines_c(ast).map_err(|error| format!("correspondence '{}': {error}", ast.correspondences[0].name))?;
     let model = Generated { header_name: &header.0, header: &header.1, code_name: &code.0, code: &code.1 };
     for declaration in &ast.correspondences {
-        harness(&read(declaration)?, &model, &[], default_period)?;
+        let correspondence = read(declaration)?;
+        match correspondence.binary.as_ref().and_then(|binary| binary.block.as_ref()) {
+            Some(block) => super::binary_block::check(block, model.header, &format!("correspondence '{}'", correspondence.name))?,
+            None => drop(harness(&correspondence, &model, &[], default_period)?),
+        }
     }
     Ok(())
 }
@@ -830,6 +853,19 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
             sketches.push((name, text));
         }
         let dir = work.join(correspondence.name.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect::<String>());
+        // A block that is the step of the model: its own proof, on the memory (see `binary_block`).
+        if let Some((cycle, mut block)) = correspondence.binary.as_ref().and_then(|binary| Some((binary.cycle?, binary.block.clone()?))) {
+            let what = format!("correspondence '{}'", correspondence.name);
+            let path = base.join(correspondence.binary.as_ref().map(|binary| binary.file.as_str()).unwrap_or_default());
+            let text = std::fs::read_to_string(&path).map_err(|e| format!("{what}: cannot read {}: {e}", path.display()))?;
+            let image = super::binary::intel_hex(&text).map_err(|e| format!("{what}: {}: {e}", path.display()))?;
+            let outcome = super::binary_block::prove(&mut block, cycle, &image, (model.header_name, model.header, model.code_name, model.code), &[("board/stdint.h", STDINT_H), ("board/stdbool.h", STDBOOL_H)], &dir, seconds, &what)?;
+            if let Some(binary) = correspondence.binary.as_mut() {
+                binary.block = Some(block);
+            }
+            outcomes.push((correspondence, outcome));
+            continue;
+        }
         if let Some(binary) = &correspondence.binary {
             let what = format!("correspondence '{}'", correspondence.name);
             let path = base.join(&binary.file);

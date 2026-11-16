@@ -2257,11 +2257,17 @@ impl CliRunner {
         } else {
             println!("Proof of {}", model.display());
             for (c, outcome) in &outcomes {
-                let of = format!("correspondence \"{}\": {} is state_machine \"{}\"", c.name, c.binary.as_ref().map(|binary| binary.file.clone()).unwrap_or_else(|| c.sources.join(", ")), c.machine);
+                let block = c.binary.as_ref().and_then(|binary| binary.block.as_ref().map(|block| (binary, block)));
+                let of = match block {
+                    Some((binary, block)) => format!("correspondence \"{}\": the block from 0x{:04x} to 0x{:04x} of {} is one step of the machines of the model", c.name, block.from, block.to, binary.file),
+                    None => format!("correspondence \"{}\": {} is state_machine \"{}\"", c.name, c.binary.as_ref().map(|binary| binary.file.clone()).unwrap_or_else(|| c.sources.join(", ")), c.machine),
+                };
                 match outcome {
                     Outcome::Proven { seconds, period_us, int_bits, unrelated, board_clock, interrupts } => {
                         println!("✓ Proven ({seconds:.1} s) {of}");
-                        println!("    for one loop() a step of {} ms, an int of {int_bits} bits and a long of 32, the pins the correspondence names, and the C subset of the Arduino language", period_us / 1000);
+                        if block.is_none() {
+                            println!("    for one loop() a step of {} ms, an int of {int_bits} bits and a long of 32, the pins the correspondence names, and the C subset of the Arduino language", period_us / 1000);
+                        }
                         if !unrelated.is_empty() {
                             println!("    the proof says nothing of {} of the machine: no line of the correspondence speaks of {}", if unrelated.len() == 1 { "this variable" } else { "these variables" }, unrelated.join(", "));
                         }
@@ -2281,9 +2287,12 @@ impl CliRunner {
                             "functions" => "a function the correspondence names is not the Arduino function it is said to be: its machine code, from some memory and registers, for some pin",
                             "clock" => "the binary does not keep the time as the Arduino core does: what millis returns is not what the proof takes it for",
                             "start" => "after setup() and one loop(), and after init and one step, the code and the model do not correspond",
+                            "block" => "from some memory, the block and one step of the machines of the model do not leave the same: the state or the outputs differ, or the block does what a step does not",
                             _ => "from two states that correspond, one loop() and one step can leave two that do not",
                         });
-                        if lines.is_empty() {
+                        if lines.is_empty() && obligation == "block" {
+                            println!("    which lines do not hold could not be read in time");
+                        } else if lines.is_empty() {
                             println!("    no line of the correspondence fails: the code read or wrote a pin the correspondence does not name, or the case could not be read in time");
                         }
                         for line in lines {

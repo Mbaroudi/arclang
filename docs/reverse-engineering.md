@@ -976,6 +976,69 @@ step and the listing of the code of `main`; it cannot move the head or change
 the step (a proposal that does is refused before any proof), since a head it
 chose would be the one it proved against.
 
+### The step of generated code, folded into `main`: a block on the memory
+
+Code generated from the model (`arclang export -f c`) is not written around
+pins: its sketch fills a structure of inputs, calls `<model>_step`, and reads a
+structure of outputs. Built by the Arduino IDE, the step is no function of the
+binary either: it is a run of instructions of `main`. A correspondence names
+that block, and where the three structures of the generated header are in the
+memory:
+
+```
+correspondence "Lock on the Uno" {
+    binary: "uno_lock.hex"
+    functions: ["cycle at 0x0fc6", "step from 0x1026 to 0x1294"]
+    memory: ["state at 0x0439", "inputs at 0x0411", "outputs at 0x0409"]
+}
+```
+
+The block runs from the instruction at its first address up to, and not
+including, the one at its second. No machine is named: the step is that of
+every machine of the model, as the generated C steps them. The question is the
+one a firmware read back from a board asks (`avrdude -U flash:r:...`): is what
+is flashed the model?
+
+```
+$ arclang prove lock.arc
+✓ Proven (31.3 s) correspondence "Lock on the Uno": the block from 0x1026 to 0x1294 of uno_lock.hex is one step of the machines of the model
+    the block is the instructions from 0x1026 up to 0x1294 of the function at 0x0d5c, run from any memory in which the booleans of the state and of the inputs are 0 or 1 and a queue holds no more events than its size
+    the structures of the generated header are laid out as avr-gcc lays them out (no padding, the low byte first): the state (43 bytes at 0x0439), the inputs (40 bytes at 0x0411), the outputs (8 bytes at 0x0409)
+    proven with it: the block runs only instructions the translation covers, writes no register of the chip, leaves the stack pointer and the registers the cycle keeps, and writes no byte of the memory outside the state, the outputs and the 64 bytes under the stack pointer
+    taken, not proven here: at the first instruction of the block the stack pointer (2301) and the registers the cycle keeps (r1 = 0, ...) are as the start leaves them at the head of the cycle (0x0fc6), found by running the start once
+    NOT said: when the block runs (its period, the time of the model), that the rest of the cycle leaves the state alone between two runs of the block, that the start leaves the initial state, where the inputs come from and what the outputs drive
+```
+
+- **What is proven.** From any memory, the block leaves in every byte of the
+  state and of the outputs what one step of the model leaves, and writes
+  nothing else: its inputs, and every other byte above its stack, are as they
+  were. The registers the cycle does not keep hold anything when it starts.
+- **A model that is not the one of the binary is refuted, by its lines.** With
+  the guard of one transition changed in the model, the fields of that machine
+  (and of the machines that read it) do not hold, and the others still do. A
+  block that runs one instruction past the step is refuted by what that
+  instruction writes.
+- **What it does not say** is printed with every proof, as above. The lock's
+  sketch resets the state on a command of its serial port, which no step of
+  the model does: the proof is of the block, not of the cycle around it.
+- **Where the addresses come from.** From the binary built with its symbols
+  (`avr-nm` gives the three structures, the disassembly the block), today:
+  `arclang recover` does not propose them yet.
+- **The machines are those whose state, inputs and outputs are booleans and
+  integers**; a `Real` is refused by its name. The structures are placed
+  within the memory of the chip, apart from each other, which `arclang check`
+  checks without the binary.
+
+The translation writes the instructions of a function in the order of their
+addresses. A compiler places the rare paths of a loop after the code that
+follows it, each ending with a jump back into the loop; a prover unwinds a loop
+for every such jump, and every loop written in between with it. For a block,
+each such piece is written before the label it goes back to (nothing that runs
+changes: a piece is moved only when nothing falls into it and every jump into
+it comes from before that label). The lock's step has two, for its two events;
+without the move a loop of the block passes its bound and the proof says
+nothing, with it it takes half a minute.
+
 ## A board observed against the model
 
 The bench that found this is a command. An **instrument** drives the inputs
