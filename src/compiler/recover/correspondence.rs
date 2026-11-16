@@ -795,7 +795,7 @@ fn said(term: &Term) -> String {
 }
 
 /// The C of the model's machines, by file name: (the header, the source), and the period it steps at by default.
-fn machines_c(ast: &Model) -> Result<((String, String), (String, String), u64), String> {
+pub fn machines_c(ast: &Model) -> Result<((String, String), (String, String), u64), String> {
     let (files, _) = crate::compiler::embedded::export(ast).map_err(|error| format!("the model generates no C to prove the code against: {error}"))?;
     let header = files.iter().find(|(name, text)| name.ends_with(".h") && !name.contains('/') && text.contains("/* state_machine \"")).ok_or("the model generates no header of machines")?.clone();
     let code_name = header.0.replace(".h", ".c");

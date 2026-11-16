@@ -634,3 +634,31 @@ fn a_block_that_runs_on_past_the_step_is_refuted_by_what_it_writes_besides() {
     let (ok, output) = block_proof("step from 0x1026 to 0x1294", "step from 0x1026 to 0x1d00");
     assert!(!ok && output.contains("0x1d00, the second address of the step, is not an instruction of the function of the cycle (0x0d5c)"), "{output}");
 }
+
+#[test]
+#[ignore = "needs Ghidra (about 1 minute): tools/embedded/reverse/run.sh cargo test --test binary -- --include-ignored"]
+fn the_step_of_a_model_and_its_structures_are_found_in_a_binary_without_its_symbols() {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sketches");
+    let model = fixtures.join("uno_lock_block.arc");
+    let asked = arclang(&["recover", fixtures.join("uno_lock.hex").to_str().unwrap(), "--model", model.to_str().unwrap()]);
+    let output = text(&asked);
+    assert!(asked.status.success(), "{output}");
+    // What is proposed is, line for line, the correspondence the fixture holds and the proof proves.
+    let proven = std::fs::read_to_string(&model).unwrap();
+    for line in ["    binary: \"uno_lock.hex\"\n", "    functions: [\"cycle at 0x0fc6\", \"step from 0x1026 to 0x1294\"]\n", "    memory: [\"state at 0x0439\", \"inputs at 0x0411\", \"outputs at 0x0409\"]\n"] {
+        assert!(proven.contains(line) && output.contains(line), "{line}: {output}");
+    }
+    for said in [
+        "the state of the step is at 0x0439 (43 bytes): the only place where the function of the cycle (0x0d5c) reads and writes, by address, the flags of the 3 machine(s) and reads those of their 8 state(s)",
+        "the step starts at 0x1026, the first read of the flag of its first machine, and ends before 0x1294, after the last write of its outputs (at 0x1290)",
+        "the inputs are at 0x0411 (40 bytes): 8 of their 8 scalars are read there by address",
+        "a proposal, not a proof",
+    ] {
+        assert!(output.contains(said), "{said}: {output}");
+    }
+    // A model the binary was not built from: its step is said not to be found, and nothing is proposed.
+    let other = fixtures.join("uno_lamp_lto_binary.arc");
+    let asked = arclang(&["recover", fixtures.join("uno_lock.hex").to_str().unwrap(), "--model", other.to_str().unwrap()]);
+    let output = text(&asked);
+    assert!(!asked.status.success() && output.contains("the step of the model is not found") && !output.contains("correspondence \""), "{output}");
+}

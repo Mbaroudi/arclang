@@ -658,6 +658,14 @@ pub enum Commands {
         /// With --propose: keep each answer and the files of its proof in this directory
         #[clap(long, value_name = "DIR")]
         keep: Option<PathBuf>,
+
+        /// For a firmware binary built from the C a model generates: that model.
+        /// The step of its machines is looked for in the machine code (the
+        /// block of `main` it is folded into, and where its state, its inputs
+        /// and its outputs are in the memory), and the correspondence
+        /// proposed is the one `arclang prove` proves on the memory
+        #[clap(long, value_name = "MODEL")]
+        model: Option<PathBuf>,
     },
 
     /// Observe a board against the model: an instrument (a second board
@@ -1580,7 +1588,7 @@ impl CliRunner {
             Commands::Prove { model, correspondence, timeout, keep, json } => self.run_prove(&model, correspondence.as_deref(), timeout, keep, json),
             Commands::Recover { input, output, propose: true, with, turns, timeout, keep, .. } => propose::run(&input, propose::Options { with, turns, timeout, output, keep }),
             Commands::Recover { input, output, .. } if input.extension().is_some_and(|e| e == "dts") => Self::run_recover_board(&input, output.as_deref()),
-            Commands::Recover { input, output, keep, .. } if input.extension().is_some_and(|e| e == "hex") => Self::run_recover_binary(&input, output.as_deref(), keep.as_deref()),
+            Commands::Recover { input, output, keep, model, .. } if input.extension().is_some_and(|e| e == "hex") => Self::run_recover_binary(&input, output.as_deref(), keep.as_deref(), model.as_deref()),
             Commands::Recover { input, output, check, hdl, .. } => self.run_recover(&input, output.as_deref(), check, hdl.as_deref()),
             Commands::Drift { model, code, hdl, json, prove, timeout } => self.run_drift(&model, &code, hdl.as_deref(), json, prove.then_some(timeout)),
             Commands::Realize { input, requirement, up_to, dry_run, keep_going, board, json } => realize::run(&input, realize::Options { requirement, up_to, dry_run, keep_going, board, json }),
@@ -2592,16 +2600,28 @@ impl CliRunner {
     }
 
     /// A firmware binary: where its functions are, proposed from the shape of their machine code.
-    fn run_recover_binary(input: &std::path::Path, output: Option<&std::path::Path>, keep: Option<&std::path::Path>) -> Result<(), CliError> {
+    fn run_recover_binary(input: &std::path::Path, output: Option<&std::path::Path>, keep: Option<&std::path::Path>, model: Option<&std::path::Path>) -> Result<(), CliError> {
         use crate::compiler::recover::{binary, binary_shape};
         let wrong = |error: String| CliError::Compilation(format!("{}: {error}", input.display()));
+        // The model the binary is said to be built from: read before any tool is run.
+        let header = match model {
+            Some(path) => {
+                let compiled = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(path).map_err(|e| CliError::Compilation(e.to_string()))?;
+                let (header, _, _) = crate::compiler::recover::correspondence::machines_c(&compiled.ast).map_err(|e| CliError::Compilation(format!("{}: {e}", path.display())))?;
+                Some(header.1)
+            }
+            None => None,
+        };
         let image = binary::intel_hex(&std::fs::read_to_string(input).map_err(CliError::Io)?).map_err(wrong)?;
         let work = keep.map(std::path::Path::to_path_buf).unwrap_or_else(|| std::env::temp_dir().join(format!("arclang-recover-{}-{}", std::process::id(), crate::compiler::simulation::tool::run_number())));
         let read = binary_shape::recover(&image, &work.join("lift"));
         if keep.is_none() {
             let _ = std::fs::remove_dir_all(&work);
         }
-        let binary_shape::Recovered { functions, proposal, .. } = read.map_err(wrong)?;
+        let binary_shape::Recovered { functions, proposal, lifted, .. } = read.map_err(wrong)?;
+        if let Some(header) = &header {
+            return Self::recover_step(input, output, image.bytes.len(), &lifted, &proposal, header);
+        }
         // Nothing found is nothing written: a correspondence with no loop() and no cycle would be no start.
         if proposal.functions.is_empty() && proposal.cycle.is_none() {
             return Err(CliError::Compilation(format!("{}: nothing could be proposed: {}", input.display(), proposal.unknown.join("; "))));
@@ -2626,6 +2646,34 @@ impl CliRunner {
             eprintln!("  not found: {unknown}");
         }
         eprintln!("  a proposal, not a proof: write the machine, then `arclang prove` decides");
+        Ok(())
+    }
+
+    /// The step of a model looked for in a binary built from its generated C (`recover firmware.hex --model`).
+    fn recover_step(input: &std::path::Path, output: Option<&std::path::Path>, bytes: usize, lifted: &str, proposal: &crate::compiler::recover::binary_shape::Proposal, header: &str) -> Result<(), CliError> {
+        use crate::compiler::recover::binary_block;
+        let not_found = |why: String| CliError::Compilation(format!("{}: the step of the model is not found: {why}", input.display()));
+        let (Some(cycle), Some(function)) = (proposal.cycle, proposal.folded) else {
+            return Err(not_found("the binary has no cycle folded into main to look in (a step that is a function of its own is not placed yet)".to_string()));
+        };
+        let placed = binary_block::place(lifted, function, header).map_err(not_found)?;
+        let file = input.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let text = binary_block::written(&file, bytes, cycle, &placed);
+        match output {
+            Some(path) => std::fs::write(path, &text).map_err(CliError::Io)?,
+            None => print!("{text}"),
+        }
+        eprintln!("Recovered from {}: the step of the model placed from 0x{:04x} to 0x{:04x} in the cycle of main (0x{cycle:04x})", input.display(), placed.block.from, placed.block.to);
+        if let Some(path) = output {
+            eprintln!("  Output: {}", path.display());
+        }
+        for found in &placed.found {
+            eprintln!("  found: {found}");
+        }
+        if proposal.candidates.len() > 1 {
+            eprintln!("  not found: {} places could be the head of the cycle: the first (0x{cycle:04x}) is proposed", proposal.candidates.len());
+        }
+        eprintln!("  a proposal, not a proof: put the correspondence in the model, then `arclang prove` decides");
         Ok(())
     }
 

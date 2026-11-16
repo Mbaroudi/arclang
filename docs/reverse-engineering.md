@@ -1021,13 +1021,38 @@ $ arclang prove lock.arc
 - **What it does not say** is printed with every proof, as above. The lock's
   sketch resets the state on a command of its serial port, which no step of
   the model does: the proof is of the block, not of the cycle around it.
-- **Where the addresses come from.** From the binary built with its symbols
-  (`avr-nm` gives the three structures, the disassembly the block), today:
-  `arclang recover` does not propose them yet.
+- **Where the addresses come from.** `arclang recover firmware.hex --model
+  lock.arc` proposes them from the machine code alone (below).
 - **The machines are those whose state, inputs and outputs are booleans and
   integers**; a `Real` is refused by its name. The structures are placed
   within the memory of the chip, apart from each other, which `arclang check`
   checks without the binary.
+
+**`arclang recover firmware.hex --model lock.arc` places the step.** The binary
+has no symbols; the model says what to look for. A step folded into `main`
+reads and writes its structures by their addresses, and the header the model
+generates says which bytes it must touch:
+
+```
+$ arclang recover uno_lock.hex --model smart_lock.arc
+// found: the state of the step is at 0x0439 (43 bytes): the only place where the function of the cycle (0x0d5c) reads and writes, by address, the flags of the 3 machine(s) and reads those of their 8 state(s)
+// found: the step starts at 0x1026, the first read of the flag of its first machine, and ends before 0x1294, after the last write of its outputs (at 0x1290)
+// found: the outputs are at 0x0409 (8 bytes): the only bytes all written by address in the step and not read in it
+// found: the inputs are at 0x0411 (40 bytes): 8 of their 8 scalars are read there by address, and none is written in the step
+
+correspondence "uno_lock step" {
+    binary: "uno_lock.hex"
+    functions: ["cycle at 0x0fc6", "step from 0x1026 to 0x1294"]
+    memory: ["state at 0x0439", "inputs at 0x0411", "outputs at 0x0409"]
+}
+```
+
+It is a proposal, as every `recover` of a binary is: `arclang prove` decides,
+and a block or an address placed wrong is refuted by its lines. A place that is
+not found, or found twice, is said and nothing is written: a binary built from
+another model has no place that is read and written as this model's state is.
+A step that is a function of its own (a binary built without link-time
+optimisation reaches its structures through pointers) is not placed yet.
 
 The translation writes the instructions of a function in the order of their
 addresses. A compiler places the rare paths of a loop after the code that
