@@ -45,6 +45,12 @@ pub struct Function {
     /// The addresses of the memory (registers of the chip and RAM) it reads and writes by name.
     pub reads: BTreeSet<u32>,
     pub writes: BTreeSet<u32>,
+    /// The loop heads of the function: (the head, the registers the code from it reads before writing them,
+    /// the registers its loop writes).
+    pub heads: Vec<(u32, BTreeSet<u32>, BTreeSet<u32>)>,
+    /// The loops of the function that nothing leaves (no jump, no fall, no return goes out of them):
+    /// (how many instructions, where each is entered from the rest of the function).
+    pub cycles: Vec<(usize, Vec<u32>)>,
 }
 
 /// The first address of the RAM of an ATmega328P; below are the registers of the chip.
@@ -86,6 +92,19 @@ pub fn facts(lifted: &str) -> Result<(u32, BTreeMap<u32, Function>), String> {
                 functions.entry(current).or_default().sites.push(Site { at: address(1)?, to: address(2)?, registers });
             }
             Some("back") => functions.entry(current).or_default().backs.push((address(1)?, address(2)?)),
+            Some("cycle") => {
+                let unread = || format!("the translation says `{fact}`, which is not read");
+                let size = words.get(4).and_then(|word| word.parse::<usize>().ok()).ok_or_else(unread)?;
+                let heads_at = words.iter().position(|word| *word == "heads").ok_or_else(unread)?;
+                let heads = words[heads_at + 1..].iter().map(|word| hexadecimal(word).ok_or_else(unread)).collect::<Result<Vec<u32>, String>>()?;
+                functions.entry(address(2)?).or_default().cycles.push((size, heads));
+            }
+            Some("head") => {
+                let split = words.iter().position(|word| *word == "writes").ok_or_else(|| format!("the translation says `{fact}`, which is not read"))?;
+                let registers = |from: usize, to: usize| -> BTreeSet<u32> { words[from..to].iter().filter_map(|word| word.parse().ok()).collect() };
+                let reads_at = words.iter().position(|word| *word == "reads").ok_or_else(|| format!("the translation says `{fact}`, which is not read"))?;
+                functions.entry(address(3)?).or_default().heads.push((address(1)?, registers(reads_at + 1, split), registers(split + 1, words.len())));
+            }
             Some("shape") => {
                 let function = functions.entry(address(1)?).or_default();
                 for word in &words[2..] {
@@ -129,11 +148,39 @@ pub fn recover(image: &super::binary::Image, dir: &std::path::Path) -> Result<Re
     // The routine of the overflow of timer 0 is translated too: what it writes is the clock, not the state of the code.
     let routine = super::binary::vectors(image).map(|vectors| vectors[super::binary::TIMER0_OVERFLOW]);
     let entries: Vec<u32> = routine.into_iter().collect();
-    let lifted = super::binary::lift(image, &entries, None, dir)?;
+    let timekeeper_of = |functions: &BTreeMap<u32, Function>| -> BTreeSet<u32> { routine.and_then(|at| functions.get(&at)).map(|f| f.writes.iter().copied().filter(|a| *a >= RAM).collect()).unwrap_or_default() };
+    // The cycle is placed first, on the code as it is written: a `main` that holds its loop never leaves
+    // it, and a start run without knowing where that loop is would run it for ever.
+    let plain = super::binary::lift(image, &entries, None, dir)?;
+    let (start, functions) = facts(&plain)?;
+    let mut placed = propose(start, &functions);
+    place_cycle(&mut placed, start, &functions, &timekeeper_of(&functions));
+    // Then the start is run, up to the head proposed when there is one, to find the functions a computed
+    // jump goes to (the constructors of C++ objects); the code is translated whole with them.
+    // A `main` that calls loop() has that loop too: the one place, in the whole code, where a loop
+    // nothing leaves is entered.
+    let sole: Vec<u32> = functions.values().flat_map(|f| &f.cycles).filter(|(_, heads)| heads.len() == 1).map(|(_, heads)| heads[0]).collect();
+    let until = placed.cycle.or(if sole.len() == 1 { Some(sole[0]) } else { None });
+    let mut not_found = None;
+    let lifted = match super::binary::lift_with_entries(image, &entries, until, dir) {
+        Ok((found, _, with)) if until.is_none() || with == entries => if until.is_none() { found } else { plain },
+        Ok((_, _, with)) => super::binary::lift(image, &with, None, dir)?,
+        Err(why) if until.is_some() => {
+            not_found = Some(why);
+            plain
+        }
+        Err(why) => return Err(why),
+    };
     let (start, functions) = facts(&lifted)?;
     let mut proposal = propose(start, &functions);
-    let timekeeper: BTreeSet<u32> = routine.and_then(|at| functions.get(&at)).map(|f| f.writes.iter().copied().filter(|a| *a >= RAM).collect()).unwrap_or_default();
-    place_cycle(&mut proposal, start, &functions, &timekeeper);
+    place_cycle(&mut proposal, start, &functions, &timekeeper_of(&functions));
+    if let (Some(why), Some(head)) = (not_found, until) {
+        let first = why.lines().next().unwrap_or_default();
+        proposal.unknown.push(format!("the start was run up to the head proposed (0x{head:04x}) to find the functions a computed jump goes to, and did not get there: such functions, if any, are not translated ({first})"));
+    }
+    if until.is_none() && !sole.is_empty() {
+        proposal.unknown.push(format!("{} loops are never left ({}): the start was run without knowing where the cycle is", sole.len(), sole.iter().map(|at| format!("0x{at:04x}")).collect::<Vec<_>>().join(", ")));
+    }
     Ok(Recovered { lifted, start, functions, proposal })
 }
 
@@ -164,6 +211,8 @@ pub struct Proposal {
     pub candidates: Vec<(u32, usize, u32)>,
     /// The function that holds the cycle.
     pub folded: Option<u32>,
+    /// What was established of the code, said.
+    pub found: Vec<String>,
     /// What could not be told, said.
     pub unknown: Vec<String>,
 }
@@ -189,14 +238,35 @@ pub fn place_cycle(proposal: &mut Proposal, start: u32, functions: &BTreeMap<u32
         known.1 = known.1.max(from.saturating_sub(*to));
     }
     let mut ranked: Vec<(u32, usize, u32)> = heads.into_iter().map(|(at, (count, span))| (at, count, span)).collect();
-    ranked.sort_by_key(|(at, _, span)| (std::cmp::Reverse(*span), *at));
+    // The registers a head carries state in: read before written at its start, and written by its loop.
+    let carried = |at: u32| -> Vec<u32> { main.heads.iter().find(|(head, _, _)| *head == at).map(|(_, reads, writes)| reads.intersection(writes).copied().collect()).unwrap_or_default() };
+    // The loop `main` never leaves, when there is one and it is entered at one place: that place is the
+    // head, whatever the jumps back say. A firmware's cycle is exactly that; the other heads are loops
+    // inside it or before it.
+    let never_left: Option<u32> = match main.cycles.as_slice() {
+        [(_, heads)] if heads.len() == 1 => Some(heads[0]),
+        _ => None,
+    };
+    // Then a head that carries no state in registers, then the outermost loop.
+    ranked.sort_by_key(|(at, _, span)| (Some(*at) != never_left, !carried(*at).is_empty(), std::cmp::Reverse(*span), *at));
+    if let Some(head) = never_left.filter(|head| !ranked.iter().any(|(at, _, _)| at == head)) {
+        ranked.insert(0, (head, 0, 0));
+    }
     let Some(&(head, _, _)) = ranked.first() else {
         proposal.unknown.push(format!("main (0x{main_at:04x}) has no jump back: there is no cycle to place"));
         return;
     };
     proposal.cycle = Some(head);
-    if ranked.len() > 1 {
-        proposal.unknown.push(format!("{} places could be the head of the cycle ({}): the first is proposed; `arclang prove` refuses a head the code does not come back to", ranked.len(), ranked.iter().map(|(at, count, span)| format!("0x{at:04x} ({count} jump{} back, the longest 0x{span:x} bytes)", if *count == 1 { "" } else { "s" })).collect::<Vec<_>>().join(", ")));
+    if let Some(head) = never_left {
+        proposal.found.push(format!("main (0x{main_at:04x}) has one loop it never leaves ({} instructions), entered at 0x{head:04x} only: that is the head of the cycle", main.cycles[0].0));
+    } else if !main.cycles.is_empty() {
+        proposal.unknown.push(format!("main (0x{main_at:04x}) has {} loop(s) it never leaves, entered at {}: no single place to take for the head", main.cycles.len(), main.cycles.iter().flat_map(|(_, heads)| heads).map(|at| format!("0x{at:04x}")).collect::<Vec<_>>().join(", ")));
+    }
+    if ranked.len() > 1 && never_left.is_none() {
+        proposal.unknown.push(format!("{} places could be the head of the cycle ({}): the first is proposed; `arclang prove` refuses a head the code does not come back to", ranked.len(), ranked.iter().map(|(at, count, span)| format!("0x{at:04x} ({count} jump{} back, the longest 0x{span:x} bytes{})", if *count == 1 { "" } else { "s" }, { let held = carried(*at); if held.is_empty() { String::new() } else { format!("; carries state in {}", held.iter().map(|register| format!("r{register}")).collect::<Vec<_>>().join(", ")) } })).collect::<Vec<_>>().join(", ")));
+    if !carried(head).is_empty() {
+        proposal.unknown.push(format!("every head carries state in registers: the one proposed (0x{head:04x}) does, in {}: a machine cannot be related to it, and `arclang prove` will refuse it", carried(head).iter().map(|register| format!("r{register}")).collect::<Vec<_>>().join(", ")));
+    }
     }
     proposal.candidates = ranked;
     // The bytes of the memory the code of the cycle reads or writes by address: all that main reaches, the reset apart.
@@ -469,6 +539,9 @@ fn written_cycle(file: &str, bytes: usize, stem: &str, head: u32, proposal: &Pro
         let runs: Vec<String> = proposal.memory.iter().map(|(first, count)| if *count == 1 { format!("0x{first:04x}") } else { format!("0x{first:04x} to 0x{:04x} ({count} bytes)", first + count - 1) }).collect();
         text.push_str(&format!("// the cycle keeps its state in the memory at: {} (the clock, kept by the interrupt of timer 0, is left out)\n//   read it as byte(at), word(at) (two bytes, an int) or dword(at) (four, a long)\n", runs.join(", ")));
     }
+    for found in &proposal.found {
+        text.push_str(&format!("// found: {found}\n"));
+    }
     for unknown in &proposal.unknown {
         text.push_str(&format!("// not found: {unknown}\n"));
     }
@@ -495,6 +568,9 @@ pub fn written(file: &str, bytes: usize, proposal: &Proposal) -> String {
     if !proposal.memory.is_empty() {
         let runs: Vec<String> = proposal.memory.iter().map(|(first, count)| if *count == 1 { format!("0x{first:04x}") } else { format!("0x{first:04x} to 0x{:04x} ({count} bytes)", first + count - 1) }).collect();
         text.push_str(&format!("// loop() keeps its state in the memory at: {}\n//   read it as byte(at), word(at) (two bytes, an int) or dword(at) (four, a long)\n", runs.join(", ")));
+    }
+    for found in &proposal.found {
+        text.push_str(&format!("// found: {found}\n"));
     }
     for unknown in &proposal.unknown {
         text.push_str(&format!("// not found: {unknown}\n"));
@@ -577,8 +653,45 @@ mod tests {
         assert_eq!(proposal.cycle, Some(0x108), "{proposal:?}");
         // The outermost loop is the head with the longest jump back: 0x0108 (0x0118 - 0x0108 = 0x10) over 0x010a (0x0110 - 0x010a = 6).
         assert_eq!(proposal.candidates, [(0x108, 2, 0x10), (0x10a, 1, 6)]);
+        // A head that carries state in registers (read at its start, written by its loop) is passed over, though its jump is longer.
+        let carrying = more.replace("//@ back 0x0118 0x0108\n", "//@ back 0x0118 0x0108\n//@ head 0x0108 in 0x0100 to 0x0118 reads 24 25 writes 24 25\n//@ head 0x010a in 0x0100 to 0x0110 reads 2 writes 24\n");
+        assert!(carrying != more);
+        let (start, functions) = facts(&carrying).unwrap();
+        let mut proposal = propose(start, &functions);
+        place_cycle(&mut proposal, start, &functions, &timekeeper);
+        assert_eq!(proposal.cycle, Some(0x10a), "{proposal:?}");
+        assert!(proposal.unknown.iter().any(|said| said.contains("0x0108 (2 jumps back, the longest 0x10 bytes; carries state in r24, r25)")), "{proposal:?}");
+        let text = written("lamp.hex", 100, &proposal);
+        let _ = text;
+        let (start, functions) = facts(&more).unwrap();
+        let mut proposal = propose(start, &functions);
+        place_cycle(&mut proposal, start, &functions, &timekeeper);
         let text = written("lamp.hex", 100, &proposal);
         assert!(text.contains("functions: [\"cycle at 0x0108\"]") && text.contains("tick: 1000 us") && text.contains("2 places could be the head of the cycle"), "{text}");
+        // The loop main never leaves, entered at one place, is the head: it goes before the outermost loop
+        // (0x0108) and before a head that carries no state, and the other places are no longer in doubt.
+        let never_left = carrying.replace("//@ back 0x0118 0x0108\n", "//@ back 0x0118 0x0108\n//@ cycle in 0x0100 size 9 heads 0x010a\n");
+        assert!(never_left != carrying);
+        let (start, functions) = facts(&never_left).unwrap();
+        assert_eq!(functions[&0x100].cycles, [(9, vec![0x10a])]);
+        let mut proposal = propose(start, &functions);
+        place_cycle(&mut proposal, start, &functions, &timekeeper);
+        assert_eq!(proposal.cycle, Some(0x10a), "{proposal:?}");
+        assert!(proposal.found.iter().any(|said| said.contains("one loop it never leaves (9 instructions), entered at 0x010a only")), "{proposal:?}");
+        assert!(!proposal.unknown.iter().any(|said| said.contains("places could be the head")), "{proposal:?}");
+        let outer = more.replace("//@ back 0x0118 0x0108\n", "//@ back 0x0118 0x0108\n//@ cycle in 0x0100 size 9 heads 0x010a\n");
+        let (start, functions) = facts(&outer).unwrap();
+        let mut proposal = propose(start, &functions);
+        place_cycle(&mut proposal, start, &functions, &timekeeper);
+        assert_eq!(proposal.cycle, Some(0x10a), "the loop never left goes before the longest jump back: {proposal:?}");
+        assert!(written("lamp.hex", 100, &proposal).contains("// found: main (0x0100) has one loop it never leaves"));
+        // Entered at two places, it gives no single head: said, and the jumps back decide as before.
+        let two = more.replace("//@ back 0x0118 0x0108\n", "//@ back 0x0118 0x0108\n//@ cycle in 0x0100 size 9 heads 0x0108 0x010a\n");
+        let (start, functions) = facts(&two).unwrap();
+        let mut proposal = propose(start, &functions);
+        place_cycle(&mut proposal, start, &functions, &timekeeper);
+        assert_eq!(proposal.cycle, Some(0x108), "{proposal:?}");
+        assert!(proposal.unknown.iter().any(|said| said.contains("entered at 0x0108, 0x010a: no single place")), "{proposal:?}");
         // No cycle that calls: no main, and it is said.
         let (start, functions) = facts("//@ start 0x0\n//@ function 0x0000 calls\n//@ back 0x0004 0x0002\n").unwrap();
         let proposal = propose(start, &functions);

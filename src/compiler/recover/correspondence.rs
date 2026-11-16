@@ -498,10 +498,16 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
         (format!("(arclang_delayed == 0UL || arclang_delayed == {period_ms}UL)"), DELAYS.to_string()),
         ("(arclang_late <= ARCLANG_LATE_MOST)".to_string(), "millis() reads the time, or one millisecond short of it on the clock of the board".to_string()),
     ];
+    // A machine of one state is in it once it has started: no line of the correspondence has to say so (with none,
+    // the turn would be taken from a model that is in no state, which no run of it reaches).
+    let names_a_state = correspondence.state.iter().chain(&correspondence.writes).any(|(_, model_side)| matches!(model_side, Term::In(_)));
+    if let ([only], false) = (machine.states.as_slice(), names_a_state) {
+        lines.push((format!("s->{id}.active[0]"), format!("the machine is in {}, its only state", only.path)));
+    }
     // What a refuting case shows: (the code's side as written and as C, the model's side as written and as C).
     let mut shown: Vec<(String, String, String, String)> = Vec::new();
     if correspondence.binary.is_some() {
-        lines.extend(if correspondence.binary.as_ref().is_some_and(|binary| binary.cycle.is_some()) { super::binary_cycle::lines() } else { super::binary::lines() });
+        lines.extend(if correspondence.binary.as_ref().is_some_and(|binary| binary.cycle.is_some()) { super::binary_cycle::lines(&correspondence.pwm.iter().filter_map(|(pin, _)| pin.trim().parse::<u8>().ok()).collect::<Vec<_>>()) } else { super::binary::lines() });
     }
     for (rank, (pin, model_side)) in correspondence.writes.iter().enumerate() {
         let level = format!("arclang_level_{rank}");
@@ -547,6 +553,8 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
         text
     };
     let (before, after) = (record("b"), record("a"));
+    // The lines of the correspondence are built up below (the invariants, the checks of a cycle): the record of
+    // which hold after the step is added once they are all known.
     // The start has no state before it, and has inputs: a case that refutes it gives them too.
     let mut start_inputs = String::from("#ifdef ARCLANG_WITNESS\n");
     for (rank, (_, read)) in inputs_shown.iter().enumerate() {
@@ -556,6 +564,12 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
     for invariant in &correspondence.invariants {
         lines.push((format!("(({invariant}) != 0)"), format!("invariant: {invariant}")));
     }
+    // For a case that refutes: which lines hold after the step, each as the proof evaluates it (the checks of a cycle
+    // as well as the lines of the correspondence), so that the refutation can name those that do not.
+    let after = format!(
+        "{after}#ifdef ARCLANG_WITNESS\n{}#endif\n",
+        (0..lines.len()).map(|rank| format!("    long long arclang_wl_{rank} = (long long)arclang_line({rank}, &s);\n")).collect::<String>()
+    );
     // A time of the code and a time of the model are the same time. The code's
     // is taken as it would be read now by a clock that is not short: what is left
     // between it and the model's is how short the clock was when the code started
@@ -596,7 +610,7 @@ pub fn harness(correspondence: &Correspondence, model: &Generated, sketches: &[(
         c.push_str("#ifdef ARCLANG_INTERLEAVE\n    __CPROVER_assume(arclang_corresponds(&s));\n    {\n        struct arclang_kept first, before, after, now;\n        unsigned at;\n        arclang_watch = false; arclang_in = false;\n        /* interrupts already taken since the last loop(): none, one or two */\n        { unsigned already; __CPROVER_assume(already <= 2U); for (unsigned k = 0U; k < already; k++) { ARCLANG_ROUTINE(); } }\n        arclang_keep(&first);\n        arclang_on = true; arclang_delayed = 0UL; ARCLANG_ROUTINE(); loop(); arclang_keep(&before);\n        arclang_put_back(&first); arclang_on = true; arclang_delayed = 0UL; loop(); ARCLANG_ROUTINE(); arclang_keep(&after);\n        arclang_put_back(&first); arclang_on = true; arclang_delayed = 0UL;\n        arclang_at = at; arclang_seen = 0U; arclang_fired = false; arclang_watch = true;\n        loop();\n        arclang_watch = false;\n        __CPROVER_assume(arclang_fired);\n        arclang_keep(&now);\n        __CPROVER_assert(arclang_same(&now, &before) || arclang_same(&now, &after), \"an interrupt in the middle of loop() is one before it or one after it\");\n    }\n    return 0;\n#endif\n");
     }
     c.push_str(&format!(
-        "#ifdef ARCLANG_START\n    /* start: after setup() and one loop(), and after init and one step, the two correspond */\n{start_inputs}    setup();\n    arclang_ms = 0UL; /* the first loop() runs as millis() starts counting */\n    arclang_late = 0UL;\n    arclang_delayed = 0UL;\n{interrupts}    loop();\n    arclang_ms += {period_ms}UL;\n    {prefix}_init(&s);\n    {prefix}_step(&s, &in, &out);\n#else\n    /* step: from any two states that correspond, one loop() and one step leave two that correspond */\n#ifdef ARCLANG_CYCLE\n    arclang_from_any_turn(); /* the registers the cycle keeps are those the start leaves; all else is anything */\n#endif\n    __CPROVER_assume(arclang_corresponds(&s));\n{before}    arclang_delayed = 0UL;\n{interrupts}    loop();\n    arclang_ms += {period_ms}UL;\n    {{ unsigned long late; __CPROVER_assume(late <= ARCLANG_LATE_MOST); arclang_late = late; }} /* what the next loop() will read */\n    {prefix}_step(&s, &in, &out);\n#endif\n{after}#ifdef ARCLANG_LINE\n    __CPROVER_assert(arclang_line(ARCLANG_LINE, &s), \"this line of the correspondence holds\");\n#else\n    __CPROVER_assert(arclang_corresponds(&s), \"the code and the model correspond\");\n#endif\n    return 0;\n}}\n"
+        "#ifdef ARCLANG_START\n    /* start: after setup() and one loop(), and after init and one step, the two correspond */\n{start_inputs}    setup();\n    arclang_ms = 0UL; /* the first loop() runs as millis() starts counting */\n    arclang_late = 0UL;\n    arclang_delayed = 0UL;\n{interrupts}    loop();\n    arclang_ms += {period_ms}UL;\n    {prefix}_init(&s);\n    {prefix}_step(&s, &in, &out);\n#else\n    /* step: from any two states that correspond, one loop() and one step leave two that correspond */\n#ifdef ARCLANG_CYCLE\n    arclang_from_any_turn(); /* the registers the cycle keeps are those the start leaves; all else is anything */\n#ifdef ARCLANG_DRAIN\n    return 0; /* the interrupt of the UART, from any state: its checks are its own */\n#endif\n#endif\n    __CPROVER_assume(arclang_corresponds(&s));\n{before}    arclang_delayed = 0UL;\n{interrupts}    loop();\n    arclang_ms += {period_ms}UL;\n    {{ unsigned long late; __CPROVER_assume(late <= ARCLANG_LATE_MOST); arclang_late = late; }} /* what the next loop() will read */\n    {prefix}_step(&s, &in, &out);\n#endif\n{after}#ifdef ARCLANG_LINE\n    __CPROVER_assert(arclang_line(ARCLANG_LINE, &s), \"this line of the correspondence holds\");\n#else\n    __CPROVER_assert(arclang_corresponds(&s), \"the code and the model correspond\");\n#endif\n    return 0;\n}}\n"
     ));
 
     // One step of the machine is one loop(): the machine counts its times
@@ -680,6 +694,10 @@ pub struct Case {
     pub inputs: Vec<(String, i64)>,
     /// (the code's side, its value before and after; the model's side, its value before and after)
     pub lines: Vec<CaseLine>,
+    /// The lines of the proof (the correspondence, and for a cycle the checks it holds besides) that do not
+    /// hold after the step in this case, as written.
+    #[serde(default)]
+    pub broken: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
@@ -712,7 +730,8 @@ impl Case {
 /// Ask CBMC itself for a case that fails the obligation, and read in its
 /// trace what the harness recorded. None when it gives none in time: the
 /// refutation stands without it.
-fn case(dir: &Path, sources: &[&str], flags: &[&str], unwind: usize, proof: &Proof) -> Option<Case> {
+/// `seconds`: how long the case may take to find; a cycle's step is a question of minutes, as its proof is.
+fn case(dir: &Path, sources: &[&str], flags: &[&str], unwind: usize, proof: &Proof, seconds: u64) -> Option<Case> {
     use std::process::{Command, Stdio};
     let cbmc = std::env::var("ARCLANG_CBMC").ok().filter(|v| !v.trim().is_empty()).unwrap_or_else(|| "cbmc".to_string());
     let trace = dir.join("case.txt");
@@ -722,7 +741,7 @@ fn case(dir: &Path, sources: &[&str], flags: &[&str], unwind: usize, proof: &Pro
     loop {
         match child.try_wait().ok()? {
             Some(_) => break,
-            None if started.elapsed().as_secs() > 60 => {
+            None if started.elapsed().as_secs() > seconds => {
                 let _ = child.kill();
                 let _ = child.wait();
                 return None;
@@ -731,7 +750,7 @@ fn case(dir: &Path, sources: &[&str], flags: &[&str], unwind: usize, proof: &Pro
         }
     }
     let text = std::fs::read_to_string(&trace).ok()?;
-    let recorded = Regex::new(r"(?m)^  arclang_w(i|bc|bm|ac|am)_(\d+)=(-?\d+)").expect("a pattern of the case");
+    let recorded = Regex::new(r"(?m)^  arclang_w(i|bc|bm|ac|am|l)_(\d+)=(-?\d+)").expect("a pattern of the case");
     let mut values = std::collections::BTreeMap::new();
     for found in recorded.captures_iter(&text) {
         values.insert((found[1].to_string(), found[2].parse::<usize>().ok()?), found[3].parse::<i64>().ok()?);
@@ -740,7 +759,9 @@ fn case(dir: &Path, sources: &[&str], flags: &[&str], unwind: usize, proof: &Pro
         return None;
     }
     let at = |kind: &str, rank: usize| values.get(&(kind.to_string(), rank)).copied();
+    let broken: Vec<String> = proof.lines.iter().enumerate().filter(|(rank, _)| at("l", *rank) == Some(0)).map(|(_, written)| written.clone()).collect();
     Some(Case {
+        broken,
         inputs: proof.inputs.iter().enumerate().filter_map(|(rank, name)| Some((name.clone(), at("i", rank)?))).collect(),
         lines: proof.shown.iter().enumerate().map(|(rank, (code, model))| CaseLine { code: code.clone(), code_before: at("bc", rank), code_after: at("ac", rank), model: model.clone(), model_before: at("bm", rank), model_after: at("am", rank) }).collect(),
     })
@@ -801,6 +822,7 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
         let mut machine_code = None;
         let mut vectors = None;
         let mut cycle_clock = None;
+        let mut cycle_chip: Option<(Option<u32>, Vec<u8>)> = None;
         for source in &correspondence.sources {
             let path = base.join(source);
             let text = std::fs::read_to_string(&path).map_err(|e| format!("correspondence '{}': cannot read {}: {e}", correspondence.name, path.display()))?;
@@ -821,14 +843,23 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
                     entries.push(routine);
                 }
             }
-            let lifted = super::binary::lift(&image, &entries, binary.cycle, &dir.join("lift")).map_err(|e| format!("{what}: {e}"))?;
+            // The interrupt of the UART is translated too, for a cycle: the serial port is run, not stood in for.
+            if binary.cycle.is_some() {
+                if let Some(routine) = vectors.as_ref().and_then(|vectors| super::binary::uart_routine(vectors)) {
+                    entries.push(routine);
+                }
+            }
+            let (lifted, start_state) = super::binary::lift_with_start(&image, &entries, binary.cycle, &dir.join("lift")).map_err(|e| format!("{what}: {e}"))?;
             if binary.cycle.is_none() {
                 sketches.push(("machine_code.c".to_string(), super::binary::sketch(binary, &lifted, &what)?));
             } else {
                 // A cycle: the whole of the code on a model of the chip. The time of that model is what the
                 // interrupt of timer 0 keeps, which is proven of it first.
-                let cut = super::binary_cycle::cut(&lifted, &what)?;
-                let (reads, writes) = super::binary_cycle::pins(&correspondence)?;
+                let mut cut = super::binary_cycle::cut(&lifted, &what)?;
+                cut.start = Some(start_state);
+                let mut chip = super::binary_cycle::pins(&correspondence)?;
+                chip.uart = vectors.as_ref().and_then(|vectors| super::binary::uart_routine(vectors));
+                cycle_chip = Some((chip.uart, chip.pwm.clone()));
                 for (name, text) in [("board/stdint.h", STDINT_H), ("board/stdbool.h", STDBOOL_H)] {
                     let path = dir.join(name);
                     std::fs::create_dir_all(path.parent().unwrap_or(&dir)).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
@@ -840,9 +871,13 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
                 }
                 let time = cycle_clock.as_ref().and_then(|clock| clock.kept_at);
                 let scalars: Vec<String> = std::iter::once("arclang_unnamed".to_string()).chain((0..correspondence.writes.len()).map(|rank| format!("arclang_level_{rank}"))).collect();
-                sketches.push(("machine_code.c".to_string(), super::binary_cycle::sketch(&lifted, &cut, &reads, &writes, time, &scalars, &what)?));
+                sketches.push(("machine_code.c".to_string(), super::binary_cycle::sketch(&lifted, &cut, &chip, time, &scalars, &what)?));
             }
             machine_code = Some(lifted);
+        }
+        if let (Some((uart, pwm)), Some(binary)) = (cycle_chip, correspondence.binary.as_mut()) {
+            binary.uart = uart;
+            binary.pwm = pwm;
         }
         // What was proven of the clock of a cycle, or the refutation it gives.
         let mut cycle_refuted = None;
@@ -909,16 +944,26 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
         }
         // The loops of a turn of a cycle run as many times as the start counted (see `binary_cycle::bounds`).
         let is_cycle = correspondence.binary.as_ref().is_some_and(|binary| binary.cycle.is_some());
+        // The case that shows a refutation is looked for in a minute; for a cycle, in as long as its proof may take (15 minutes at most).
+        let witness_seconds: u64 = if is_cycle { seconds.min(900) } else { 60 };
         let unwindset = if is_cycle && outcome.is_none() {
             let mut flags = vec!["-DARCLANG_START", define.as_str(), "-I", "board", "--16", "-DARCLANG_INT16", "-DARCLANG_CYCLE", tick.as_str()];
             flags.extend(CYCLE_FLAGS);
-            super::binary_cycle::bounds(&dir, &["proof.c", model_source.as_str()], &flags, start_unwind)?
+            let bounded = super::binary_cycle::bounds(&dir, &["proof.c", model_source.as_str()], &flags, start_unwind)?;
+            // The interrupt of the UART is run until the transmit buffer is empty, from any indexes: up to a buffer of 64 bytes.
+            if correspondence.binary.as_ref().is_some_and(|binary| binary.uart.is_some()) { format!("{bounded}{}arclang_drain.0:{}", if bounded.is_empty() { "" } else { "," }, super::binary_cycle::DRAIN_BOUND + 2) } else { bounded }
         } else {
             String::new()
         };
         // The start is of the code as it is initialised; the step, of any state it can hold.
         let mut unwind = step_unwind;
-        for (obligation, mut flags) in [("start", vec!["-DARCLANG_START"]), ("step", vec!["--nondet-static"])] {
+        // A cycle with a serial port: its interrupt, run from any state, is an obligation of its own (see `binary_cycle`).
+        let has_uart = is_cycle && correspondence.binary.as_ref().is_some_and(|binary| binary.uart.is_some());
+        let mut obligations = vec![("start", vec!["-DARCLANG_START"]), ("step", vec!["--nondet-static"])];
+        if has_uart {
+            obligations.insert(1, ("drain", vec!["--nondet-static", "-DARCLANG_DRAIN"]));
+        }
+        for (obligation, mut flags) in obligations {
             if outcome.is_some() {
                 break;
             }
@@ -931,7 +976,7 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
                 flags.extend(if binary.cycle.is_some() { CYCLE_FLAGS } else { BINARY_FLAGS });
                 flags.extend(binary.cycle.map(|_| "-DARCLANG_CYCLE"));
                 flags.extend(binary.cycle.map(|_| tick.as_str()));
-                if obligation == "step" && !unwindset.is_empty() {
+                if obligation != "start" && !unwindset.is_empty() {
                     flags.extend(["--unwindset", unwindset.as_str()]);
                 }
             }
@@ -948,7 +993,11 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
                             failing.push(written.clone());
                         }
                     }
-                    let shown = case(&dir, &["proof.c", model_source.as_str()], &flags, unwind, &written);
+                    let shown = case(&dir, &["proof.c", model_source.as_str()], &flags, unwind, &written, witness_seconds);
+                    // A cycle's lines are not asked one by one (each question takes minutes): the case says which do not hold.
+                    if failing.is_empty() {
+                        failing = shown.iter().flat_map(|case| case.broken.clone()).collect();
+                    }
                     outcome = Some(Outcome::Refuted { obligation: obligation.to_string(), lines: failing, case: shown, seconds: started.elapsed().as_secs_f64() });
                     break;
                 }
@@ -986,7 +1035,11 @@ pub fn prove(ast: &Model, base: &Path, only: Option<&str>, work: &Path, seconds:
                             failing.push(written.clone());
                         }
                     }
-                    BoardClock::Fails { lines: failing, case: case(&dir, &["proof.c", model_source.as_str()], &flags, unwind, &written) }
+                    let shown = case(&dir, &["proof.c", model_source.as_str()], &flags, unwind, &written, witness_seconds);
+                    if failing.is_empty() {
+                        failing = shown.iter().flat_map(|case| case.broken.clone()).collect();
+                    }
+                    BoardClock::Fails { lines: failing, case: shown }
                 }
                 Answer::BeyondBound => BoardClock::Unknown { reason: format!("a loop of the code or of the model runs more than {unwind} times") },
                 Answer::Unknown(reason) => BoardClock::Unknown { reason },

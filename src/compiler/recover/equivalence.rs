@@ -267,6 +267,21 @@ pub(super) enum Answer {
 /// Put the C files of `work` and their checks to the tools: CBMC translates
 /// them to one formula (every loop unwound `unwind` times, which is checked),
 /// Bitwuzla decides it within `seconds`.
+/// What is said of a CBMC that was killed before it answered.
+const KILLED: &str = "CBMC was killed before it answered (the memory of the machine or of its container ran out: exit 137): the question is too large as it is asked";
+
+/// A process killed by a signal, or a container whose process was (`docker run` exits 128 + the signal: 137 for SIGKILL, the out-of-memory killer).
+fn killed(status: &std::process::ExitStatus) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::ExitStatusExt;
+        if status.signal() == Some(9) {
+            return true;
+        }
+    }
+    status.code() == Some(137)
+}
+
 pub(super) fn decide(work: &Path, sources: &[&str], flags: &[&str], unwind: usize, seconds: u64) -> Result<Answer, String> {
     let how = "run in ArcLang's formal image: tools/embedded/formal/run.sh";
     let cbmc = tool("ARCLANG_CBMC", "cbmc");
@@ -284,6 +299,10 @@ pub(super) fn decide(work: &Path, sources: &[&str], flags: &[&str], unwind: usiz
             .output()
             .map_err(|e| format!("cannot run '{cbmc}': {e} ({how})"))?;
         let said = format!("{}{}", String::from_utf8_lossy(&translated.stdout), String::from_utf8_lossy(&translated.stderr));
+        // Killed (the memory of the machine, or of its container, ran out): what it wrote is no answer.
+        if killed(&translated.status) {
+            return Ok(Err(KILLED.to_string()));
+        }
         // A function CBMC has no body for is one it lets do anything and
         // return anything: its effects would be missed.
         let no_body = Regex::new(r"no body for (?:function|callee) (\w+)").expect("a pattern of the runner");
@@ -302,6 +321,9 @@ pub(super) fn decide(work: &Path, sources: &[&str], flags: &[&str], unwind: usiz
         if !std::fs::read_to_string(&formula).is_ok_and(|text| text.contains("(check-sat)")) {
             let settled = Command::new(&cbmc).args(sources).args(flags).args(["--no-standard-checks", "--unwind", &unwind, bound]).current_dir(work).output().map_err(|e| format!("cannot run '{cbmc}': {e} ({how})"))?;
             let said = String::from_utf8_lossy(&settled.stdout).into_owned();
+            if killed(&settled.status) {
+                return Ok(Err(KILLED.to_string()));
+            }
             return Ok(if settled.status.success() && said.contains("VERIFICATION SUCCESSFUL") && said.contains("** 0 of ") {
                 Ok("unsat".to_string())
             } else {
