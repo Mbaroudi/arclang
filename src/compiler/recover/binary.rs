@@ -76,6 +76,9 @@ pub struct Binary {
     pub uart: Option<u32>,
     /// For a cycle: the pins driven by a timer (`analogWrite`).
     pub pwm: Vec<u8>,
+    /// The block of the cycle that is one step of the machines of the model (`step from 0x1026 to 0x1294`): the
+    /// proof is then of that block against the step, on the memory, and of nothing else (see `binary_block`).
+    pub block: Option<super::binary_block::Block>,
 }
 
 /// The default target of the interrupt vectors, where the ones nobody takes go, and the routine the vector
@@ -650,6 +653,9 @@ pub fn lines() -> Vec<(String, String)> {
 /// What a proof over a binary is of, what it proves of the functions it
 /// does not run, and what it takes on trust, as it is printed under it.
 pub fn trusted(binary: &Binary) -> Vec<String> {
+    if let Some(block) = &binary.block {
+        return super::binary_block::said(&binary.file, binary.cycle.unwrap_or_default(), block);
+    }
     let mut said = vec![format!("of the machine code of {} itself, translated one instruction at a time (ATmega328P, Ghidra's description of the AVR): no source is read", binary.file)];
     if !binary.identified.is_empty() {
         said.push("proven of the machine code of the functions it does not run, from any memory and registers, on the pins of an Arduino UNO:".to_string());
