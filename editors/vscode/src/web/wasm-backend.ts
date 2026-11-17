@@ -4,6 +4,7 @@
 // build does not carry yet answers with a clear message, never a crash.
 import * as vscode from 'vscode';
 import type { Backend, RunOptions, RunResult } from '../cli';
+import { importClosure } from '../pure/imports';
 import * as vfs from './vfs';
 import type { Wasm } from './wasm';
 
@@ -51,15 +52,50 @@ async function writeOut(path: string, text: string): Promise<void> {
   else vfs.write(path, text);
 }
 
-/** A temporary file of the extension, else a file of the workspace. */
-async function readModel(path: string | undefined): Promise<{ ok: true; text: string } | { ok: false; result: RunResult }> {
-  if (!path) return { ok: false, result: failed('(no file)', 2) };
-  if (vfs.isFile(path)) return { ok: true, text: vfs.readText(path) };
+/** The file a model's text stands for: its folder and its name there. */
+interface Origin {
+  dir: string;
+  name: string;
+}
+
+/** A model's text, with the files it imports (null when it imports none). */
+interface Model {
+  ok: true;
+  text: string;
+  name: string;
+  imports: Record<string, string> | null;
+}
+
+/** A file of the workspace as the editor holds it (unsaved changes included), else as it is stored. */
+async function readWorkspace(path: string): Promise<string | undefined> {
+  const open = vscode.workspace.textDocuments.find((document) => document.uri.scheme === 'file' && vfs.normalize(document.uri.path) === path);
+  if (open) return open.getText();
   try {
-    return { ok: true, text: new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.file(path))) };
+    return new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.file(path)));
   } catch {
-    return { ok: false, result: failed(`${path}: no such file`, 2) };
+    return undefined;
   }
+}
+
+/**
+ * A temporary file of the extension, else a file of the workspace; with the
+ * files it imports, read beside the file it stands for (`origin`), since the
+ * compiler has no file system here to follow them itself.
+ */
+async function readModel(path: string | undefined, origin?: Origin): Promise<Model | { ok: false; result: RunResult }> {
+  if (!path) return { ok: false, result: failed('(no file)', 2) };
+  let text: string;
+  if (vfs.isFile(path)) text = vfs.readText(path);
+  else {
+    try {
+      text = new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.file(path)));
+    } catch {
+      return { ok: false, result: failed(`${path}: no such file`, 2) };
+    }
+  }
+  const at = origin ?? { dir: vfs.parent(path), name: vfs.normalize(path).split('/').pop() ?? '' };
+  const imports = await importClosure(at.name, text, (relative) => readWorkspace(vfs.normalize(`${at.dir}/${relative}`)));
+  return { ok: true, text, name: at.name, imports };
 }
 
 const SEGMENT = /^[A-Za-z0-9_][A-Za-z0-9._ -]{0,99}$/;
@@ -136,8 +172,30 @@ export function createWasmBackend(wasm: Wasm): Backend {
     return SUPPORTED.has(command ?? '');
   }
 
+  /** Runs a call of the compiler on a model with the files it imports given to it, taken back after. */
+  function compiled<T>(model: Model, call: () => T): T {
+    if (!model.imports) return call();
+    wasm.set_sources(model.name, JSON.stringify(model.imports));
+    try {
+      return call();
+    } finally {
+      wasm.clear_sources();
+    }
+  }
+
   async function run(args: string[], options: RunOptions): Promise<RunResult> {
-    const [command, ...rest] = args;
+    const [command, ...given] = args;
+    // `--as <file>`: the file the text stands for, beside which its imports are; else the folder the call runs in.
+    const asAt = given.indexOf('--as');
+    const stands = asAt >= 0 ? given[asAt + 1] : undefined;
+    const rest = asAt >= 0 ? [...given.slice(0, asAt), ...given.slice(asAt + 2)] : given;
+    const origin = (path: string | undefined): Origin | undefined => {
+      if (stands) return { dir: vfs.parent(stands), name: vfs.normalize(stands).split('/').pop() ?? '' };
+      // A temporary copy: the model's folder is the one the call runs in.
+      if (path && vfs.isFile(path) && options.cwd) return { dir: options.cwd, name: vfs.normalize(path).split('/').pop() ?? '' };
+      return undefined;
+    };
+    const modelOf = (path: string | undefined) => readModel(path, origin(path));
     if (!local(args)) await probeRemote();
     if (!local(args) && runsRemotely(command)) return runRemote(args, options);
     try {
@@ -145,27 +203,27 @@ export function createWasmBackend(wasm: Wasm): Backend {
         case '--version':
           return done(`arclang ${wasm.version()} (webassembly)\n`);
         case 'workbench': {
-          const model = await readModel(positionals(rest, ['--gate-standard'])[0]);
+          const model = await modelOf(positionals(rest, ['--gate-standard'])[0]);
           if (!model.ok) return model.result;
           const standard = option(rest, '--gate-standard') ?? 'iso26262';
           // The verdicts the runs kept beside the model, with the Modelica sources their keys hash: the gate and the coverage say what the runs said.
           const beside = options.cwd ? await verdictFiles(options.cwd) : null;
-          return done(beside ? wasm.workbench_with(model.text, standard, rest.includes('--exports'), JSON.stringify(beside)) : wasm.workbench(model.text, standard, rest.includes('--exports')));
+          return done(compiled(model, () => (beside ? wasm.workbench_with(model.text, standard, rest.includes('--exports'), JSON.stringify(beside)) : wasm.workbench(model.text, standard, rest.includes('--exports')))));
         }
         case 'check': {
-          const model = await readModel(positionals(rest, [])[0]);
+          const model = await modelOf(positionals(rest, [])[0]);
           if (!model.ok) return model.result;
-          const answer = wasm.check_json(model.text);
+          const answer = compiled(model, () => wasm.check_json(model.text));
           return { code: (JSON.parse(answer) as { success: boolean }).success ? 0 : 1, stdout: answer, stderr: '' };
         }
         case 'edit': {
-          const model = await readModel(positionals(rest, ['--request'])[0]);
+          const model = await modelOf(positionals(rest, ['--request'])[0]);
           if (!model.ok) return model.result;
-          const answer = wasm.edit(model.text, option(rest, '--request') ?? '{}');
+          const answer = compiled(model, () => wasm.edit(model.text, option(rest, '--request') ?? '{}'));
           return { code: (JSON.parse(answer) as { success: boolean }).success ? 0 : 1, stdout: answer, stderr: '' };
         }
         case 'format': {
-          const model = await readModel(positionals(rest, [])[0]);
+          const model = await modelOf(positionals(rest, [])[0]);
           if (!model.ok) return model.result;
           const answer = JSON.parse(wasm.format(model.text)) as { success: boolean; formatted?: string; error?: string };
           return answer.success ? done(answer.formatted ?? '') : failed(answer.error ?? 'not formatted');
@@ -174,9 +232,9 @@ export function createWasmBackend(wasm: Wasm): Backend {
           const format = option(rest, '-f', '--format');
           const out = option(rest, '-o', '--output');
           if (format !== 'sys-ml' && format !== 'sysml') return failed(unavailable(args) ?? '', 78);
-          const model = await readModel(positionals(rest, ['-f', '--format', '-o', '--output'])[0]);
+          const model = await modelOf(positionals(rest, ['-f', '--format', '-o', '--output'])[0]);
           if (!model.ok) return model.result;
-          const answer = JSON.parse(wasm.export_sysml(model.text)) as { success: boolean; text?: string; error?: string };
+          const answer = JSON.parse(compiled(model, () => wasm.export_sysml(model.text))) as { success: boolean; text?: string; error?: string };
           if (!answer.success) return failed(answer.error ?? 'the model could not be exported');
           if (out) await writeOut(out, answer.text ?? '');
           return done(out ? '' : (answer.text ?? ''));
@@ -193,19 +251,19 @@ export function createWasmBackend(wasm: Wasm): Backend {
           return done((answer.notes ?? []).map((note) => `  note: ${note}\n`).join(''));
         }
         case 'transition': {
-          const model = await readModel(positionals(rest, ['--step', '--into'])[0]);
+          const model = await modelOf(positionals(rest, ['--step', '--into'])[0]);
           if (!model.ok) return model.result;
           const plan = rest.includes('--plan');
-          const answer = JSON.parse(wasm.transition(model.text, option(rest, '--step') ?? '', option(rest, '--into') ?? '', plan)) as { success: boolean; plans?: unknown; source?: string; error?: string };
+          const answer = JSON.parse(compiled(model, () => wasm.transition(model.text, option(rest, '--step') ?? '', option(rest, '--into') ?? '', plan))) as { success: boolean; plans?: unknown; source?: string; error?: string };
           if (!answer.success) return failed(answer.error ?? 'the transition was refused');
           return done(plan ? JSON.stringify(answer.plans) : (answer.source ?? ''));
         }
         case 'debug': {
           // What a model runs step by step; the run itself is the inline debug adapter (debug-adapter.ts).
           if (!rest.includes('--list')) return failed(NOT_AVAILABLE(`'arclang debug' outside the debugger`), 78);
-          const model = await readModel(positionals(rest, [])[0]);
+          const model = await modelOf(positionals(rest, [])[0]);
           if (!model.ok) return model.result;
-          const answer = wasm.debug_runnables(model.text);
+          const answer = compiled(model, () => wasm.debug_runnables(model.text));
           return answer === 'null' ? failed('the model does not compile') : done(answer);
         }
         case 'metamodel':
