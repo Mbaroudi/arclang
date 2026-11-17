@@ -251,7 +251,8 @@ fn element_node(element: &super::elements::ElementRef<'_>) -> Node {
         realizes: Vec::new(),
         layer: None,
         compartment: if element.id == element.name { Vec::new() } else { vec![format!("id: {}", element.id)] },
-        properties: BTreeMap::new(),
+        // The viewer shows a description on hover, as it does for a requirement or a test case.
+        properties: element.description.map(|text| BTreeMap::from([("description".to_string(), text.to_string())])).unwrap_or_default(),
     }
 }
 
