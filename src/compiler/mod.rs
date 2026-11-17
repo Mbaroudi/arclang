@@ -16,6 +16,7 @@ pub mod metamodel_check;
 pub mod port_direction;
 pub mod spatial;
 pub mod allocations;
+pub mod given;
 pub mod identity_sites;
 pub mod verification;
 pub mod execution;
@@ -229,10 +230,16 @@ impl Compiler {
         }
         let (ast, warnings) = Self::parse_source(source)?;
         if !ast.imports.is_empty() {
+            // The files of the model given in place of a file system (the browser).
+            let imports = ast.imports.len();
+            if let Some(assembled) = given::assemble(ast, source) {
+                let (ast, more, files) = assembled?;
+                return self.finish_located(ast, warnings.into_iter().chain(more).collect(), &files);
+            }
             return Err(CompilerError::Parser(format!(
                 "this model imports {} file(s) — compile it from its file so \
                  relative import paths can be resolved",
-                ast.imports.len()
+                imports
             )));
         }
         let files = [identity_sites::SourceFile { label: String::new(), text: source.to_string() }];
