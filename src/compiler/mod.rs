@@ -216,6 +216,7 @@ impl Compiler {
         files: &[identity_sites::SourceFile],
     ) -> Result<CompilationResult, CompilerError> {
         identity_sites::check_requirements(&ast, files).map_err(CompilerError::Semantic)?;
+        identity_sites::check_declarations(files).map_err(CompilerError::Semantic)?;
         let mut result = self.finish(ast, warnings)?;
         result.warnings = std::mem::take(&mut result.warnings).into_iter().map(|w| identity_sites::locate_duplicate(w, files)).collect();
         Ok(result)
