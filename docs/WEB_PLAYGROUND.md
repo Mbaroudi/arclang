@@ -76,6 +76,17 @@ files themselves (`.arc`, layout files) are read and written through
 `vscode.workspace.fs` already. Moving the temp files to `vscode.workspace.fs`
 would only matter for a compiler that reads several files.
 
+### A model in several files
+
+The compiler in the page has no file system, so it cannot follow an
+`import "..."` itself. The backend reads the files a model reaches (its
+imports and theirs, each beside the file that writes it, as the editor holds
+them: unsaved changes included), and gives them to the compiler before the
+call (`set_sources`, taken back by `clear_sources`); `arclang::compiler::given`
+then assembles the model as `compile_file` does on disk. The file the text
+stands for comes with the call (`--as`), or is the folder the call runs in.
+A file that is not there is reported by name.
+
 ### What the WebAssembly build answers
 
 | `arclang ...` | in the browser |
