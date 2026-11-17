@@ -114,3 +114,17 @@ fn the_rules_notes_diagrams_and_associations_of_an_imported_file_are_kept() {
     let report = arclang::compiler::production_gate::run_gate(&result.ast, &result.semantic_model, "ISO26262");
     assert!(report.findings.iter().any(|f| f.check == "rule.RULE-MASS"), "{:?}", report.findings.iter().map(|f| &f.check).collect::<Vec<_>>());
 }
+
+#[test]
+fn a_declaration_or_a_trace_written_twice_is_an_error_with_both_lines() {
+    // What an assistant that repeats lines leaves behind (issue #227): it compiled without a word.
+    let compile = |source: &str| Compiler::new(CompilerConfig::default()).compile_string(source).err().map(|e| e.to_string()).unwrap_or_default();
+    let copied = "model Twice {}\nlogical_architecture \"L\" {\n    component \"Pump\" {\n        function \"Move water\" { }\n        function \"Move water\" { }\n    }\n}\n";
+    assert!(compile(copied).contains("function 'Move water' is written twice in the same block, word for word: line 4 and line 5"), "{}", compile(copied));
+    let same_id = "model Twice {}\nlogical_architecture \"L\" {\n    component \"Pump\" { id: \"LC-1\" }\n    component \"Valve\" { id: \"LC-2\" }\n    component \"Pump\" { id: \"LC-1\" description: \"again\" }\n}\n";
+    assert!(compile(same_id).contains("component 'Pump' (id 'LC-1') is declared twice: line 3 and line 5"), "{}", compile(same_id));
+    let traced = "model Twice {}\nrequirements r {\n    req \"R1\" \"One\" { description: \"one\" }\n}\nlogical_architecture \"L\" {\n    component \"Pump\" { id: \"LC-1\" }\n}\ntrace \"LC-1\" satisfies \"R1\" { }\ntrace \"LC-1\" satisfies \"R1\" { }\n";
+    assert!(compile(traced).contains("the trace from 'LC-1' to 'R1' is written twice: line 8 and line 9"), "{}", compile(traced));
+    // Written once, each of the three compiles.
+    assert_eq!(compile(&traced.replacen("trace \"LC-1\" satisfies \"R1\" { }\n", "", 1)), "");
+}
