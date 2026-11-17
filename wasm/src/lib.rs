@@ -161,6 +161,24 @@ pub fn workbench_with(source: &str, gate_standard: &str, exports: bool, files: &
     workbench::snapshot_with_files_json(source, &SnapshotOptions { gate_standard: standard, exports, explorer_html: false }, files)
 }
 
+/// The files the model compiled next may import, in place of a file system:
+/// `name` is the model's own file name, `files` a JSON object `{"path
+/// relative to the model's folder": text}`. Every call that follows reads
+/// its imports there, until `clear_sources`.
+// web hook
+#[wasm_bindgen]
+pub fn set_sources(name: &str, files: &str) {
+    let files: std::collections::HashMap<String, String> = serde_json::from_str(files).unwrap_or_default();
+    arclang::compiler::given::give(Some(arclang::compiler::given::Given { name: name.to_string(), files }));
+}
+
+/// Takes back the files given by `set_sources`.
+// web hook
+#[wasm_bindgen]
+pub fn clear_sources() {
+    arclang::compiler::given::give(None);
+}
+
 /// What `arclang check --json` prints: `{success, errors, findings, metrics}`.
 // web hook
 #[wasm_bindgen]
@@ -252,6 +270,21 @@ mod tests {
         assert!(output["counts"].get("names designating nothing known (left unresolved)").is_none(), "{output}");
         let bad: serde_json::Value = serde_json::from_str(&import_sysml_files("{}")).unwrap();
         assert_eq!(bad["success"], false);
+    }
+
+    #[test]
+    fn a_model_that_imports_is_checked_with_the_files_the_page_gives() {
+        let root = "import \"requirements.arc\"\nmodel M { version: \"1.0\" }\n";
+        let alone: serde_json::Value = serde_json::from_str(&check_json(root)).unwrap();
+        assert_eq!(alone["success"], false, "{alone}");
+        set_sources("main.arc", &json!({ "requirements.arc": "requirements stakeholder { req \"REQ-1\" { description: \"The system shall brake.\" } }\n" }).to_string());
+        let given: serde_json::Value = serde_json::from_str(&check_json(root)).unwrap();
+        assert_eq!(given["success"], true, "{given}");
+        assert_eq!(given["metrics"]["requirements"], 1);
+        set_sources("main.arc", "{}");
+        let missing: serde_json::Value = serde_json::from_str(&check_json(root)).unwrap();
+        assert!(missing["errors"][0].as_str().unwrap().contains("imported file not found: requirements.arc"), "{missing}");
+        clear_sources();
     }
 
     #[test]

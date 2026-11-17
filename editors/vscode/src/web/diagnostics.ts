@@ -1,7 +1,7 @@
 // Diagnostics in the browser: no language server, so the editor's problems
 // come from the compiler's `check` on the text, a moment after typing stops.
 import * as vscode from 'vscode';
-import { run } from '../cli';
+import { asFile, run } from '../cli';
 import { parseCheckReport } from '../pure/arc';
 
 const DELAY_MS = 350;
@@ -23,7 +23,8 @@ export function registerWebDiagnostics(context: vscode.ExtensionContext): void {
     const tmp = `/tmp/check-${version}-${Math.random().toString(36).slice(2)}.arc`;
     const vfs = await import('./vfs');
     vfs.write(tmp, document.getText());
-    const result = await run(['check', '--json', tmp], {});
+    // The file the copy stands for: its imports are read beside it.
+    const result = await run(['check', '--json', tmp, ...asFile(document)], {});
     vfs.remove(tmp);
     if (versions.get(document.uri.toString()) !== version) return;
     const report = parseCheckReport(result.stdout);

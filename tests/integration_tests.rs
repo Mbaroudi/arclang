@@ -1080,3 +1080,38 @@ trace "Acquire" realizes "OA-Mon" { rationale: "stale id" }
     assert!(result.semantic_model.all_elements.contains_key("OA-MonitorEnvironment"));
     assert!(result.semantic_model.all_elements.contains_key("SF-Acquire"));
 }
+
+#[test]
+fn a_text_that_imports_is_assembled_from_the_files_given_in_place_of_a_file_system() {
+    use arclang::compiler::given::{give, Given};
+    let root = "import \"parts/logical.arc\"\nimport \"requirements.arc\"\nmodel M { version: \"1.0\" }\ntrace \"LC-1\" satisfies \"REQ-1\" { rationale: \"r\" }\n";
+    let files = |logical: &str| {
+        std::collections::HashMap::from([
+            ("requirements.arc".to_string(), "requirements stakeholder { req \"REQ-1\" { description: \"The system shall brake.\" } }\n".to_string()),
+            ("parts/logical.arc".to_string(), logical.to_string()),
+            ("parts/more.arc".to_string(), "import \"../requirements.arc\"\n".to_string()),
+        ])
+    };
+    let logical = "import \"more.arc\"\nlogical_architecture \"L\" { component \"Brake\" { id: \"LC-1\" } }\n";
+    let mut compiler = Compiler::new(CompilerConfig::default());
+
+    give(Some(Given { name: "main.arc".to_string(), files: files(logical) }));
+    let result = compiler.compile_string(root).expect("the files given are read");
+    assert_eq!(result.semantic_model.requirements.len(), 1, "a file reached twice is read once");
+    assert_eq!(result.semantic_model.components.len(), 1);
+    assert_eq!(result.semantic_model.traces.len(), 1);
+
+    let mut without = files(logical);
+    without.remove("parts/more.arc");
+    give(Some(Given { name: "main.arc".to_string(), files: without }));
+    let error = compiler.compile_string(root).expect_err("a file that was not given").to_string();
+    assert!(error.contains("parts/logical.arc: imported file not found: parts/more.arc"), "{error}");
+
+    give(Some(Given { name: "main.arc".to_string(), files: files("import \"../main.arc\"\n") }));
+    let error = compiler.compile_string(root).expect_err("a cycle").to_string();
+    assert!(error.contains("circular import: main.arc -> parts/logical.arc -> main.arc"), "{error}");
+
+    give(None);
+    let error = compiler.compile_string(root).expect_err("nothing given").to_string();
+    assert!(error.contains("compile it from its file"), "{error}");
+}
