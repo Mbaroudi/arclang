@@ -50,6 +50,28 @@ printed with its line, and the command fails:
 Here the comment above the statement had been changed to say `0.5`: the
 code still computes with `0.25`.
 
+### The recovered model, drawn: `--view`
+
+`--view` writes, with the model, the page that draws it: one diagram for each
+machine, its states and its transitions with their triggers and guards, in
+the explorer `arclang explorer` writes for any model.
+
+```console
+$ arclang recover c/ --check --view recovered.html --open
+✓ Proven: the recovered model generates speed_monitor.h and speed_monitor.c as they were read
+  View: recovered.html
+```
+
+The head of the page says what the model was read from and what the recovery
+is worth: proven, not proven (a difference was found: the page is still
+written, the command fails), or not compared when `--check` was not asked.
+A drawing never says more than the proof did. The model is written beside
+the page (`recovered.arc`) unless `-o` names it; `--open` opens the page in
+the browser. With `--propose` (a sketch or a binary, below) the page is
+written once a proposed model is proven, and says what was proven of what;
+none proven, no page. A device tree, and a binary read without `--propose`,
+give no machine to draw: `--view` is refused with them.
+
 ## What is not recovered
 
 - **What the C does not hold**: whether a variable is `out` or `const`, the

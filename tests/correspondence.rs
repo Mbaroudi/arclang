@@ -154,9 +154,13 @@ fn a_proposed_model_is_written_only_once_proven_and_what_is_refuted_goes_back_to
 
     // The poor table first, the right one next: proven at the second turn.
     let (command, files) = proposer(&[fenced(&poor), fenced(&right)]);
-    let asked = arclang(&["recover", sketch.to_str().unwrap(), "--propose", "--with", &command, "--timeout", "1200"]);
+    let view = work.path().join("toggle.html");
+    let asked = arclang(&["recover", sketch.to_str().unwrap(), "--propose", "--with", &command, "--timeout", "1200", "--view", view.to_str().unwrap()]);
     let said = text(&asked);
     assert!(asked.status.success() && said.contains("✓ Proven") && said.contains("toggle.ino is state_machine \"Lamp\""), "{said}");
+    // The page draws the proven machine and says what was proven of what.
+    let page = std::fs::read_to_string(&view).unwrap();
+    assert!(page.contains(r#""verdict": "proven""#) && page.contains(r#"toggle.ino is state_machine \"Lamp\". The model was proposed and ArcLang ran the proof"#) && page.contains("msm:"), "{said}");
     // The second prompt holds the sketch and the lines the proof refuted.
     let again = std::fs::read_to_string(files.path().join("prompt-1")).unwrap();
     assert!(again.contains("int lit = 0;") && again.contains("STEP is refuted") && again.contains("- digitalWrite(LED) is led"), "{again}");

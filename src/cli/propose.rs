@@ -25,6 +25,8 @@ pub struct Options {
     pub timeout: u64,
     pub output: Option<PathBuf>,
     pub keep: Option<PathBuf>,
+    /// The page to draw the proven model in, and whether to open it.
+    pub view: Option<(PathBuf, bool)>,
 }
 
 /// The time a proposer may take for one answer.
@@ -202,6 +204,18 @@ pub fn run(sketch: &Path, options: Options) -> Result<(), CliError> {
     println!("  Output: {}", output.display());
     if output.parent().map(Path::to_path_buf).unwrap_or_default() != sketch.parent().map(Path::to_path_buf).unwrap_or_default() {
         println!("  note: the correspondence names {file_name} beside the model: keep the two together to replay the proof");
+    }
+    if let Some((view, open)) = &options.view {
+        // The page says what was proven of what, and no more: the rest is what `arclang prove` prints.
+        let first = said.lines().next().unwrap_or_default();
+        let of = first.split_once(") ").map_or(first, |(_, of)| of);
+        let replay = output.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let recovery = crate::compiler::arcviz_explorer::Recovery {
+            from: vec![file_name.clone()],
+            verdict: "proven".to_string(),
+            says: format!("{of}. The model was proposed and ArcLang ran the proof: `arclang prove {replay}` replays it and prints what it takes without proving it."),
+        };
+        super::CliRunner::recovered_view(&output, view, *open, &recovery)?;
     }
     Ok(())
 }
