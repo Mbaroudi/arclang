@@ -1008,6 +1008,38 @@ export const CESAM_VISIONS: { id: string; label: string; short: string; question
   { id: 'constructional', label: 'Constructional vision', short: 'Constructional', question: 'What is it made of?' },
 ];
 
+/** One tab of the CESAM notation: a vision, or one diagram of the vision that is open. */
+export interface CesamTab {
+  label: string;
+  title: string;
+  /** The diagram the tab opens. */
+  diagram: string;
+  active: boolean;
+  /** How many diagrams the vision has, on its own tab, when it has several. */
+  count?: number;
+  /** A diagram of the open vision, listed after the vision's own tab. */
+  sub?: boolean;
+}
+
+/**
+ * The tabs of the CESAM notation after "Grid": one per vision that has a
+ * diagram drawn, and, for the vision that is open when it has several, one
+ * per diagram under its own title (two may draw the same CESAM view), so
+ * that each can be reached from the tabs.
+ */
+export function cesamTabs(cesam: CesamSnapshot | undefined, drawn: Pick<ViewerGraph, 'id' | 'arc'>[], current: string | undefined, gridOpen: boolean): CesamTab[] {
+  const titles = new Map(drawn.map((g) => [g.id, g.arc.title]));
+  const tabs: CesamTab[] = [];
+  for (const vision of CESAM_VISIONS) {
+    const own = (cesam?.diagrams ?? []).filter((c) => c.vision === vision.id && titles.has(c.id));
+    if (!own.length) continue;
+    const open = !gridOpen && own.some((c) => c.id === current);
+    tabs.push({ label: vision.short, title: `${vision.label}: ${own.map((c) => c.view).join(', ')}`, diagram: own[0].id, active: open, ...(own.length > 1 ? { count: own.length } : {}) });
+    if (open && own.length > 1) for (const c of own) tabs.push({ label: titles.get(c.id) || c.view, title: `${vision.label}: ${c.view}`, diagram: c.id, active: c.id === current, sub: true });
+  }
+  return tabs;
+}
+
 /** The notation a model opens in: CESAM when it declares the method, SysML v2 for a .sysml file, else Arcadia. */
 export function defaultNotation(snapshot: Pick<Snapshot, 'cesam'> | null, file: string | undefined): Notation {
   if (snapshot?.cesam?.declared) return 'cesam';
