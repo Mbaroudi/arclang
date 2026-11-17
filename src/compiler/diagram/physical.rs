@@ -20,6 +20,7 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
     let mut builder = Builder::new(ViewKind::Pab);
     let mut functions = FunctionTable::of(model);
     let logical = logical_component_ids(model);
+    let logical_names = logical_component_names(model);
 
     for pa in &model.physical_architecture {
         functions.know_level(&pa.functions);
@@ -124,12 +125,22 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
                 );
             }
             for deployment in &node.deployments {
+                // Drawn under the name of the component it deploys, as the logical view draws it; what
+                // `deploys` wrote (an id, most often) is kept as a property, and alone when it names nothing.
+                let mut deployed = properties(&deployment.attributes, &["description", "partition"]);
+                let label = match logical_names.get(deployment.component.as_str()) {
+                    Some(name) if *name != deployment.component => {
+                        deployed.insert("deploys".to_string(), deployment.component.clone());
+                        *name
+                    }
+                    _ => deployment.component.as_str(),
+                };
                 let child = builder.add_node(
                     Some(handle),
                     &format!("{node_id}/{}", deployment.component),
-                    &deployment.component,
+                    label,
                     NodeKind::DeployedComponent,
-                    properties(&deployment.attributes, &["description", "partition"]),
+                    deployed,
                 );
                 if let Some(realized) = logical.get(deployment.component.as_str()) {
                     builder.add_realization(child, (*realized).to_string());
@@ -251,4 +262,22 @@ fn logical_component_ids(model: &Model) -> HashMap<&str, &str> {
         }
     }
     ids
+}
+
+/// Logical components addressable by id or name -> their name.
+fn logical_component_names(model: &Model) -> HashMap<&str, &str> {
+    fn collect<'a>(component: &'a LogicalComponent, out: &mut HashMap<&'a str, &'a str>) {
+        out.entry(identity(&component.attributes, &component.name)).or_insert(component.name.as_str());
+        out.entry(component.name.as_str()).or_insert(component.name.as_str());
+        for sub in &component.sub_components {
+            collect(sub, out);
+        }
+    }
+    let mut names = HashMap::new();
+    for la in &model.logical_architecture {
+        for component in &la.components {
+            collect(component, &mut names);
+        }
+    }
+    names
 }

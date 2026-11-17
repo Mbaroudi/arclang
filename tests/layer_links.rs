@@ -196,3 +196,19 @@ fn the_explorer_page_of_a_compiled_model_carries_the_layers_and_the_links() {
     let (plain, _) = generate_explorer_html(&result.semantic_model, &result.ast).expect("the explorer renders");
     assert!(!plain.contains(r#""kind":"deployed on""#), "from the syntax tree alone, the page has the traces only");
 }
+
+#[test]
+fn a_deployed_component_is_drawn_under_its_name_and_keeps_what_was_written() {
+    // Issue #237: the physical view showed `LC-Sensors` where the logical view shows `Sensors`.
+    let set = linked(MODEL);
+    let pab = set.diagrams.iter().find(|d| d.nodes.iter().any(|n| n.id == "PN-ECU")).expect("the physical view");
+    let deployed = node(&set, &pab.id, "PN-ECU/LC-Sensors");
+    assert_eq!(deployed.name, "Sensors");
+    assert_eq!(deployed.properties.get("deploys").map(String::as_str), Some("LC-Sensors"));
+    // A component deployed by its name, and a name that is no component, are drawn as written.
+    let by_name = linked(&MODEL.replace("deploys \"LC-Sensors\"", "deploys \"Sensors\"\n        deploys \"Ghost\""));
+    let pab = by_name.diagrams.iter().find(|d| d.nodes.iter().any(|n| n.id == "PN-ECU")).expect("the physical view");
+    let named = node(&by_name, &pab.id, "PN-ECU/Sensors");
+    assert!(named.name == "Sensors" && !named.properties.contains_key("deploys"));
+    assert_eq!(node(&by_name, &pab.id, "PN-ECU/Ghost").name, "Ghost");
+}
