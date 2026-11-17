@@ -2,11 +2,11 @@
 // markup strings): a transcript, a proposal card with the compiler-checked
 // diff and Apply, code blocks of Modelica answers with their "not verified"
 // label, and a composer. It holds no key and makes no request: the host does.
-import { keepTurn, readKept, type KeptTurn } from '../../src/pure/chat-history';
 import type { FromChatPage, ToChatPage } from '../../src/ai/chat/protocol';
 import type { ProposalView } from '../../src/ai/core/protocol';
 import { QUICK_ACTIONS } from '../../src/ai/core/protocol';
 import { el } from '../dom';
+import { keepTurn, readKept, type KeptTurn } from '../../src/pure/chat-history';
 import { prose } from './markdown';
 
 const vscode = acquireVsCodeApi() as unknown as { postMessage: (m: FromChatPage) => void; getState: () => unknown; setState: (state: unknown) => void };
