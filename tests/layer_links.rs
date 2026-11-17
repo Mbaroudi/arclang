@@ -62,6 +62,23 @@ fn node<'a>(set: &'a DiagramSet, diagram: &str, id: &str) -> &'a Node {
 }
 
 #[test]
+fn a_level_written_in_several_named_blocks_is_titled_after_all_of_them() {
+    // Raised in issue #231: the components of the second block were drawn under the first block's name alone.
+    let source = "model Two { version: \"1.0\" }\nlogical_architecture \"Play mode\" {\n  component \"Net\" { id: \"LC-NET\" }\n}\nlogical_architecture \"Global Logical Architecture\" {\n  component \"Lobby\" { id: \"LC-LBY\" }\n}\n";
+    let result = arclang::Compiler::new(arclang::CompilerConfig::default()).compile_string(source).expect("compiles");
+    let set = arclang::compiler::diagram::build_diagrams(&result.ast);
+    let lab = set.diagrams.iter().find(|d| d.kind == arclang::compiler::diagram::ViewKind::Lab).expect("a logical view");
+    assert_eq!(lab.title, "Play mode + Global Logical Architecture");
+    assert!(lab.nodes.iter().any(|n| n.id == "LC-NET") && lab.nodes.iter().any(|n| n.id == "LC-LBY"), "the components of both blocks are drawn");
+
+    let third = format!("{source}logical_architecture \"Play mode\" {{\n  component \"More\" {{ id: \"LC-MORE\" }}\n}}\nlogical_architecture \"Third\" {{}}\nlogical_architecture \"Fourth\" {{}}\n");
+    let result = arclang::Compiler::new(arclang::CompilerConfig::default()).compile_string(&third).expect("compiles");
+    let set = arclang::compiler::diagram::build_diagrams(&result.ast);
+    let lab = set.diagrams.iter().find(|d| d.kind == arclang::compiler::diagram::ViewKind::Lab).unwrap();
+    assert_eq!(lab.title, "Play mode + Global Logical Architecture + 2 more", "a name written twice counts once");
+}
+
+#[test]
 fn a_realization_written_as_an_attribute_is_a_link_between_two_layers() {
     let set = linked(MODEL);
 
