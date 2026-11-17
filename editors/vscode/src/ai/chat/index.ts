@@ -26,6 +26,8 @@ import { idsInSelection } from '../textAsk';
 import { parseFromChatPage, type ChatContextView, type ChatKind, type ChatStateView, type ToChatPage } from './protocol';
 
 export const CHAT_VIEW = 'arclang.chat';
+/** Where the last turns of the conversation are kept, in the workspace's state. */
+const CONVERSATION_KEY = 'arclang.chat.conversation';
 
 interface Target {
   document: vscode.TextDocument;
@@ -103,6 +105,8 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [this.tracker, this.review];
 
   constructor(private readonly context: vscode.ExtensionContext) {
+    // The last turns, kept with the workspace: the assistant still knows what was said when the window is reopened.
+    this.conversation = context.workspaceState.get<ChatMessage[]>(CONVERSATION_KEY, []).filter((m) => (m?.role === 'user' || m?.role === 'assistant') && typeof m.content === 'string');
     this.disposables.push(
       this.tracker.onDidChange(() => void this.pushState()),
       this.review.onDidSettle(async ({ uri, kept, error }) => {
@@ -173,6 +177,7 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
         this.conversation = [];
         this.running?.controller.abort();
         this.conversation = [];
+        void this.context.workspaceState.update(CONVERSATION_KEY, undefined);
         return this.pushState();
       case 'chat-configure':
         await vscode.commands.executeCommand('arclang.ai.configure');
@@ -341,6 +346,7 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
   private remember(question: string, answer: string): void {
     if (!answer.trim()) return;
     this.conversation = rememberTurn(this.conversation, question, answer.length > 4000 ? `${answer.slice(0, 4000)}…` : answer);
+    void this.context.workspaceState.update(CONVERSATION_KEY, this.conversation);
   }
 
   /** A proposal to the page; one the compiler accepted is written in the file at once (unless the setting says to wait for Apply), to keep or undo. */
