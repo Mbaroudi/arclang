@@ -53,6 +53,8 @@ fn the_view_draws_requirements_their_derivations_what_satisfies_and_what_verifie
     }
     assert_eq!(kind_of("TC-RANGE"), Some(NodeKind::TestCase));
     assert_eq!(kind_of("PN-BATT"), Some(NodeKind::PhysicalNode), "the element that satisfies a requirement");
+    let battery = diagram.nodes.iter().find(|n| n.id == "PN-BATT").unwrap();
+    assert_eq!(battery.compartment, ["id: PN-BATT"], "its id is in the box, as the traces name it (issue #226)");
     let range = diagram.nodes.iter().find(|n| n.id == "REQ-RANGE").unwrap();
     assert_eq!(range.name, "Range");
     assert_eq!(range.compartment, ["id: REQ-RANGE", "The car drives 300 km on one charge"]);

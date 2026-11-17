@@ -94,18 +94,7 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
         if !added.insert(element.id.to_string()) {
             continue;
         }
-        nodes.push(Node {
-            id: element.id.to_string(),
-            uuid: element_uuid("element", element.id),
-            name: element.name.to_string(),
-            kind: element.kind,
-            ports: Vec::new(),
-            children: Vec::new(),
-            realizes: Vec::new(),
-            layer: None,
-            compartment: Vec::new(),
-            properties: BTreeMap::new(),
-        });
+        nodes.push(element_node(element));
     }
     let concerns: Vec<&Concern> = model.system_analysis.iter().flat_map(|sa| &sa.concerns).collect();
     let mut concern_ids: HashMap<&str, &str> = HashMap::new();
@@ -135,18 +124,7 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
         let Some(subject) = requirement.attributes.get("subject").and_then(|v| v.as_string()) else { continue };
         let Some(element) = index.get(subject) else { continue };
         if added.insert(element.id.to_string()) {
-            nodes.push(Node {
-                id: element.id.to_string(),
-                uuid: element_uuid("element", element.id),
-                name: element.name.to_string(),
-                kind: element.kind,
-                ports: Vec::new(),
-                children: Vec::new(),
-                realizes: Vec::new(),
-                layer: None,
-                compartment: Vec::new(),
-                properties: BTreeMap::new(),
-            });
+            nodes.push(element_node(element));
         }
         let properties = BTreeMap::from([("trace".to_string(), "subject".to_string())]);
         edges.push(edge(EdgeKind::Trace, "sbj", id, element.id, "subject", properties));
@@ -256,6 +234,24 @@ fn requirement_node(requirement: &Requirement, id: &str, title: &str) -> Node {
         layer: None,
         compartment,
         properties: properties(&requirement.attributes),
+    }
+}
+
+/// An element of the architecture a requirement is traced to. Its id is
+/// written in the box, as a requirement's is: the traces of the model name
+/// ids, and a box that shows the name alone cannot be matched to them.
+fn element_node(element: &super::elements::ElementRef<'_>) -> Node {
+    Node {
+        id: element.id.to_string(),
+        uuid: element_uuid("element", element.id),
+        name: element.name.to_string(),
+        kind: element.kind,
+        ports: Vec::new(),
+        children: Vec::new(),
+        realizes: Vec::new(),
+        layer: None,
+        compartment: if element.id == element.name { Vec::new() } else { vec![format!("id: {}", element.id)] },
+        properties: BTreeMap::new(),
     }
 }
 
