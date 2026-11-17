@@ -66,11 +66,16 @@ button:disabled { opacity: .5; cursor: default; }
 .chat-code pre { margin: 0; padding: 7px 9px; overflow-x: auto; font: 12px / 1.4 var(--c-mono); }
 .chat-code code { background: none; padding: 0; }
 
-.chat-diff { margin: 6px 0; padding: 6px 0; overflow-x: auto; max-height: 260px; overflow-y: auto; border: 1px solid var(--c-line); border-radius: 3px; font: 12px / 1.4 var(--c-mono); }
+/* One column as wide as the longest line: a line's colour runs to the end when the diff is scrolled sideways. */
+.chat-diff { margin: 6px 0; padding: 6px 0; overflow-x: auto; display: grid; grid-template-columns: minmax(max-content, 1fr); align-content: start; max-height: 260px; overflow-y: auto; border: 1px solid var(--c-line); border-radius: 3px; font: 12px / 1.4 var(--c-mono); }
 .chat-diff span { display: block; padding: 0 8px; white-space: pre; }
 .chat-diff .add { background: color-mix(in srgb, var(--c-ok) 18%, transparent); }
 .chat-diff .del { background: color-mix(in srgb, var(--c-bad) 18%, transparent); }
 .chat-diff .hunk { color: var(--c-muted); }
+/* The words that changed in a replaced line. */
+.chat-diff mark.chg { color: inherit; border-radius: 2px; }
+.chat-diff .add mark.chg { background: color-mix(in srgb, var(--c-ok) 42%, transparent); }
+.chat-diff .del mark.chg { background: color-mix(in srgb, var(--c-bad) 42%, transparent); }
 .chat-proposal-actions { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin-top: 6px; }
 .chat-status { font-size: 12px; color: var(--c-muted); }
 .chat-provider-note { margin-left: auto; font-size: 11px; color: var(--c-muted); }

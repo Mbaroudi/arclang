@@ -36,6 +36,12 @@ export async function showDiff(key: string, document: vscode.TextDocument, propo
   await vscode.commands.executeCommand('vscode.diff', document.uri, right, title, { preview: true, viewColumn: vscode.ViewColumn.Beside, preserveFocus: true });
 }
 
+/** The diff of a change already written in the document: the text before it on the left, the document itself on the right. */
+export async function showChange(key: string, document: vscode.TextDocument, before: string, title: string): Promise<void> {
+  const left = previewUri(key, document, before, 'before the change');
+  await vscode.commands.executeCommand('vscode.diff', left, document.uri, title, { preview: true, viewColumn: vscode.ViewColumn.Beside, preserveFocus: true });
+}
+
 /** An explanation in a Markdown document beside the views. */
 export async function showExplanation(key: string, document: vscode.TextDocument, markdown: string): Promise<void> {
   const uri = vscode.Uri.from({ scheme: PREVIEW_SCHEME, path: `/${key}/Explanation.md` });

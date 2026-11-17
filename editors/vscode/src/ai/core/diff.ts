@@ -40,6 +40,21 @@ function operations(a: string[], b: string[]): ('=' | '-' | '+')[] {
   return ops;
 }
 
+const indentOf = (line: string): number => line.length - line.trimStart().length;
+
+/** The header of the block that holds `first`: the nearest line above that opens a block and is indented less. */
+function enclosing(above: string[], first: string): string | null {
+  // A line that closes a block belongs to the block it closes.
+  let depth = first.trim() ? indentOf(first) + (first.trim().startsWith('}') ? 1 : 0) : Infinity;
+  for (let i = above.length - 1; i >= 0; i--) {
+    const line = above[i];
+    if (!line.trim()) continue;
+    if (depth === Infinity) depth = indentOf(line) + 1;
+    if (indentOf(line) < depth && line.trimEnd().endsWith('{')) return line.trim();
+  }
+  return null;
+}
+
 export function lineDiff(before: string, after: string, context = 2): LineDiff {
   const a = before.split('\n');
   const b = after.split('\n');
@@ -74,7 +89,9 @@ export function lineDiff(before: string, after: string, context = 2): LineDiff {
       const hunk = rows.slice(index, end + 1);
       const aCount = hunk.filter((r) => r.op !== '+').length;
       const bCount = hunk.filter((r) => r.op !== '-').length;
-      lines.push(`@@ -${rows[index].ai + 1},${aCount} +${rows[index].bi + 1},${bCount} @@`);
+      // The block the hunk is in, when its header is above the lines shown (as `diff --show-c-function` names the function).
+      const header = enclosing(rows.slice(0, index).map((r) => r.text), rows[index].text);
+      lines.push(`@@ -${rows[index].ai + 1},${aCount} +${rows[index].bi + 1},${bCount} @@${header ? ` ${header}` : ''}`);
     }
     const row = rows[index];
     if (row.op === '+') added++;
