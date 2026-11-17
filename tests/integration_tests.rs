@@ -1095,6 +1095,9 @@ fn an_actor_holds_the_activities_it_performs_and_an_activity_stands_outside_an_e
     assert!(in_actor.contains("actor \"Driver\" { id: \"OA-ACT-1\" activity \"Drive\" {} }"), "{in_actor}");
     let in_layer = add_element(bare, Container::Layer { keyword: "operational_analysis", name: None }, "activity", "Wait", &[]).expect("with nothing selected");
     assert!(in_layer.contains("\n  activity \"Wait\" {}\n"), "{in_layer}");
+}
+
+#[test]
 fn a_text_that_imports_is_assembled_from_the_files_given_in_place_of_a_file_system() {
     use arclang::compiler::given::{give, Given};
     let root = "import \"parts/logical.arc\"\nimport \"requirements.arc\"\nmodel M { version: \"1.0\" }\ntrace \"LC-1\" satisfies \"REQ-1\" { rationale: \"r\" }\n";
