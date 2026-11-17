@@ -102,6 +102,12 @@ Simulation needs OpenModelica: on the desktop, *ArcLang: Set up OpenModelica*; o
 |---|---|---|
 | [A charging corridor in space](spatial/charging-corridor/) | Intermediate | Three charging hubs on a motorway, the fibre between them and the supervision center, placed on the map. |
 
+## Software
+
+| Example | Level | What it is |
+|---|---|---|
+| [Link shortener](software/link-shortener/) | Beginner | A system made of software only: services, a database and a queue, with latency and availability requirements, down to the containers they run in. |
+
 ## Business and IT
 
 | Example | Level | What it is |
