@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { defaultNotation, graphsOfNotation, NOTATION_VIEWS, parseSnapshot, type CesamSnapshot, type ViewerGraph } from '../../src/pure/workbench';
+import { cesamTabs, defaultNotation, graphsOfNotation, NOTATION_VIEWS, parseSnapshot, type CesamSnapshot, type ViewerGraph } from '../../src/pure/workbench';
 
 const graph = (id: string, view: string): ViewerGraph => ({ id, arc: { view, title: id } });
 const graphs = [graph('sab', 'sab'), graph('lab', 'lab'), graph('gv', 'gv'), graph('iv', 'iv'), graph('msm:Modes', 'msm'), graph('req', 'req'), graph('oab', 'oab')];
@@ -36,4 +36,21 @@ test('the snapshot keeps the CESAM grid the compiler sends, and drops a malforme
   assert.deepEqual(parseSnapshot(JSON.stringify({ success: true, cesam })).cesam, cesam);
   assert.equal(parseSnapshot(JSON.stringify({ success: true, cesam: { table: {} } })).cesam, undefined);
   assert.equal(parseSnapshot(JSON.stringify({ success: true })).cesam, undefined);
+});
+
+test('a CESAM vision with several diagrams lists each of them, under its title, once it is open (issue #216)', () => {
+  const titled = graphs.map((g) => (g.id === 'oab' ? { ...g, arc: { ...g.arc, title: 'Driving in traffic' } } : g.id === 'req' ? { ...g, arc: { ...g.arc, title: '' } } : g));
+  const closed = cesamTabs(cesam, titled, 'req', true);
+  assert.deepEqual(closed.map((t) => [t.label, t.diagram, t.active, t.count]), [['Operational', 'req', false, 2], ['Functional', 'msm:Modes', false, undefined], ['Constructional', 'lab', false, undefined]]);
+  const open = cesamTabs(cesam, titled, 'oab', false);
+  assert.deepEqual(open.map((t) => [t.label, t.diagram, t.active, !!t.sub]), [
+    ['Operational', 'req', true, false],
+    ['Stakeholder requirements', 'req', false, true],
+    ['Driving in traffic', 'oab', true, true],
+    ['Functional', 'msm:Modes', false, false],
+    ['Constructional', 'lab', false, false],
+  ]);
+  // A vision with one diagram needs no list; a diagram that is not drawn has no tab.
+  assert.equal(cesamTabs(cesam, titled, 'lab', false).filter((t) => t.sub).length, 0);
+  assert.equal(cesamTabs(cesam, titled.filter((g) => g.id === 'req'), 'req', false).filter((t) => t.sub).length, 0);
 });
