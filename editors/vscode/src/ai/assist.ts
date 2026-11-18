@@ -4,6 +4,7 @@
 // the AI a few times), and the user sees a preview: the explanation, the
 // edits, the diff of the source, the elements marked on the diagram. Only
 // Apply changes the model, as one undoable edit.
+import { authorship } from '../pure/authorship';
 import * as vscode from 'vscode';
 import type { EditRequest, Snapshot } from '../pure/workbench';
 import { applyRequests } from '../workbench/edits';
@@ -361,6 +362,8 @@ export async function applySession(sessionId: string): Promise<{ ok: boolean; er
     live.proposal = null;
     return { ok: true, files: written };
   }
+  // The model changes by the assistant's hand: the review of the engineer's own edits leaves this one alone.
+  authorship.assistantWrites(live.document.uri.toString());
   if (proposal.requests.length) {
     const outcome = await applyRequests(live.document, proposal.requests);
     if (!outcome.ok) {

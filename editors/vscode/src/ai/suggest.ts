@@ -6,6 +6,7 @@
 // the Suggestions pane. Debounced, canceled when a newer edit comes, never
 // in the way of editing, and never applied without the user's click.
 import * as vscode from 'vscode';
+import { authorship } from '../pure/authorship';
 import type { Snapshot } from '../pure/workbench';
 import { applyRequests } from '../workbench/edits';
 import { lastSnapshot, metamodelJson, onDidChangeSnapshot, snapshotOf } from '../workbench/snapshot';
@@ -86,6 +87,13 @@ export class SuggestionEngine {
     if (!snapshot?.success || !snapshot.elements) return;
     const key = uri.toString();
     if (!this.baselines.has(key) || suggestMode() === 'off') {
+      this.baselines.set(key, snapshot);
+      return;
+    }
+    // A change the assistant of the chat wrote was checked and explained there: it is not reviewed here as an edit of the engineer's.
+    if (authorship.takeAssistantChange(key)) {
+      clearTimeout(this.timers.get(key));
+      this.timers.delete(key);
       this.baselines.set(key, snapshot);
       return;
     }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cesamTabs, defaultNotation, graphsOfNotation, NOTATION_VIEWS, parseSnapshot, type CesamSnapshot, type ViewerGraph } from '../../src/pure/workbench';
+import { cesamTabs, viewTabs, defaultNotation, graphsOfNotation, NOTATION_VIEWS, parseSnapshot, type CesamSnapshot, type ViewerGraph } from '../../src/pure/workbench';
 
 const graph = (id: string, view: string): ViewerGraph => ({ id, arc: { view, title: id } });
 const graphs = [graph('sab', 'sab'), graph('lab', 'lab'), graph('gv', 'gv'), graph('iv', 'iv'), graph('msm:Modes', 'msm'), graph('req', 'req'), graph('oab', 'oab')];
@@ -36,6 +36,24 @@ test('the snapshot keeps the CESAM grid the compiler sends, and drops a malforme
   assert.deepEqual(parseSnapshot(JSON.stringify({ success: true, cesam })).cesam, cesam);
   assert.equal(parseSnapshot(JSON.stringify({ success: true, cesam: { table: {} } })).cesam, undefined);
   assert.equal(parseSnapshot(JSON.stringify({ success: true })).cesam, undefined);
+});
+
+test('a view with several diagrams lists each of them, under its title, once it is open (issue #216)', () => {
+  const views = [{ view: 'oab', label: 'Operational architecture', short: 'OAB' }, { view: 'msm', label: 'Modes and states', short: 'MSM' }, { view: 'pab', label: 'Physical architecture', short: 'PAB' }];
+  const drawn = [
+    { id: 'oab', arc: { view: 'oab', title: 'Operational' } },
+    { id: 'msm:Modes', arc: { view: 'msm', title: 'Modes' } },
+    { id: 'msm:Door', arc: { view: 'msm', title: '' } },
+  ] as ViewerGraph[];
+  // Closed, the view shows how many it has and opens its first; a view with no diagram has no tab.
+  assert.deepEqual(viewTabs(views, drawn, 'oab').map((t) => [t.label, t.diagram, t.active, t.count, !!t.sub]), [['OAB', 'oab', true, undefined, false], ['MSM', 'msm:Modes', false, 2, false]]);
+  // Open, each of its diagrams has its own tab; one with no title falls back on its id.
+  assert.deepEqual(viewTabs(views, drawn, 'msm:Door').map((t) => [t.label, t.diagram, t.active, !!t.sub]), [
+    ['OAB', 'oab', false, false],
+    ['MSM', 'msm:Modes', true, false],
+    ['Modes', 'msm:Modes', false, true],
+    ['msm:Door', 'msm:Door', true, true],
+  ]);
 });
 
 test('a CESAM vision with several diagrams lists each of them, under its title, once it is open (issue #216)', () => {

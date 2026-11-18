@@ -65,7 +65,11 @@ $ arclang recover c/ --check --view recovered.html --open
 The head of the page says what the model was read from and what the recovery
 is worth: proven, not proven (a difference was found: the page is still
 written, the command fails), or not compared when `--check` was not asked.
-A drawing never says more than the proof did. The model is written beside
+A drawing never says more than the proof did.
+
+![The page arclang recover --view writes for the speed monitor: its head says the model was recovered from speed_monitor.h and speed_monitor.c and is proven, and the diagram draws the Overspeed warning machine, its two states and the guards of its transitions](images/recover-view.webp)
+
+The model is written beside
 the page (`recovered.arc`) unless `-o` names it; `--open` opens the page in
 the browser. With `--propose` (a sketch or a binary, below) the page is
 written once a proposed model is proven, and says what was proven of what;

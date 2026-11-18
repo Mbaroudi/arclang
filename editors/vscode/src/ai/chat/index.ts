@@ -9,6 +9,7 @@
 import { randomBytes } from 'node:crypto';
 import * as vscode from 'vscode';
 import { sysmlText } from '../../workbench/source';
+import { withApplied, withoutApplied, type AppliedRequest } from '../../pure/applied-requests';
 import { applySession, cancelSession, diffSession, dropSession, replacedFiles, restoreFiles, runAsk, session, type WrittenFile } from '../assist';
 import { openProvider } from '../client';
 import { MODELICA_NOT_VERIFIED, MODELICA_WHERE_VERIFIED, modelicaMessages, rememberTurn } from '../core/modelica';
@@ -27,6 +28,8 @@ import { idsInSelection } from '../textAsk';
 import { parseFromChatPage, type ChatContextView, type ChatKind, type ChatStateView, type ToChatPage } from './protocol';
 
 export const CHAT_VIEW = 'arclang.chat';
+/** Where the last turns of the conversation are kept, in the workspace's state. */
+const CONVERSATION_KEY = 'arclang.chat.conversation';
 
 interface Target {
   document: vscode.TextDocument;
@@ -103,9 +106,15 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
   private readonly before = new Map<string, string>();
   /** The files attached to the conversation, sent with every question until removed. */
   private attachments: { name: string; text: string }[] = [];
+  /** What was asked for each change in progress (the request, then its refinements). */
+  private readonly asked = new Map<string, string>();
+  /** The requests that changed the model and were not undone, for the playground's account, which keeps them with the version it saves. */
+  private applied: AppliedRequest[] = [];
   private readonly disposables: vscode.Disposable[] = [this.tracker, this.review];
 
   constructor(private readonly context: vscode.ExtensionContext) {
+    // The last turns, kept with the workspace: the assistant still knows what was said when the window is reopened.
+    this.conversation = context.workspaceState.get<ChatMessage[]>(CONVERSATION_KEY, []).filter((m) => (m?.role === 'user' || m?.role === 'assistant') && typeof m.content === 'string');
     this.disposables.push(
       this.tracker.onDidChange(() => void this.pushState()),
       this.review.onDidSettle(async ({ uri, kept, error }) => {
@@ -116,6 +125,7 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
         this.writtenFiles.delete(sessionId);
         this.before.delete(sessionId);
         if (!kept) await restoreFiles(files);
+        if (!kept) this.applied = withoutApplied(this.applied, sessionId);
         this.post({ type: 'chat-settled', session: sessionId, kept, error });
       }),
       context.secrets.onDidChange(() => void this.pushState()),
@@ -177,6 +187,7 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
         this.conversation = [];
         this.running?.controller.abort();
         this.conversation = [];
+        void this.context.workspaceState.update(CONVERSATION_KEY, undefined);
         return this.pushState();
       case 'chat-configure':
         await vscode.commands.executeCommand('arclang.ai.configure');
@@ -188,6 +199,7 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
         const target = session(message.session)?.document ?? null;
         const applied = await applySession(message.session);
         if (applied.ok && target) this.lastApplied = target;
+        if (applied.ok) this.applied = withApplied(this.applied, message.session, this.asked.get(message.session) ?? '', session(message.session)?.proposal?.view.explanation ?? '');
         this.post({ type: 'chat-applied', session: message.session, ok: applied.ok, error: applied.error });
         if (applied.ok) dropSession(message.session);
         return;
@@ -224,6 +236,7 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
         if (!files) return;
         this.writtenFiles.delete(message.session);
         if (message.type === 'chat-undo-change') await restoreFiles(files);
+        if (message.type === 'chat-undo-change') this.applied = withoutApplied(this.applied, message.session);
         this.post({ type: 'chat-settled', session: message.session, kept: message.type === 'chat-keep' });
         return;
       }
@@ -286,6 +299,7 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
     this.post({ type: 'chat-start', id, kind: 'arc', file, label: (await this.state()).provider });
     const sessionId = `chat-${id}`;
     this.running = { id, controller, session: sessionId };
+    this.asked.set(sessionId, text);
     controller.signal.addEventListener('abort', () => cancelSession(sessionId));
     const outcome = await runAsk(
       sessionId,
@@ -346,10 +360,18 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
     await this.pushState();
   }
 
+  /** The requests that changed the model since they were last taken; `take` empties the list. */
+  appliedRequests(take: boolean): { question: string; answer: string }[] {
+    const list = this.applied.map(({ question, answer }) => ({ question, answer }));
+    if (take) this.applied = [];
+    return list;
+  }
+
   /** One exchange kept for the next questions: the question and the answer in words, bounded. */
   private remember(question: string, answer: string): void {
     if (!answer.trim()) return;
     this.conversation = rememberTurn(this.conversation, question, answer.length > 4000 ? `${answer.slice(0, 4000)}…` : answer);
+    void this.context.workspaceState.update(CONVERSATION_KEY, this.conversation);
   }
 
   /** A proposal to the page; one the compiler accepted is written in the file at once (unless the setting says to wait for Apply), to keep or undo. */
@@ -365,6 +387,7 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
       const applied = await applySession(sessionId);
       if (applied.ok) {
         this.lastApplied = document;
+        this.applied = withApplied(this.applied, sessionId, this.asked.get(sessionId) ?? '', view.explanation);
         const previous = this.reviewed.get(document.uri.toString());
         if (previous) {
           this.writtenFiles.delete(previous);
@@ -392,6 +415,7 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
     controller.signal.addEventListener('abort', () => cancelSession(sessionId));
     try {
       this.post({ type: 'chat-start', id, kind: 'arc', file: session(sessionId)?.document.uri.path.split('/').pop() ?? null, label: (await this.state()).provider });
+      this.asked.set(sessionId, text);
       const outcome = await runAsk(sessionId, { refine: text }, this.context, (delta) => this.post({ type: 'chat-delta', id, text: delta }));
       if (!outcome.ok || !outcome.session.proposal) {
         this.post({ type: 'chat-error', id, error: outcome.ok ? 'The AI did not answer.' : outcome.error });
@@ -521,5 +545,7 @@ export function registerChat(context: vscode.ExtensionContext): void {
     vscode.window.registerWebviewViewProvider(CHAT_VIEW, chat, { webviewOptions: { retainContextWhenHidden: true } }),
     // `<view id>.focus` is the command VS Code itself makes for a view: ours is `arclang.chat.open`.
     vscode.commands.registerCommand('arclang.chat.open', () => vscode.commands.executeCommand(`${CHAT_VIEW}.focus`)),
+    // For the playground's account (no entry in the palette): what was asked of the AI goes with the version it saves (issue #228).
+    vscode.commands.registerCommand('arclang.chat.appliedRequests', (take?: boolean) => chat.appliedRequests(take === true)),
   );
 }

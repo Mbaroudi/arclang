@@ -3,6 +3,7 @@
 // it removed lines are marked (the removed text on hover), and Keep / Undo sit
 // above the first change and in the chat. Undo puts back the text as it was;
 // Keep only clears the marks (the edit stays undoable with Ctrl/Cmd+Z).
+import { authorship } from '../pure/authorship';
 import * as vscode from 'vscode';
 import { changeMarks } from './core/diff';
 
@@ -84,6 +85,8 @@ export class InlineReview implements vscode.CodeLensProvider, vscode.Disposable 
     const whole = new vscode.Range(item.document.positionAt(0), item.document.positionAt(item.after.length));
     const edit = new vscode.WorkspaceEdit();
     edit.replace(item.document.uri, whole, item.before);
+    // Taking the assistant's change back is the assistant's change too.
+    authorship.assistantWrites(item.document.uri.toString());
     const ok = await vscode.workspace.applyEdit(edit);
     this.forget(uri);
     this.settled.fire({ uri, kept: !ok, error: ok ? undefined : 'VS Code did not take the edit' });
