@@ -180,3 +180,24 @@ read like the others, never a warning when it is missing.
 the bitstream it holds; its verdict is cached as the SoC's, with `on the
 board (<port>)` in its tools. The ladder reads such a verdict as the
 `board` stage, a simulated SoC as `soc`.
+
+## Evidence from other tools
+
+The compiler checks what it can run itself: constraints, simulations, the generated code. Other tools check other things (a circuit simulated by SPICE, a part solved by finite elements, a bench). A `test_case` that names `evidence:` takes the verdict such a tool recorded:
+
+```
+test_case "Arm strength" { id: "TC-ARM" verifies: ["REQ-ARM"] method: "analysis" evidence: "engineering" }
+```
+
+The tool writes `.arclang/evidence/TC-ARM.json` beside the model:
+
+```json
+{ "case": "TC-ARM", "tool": "arclang-server engineering model", "verdict": "pass",
+  "evidence": "stress 39 MPa under 50 MPa",
+  "subjects": [{ "element": "PN-ARM", "fingerprint": "1a2b3c4d" }],
+  "inputs": [{ "path": "bracket.py", "sha256": "…" }] }
+```
+
+`subjects` are the elements of the model it was obtained on, each with its fingerprint (the one `trace --review` keeps a reviewed link under); `inputs` are files beside the model, each with its SHA-256. On every compilation each is compared with what is there now. An element that changed, a file that changed or is gone, and the verdict is **stale**. Stale, missing, unreadable, written for another case, naming nothing it was obtained on (it could never go stale), or giving a verdict that is not `pass`, `fail`, `inconclusive` or `error`: the case is inconclusive and says why. Never a pass.
+
+The gate, the coverage table, the requirements view and the realization ladder count it like any other verdict. A case that `asserts:` or `simulate:`s is judged by the compiler and takes no evidence from outside.

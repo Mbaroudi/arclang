@@ -59,6 +59,7 @@ mod simulink_stateflow;
 pub mod fmi_generator;
 pub mod modelica;
 pub mod embedded;
+pub mod evidence;
 pub mod simulation;
 pub mod partition;
 pub mod realization;
