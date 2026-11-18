@@ -1,15 +1,21 @@
 """
 Wrapper for the ArcLang compiler binary.
 
-This module is the only place where `arclang` command lines are written.
-Every method maps 1:1 to a subcommand of the real CLI (src/cli/mod.rs; the
-options are those `arclang <subcommand> --help` prints) and passes only
-options that the CLI accepts. Nothing is invented on the way back: a `Run`
-holds what the binary printed and its exit code, and the parsers below only
-read lines the binary really prints.
+Every `arclang` command line the server runs goes through `ArcLangCompiler.run`:
+an argument list, never a shell. The methods below write the command lines of
+the first tools (check, build, gate, diff, export, edit...); the later tools
+write theirs next to their schema with `tools/common.CommandLine`, option by
+option as `arclang <subcommand> --help` prints them. `tools/cli.py` says which
+subcommand each tool runs and which options are deliberately not offered, and
+`tests/test_cli_parity.py` holds both to the CLI's own help.
 
-Options the CLI lists but answers "Not implemented" (`safety --fmea`,
-`safety --fta`, `safety --report`, `info --dependencies`) are not offered.
+Nothing is invented on the way back: a `Run` holds what the binary printed and
+its exit code, and the parsers below only read lines the binary really prints.
+
+The lists below are the CLI's (`--help`), less what the server leaves out on
+purpose, each with its reason: the tests check them for EQUALITY with the
+binary, so a format the CLI gains fails a test until it is offered or left out
+here by name.
 """
 
 import asyncio
@@ -30,16 +36,41 @@ EXPORT_FORMATS: Tuple[str, ...] = (
     "mermaid",
     "plant-uml",
     "html",
-    "pdf",
     "terraform",
     "sys-ml",
     "sysml-json",
     "simulink",
+    "simulink-connector",
     "fmi",
     "req-if",
     "c-headers",
     "proto",
+    "geojson",
+    "step",
+    "modelica",
+    "c",
+    "fmu",
+    "zephyr",
+    "vhdl",
 )
+
+# Export formats the CLI lists and the server does not offer, with the reason.
+EXPORT_FORMATS_NOT_OFFERED: Dict[str, str] = {
+    "pdf": "the CLI answers 'Not implemented' (export html and print it)",
+}
+
+# Export formats whose `-o` is a DIRECTORY the compiler fills.
+DIRECTORY_EXPORT_FORMATS: Tuple[str, ...] = ("fmi", "modelica", "c", "fmu", "zephyr", "vhdl")
+
+# `arclang export --strategy`, `--leaf-functions`, `--port-naming` (Simulink connector).
+CONNECTOR_STRATEGIES: Tuple[str, ...] = (
+    "functions",
+    "functional-chains",
+    "state-machines",
+    "data-pkg",
+)
+CONNECTOR_LEAF_FUNCTIONS: Tuple[str, ...] = ("model", "subsystem")
+CONNECTOR_PORT_NAMING: Tuple[str, ...] = ("ExchangeItem", "CapellaElement")
 
 # `arclang import -f <format>` values (ImportFormat in src/cli/mod.rs).
 # `sysml` reads a `.sysml` text of the dialect ArcLang exports, or a JSON
@@ -77,7 +108,36 @@ TEXT_DIAGRAM_FORMATS: Tuple[str, ...] = ("mermaid", "plant-uml")
 VIEWPOINT_FORMATS: Tuple[str, ...] = ("viewpoints", "elk", "html")
 
 # `arclang diagram --view <view>`.
-VIEWS: Tuple[str, ...] = ("oab", "sab", "lab", "pab", "msm", "es")
+VIEWS: Tuple[str, ...] = (
+    "oab",
+    "sab",
+    "lab",
+    "pab",
+    "msm",
+    "es",
+    "cap",
+    "cdb",
+    "pbs",
+    "req",
+    "par",
+    "cesam",
+)
+
+# Diagram formats the CLI lists and the server does not offer, with the reason.
+DIAGRAM_FORMATS_NOT_OFFERED: Dict[str, str] = {
+    "all": "arclang_generate_all_diagrams asks each type in turn instead, so that a type "
+    "the model has no content for is reported and does not stop the others",
+}
+
+# `arclang diagram --theme`: the presets of the HTML viewer (else an arclang-theme.json file).
+THEMES: Tuple[str, ...] = (
+    "arclang-default",
+    "capella-classic",
+    "colorblind-safe",
+    "print-grayscale",
+    "high-contrast",
+    "monochrome-document",
+)
 
 # `arclang gate --standard` and `arclang safety --standard`.
 SAFETY_STANDARDS: Tuple[str, ...] = ("iso26262", "do178c", "iec61508")
@@ -97,7 +157,67 @@ EDIT_OPS: Tuple[str, ...] = (
     "add_trace",
     "remove_trace",
     "wrap_fragment",
+    "wrap_invariant",
+    "reconnect",
+    "duplicate",
+    "duplicate_many",
 )
+
+# `arclang table --kind` (KINDS in src/compiler/tables/mod.rs; `arclang table --list`).
+TABLE_KINDS: Tuple[str, ...] = (
+    "requirements_coverage",
+    "traceability_matrix",
+    "allocation_matrix",
+    "interface_n2",
+    "icd",
+    "elements",
+    "realization",
+    "partition",
+    "schedule",
+    "cesam_grid",
+)
+
+# `arclang table -f <format>`; xlsx is a binary file and needs an output path.
+TABLE_FORMATS: Tuple[str, ...] = ("json", "csv", "tsv", "md", "html", "xlsx")
+
+# `arclang impact -f <format>`; xlsx needs an output path.
+IMPACT_FORMATS: Tuple[str, ...] = ("text", "json", "md", "html", "tsv", "xlsx")
+IMPACT_DIRECTIONS: Tuple[str, ...] = ("both", "downstream", "upstream")
+# `arclang impact --kinds`: the kinds of link a change is followed along.
+IMPACT_LINK_KINDS: Tuple[str, ...] = (
+    "realization",
+    "allocation",
+    "deployment",
+    "exchange",
+    "interface",
+    "chain",
+    "satisfies",
+    "verifies",
+    "safety",
+    "containment",
+    "typing",
+    "constraint",
+    "view",
+    "behavior",
+    "reference",
+)
+
+# `arclang diff -f`, `arclang baseline diff -f`.
+DIFF_FORMATS: Tuple[str, ...] = ("text", "json", "md", "html")
+# `arclang report -f`.
+REPORT_FORMATS: Tuple[str, ...] = ("md", "json", "html")
+# `arclang check --format`, `arclang gate --format`.
+DIAGNOSTIC_FORMATS: Tuple[str, ...] = ("text", "sarif")
+# `arclang check --method`.
+METHODS: Tuple[str, ...] = ("arcadia", "cesam")
+# `arclang build --target`.
+BUILD_TARGETS: Tuple[str, ...] = ("json", "xml", "capella")
+# `arclang realize --up-to`.
+REALIZATION_STAGES: Tuple[str, ...] = ("simulation", "sil", "pil", "hdl", "soc", "board", "twin")
+# `arclang ci init --provider`.
+CI_PROVIDERS: Tuple[str, ...] = ("github", "gitlab", "azure", "jenkins", "all")
+# `arclang verify --statistics`.
+STATISTICS_ENGINES: Tuple[str, ...] = ("r", "python")
 
 # The sections of the document `arclang workbench` prints; the last four
 # are filled only with `--exports`.
@@ -178,16 +298,27 @@ class ArcLangCompiler:
         self.review_timeout = seconds(config.get("review_timeout"), DEFAULT_REVIEW_TIMEOUT_SECONDS)
         self.workspace_root = Path(os.getenv("ARCLANG_WORKSPACE", os.getcwd())).resolve()
 
-    async def run(self, arguments: Sequence[str], timeout: Optional[float] = None) -> Run:
-        """Run `arclang <arguments>`. A binary that cannot run is a failed Run."""
+    async def run(
+        self,
+        arguments: Sequence[str],
+        timeout: Optional[float] = None,
+        cwd: Optional[Path] = None,
+    ) -> Run:
+        """Run `arclang <arguments>`. A binary that cannot run is a failed Run.
+
+        The working directory is the workspace, or `cwd` for the commands that
+        work on the git repository they are run in (`ci`, `report`, `sarif`,
+        `baseline`).
+        """
         command = (self.binary_path, *arguments)
         limit = timeout or self.timeout
+        where = cwd or self.workspace_root
         try:
             process = await asyncio.create_subprocess_exec(
                 *command,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                cwd=str(self.workspace_root) if self.workspace_root.is_dir() else None,
+                cwd=str(where) if where.is_dir() else None,
             )
         except OSError as failure:
             return Run(command, -1, "", f"cannot run '{self.binary_path}': {failure}")

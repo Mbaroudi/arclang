@@ -52,12 +52,22 @@ EDIT_REQUEST: Dict[str, Any] = {
     "type": "object",
     "description": (
         "One edit of the model text. op is one of set, unset, rename, add, add_raw, remove, "
-        "move, add_trace, remove_trace, wrap_fragment. Elements are designated by the id "
-        "arclang_workbench lists (or the name when the text writes none)."
+        "move, add_trace, remove_trace, wrap_fragment, wrap_invariant, reconnect, duplicate, "
+        "duplicate_many. Elements are designated by the id arclang_workbench lists (or the "
+        "name when the text writes none)."
     ),
     "properties": {
         "op": {"type": "string", "enum": list(EDIT_OPS)},
-        "element": {"type": "string", "description": "set/unset/rename/remove/move: the element."},
+        "element": {
+            "type": "string",
+            "description": "set/unset/rename/remove/move/duplicate: the element.",
+        },
+        "elements": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "duplicate_many: the elements copied together, with the exchanges, "
+            "links and traces declared between two of them.",
+        },
         "key": {"type": "string", "description": "set/unset: the attribute."},
         "value": {
             "type": "string",
@@ -66,13 +76,16 @@ EDIT_REQUEST: Dict[str, Any] = {
         },
         "name": {
             "type": "string",
-            "description": "rename: the new name; add: the name of the new element.",
+            "description": "rename: the new name; add: the name of the new element; "
+            "wrap_invariant: the state, mode or function asserted; reconnect: the name of the "
+            "relationship when several join the two ends.",
         },
         "keyword": {
             "type": "string",
             "description": "add: the declaration keyword: actor, entity, activity, function, "
             "component, node, behavior_component, 'port in', 'port out', interface, class, "
-            "mission, capability, functional_chain, requirement...",
+            "mission, capability, functional_chain, requirement...; wrap_invariant: what is "
+            "asserted: state, mode or function.",
         },
         "attributes": {
             "type": "array",
@@ -88,7 +101,8 @@ EDIT_REQUEST: Dict[str, Any] = {
         },
         "container": {
             "type": "string",
-            "description": "add/add_raw/move: the element the declaration goes into.",
+            "description": "add/add_raw/move/duplicate/duplicate_many: the element the "
+            "declaration (or the copy) goes into.",
         },
         "layer": {
             "type": "string",
@@ -105,22 +119,46 @@ EDIT_REQUEST: Dict[str, Any] = {
             "description": "add/add_raw: else at the end of the file (classes, data types, "
             "traces).",
         },
-        "from": {"type": "string", "description": "add_trace/remove_trace: the source element."},
+        "from": {
+            "type": "string",
+            "description": "add_trace/remove_trace: the source element; reconnect: the "
+            "relationship's source today.",
+        },
         "kind": {
             "type": "string",
             "description": "add_trace/remove_trace: satisfies, implements, realizes, allocates, "
-            "verifies...; wrap_fragment: loop, opt, alt, par, seq, critical.",
+            "verifies...; wrap_fragment: loop, opt, alt, par, seq, critical; reconnect: the "
+            "kind of the relationship as arclang_workbench lists it (ComponentExchange, "
+            "FunctionalExchange, OperationalExchange, PhysicalLink, PhysicalExchange, "
+            "Transition, Message, Trace, Association).",
         },
-        "to": {"type": "string", "description": "add_trace/remove_trace: the target element."},
-        "scenario": {"type": "string", "description": "wrap_fragment: the scenario."},
+        "to": {
+            "type": "string",
+            "description": "add_trace/remove_trace: the target element; reconnect: the "
+            "relationship's target today.",
+        },
+        "new_from": {
+            "type": "string",
+            "description": "reconnect: the new source (with new_to swapped, the relationship "
+            "is turned around).",
+        },
+        "new_to": {"type": "string", "description": "reconnect: the new target."},
+        "lifeline": {
+            "type": "string",
+            "description": "wrap_invariant: the lifeline of the scenario the invariant is on.",
+        },
+        "scenario": {
+            "type": "string",
+            "description": "wrap_fragment/wrap_invariant: the scenario.",
+        },
         "label": {"type": "string", "description": "wrap_fragment: the fragment's label."},
         "first": {
             "type": "string",
-            "description": "wrap_fragment: the label of the first message wrapped.",
+            "description": "wrap_fragment/wrap_invariant: the label of the first message.",
         },
         "last": {
             "type": "string",
-            "description": "wrap_fragment: the label of the last message wrapped.",
+            "description": "wrap_fragment/wrap_invariant: the label of the last message.",
         },
         "operands": {
             "type": "array",
@@ -144,7 +182,8 @@ TOOLS: List[Tool] = [
             "exact ids: the ids it lists are accepted by arclang_edit even when the text writes "
             "none. With `raw: true` the answer is one `section` of the compiler's JSON instead "
             "(elements, diagrams, findings, gate, document; sysmlv2, reqif, c_headers, proto "
-            "with `exports: true`), the elements section filtered the same way."
+            "with `exports: true`), the elements section filtered the same way. `rev` reads "
+            "the model as committed at a git revision (time travel: nothing is checked out)."
         ),
         inputSchema=schema(
             {
@@ -160,6 +199,11 @@ TOOLS: List[Tool] = [
                     "description": "Also render the interop exports (SysML v2, ReqIF, C headers, "
                     "Protobuf), read with `raw: true` and `section`",
                     "default": False,
+                },
+                "rev": {
+                    "type": "string",
+                    "description": "The model as committed at this git revision (HEAD~1, a "
+                    "tag, baseline/v1) instead of the file on disk",
                 },
                 "kind": {
                     "type": "string",
@@ -197,7 +241,9 @@ TOOLS: List[Tool] = [
             "(`arclang edit`), in order on one text: add an element inside another, in a "
             "layer or at the top level (ports with keyword 'port in'/'port out'), add a raw "
             "declaration (exchanges, messages, transitions), remove, move, rename (identity "
-            "kept), set/unset an attribute, add/remove a trace, wrap messages in a fragment. "
+            "kept), set/unset an attribute, add/remove a trace, wrap messages in a fragment "
+            "or under an invariant, reconnect a relationship to another source or target, "
+            "duplicate one element or several (ids made unique). "
             "Comments and layout are kept. The whole list is refused, and nothing changes, if "
             "any edit would leave a model that does not compile or asks for an unknown "
             "element; the answer says which request and why. Elements are designated by the "
@@ -266,12 +312,14 @@ class WorkbenchTools:
 
     async def _workbench(self, args: Dict[str, Any]) -> str:
         model = resolve_path(self.workspace_root, args["path"])
-        title = f"Workbench of {model.name}"
-        run = await self.compiler.workbench(
-            model,
-            gate_standard=args.get("gate_standard", "ISO26262"),
-            exports=args.get("exports", False),
-        )
+        rev = args.get("rev")
+        title = f"Workbench of {model.name}" + (f" at {rev}" if rev else "")
+        arguments = ["workbench", f"--gate-standard={args.get('gate_standard', 'ISO26262')}"]
+        if args.get("exports", False):
+            arguments.append("--exports")
+        if rev:
+            arguments.append(f"--rev={rev}")
+        run = await self.compiler.run([*arguments, "--", str(model)])
         document = parse_workbench(run)
         if document is None:
             return report(title, run)
@@ -551,4 +599,26 @@ def describe_request(request: Dict[str, Any]) -> str:
             f"wrap the messages {request.get('first')}...{request.get('last')} of "
             f"{request.get('scenario')} in a {request.get('kind')} fragment"
         )
+    if op == "wrap_invariant":
+        return (
+            f"assert the {request.get('keyword')} \"{request.get('name')}\" on "
+            f"{request.get('lifeline')} over the messages {request.get('first')}..."
+            f"{request.get('last')} of {request.get('scenario')}"
+        )
+    if op == "reconnect":
+        named = f" \"{request['name']}\"" if request.get("name") else ""
+        ends = " and ".join(
+            f"its {end} to {request[key]}"
+            for key, end in (("new_from", "source"), ("new_to", "target"))
+            if request.get(key)
+        )
+        return (
+            f"reconnect the {request.get('kind')}{named} from {request.get('from')} to "
+            f"{request.get('to')}: {ends or 'nothing'}"
+        )
+    if op == "duplicate":
+        return f"duplicate {element} {place if request.get('container') or request.get('layer') else 'beside it'}"
+    if op == "duplicate_many":
+        copied = ", ".join(str(item) for item in request.get("elements") or [])
+        return f"duplicate {copied} {place if request.get('container') or request.get('layer') else 'beside them'}"
     return json.dumps(request)

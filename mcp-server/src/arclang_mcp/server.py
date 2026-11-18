@@ -2,7 +2,7 @@
 Main MCP Server implementation for ArcLang.
 
 The server is a thin layer over the `arclang` binary: each tool is a
-subcommand of the compiler (see compiler/wrapper.py) and returns what the
+subcommand of the compiler (tools/cli.py says which) and returns what the
 compiler printed. The tool definitions live with their handlers in
 `tools/`; this module only lists them and routes the calls.
 """
@@ -23,25 +23,29 @@ from .resources.syntax_guide import get_grammar, get_syntax_rules, reference_mod
 from .tools import (
     batch,
     core,
+    delivery,
     edit,
     expert,
     generation,
-    integration,
     recover,
     safety,
+    simulation,
     transform,
+    versioning,
     workbench,
 )
 from .tools.batch import BatchTools
 from .tools.common import check_arguments, mime_type
 from .tools.core import CoreTools
+from .tools.delivery import DeliveryTools
 from .tools.edit import EditTools
 from .tools.expert import ExpertTools
 from .tools.generation import GenerationTools
-from .tools.integration import IntegrationTools
 from .tools.recover import RecoverTools
 from .tools.safety import SafetyTools
+from .tools.simulation import SimulationTools
 from .tools.transform import TransformTools
+from .tools.versioning import VersioningTools
 from .tools.workbench import WorkbenchTools
 from .utils.config import load_config
 
@@ -95,7 +99,9 @@ class ArcLangMCPServer:
         self.workbench_tools = WorkbenchTools(self.compiler, self.workspace_root)
         self.generation_tools = GenerationTools(self.compiler, self.config)
         self.safety_tools = SafetyTools(self.compiler, self.config)
-        self.integration_tools = IntegrationTools(self.compiler, self.config)
+        self.simulation_tools = SimulationTools(self.compiler, self.workspace_root)
+        self.versioning_tools = VersioningTools(self.compiler, self.workspace_root)
+        self.delivery_tools = DeliveryTools(self.compiler, self.workspace_root)
         self.transform_tools = TransformTools(self.compiler, self.workspace_root)
         self.recover_tools = RecoverTools(self.compiler, self.workspace_root)
         self.expert_tools = ExpertTools(self.compiler, self.workspace_root)
@@ -110,7 +116,9 @@ class ArcLangMCPServer:
             (recover.TOOLS, self.recover_tools.execute),
             (generation.TOOLS, self.generation_tools.execute),
             (safety.TOOLS, self.safety_tools.execute),
-            (integration.TOOLS, self.integration_tools.execute),
+            (simulation.TOOLS, self.simulation_tools.execute),
+            (versioning.TOOLS, self.versioning_tools.execute),
+            (delivery.TOOLS, self.delivery_tools.execute),
             (expert.TOOLS, self.expert_tools.execute),
             (batch.TOOLS, self.batch_tools.execute),
         ]

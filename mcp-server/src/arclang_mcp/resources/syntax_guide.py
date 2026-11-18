@@ -3,8 +3,10 @@ What the server tells a client about the language.
 
 Nothing here is a second description of ArcLang that could drift from the
 compiler: the rules are the short list below, the example is
-`reference_model.arc` (compiled and gated by the test suite), the grammar
-is `spec/GRAMMAR.ebnf` when the server runs from the repository, and the
+`reference_model.arc` (compiled and gated by the test suite), the shorter
+examples are the `example_*.arc` files beside it (each compiled by the test
+suite, as every fenced block of the rules is), the grammar is
+`spec/GRAMMAR.ebnf` when the server runs from the repository, and the
 metamodel is asked from the binary.
 """
 
@@ -17,8 +19,8 @@ REPOSITORY = RESOURCES.parents[3]
 
 RULES = """# ArcLang syntax rules
 
-For the compiler this server runs (`arclang` 4.3; the `arclang://metamodel`
-resource prints the language version). The compiler is STRICT: any construct
+For the compiler this server runs (the `arclang://metamodel` resource prints
+the language version). The compiler is STRICT: any construct
 outside the grammar is a compile error with its line and column. Nothing is
 skipped silently. Do not guess: check with `arclang_validate` after every
 change (`as_json: true` names the rule and the fix of each finding, and
@@ -99,6 +101,79 @@ an element kind accepts and with which type.
     Never record a verdict for a test nobody ran: leave the case without one
     and tell the engineer what remains to run.
 
+## Verification that runs
+
+A `test_case` computes its verdict instead of recording one when it says how
+to run. `execute: { machine: ... step: ... stop_time: ... inputs: [...] }`
+runs a state machine: each input is `"<instant>: <event>"` (or
+`"<instant>: <variable> = <value>"`), and each line of `expects:` names the
+requirement it checks, then an expression on the run: `at(<instant>,
+"<Machine>".<State or variable>)`, with `min`, `max`, `final`, `mean` for a
+simulated quantity. The same case is run on the model, as C on this computer
+(`arclang_sil`), on the target's processor (`arclang_pil`) and in logic
+(`arclang_hdl`, `arclang_soc`); `arclang_realize` says which of those stages
+each requirement has, and climbs the missing ones with `run: true`.
+
+An `io_binding` is the state machine as a task of a target: its `period`,
+its inputs (`"<event> <- gpio 4 rising"`) and its outputs
+(`"<State> -> gpio 20"`). `arclang_schedule` says whether every task meets
+its period.
+
+```arc
+{example_executed_case}
+```
+
+`simulate: { model: "<Package.Class>" stop_time: ... sources: [...] }` runs
+the physics in OpenModelica instead (`arclang_verify`): a hand-written
+Modelica class, or the package `arclang_export` writes with `format:
+modelica`. A `twin` drives the same physics with measured data: `data:` is
+the file and its time column, `drives:` imposes a column on a variable
+(`variable <- column unit`), `compares:` holds the model to a measurement
+(`variable ~ column unit within tolerance [for N %]`), and `expects:` checks
+the requirements on that run. `arclang_twin` runs the twins.
+
+```arc
+{example_twin}
+```
+
+Never write `verdict: "pass"` on a case that says `execute:` or `simulate:`:
+its verdict is the run's, and it has none until the run is made.
+
+## Code written by hand
+
+A `correspondence` says that a piece of code written by hand (an Arduino
+sketch) IS a state machine of the model: `source:` is the file beside the
+model, `period:` the time of one `loop()`, `reads:` and `writes:` tie each
+pin to a variable or a state, `state:` ties the sketch's variables to the
+machine (`<C expression> is in <State>`, `... is <variable>`, `... is time
+in <State>`), `invariant:` bounds the sketch's variables. It claims nothing
+by itself: `arclang_prove` proves it or refutes it with a case, and
+`arclang_observe` measures a real board against it.
+
+```arc
+{example_correspondence}
+```
+
+## Levels of the V, responsibility, documents, risks
+
+A `test_case` says the `level:` of the V it belongs to (`component`,
+`subsystem`, `system`, `validation`) and a requirement its plan,
+`verification_levels: [...]`: the requirement is verified when a case of
+EACH planned level verifies it, and the gate blocks on a level no case
+verifies at. A case that states no level is at none.
+
+`organization` and `document` are top-level elements; any element names the
+organization that answers for it (`responsible:`) and the documents that
+describe it (`documented_by: [...]`), by id or by name. A `risk` is a risk
+of the project, not a hazard of the product: `likelihood` and `severity`
+(low, medium, high), what it `bears_on` and what it is `mitigated_by`; its
+level is computed, never written. All of them are followed by
+`arclang_impact` and shown by `arclang_table`.
+
+```arc
+{example_v_model}
+```
+
 ## Editing a model: precise requests, not a rewrite
 
 Do not rewrite a file to change one thing: the compiler edits the text
@@ -115,7 +190,10 @@ with a list of requests, applied in order on one text:
 The other ops are `unset`, `rename` (the identity is kept), `add_raw` (one
 declaration as source: an exchange, a message, a transition), `remove`,
 `move` (a function reallocated, a component nested elsewhere),
-`remove_trace` and `wrap_fragment`. The whole list is refused, and nothing
+`remove_trace`, `wrap_fragment` and `wrap_invariant` (messages of a scenario
+in a fragment, or under a state asserted on a lifeline), `reconnect` (a
+relationship to another source or target) and `duplicate` /
+`duplicate_many` (copies with ids made unique). The whole list is refused, and nothing
 changes, when any request names an unknown element or would leave a model
 that does not compile; the answer names the request and the reason. Nothing
 is written without `write: true`: the answer is the diff.
@@ -133,9 +211,21 @@ def reference_model() -> str:
     return (RESOURCES / "reference_model.arc").read_text().rstrip()
 
 
+# The shorter examples the rules show, each a model of its own that compiles.
+EXAMPLES = ("executed_case", "twin", "correspondence", "v_model")
+
+
+def example(name: str) -> str:
+    """One of the shorter examples: a complete model the compiler accepts."""
+    return (RESOURCES / f"example_{name}.arc").read_text().rstrip()
+
+
 def get_syntax_rules() -> str:
-    """The syntax rules given to AI clients, with the reference model."""
-    return RULES.replace("{reference_model}", reference_model())
+    """The syntax rules given to AI clients, with the examples and the reference model."""
+    rules = RULES.replace("{reference_model}", reference_model())
+    for name in EXAMPLES:
+        rules = rules.replace("{example_" + name + "}", example(name))
+    return rules
 
 
 def get_grammar() -> Optional[str]:
