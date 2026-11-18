@@ -1183,7 +1183,7 @@ pub enum Commands {
     /// Duplicate: {"op": "duplicate", "element": E, "container": C?, "layer":
     /// L?} copies the declaration of E with what it holds, beside it or into
     /// C or the layer L; every id of the copy is made unique (LC-X becomes
-    /// LC-X-2), an element without id gets a new name. {"op":
+    /// LC-X-2, LC-002 becomes LC-003), an element without id gets a new name. {"op":
     /// "duplicate_many", "elements": [E, ...], "container": C?} copies
     /// several at once, with the exchanges, links and traces declared
     /// between two of them, joined to the copies.

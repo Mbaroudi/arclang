@@ -352,7 +352,8 @@ pub fn duplicate(source: &str, element: &str, container: Option<Container>) -> R
     // The relationships are those of the original, plus the copy's own: one
     // that joins two elements already there (an exchange written inside the
     // copied block between the originals) is a second exchange, refused.
-    let old: std::collections::HashSet<&str> = graph.elements.iter().map(|e| e.uuid.as_str()).collect();
+    // An end may be a relationship too: a path involves the links it goes through.
+    let old: std::collections::HashSet<&str> = graph.elements.iter().map(|e| e.uuid.as_str()).chain(graph.relationships.iter().map(|r| r.uuid.as_str())).collect();
     let mut kept = edges(&graph);
     for r in &after.relationships {
         if !(old.contains(r.source.as_str()) && old.contains(r.target.as_str())) {
@@ -413,7 +414,8 @@ pub fn duplicate_many(source: &str, elements: &[String], container: Option<Conta
     }
     // An element inside another one copied comes with it.
     let tops: Vec<&ElementRecord> = picked.iter().copied().filter(|r| !picked.iter().any(|o| o.uuid != r.uuid && within(&graph, r, &o.uuid))).collect();
-    let old: std::collections::HashSet<&str> = graph.elements.iter().map(|e| e.uuid.as_str()).collect();
+    // An end may be a relationship too: a path involves the links it goes through.
+    let old: std::collections::HashSet<&str> = graph.elements.iter().map(|e| e.uuid.as_str()).chain(graph.relationships.iter().map(|r| r.uuid.as_str())).collect();
     let mut taken: std::collections::HashSet<String> = graph.elements.iter().flat_map(|e| [e.id.clone(), e.name.clone()]).collect();
     let mut renamed: BTreeMap<String, String> = BTreeMap::new();
     let mut names: std::collections::HashSet<String> = graph.elements.iter().map(|e| e.name.clone()).collect();
@@ -643,6 +645,17 @@ mod tests {
         assert!(into.contains("from_port: \"LC-A-2.p\"") && into.contains("to_port: \"LC-B-2.q\""), "{into}");
         // A scenario still refuses: its messages join participants that are not copied.
         assert!(duplicate_many(MODEL, &["S".to_string()], None).is_err());
+    }
+
+
+    #[test]
+    fn a_path_through_a_link_does_not_stop_an_unrelated_copy() {
+        // The reference model has a physical_path involving a link: the link is a
+        // relationship, and the path's involvement of it is not lost by a copy.
+        let model = include_str!("../../../mcp-server/src/arclang_mcp/resources/reference_model.arc");
+        let copy = duplicate(model, "LC-001", None).unwrap();
+        assert!(copy.contains("LC-001-2") || copy.contains("LC-002"), "{copy}");
+        assert!(copy.contains("involves: [\"ChassisCAN\"]"));
     }
 
 }

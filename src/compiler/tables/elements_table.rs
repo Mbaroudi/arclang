@@ -44,7 +44,7 @@ pub fn compute(context: &Context, spec: &TableSpec) -> Result<(Vec<Column>, Vec<
         written.extend(context.element(i).attributes.keys().filter(|k| k.as_str() != "id").cloned());
     }
     let mut available: Vec<Column> = FIXED.iter().map(|k| column(k)).collect();
-    available.extend(declared.iter().map(|k| column(k)));
+    available.extend(declared.iter().filter(|k| !FIXED.contains(&k.as_str())).map(|k| column(k)));
     available.extend(written.iter().filter(|k| !declared.contains(k) && !FIXED.contains(&k.as_str())).map(|k| column(k)));
 
     let keys: Vec<String> = if spec.columns.is_empty() {
