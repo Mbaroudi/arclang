@@ -215,3 +215,25 @@ fn realize_climbs_to_sil_and_stops_where_the_evidence_fails() {
     assert!(!out.status.success());
     assert!(text.contains("SYS-PW-002 SIL (TC-PW-001): ✗ fail") && text.contains("the climb of SYS-PW-002 stops here") && !text.contains("→ PIL"), "{text}");
 }
+
+#[test]
+fn a_model_with_a_twin_and_no_simulated_case_still_shows_the_twin_verdict() {
+    let dir = std::env::temp_dir().join(format!("arclang-realization-{}-twin-only", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("physics")).unwrap();
+    std::fs::create_dir_all(dir.join("data")).unwrap();
+    std::fs::write(dir.join("physics/Branch.mo"), "within ;\npackage Branch\n  model Led\n    Real supply(unit = \"V\") = 5;\n    Real i(unit = \"A\");\n  equation\n    i = max(supply - 2, 0) / 330;\n  end Led;\nend Branch;\n").unwrap();
+    std::fs::write(dir.join("data/m.csv"), "time,supply_v,current_ma\n0,5,9\n1,5,9\n").unwrap();
+    let model = dir.join("m.arc");
+    std::fs::write(&model, "model M { name: \"M\" }\nrequirements r {\n  requirement \"REQ-1\" { description: \"d\" }\n}\nphysical_architecture \"P\" {\n  node \"N\" { id: \"PN-1\" }\n}\ntwin \"T\" {\n  id: \"TW-1\"\n  verifies: [\"REQ-1\"]\n  simulate: { model: \"Branch.Led\" sources: [\"physics/Branch.mo\"] }\n  data: { file: \"data/m.csv\" time: \"time\" }\n  drives: [\"supply <- supply_v V\"]\n  compares: [\"i ~ current_ma mA within 1 mA\"]\n}\n").unwrap();
+    let result = compile(&model);
+    let twin = result.ast.twins[0].clone();
+    let dir_cache = cache::dir(&model);
+    let key = arclang::compiler::simulation::twin::cache_key(&result, &model, &twin).unwrap();
+    let outcome = Outcome { test_case: twin.id.clone(), kind: "twin".into(), name: twin.name.clone(), verifies: twin.verifies.clone(), verdict: "pass".into(), key, target: "data/m.csv".into(), tool: "openmodelica".into(), ..Default::default() };
+    cache::write_kind(&dir_cache, "twin", &outcome).unwrap();
+    let result = compile(&model);
+    let ladders = realization::ladders(&result, Some(&model));
+    let ladder = ladders.iter().find(|l| l.requirement == "REQ-1").unwrap();
+    assert_eq!(stage(ladder, "twin").state, "pass");
+}
