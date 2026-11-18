@@ -15,6 +15,7 @@ import { MODELICA_NOT_VERIFIED, MODELICA_WHERE_VERIFIED, modelicaMessages, remem
 import { attachmentsBlock, MAX_ATTACHED, NO_FILE_RULES, systemRulesFor } from '../core/prompts';
 import { currentWorkspace } from '../workspace';
 import { InlineReview } from '../review';
+import { showChange } from '../preview';
 import type { ProposalView } from '../core/protocol';
 import { createModelFromText } from '../../workbench/create';
 import { sampleModel } from '../context';
@@ -98,6 +99,8 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
   private readonly reviewed = new Map<string, string>();
   /** The files each kept-or-undone change wrote next to the model (write_file), for Undo. */
   private readonly writtenFiles = new Map<string, WrittenFile[]>();
+  /** The text of the model before each change written in it, until the change is kept or undone: what "Open diff" compares the file with. */
+  private readonly before = new Map<string, string>();
   /** The files attached to the conversation, sent with every question until removed. */
   private attachments: { name: string; text: string }[] = [];
   private readonly disposables: vscode.Disposable[] = [this.tracker, this.review];
@@ -111,6 +114,7 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
         if (!sessionId) return;
         const files = this.writtenFiles.get(sessionId) ?? [];
         this.writtenFiles.delete(sessionId);
+        this.before.delete(sessionId);
         if (!kept) await restoreFiles(files);
         this.post({ type: 'chat-settled', session: sessionId, kept, error });
       }),
@@ -188,8 +192,13 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
         if (applied.ok) dropSession(message.session);
         return;
       }
-      case 'chat-diff':
+      case 'chat-diff': {
+        // A change already in the file is compared with the text before it; a proposal that waits, with the file.
+        const before = this.before.get(message.session);
+        const live = session(message.session);
+        if (before !== undefined && live) return showChange(message.session, live.document, before, `${live.document.uri.path.split('/').pop()}: before ↔ after the AI change`);
         return diffSession(message.session);
+      }
       case 'chat-reject':
         dropSession(message.session);
         return;
@@ -359,12 +368,14 @@ class ChatView implements vscode.WebviewViewProvider, vscode.Disposable {
         const previous = this.reviewed.get(document.uri.toString());
         if (previous) {
           this.writtenFiles.delete(previous);
+          this.before.delete(previous);
           this.post({ type: 'chat-settled', session: previous, kept: true });
         }
         this.writtenFiles.set(sessionId, applied.files ?? []);
         this.post({ type: 'chat-proposal', id, session: sessionId, provider, proposal: view, written: true });
         if (document.getText() !== before) {
           this.reviewed.set(document.uri.toString(), sessionId);
+          this.before.set(sessionId, before);
           await this.review.start(document, before, view.explanation.split(/(?<=[.!?])\s/)[0].slice(0, 80));
         }
         return;

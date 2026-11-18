@@ -196,3 +196,14 @@ test('every field of a page message is checked, and only the known fields are ke
   assert.deepEqual(parseFromPageAi({ type: 'ai-suggestion', id: 'p1', action: 'diff' }), { type: 'ai-suggestion', id: 'p1', action: 'diff' });
   assert.deepEqual(parseFromPageAi({ type: 'ai-hello', anything: 1 }), { type: 'ai-hello' });
 });
+
+test('a hunk names the block it is in when the block opens above the lines shown (issue #223)', () => {
+  const before = ['model M {}', 'logical_architecture "L" {', '  component "Brake" {', '    id: "LC-1"', '    one: 1', '    two: 2', '    asil: "ASIL_B"', '  }', '}', ''].join('\n');
+  const after = before.replace('ASIL_B', 'ASIL_D');
+  const diff = lineDiff(before, after, 1);
+  assert.equal(diff.lines[0], '@@ -6,3 +6,3 @@ component "Brake" {');
+  // The header is among the lines shown: nothing to add but the block above it.
+  const near = lineDiff(before, before.replace('"LC-1"', '"LC-2"'), 1);
+  assert.equal(near.lines[0], '@@ -3,3 +3,3 @@ logical_architecture "L" {');
+  assert.equal(lineDiff('a\nb', 'a\nc', 1).lines[0], '@@ -1,2 +1,2 @@');
+});
