@@ -4,7 +4,10 @@
 //! elsewhere (`verdict: "fail"`), with the SysML v2 verdicts; a case saying
 //! none is pending. A case that `simulate:`s takes its verdict from the
 //! cached simulation (`compiler::simulation`): inconclusive when it was
-//! never run, or was run on another version of the model. A requirement
+//! never run, or was run on another version of the model. A case that names
+//! `evidence:` takes a verdict obtained outside the compiler, checked against
+//! the model as it is (`compiler::evidence`): stale or missing, it is
+//! inconclusive. A requirement
 //! with a failing or inconclusive verification case is not verified, for
 //! the production gate, even when another case passes; nor is one whose
 //! case says no verdict. Where a requirement stands is computed here, once
@@ -164,6 +167,18 @@ pub fn verdict(test: &TestCase, semantic: &SemanticModel) -> Verdict {
                 "pass" => Verdict::Pass,
                 "fail" => Verdict::Fail(status.reason.clone()),
                 "error" => Verdict::Fail(format!("the simulation is in error: {}", status.reason)),
+                _ => Verdict::Inconclusive(status.reason.clone()),
+            },
+        };
+    }
+    if super::evidence::is_external(test) {
+        // A verdict obtained outside the compiler, read and checked against the model as it is (`compiler::evidence`).
+        return match semantic.simulations.get(&test.id) {
+            None => Verdict::Inconclusive(format!("no evidence read: compile the model file, so that what '{}' recorded beside it is found", super::evidence::named(test).unwrap_or_default())),
+            Some(status) => match status.verdict.as_str() {
+                "pass" => Verdict::Pass,
+                "fail" => Verdict::Fail(status.reason.clone()),
+                "error" => Verdict::Fail(format!("the evidence is in error: {}", status.reason)),
                 _ => Verdict::Inconclusive(status.reason.clone()),
             },
         };

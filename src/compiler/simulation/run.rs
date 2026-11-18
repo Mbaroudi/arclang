@@ -29,7 +29,16 @@ fn configuration_name(result: &CompilationResult, spec: &Spec) -> Option<String>
 /// fresh when its key still matches, otherwise inconclusive (stale, or
 /// never simulated). Nothing is simulated here.
 pub fn attach(result: &mut CompilationResult, model_path: &Path) {
-    let executed = attach_executed(result, model_path);
+    let mut executed = attach_executed(result, model_path);
+    // The cases that take a verdict obtained outside the compiler (see `compiler::evidence`).
+    let external = crate::compiler::evidence::attach(result, model_path);
+    for (case, status) in &external {
+        if status.verdict != "pass" {
+            let name = result.ast.test_cases.iter().find(|t| &t.id == case).map(|t| t.name.clone()).unwrap_or_else(|| case.clone());
+            result.warnings.push(format!("verification: test_case '{name}' is {}: {}", status.verdict, status.reason));
+        }
+    }
+    executed.extend(external);
     if !result.ast.test_cases.iter().any(is_simulated) {
         result.semantic_model.simulations = executed;
         return;
