@@ -30,7 +30,7 @@ Claude Code:
 claude mcp add --env ARCLANG_WORKSPACE=/path/to/your/models arclang -- arclang-mcp
 ```
 
-Restart the client. It should list 35 `arclang_*` tools.
+Restart the client. It should list 64 `arclang_*` tools.
 
 ## 3. First steps
 
