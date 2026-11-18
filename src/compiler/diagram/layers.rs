@@ -12,9 +12,10 @@
 //! reference as written and gets no layer or identity.
 
 use super::links::stands_for_an_element;
-use super::{DiagramSet, Link, Node};
+use super::{DiagramSet, Link, Node, NodeKind};
 use crate::compiler::impact::graph::{layer_code, ImpactGraph};
 use crate::compiler::impact::layers::JOINING;
+use crate::compiler::metamodel::Layer;
 use crate::compiler::tables::Context;
 use std::collections::{HashMap, HashSet};
 
@@ -91,12 +92,22 @@ struct Drawn {
 
 /// Give a node and what it holds their layer, and note where each is drawn.
 fn mark(node: &mut Node, owner: Option<usize>, context: &Context, elements: &Elements, drawn: &mut Drawn) {
-    let element = if stands_for_an_element(node.kind) { elements.drawn_as(node, owner, context) } else { None };
+    // A lifeline is not an element, the participant it stands for is one.
+    let element = if stands_for_an_element(node.kind) || node.kind == NodeKind::Lifeline { elements.drawn_as(node, owner, context) } else { None };
     if let Some(index) = element {
         let uuid = &context.element(index).uuid;
         node.layer = Some(layer_code(context.layer_of(index)));
         drawn.uuid_of.entry(node.id.clone()).or_insert_with(|| uuid.clone());
-        drawn.id_of.entry(uuid.clone()).or_insert_with(|| node.id.clone());
+        // A link names an element by the id its own layer draws it under, not by a lifeline or a SysML v2 shape.
+        if !matches!(node.kind, NodeKind::Lifeline | NodeKind::SysmlPart | NodeKind::SysmlAction | NodeKind::SysmlDefinition) {
+            drawn.id_of.entry(uuid.clone()).or_insert_with(|| node.id.clone());
+        }
+    } else if node.kind == NodeKind::System {
+        // The box of the system is the system analysis itself.
+        node.layer = Some(layer_code(Layer::System));
+    } else if node.kind == NodeKind::ValueProperty {
+        // A value drawn on its own is a property of the element that holds it.
+        node.layer = owner.map(|index| layer_code(context.layer_of(index)));
     }
     for child in &mut node.children {
         mark(child, element.or(owner), context, elements, drawn);
@@ -113,7 +124,14 @@ fn drawn_as_kind(element_kind: &str, node_kind: &str) -> bool {
         }
         snake.push(letter.to_ascii_lowercase());
     }
-    snake == node_kind || snake.ends_with(&format!("_{node_kind}")) || node_kind.ends_with(&format!("_{snake}"))
+    snake == node_kind
+        || snake.ends_with(&format!("_{node_kind}"))
+        || node_kind.ends_with(&format!("_{snake}"))
+        // A mode is a state said to be one; the product breakdown draws every EPBS kind as an item.
+        || (element_kind == "State" && node_kind == "mode")
+        || (element_kind.starts_with("Epbs") && node_kind == "configuration_item")
+        // A SysML v2 view and a scenario draw an element of any kind under their own shape: its id says which.
+        || matches!(node_kind, "sysml_part" | "sysml_action" | "sysml_definition" | "lifeline")
 }
 
 fn layer_of(context: &Context, uuid: &str) -> Option<&'static str> {
