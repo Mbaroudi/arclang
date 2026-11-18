@@ -228,8 +228,8 @@ async def test_baselines_are_listed_made_verified_and_compared(server, repositor
     git(repository, "commit", "-q", "-am", "A faster bus")
     await server.call_tool("arclang_baseline", {"action": "create", "name": "v2"})
     compared = await server.call_tool("arclang_baseline", {"action": "diff", "a": "v1", "b": "v2", "format": "md"})
-    # `baseline diff` exits 0 either way: the first line claims neither, the report says which.
-    assert compared.splitlines()[0] == "Baseline diff v1 -> v2: compared (read the changes below)", compared
+    # Like `diff`: exit 1 when the baselines differ, and the first line says so.
+    assert compared.splitlines()[0] == "Baseline diff v1 -> v2: the baselines differ", compared
     assert 'bandwidth: "2 Mbps" -> "5 Mbps"' in compared
 
     # A file of the baseline changed by hand no longer matches its manifest.

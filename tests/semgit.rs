@@ -640,10 +640,13 @@ fn baseline_diff_compares_models_and_gates() {
     repo.edit("model.arc", "trace \"LC-1\" satisfies \"R-1\" { rationale: \"stops\" }\n", "");
     repo.commit("drop the trace");
     repo.ok(&["baseline", "create", "v2"]);
-    let out = repo.ok(&["baseline", "diff", "v1", "v2"]);
+    let out = repo.ok_or_diff(&["baseline", "diff", "v1", "v2"]);
     assert!(out.contains("Gate reports") && out.contains("v1: ") && out.contains("v2: "), "{out}");
     assert!(out.contains("trace"), "{out}");
-    let json: serde_json::Value = serde_json::from_str(&repo.ok(&["baseline", "diff", "v1", "v2", "-f", "json"])).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&repo.ok_or_diff(&["baseline", "diff", "v1", "v2", "-f", "json"])).unwrap();
     assert_eq!(json["a"], "v1");
     assert!(json["diff"]["relationships"].as_array().unwrap().iter().any(|r| r["status"] == "removed"));
+    // As `arclang diff`: the baselines differ, the exit says so; the same one twice, it does not.
+    repo.ok(&["baseline", "diff", "v1", "v1"]);
+    assert!(repo.arclang(&["baseline", "diff", "v1", "v2"]).status.code() == Some(1));
 }
