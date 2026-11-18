@@ -673,10 +673,20 @@ pub(super) fn string_list(attributes: &HashMap<String, AttributeValue>, key: &st
     }
 }
 
-/// The model's display title for a viewpoint: the first block's `name`.
+/// The model's display title for a viewpoint: the `name` of its block. A
+/// level written in several blocks with names of their own is drawn as one
+/// view, titled after all of them: under the first name alone, the elements
+/// of the other blocks read as if their block were not shown.
 pub(super) fn view_title(view: ViewKind, block_names: impl Iterator<Item = String>) -> String {
-    block_names
-        .into_iter()
-        .find(|name| !name.is_empty())
-        .unwrap_or_else(|| view.label().to_string())
+    let mut names: Vec<String> = Vec::new();
+    for name in block_names {
+        if !name.is_empty() && !names.contains(&name) {
+            names.push(name);
+        }
+    }
+    match names.len() {
+        0 => view.label().to_string(),
+        1 | 2 => names.join(" + "),
+        more => format!("{} + {} + {} more", names[0], names[1], more - 2),
+    }
 }

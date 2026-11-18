@@ -1082,6 +1082,22 @@ trace "Acquire" realizes "OA-Mon" { rationale: "stale id" }
 }
 
 #[test]
+fn an_actor_holds_the_activities_it_performs_and_an_activity_stands_outside_an_entity() {
+    // Issue #215: the workbench writes `activity "x" {}` in the selected actor, or in the analysis when nothing is selected.
+    let source = "model M { version: \"1.0\" }\noperational_analysis \"Ops\" {\n  actor \"Driver\" { id: \"OA-ACT-1\" activity \"Drive\" {} activity \"Park\" { performed_by: \"OE-1\" } }\n  actor \"Passenger\" { activity \"Ride\" {} }\n  entity \"Fleet\" { id: \"OE-1\" }\n  activity \"Wait\" {}\n}\n";
+    let result = Compiler::new(CompilerConfig::default()).compile_string(source).expect("compiles");
+    let performed: Vec<(&str, &str)> = result.ast.operational_analysis[0].activities.iter().map(|a| (a.name.as_str(), a.performed_by.as_str())).collect();
+    assert_eq!(performed, [("Drive", "OA-ACT-1"), ("Park", "OE-1"), ("Ride", "Passenger"), ("Wait", "")]);
+
+    use arclang::compiler::source_edit::{add_element, Container};
+    let bare = "model M { version: \"1.0\" }\noperational_analysis \"Ops\" {\n  actor \"Driver\" { id: \"OA-ACT-1\" }\n}\n";
+    let in_actor = add_element(bare, Container::Element("OA-ACT-1"), "activity", "Drive", &[]).expect("in the selected actor");
+    assert!(in_actor.contains("actor \"Driver\" { id: \"OA-ACT-1\" activity \"Drive\" {} }"), "{in_actor}");
+    let in_layer = add_element(bare, Container::Layer { keyword: "operational_analysis", name: None }, "activity", "Wait", &[]).expect("with nothing selected");
+    assert!(in_layer.contains("\n  activity \"Wait\" {}\n"), "{in_layer}");
+}
+
+#[test]
 fn a_text_that_imports_is_assembled_from_the_files_given_in_place_of_a_file_system() {
     use arclang::compiler::given::{give, Given};
     let root = "import \"parts/logical.arc\"\nimport \"requirements.arc\"\nmodel M { version: \"1.0\" }\ntrace \"LC-1\" satisfies \"REQ-1\" { rationale: \"r\" }\n";
