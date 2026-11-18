@@ -234,6 +234,28 @@ async fn the_layers_of_a_commit_say_where_each_element_is_and_what_joins_them() 
 }
 
 #[tokio::test]
+async fn the_views_of_a_commit_are_what_the_viewer_draws_of_it() {
+    let (project, commit) = ids().await;
+    let views = get(&format!("/projects/{project}/commits/{commit}/views")).await;
+    assert_eq!(views["title"], "Lane");
+    let graphs = views["graphs"].as_array().unwrap();
+    let logical = graphs.iter().find(|g| g["arc"]["view"] == "lab").expect("the logical architecture is drawn");
+    let controller = logical["children"].as_array().unwrap().iter().find(|n| n["id"] == "LC-1").expect("its component");
+    assert_eq!(controller["arc"]["layer"], "LA");
+    // The links between layers come with the views, as in the page `arclang diagram -f html` writes.
+    assert!(views["links"].as_array().unwrap().iter().any(|l| l["kind"] == "satisfies" && l["source_layer"] == "LA"), "{}", views["links"]);
+}
+
+#[tokio::test]
+async fn the_realization_of_a_commit_is_the_ladder_of_each_requirement() {
+    let (project, commit) = ids().await;
+    let realization = get(&format!("/projects/{project}/commits/{commit}/realization")).await;
+    let ladders = realization["requirements"].as_array().unwrap();
+    let ladder = ladders.iter().find(|l| l["requirement"] == "REQ-1").expect("the ladder of REQ-1");
+    assert!(ladder["stages"].is_array(), "{ladder}");
+}
+
+#[tokio::test]
 async fn pagination_uses_cursors_and_link_headers() {
     let (project, commit) = ids().await;
     let path = format!("/projects/{project}/commits/{commit}/elements");

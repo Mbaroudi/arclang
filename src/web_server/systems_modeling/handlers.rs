@@ -274,6 +274,34 @@ async fn get_layers(State(api): Shared, Path((project_id, commit_id)): Path<(Str
     }
 }
 
+/// What the viewer draws of a commit: the payload `arclang diagram -f html`
+/// puts in its page (the diagrams, the layer of each element, the links
+/// between layers, the diagnostics), for a client that mounts the viewer
+/// itself.
+async fn get_views(State(api): Shared, Path((project_id, commit_id)): Path<(String, String)>) -> Response {
+    let workspace = read(&api.workspace);
+    match workspace.snapshot(&project_id, &commit_id) {
+        Ok(snapshot) => match &snapshot.views {
+            Some(views) => ([(header::CONTENT_TYPE, "application/json")], views.to_string()).into_response(),
+            None => not_found(format!("commit '{}' has no views: it was not built from a compilation", commit_id)),
+        },
+        Err(response) => response,
+    }
+}
+
+/// The realization ladder of each requirement of a commit: what each stage
+/// (simulation, SIL, PIL, HDL, SoC, board, twin) says of it, as `check
+/// --json` prints it. The verdicts are those kept beside the model the
+/// server reads; a commit they were not run on shows them stale or missing.
+async fn get_realization(State(api): Shared, Path((project_id, commit_id)): Path<(String, String)>) -> Response {
+    let workspace = read(&api.workspace);
+    match workspace.snapshot(&project_id, &commit_id) {
+        Ok(snapshot) if snapshot.realization.is_null() => not_found(format!("commit '{}' has no realization: it was not built from a compilation", commit_id)),
+        Ok(snapshot) => Json(snapshot.realization.clone()).into_response(),
+        Err(response) => response,
+    }
+}
+
 async fn list_roots(
     State(api): Shared,
     Path((project_id, commit_id)): Path<(String, String)>,
@@ -516,6 +544,8 @@ pub fn router(workspace: SharedWorkspace, vocabulary: Vocabulary) -> Router {
         .route("/projects/:project_id/commits/:commit_id/elements/:element_id/relationships", get(get_relationships))
         .route("/projects/:project_id/commits/:commit_id/roots", get(list_roots))
         .route("/projects/:project_id/commits/:commit_id/layers", get(get_layers))
+        .route("/projects/:project_id/commits/:commit_id/views", get(get_views))
+        .route("/projects/:project_id/commits/:commit_id/realization", get(get_realization))
         .route("/projects/:project_id/commits/:commit_id/changes", get(list_changes))
         .route("/projects/:project_id/query-results", post(query_results))
         .with_state(Api { workspace, vocabulary })

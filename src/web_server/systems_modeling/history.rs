@@ -158,6 +158,17 @@ pub(super) fn compile_revision(root: &FsPath, relative: &FsPath, key: &str, revi
         &sha[..12.min(sha.len())]
     ));
     let compiled = materialize(root, sha, relative, &scratch, &mut Vec::new()).and_then(|()| {
+        // The verdicts kept beside the model (`.arclang/`) are keyed by what
+        // they were run on: read from the revision's copy, each says of this
+        // revision what it is worth (fresh, stale or missing). They are
+        // linked, never copied, and never written from here.
+        #[cfg(unix)]
+        if let Some(beside) = relative.parent() {
+            let kept = root.join(beside).join(".arclang");
+            if kept.is_dir() {
+                let _ = std::os::unix::fs::symlink(&kept, scratch.join(beside).join(".arclang"));
+            }
+        }
         crate::Compiler::new(crate::CompilerConfig::default())
             .compile_file(scratch.join(relative))
             .map_err(|e| e.to_string())
