@@ -312,6 +312,18 @@ async fn get_variants(State(api): Shared, Path((project_id, commit_id)): Path<(S
     }
 }
 
+/// Where the located elements of a commit are: the GeoJSON of `arclang
+/// export -f geojson` (each feature named by the written id of its element),
+/// and what could not be drawn and why.
+async fn get_space(State(api): Shared, Path((project_id, commit_id)): Path<(String, String)>) -> Response {
+    let workspace = read(&api.workspace);
+    match workspace.snapshot(&project_id, &commit_id) {
+        Ok(snapshot) if snapshot.space.is_null() => not_found(format!("commit '{}' has no space: it was not built from a compilation", commit_id)),
+        Ok(snapshot) => Json(snapshot.space.clone()).into_response(),
+        Err(response) => response,
+    }
+}
+
 async fn list_roots(
     State(api): Shared,
     Path((project_id, commit_id)): Path<(String, String)>,
@@ -556,6 +568,7 @@ pub fn router(workspace: SharedWorkspace, vocabulary: Vocabulary) -> Router {
         .route("/projects/:project_id/commits/:commit_id/layers", get(get_layers))
         .route("/projects/:project_id/commits/:commit_id/views", get(get_views))
         .route("/projects/:project_id/commits/:commit_id/variants", get(get_variants))
+        .route("/projects/:project_id/commits/:commit_id/space", get(get_space))
         .route("/projects/:project_id/commits/:commit_id/realization", get(get_realization))
         .route("/projects/:project_id/commits/:commit_id/changes", get(list_changes))
         .route("/projects/:project_id/query-results", post(query_results))

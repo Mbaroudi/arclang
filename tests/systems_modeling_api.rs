@@ -304,6 +304,32 @@ async fn the_variants_of_a_commit_say_what_each_configuration_leaves_out() {
 }
 
 #[tokio::test]
+async fn the_space_of_a_commit_places_what_has_a_location_and_nothing_else() {
+    let model = r#"model Grid { name: "Grid" }
+physical_architecture "P" {
+    node "Hub A" { id: "PN-A" location: { lat: 48.0 deg lon: 2.0 deg } }
+    node "Hub B" { id: "PN-B" location: { lat: 49.0 deg lon: 3.0 deg } }
+    node "Cabinet" { id: "PN-C" }
+    physical_link "AB" { id: "PL-AB" from: "PN-A" to: "PN-B" }
+    physical_link "BC" { id: "PL-BC" from: "PN-B" to: "PN-C" }
+}
+"#;
+    let (_, _, projects) = call(model, "GET", "/projects", None).await;
+    let project = projects[0]["@id"].as_str().unwrap().to_string();
+    let (_, _, branches) = call(model, "GET", &format!("/projects/{project}/branches"), None).await;
+    let commit = branches[0]["head"]["@id"].as_str().unwrap().to_string();
+    let (status, _, space) = call(model, "GET", &format!("/projects/{project}/commits/{commit}/space"), None).await;
+    assert_eq!(status, StatusCode::OK, "{space}");
+    let features = space["collection"]["features"].as_array().unwrap();
+    let ids: Vec<&str> = features.iter().map(|f| f["id"].as_str().unwrap()).collect();
+    assert!(ids.contains(&"PN-A") && ids.contains(&"PN-B") && ids.contains(&"PL-AB"), "{ids:?}");
+    assert!(!ids.contains(&"PN-C") && !ids.contains(&"PL-BC"), "an element with no location is not placed: {ids:?}");
+    // Longitude first, as GeoJSON has it.
+    assert_eq!(features.iter().find(|f| f["id"] == "PN-A").unwrap()["geometry"]["coordinates"], json!([2.0, 48.0]));
+    assert!(space["notes"][0].as_str().unwrap().contains("PL-BC"), "what could not be drawn is said: {}", space["notes"]);
+}
+
+#[tokio::test]
 async fn pagination_uses_cursors_and_link_headers() {
     let (project, commit) = ids().await;
     let path = format!("/projects/{project}/commits/{commit}/elements");

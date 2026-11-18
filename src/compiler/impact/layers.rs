@@ -92,3 +92,13 @@ pub fn variants(result: &crate::CompilationResult) -> Value {
         .collect();
     json!({ "variations": variations, "configurations": configurations })
 }
+
+/// Where the located elements of a model are: the GeoJSON `arclang export
+/// -f geojson` writes (a point for each element with a `location`, a line
+/// for each physical link, along its route or straight between its located
+/// ends), with the notes on what could not be drawn. Elements without a
+/// location are not in it: a map never guesses where something is.
+pub fn space(result: &crate::CompilationResult) -> Value {
+    let (text, notes) = crate::compiler::spatial::geojson::export(&result.ast);
+    json!({ "collection": serde_json::from_str::<Value>(&text).unwrap_or(Value::Null), "notes": notes })
+}
