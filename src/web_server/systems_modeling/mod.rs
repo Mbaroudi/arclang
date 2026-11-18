@@ -95,6 +95,8 @@ pub struct Snapshot {
     pub views: Option<std::sync::Arc<str>>,
     /// The realization ladder of each requirement, or null likewise.
     pub realization: Value,
+    /// The variations, the configurations and what each leaves out, or null likewise.
+    pub variants: Value,
     /// SHA-256 of the rendered records: equal digests = equal content.
     pub digest: String,
     pub unresolved: Vec<String>,
@@ -227,6 +229,7 @@ impl Snapshot {
             layers: Value::Null,
             views: None,
             realization: Value::Null,
+            variants: Value::Null,
             digest,
             unresolved: graph.unresolved.clone(),
             warnings,
@@ -247,6 +250,7 @@ impl Snapshot {
         let payload = crate::compiler::diagram::html::viewer_payload(&crate::compiler::diagram::build_linked_diagrams(result), title);
         snapshot.views = Some(payload.to_string().into());
         snapshot.realization = json!({ "requirements": crate::compiler::realization::ladders(result, None) });
+        snapshot.variants = crate::compiler::impact::layers::variants(result);
         snapshot
     }
 
@@ -273,6 +277,7 @@ impl Snapshot {
             layers: Value::Null,
             views: None,
             realization: Value::Null,
+            variants: Value::Null,
             digest: String::new(),
             unresolved: Vec::new(),
             warnings: Vec::new(),

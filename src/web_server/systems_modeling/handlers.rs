@@ -302,6 +302,16 @@ async fn get_realization(State(api): Shared, Path((project_id, commit_id)): Path
     }
 }
 
+/// The variations of a commit, its configurations, and what each leaves out.
+async fn get_variants(State(api): Shared, Path((project_id, commit_id)): Path<(String, String)>) -> Response {
+    let workspace = read(&api.workspace);
+    match workspace.snapshot(&project_id, &commit_id) {
+        Ok(snapshot) if snapshot.variants.is_null() => not_found(format!("commit '{}' has no variants: it was not built from a compilation", commit_id)),
+        Ok(snapshot) => Json(snapshot.variants.clone()).into_response(),
+        Err(response) => response,
+    }
+}
+
 async fn list_roots(
     State(api): Shared,
     Path((project_id, commit_id)): Path<(String, String)>,
@@ -545,6 +555,7 @@ pub fn router(workspace: SharedWorkspace, vocabulary: Vocabulary) -> Router {
         .route("/projects/:project_id/commits/:commit_id/roots", get(list_roots))
         .route("/projects/:project_id/commits/:commit_id/layers", get(get_layers))
         .route("/projects/:project_id/commits/:commit_id/views", get(get_views))
+        .route("/projects/:project_id/commits/:commit_id/variants", get(get_variants))
         .route("/projects/:project_id/commits/:commit_id/realization", get(get_realization))
         .route("/projects/:project_id/commits/:commit_id/changes", get(list_changes))
         .route("/projects/:project_id/query-results", post(query_results))

@@ -52,3 +52,43 @@ pub fn document(result: &crate::CompilationResult) -> Value {
     }
     json!({ "elements": elements, "links": links })
 }
+
+/// The points of variation of a model, its configurations, and for each
+/// configuration what it leaves out.
+///
+/// A configuration is one product: it selects one variant of every
+/// variation (`arclang::compiler::variability`). What it leaves out is the
+/// variants it does not select, and everything those hold: a client that
+/// shows a product dims exactly those elements. Elements that only link to a
+/// left-out variant (a node that deploys it, a function it realizes) are not
+/// in the list: only ownership is followed, nothing is guessed.
+pub fn variants(result: &crate::CompilationResult) -> Value {
+    let context = Context::new(result, "ISO26262");
+    let by_written_id = |id: &str| context.graph.elements.iter().position(|element| element.id == id && element.kind == "LogicalComponent");
+    let variations: Vec<Value> = crate::compiler::variability::variations(&result.ast)
+        .iter()
+        .map(|variation| {
+            let held: Vec<Value> = variation
+                .variants
+                .iter()
+                .map(|(id, name)| json!({ "id": id, "name": name, "@id": by_written_id(id).map(|index| context.element(index).uuid.clone()) }))
+                .collect();
+            let name = by_written_id(&variation.id).map(|index| context.element(index).name.clone()).unwrap_or_else(|| variation.id.clone());
+            json!({ "id": variation.id, "name": name, "@id": by_written_id(&variation.id).map(|index| context.element(index).uuid.clone()), "variants": held })
+        })
+        .collect();
+    let configurations: Vec<Value> = result
+        .ast
+        .configurations
+        .iter()
+        .map(|configuration| {
+            let left_out: Vec<usize> = crate::compiler::variability::excluded_by(&result.ast, &configuration.id).iter().filter_map(|id| by_written_id(id)).collect();
+            let excluded: Vec<&str> = (0..context.graph.elements.len())
+                .filter(|&index| left_out.contains(&index) || context.owners(index).iter().any(|owner| left_out.contains(owner)))
+                .map(|index| context.element(index).uuid.as_str())
+                .collect();
+            json!({ "id": configuration.id, "name": configuration.name, "selects": configuration.selects, "excluded": excluded })
+        })
+        .collect();
+    json!({ "variations": variations, "configurations": configurations })
+}

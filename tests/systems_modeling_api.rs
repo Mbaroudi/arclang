@@ -255,6 +255,54 @@ async fn the_realization_of_a_commit_is_the_ladder_of_each_requirement() {
     assert!(ladder["stages"].is_array(), "{ladder}");
 }
 
+const PRODUCT_LINE: &str = r#"model Cars { name: "Cars" }
+logical_architecture "LA" {
+    component "Car" {
+        id: "LC-CAR"
+        component "Pack" {
+            id: "LC-PACK"
+            variation: true
+            component "Standard pack" { id: "LC-PACK-STD" variant: true component "Cells" { id: "LC-CELLS-STD" } }
+            component "Long range pack" { id: "LC-PACK-LR" variant: true component "Cells" { id: "LC-CELLS-LR" } }
+        }
+        component "Body" { id: "LC-BODY" }
+    }
+}
+configuration "City" { id: "CFG-CITY" selects: ["LC-PACK-STD"] }
+configuration "Touring" { id: "CFG-TOURING" selects: ["LC-PACK-LR"] }
+"#;
+
+#[tokio::test]
+async fn the_variants_of_a_commit_say_what_each_configuration_leaves_out() {
+    let (_, _, projects) = call(PRODUCT_LINE, "GET", "/projects", None).await;
+    let project = projects[0]["@id"].as_str().unwrap().to_string();
+    let (_, _, branches) = call(PRODUCT_LINE, "GET", &format!("/projects/{project}/branches"), None).await;
+    let commit = branches[0]["head"]["@id"].as_str().unwrap().to_string();
+    let (status, _, variants) = call(PRODUCT_LINE, "GET", &format!("/projects/{project}/commits/{commit}/variants"), None).await;
+    assert_eq!(status, StatusCode::OK, "{variants}");
+    let (_, _, layers) = call(PRODUCT_LINE, "GET", &format!("/projects/{project}/commits/{commit}/layers"), None).await;
+    let uuid = |id: &str| layers["elements"].as_array().unwrap().iter().find(|e| e["id"] == id).unwrap_or_else(|| panic!("no {id}"))["@id"].as_str().unwrap().to_string();
+
+    let point = &variants["variations"][0];
+    assert_eq!(point["id"], "LC-PACK");
+    assert_eq!(point["name"], "Pack");
+    assert_eq!(point["variants"].as_array().unwrap().len(), 2);
+    assert_eq!(point["variants"][0]["@id"], json!(uuid("LC-PACK-STD")));
+
+    let excluded = |configuration: &str| -> Vec<String> {
+        let found = variants["configurations"].as_array().unwrap().iter().find(|c| c["id"] == configuration).unwrap();
+        found["excluded"].as_array().unwrap().iter().map(|u| u.as_str().unwrap().to_string()).collect()
+    };
+    // The City leaves out the long range pack and what it holds; what is not in a variant stays.
+    let city = excluded("CFG-CITY");
+    assert!(city.contains(&uuid("LC-PACK-LR")) && city.contains(&uuid("LC-CELLS-LR")), "{city:?}");
+    for kept in ["LC-PACK-STD", "LC-CELLS-STD", "LC-PACK", "LC-BODY", "LC-CAR"] {
+        assert!(!city.contains(&uuid(kept)), "{kept} stays in the City");
+    }
+    let touring = excluded("CFG-TOURING");
+    assert!(touring.contains(&uuid("LC-PACK-STD")) && touring.contains(&uuid("LC-CELLS-STD")) && !touring.contains(&uuid("LC-CELLS-LR")), "{touring:?}");
+}
+
 #[tokio::test]
 async fn pagination_uses_cursors_and_link_headers() {
     let (project, commit) = ids().await;
