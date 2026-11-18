@@ -301,6 +301,8 @@ pub(crate) fn local_unit(symbol: &str) -> Option<&'static str> {
         "'W*h'" => "attribute <'W*h'> 'watt hour' : EnergyUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = J; :>> conversionFactor = 3600; } }",
         "'kW*h'" => "attribute <'kW*h'> 'kilowatt hour' : EnergyUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = J; :>> conversionFactor = 3600000; } }",
         "kPa" => "attribute <kPa> kilopascal : PressureUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = kilo; :>> referenceUnit = Pa; } }",
+        "MPa" => "attribute <MPa> megapascal : PressureUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = mega; :>> referenceUnit = Pa; } }",
+        "GPa" => "attribute <GPa> gigapascal : PressureUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = giga; :>> referenceUnit = Pa; } }",
         "bar" => "attribute <bar> bar : PressureUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = Pa; :>> conversionFactor = 100000; } }",
         "'%'" => "attribute <'%'> percent : DimensionOneUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = one; :>> conversionFactor = 0.01; } }",
         "'A*h'" => "attribute <'A*h'> 'ampere hour' : ElectricChargeUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = C; :>> conversionFactor = 3600; } }",
