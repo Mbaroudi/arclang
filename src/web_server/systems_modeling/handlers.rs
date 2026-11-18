@@ -262,6 +262,18 @@ async fn list_elements(
     }
 }
 
+/// The elements of a commit with their layer, and the links that join the
+/// layers: one document, the same in both vocabularies (the identities are
+/// those of the elements served beside it).
+async fn get_layers(State(api): Shared, Path((project_id, commit_id)): Path<(String, String)>) -> Response {
+    let workspace = read(&api.workspace);
+    match workspace.snapshot(&project_id, &commit_id) {
+        Ok(snapshot) if snapshot.layers.is_null() => not_found(format!("commit '{}' has no layers: it was not built from a compilation", commit_id)),
+        Ok(snapshot) => Json(snapshot.layers.clone()).into_response(),
+        Err(response) => response,
+    }
+}
+
 async fn list_roots(
     State(api): Shared,
     Path((project_id, commit_id)): Path<(String, String)>,
@@ -503,6 +515,7 @@ pub fn router(workspace: SharedWorkspace, vocabulary: Vocabulary) -> Router {
         .route("/projects/:project_id/commits/:commit_id/elements/:element_id", get(get_element))
         .route("/projects/:project_id/commits/:commit_id/elements/:element_id/relationships", get(get_relationships))
         .route("/projects/:project_id/commits/:commit_id/roots", get(list_roots))
+        .route("/projects/:project_id/commits/:commit_id/layers", get(get_layers))
         .route("/projects/:project_id/commits/:commit_id/changes", get(list_changes))
         .route("/projects/:project_id/query-results", post(query_results))
         .with_state(Api { workspace, vocabulary })

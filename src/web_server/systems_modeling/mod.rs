@@ -86,6 +86,9 @@ pub struct Snapshot {
     view: View,
     /// The same model in the SysML v2 vocabulary, or why it is unavailable.
     sysml: Result<View, String>,
+    /// The elements with their layer and the links between layers, or null
+    /// when this commit was not built from a compilation.
+    pub layers: Value,
     /// SHA-256 of the rendered records: equal digests = equal content.
     pub digest: String,
     pub unresolved: Vec<String>,
@@ -215,6 +218,7 @@ impl Snapshot {
             created: timestamp(created),
             view: View::new(records, roots, ends),
             sysml: Err("the SysML v2 view is built from a compilation, not from a bare element graph".to_string()),
+            layers: Value::Null,
             digest,
             unresolved: graph.unresolved.clone(),
             warnings,
@@ -230,6 +234,7 @@ impl Snapshot {
         let graph = crate::compiler::elements::build(&result.ast, &result.semantic_model);
         let mut snapshot = Snapshot::from_graph(&graph, result.warnings.clone(), created);
         snapshot.sysml = sysml_view::build(result, &snapshot.view);
+        snapshot.layers = crate::compiler::impact::layers::document(result);
         snapshot
     }
 
@@ -253,6 +258,7 @@ impl Snapshot {
             created: timestamp(created),
             view: View::default(),
             sysml: Ok(View::default()),
+            layers: Value::Null,
             digest: String::new(),
             unresolved: Vec::new(),
             warnings: Vec::new(),

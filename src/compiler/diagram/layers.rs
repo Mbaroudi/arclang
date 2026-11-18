@@ -13,12 +13,10 @@
 
 use super::links::stands_for_an_element;
 use super::{DiagramSet, Link, Node};
-use crate::compiler::impact::graph::{layer_code, ImpactGraph, LinkKind};
+use crate::compiler::impact::graph::{layer_code, ImpactGraph};
+use crate::compiler::impact::layers::JOINING;
 use crate::compiler::tables::Context;
 use std::collections::{HashMap, HashSet};
-
-/// The kinds of link that join layers, or an element to what justifies it.
-const JOINING: [LinkKind; 5] = [LinkKind::Realization, LinkKind::Allocation, LinkKind::Deployment, LinkKind::Satisfies, LinkKind::Verifies];
 
 pub(super) fn complete(set: &mut DiagramSet, context: &Context) {
     let graph = ImpactGraph::build(context);

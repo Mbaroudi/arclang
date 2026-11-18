@@ -201,6 +201,39 @@ async fn relationships_are_navigable_in_both_directions() {
 }
 
 #[tokio::test]
+async fn the_layers_of_a_commit_say_where_each_element_is_and_what_joins_them() {
+    let (project, commit) = ids().await;
+    let layers = get(&format!("/projects/{project}/commits/{commit}/layers")).await;
+    let elements = layers["elements"].as_array().unwrap();
+    let of = |id: &str| elements.iter().find(|e| e["id"] == id).unwrap_or_else(|| panic!("no element {id}"));
+    assert_eq!(of("LC-1")["layer"], "LA");
+    assert_eq!(of("PN-1")["layer"], "PA");
+    assert_eq!(of("SF-1")["layer"], "SA");
+    // The identities are those of the elements served beside the layers.
+    let served = get(&format!("/projects/{project}/commits/{commit}/elements/{}", of("LC-1")["@id"].as_str().unwrap())).await;
+    assert_eq!(served["declaredName"], "Controller");
+
+    let links = layers["links"].as_array().unwrap();
+    let link = |kind: &str, source: &str, target: &str| {
+        links
+            .iter()
+            .find(|l| l["kind"] == kind && l["source"]["@id"] == of(source)["@id"] && l["target"]["@id"] == of(target)["@id"])
+            .unwrap_or_else(|| panic!("no {kind} link from {source} to {target} in {links:#?}"))
+    };
+    // A deployment is not a trace: the views never had it; it joins two layers.
+    let deployment = link("deployment", "LC-1", "PN-1");
+    assert_eq!(deployment["label"], "deployed on");
+    assert_eq!(deployment["back"], "hosts");
+    assert_eq!(deployment["sourceLayer"], "LA");
+    assert_eq!(deployment["targetLayer"], "PA");
+    let satisfaction = link("satisfies", "LC-1", "REQ-1");
+    assert_eq!(satisfaction["label"], "satisfies");
+    link("verifies", "TC-1", "REQ-1");
+    // Each link is said once, read from the end that depends on the other.
+    assert!(!links.iter().any(|l| l["kind"] == "deployment" && l["source"]["@id"] == of("PN-1")["@id"]));
+}
+
+#[tokio::test]
 async fn pagination_uses_cursors_and_link_headers() {
     let (project, commit) = ids().await;
     let path = format!("/projects/{project}/commits/{commit}/elements");
