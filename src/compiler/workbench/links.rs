@@ -79,6 +79,10 @@ fn resolve<'g>(graph: &'g ElementGraph, designator: &str) -> Result<&'g ElementR
 fn spellings(graph: &ElementGraph, source: &str, element: &ElementRecord) -> Vec<String> {
     let mut all = vec![element.id.clone(), element.name.clone(), written_designator(graph, source, &element.id)];
     if let Some(owner) = element.owner.as_ref().and_then(|uuid| graph.elements.iter().find(|e| &e.uuid == uuid)) {
+        // A port with an id of its own is still written `Owner.name` by its exchanges.
+        all.push(format!("{}.{}", owner.id, element.name));
+        all.push(format!("{}.{}", owner.name, element.name));
+        all.push(format!("{}.{}", written_designator(graph, source, &owner.id), element.name));
         if let Some(local) = element.id.strip_prefix(&format!("{}.", owner.id)) {
             all.push(local.to_string());
             all.push(format!("{}.{local}", owner.name));
@@ -102,6 +106,14 @@ fn written_like(graph: &ElementGraph, source: &str, spot: &Spot, old: &ElementRe
         let new_local = new.owner.as_ref().and_then(|uuid| graph.elements.iter().find(|e| &e.uuid == uuid)).and_then(|owner| new.id.strip_prefix(&format!("{}.", owner.id)).map(str::to_string));
         options.extend(new_local);
         options.push(new.name.clone());
+    }
+    // The end was written `Owner.name`: the copy is written the same way, by its owner.
+    if spot.text.contains('.') {
+        if let Some(owner) = new.owner.as_ref().and_then(|uuid| graph.elements.iter().find(|e| &e.uuid == uuid)) {
+            options.push(format!("{}.{}", written_designator(graph, source, &owner.id), new.name));
+            options.push(format!("{}.{}", owner.id, new.name));
+            options.push(format!("{}.{}", owner.name, new.name));
+        }
     }
     options.push(full);
     options.push(new.id.clone());
@@ -656,6 +668,19 @@ mod tests {
         let copy = duplicate(model, "LC-001", None).unwrap();
         assert!(copy.contains("LC-001-2") || copy.contains("LC-002"), "{copy}");
         assert!(copy.contains("involves: [\"ChassisCAN\"]"));
+    }
+
+
+    #[test]
+    fn exchanges_written_by_port_or_by_bare_name_are_copied_with_their_ends() {
+        let model = include_str!("../../../mcp-server/src/arclang_mcp/resources/reference_model.arc");
+        // A component exchange between ports written `LC-001.threat`.
+        let components = duplicate_many(model, &["LC-001".to_string(), "LC-002".to_string()], None).unwrap();
+        assert!(components.contains("from_port: \"LC-003.threat\"") && components.contains("to_port: \"LC-004.threat\""), "{components}");
+        // A functional exchange named by a bare word: its copy takes a name of its own.
+        let functions = duplicate_many(model, &["SF-001".to_string(), "SF-002".to_string()], None).unwrap();
+        assert!(functions.contains("functional_exchange \"ThreatFlow 2\""), "{functions}");
+        assert_eq!(functions.matches("functional_exchange ThreatFlow {").count(), 1, "{functions}");
     }
 
 }
