@@ -82,7 +82,11 @@ an element kind accepts and with which type.
     `mitigated_by` requirements (for `do178c`, each hazard also states its
     failure condition). The outcome of a case is computed (`simulate:`,
     `execute:`, `asserts:`) or recorded from a test run elsewhere
-    (`verdict: "pass"`, `"fail"`); a case that says nothing verifies nothing.
+    (`verdict: "pass"`, `"fail"`) or taken from another tool's record
+    (`evidence: "<name>"`, read from `.arclang/evidence/<case id>.json`
+    beside the model; stale, missing or unreadable is inconclusive, never a
+    pass; never write that file by hand); a case that says nothing verifies
+    nothing.
     Never record a verdict for a test nobody ran: leave the case without one
     and tell the engineer what remains to run.
 
