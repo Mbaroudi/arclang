@@ -40,6 +40,8 @@ pub fn attach(result: &mut CompilationResult, model_path: &Path) {
     }
     executed.extend(external);
     if !result.ast.test_cases.iter().any(is_simulated) {
+        // A model with twins and no simulated case still has the verdicts of its twins.
+        executed.extend(attach_twins(result, model_path));
         result.semantic_model.simulations = executed;
         return;
     }
