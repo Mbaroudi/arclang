@@ -5,7 +5,7 @@
 // CESAM opens on its grid, drawn from what the compiler computes, and each
 // cell opens the diagrams that draw that view.
 import type { CesamSnapshot, Notation, Snapshot, ViewerGraph } from '../src/pure/workbench';
-import { CESAM_VISIONS, NOTATIONS, NOTATION_VIEWS, VIEWPOINTS, cesamTabs, defaultNotation, graphsOfNotation } from '../src/pure/workbench';
+import { CESAM_VISIONS, NOTATIONS, NOTATION_VIEWS, VIEWPOINTS, cesamTabs, defaultNotation, graphsOfNotation, viewTabs } from '../src/pure/workbench';
 import { button, clear, el } from './dom';
 
 export interface NotationDeps {
@@ -84,30 +84,22 @@ export function installNotation(d: NotationDeps): NotationApi {
     clear(d.layerBar);
     const current = d.current();
     const n = notation();
+    const tab = (label: string, active: boolean, onClick: () => void, title: string, count?: number, sub = false) => {
+      const item = button('', onClick, { class: `wb-layer${sub ? ' wb-layer-sub' : ''}${active ? ' is-active' : ''}`, 'aria-pressed': String(active), title });
+      item.append(el('span', { class: 'wb-layer-name', text: label }));
+      if (count && count > 1) item.appendChild(el('span', { class: 'wb-layer-count', text: String(count) }));
+      d.layerBar.appendChild(item);
+    };
     if (n === 'cesam') {
-      const tab = (label: string, active: boolean, onClick: () => void, title: string, count?: number, sub = false) => {
-        const item = button('', onClick, { class: `wb-layer${sub ? ' wb-layer-sub' : ''}${active ? ' is-active' : ''}`, 'aria-pressed': String(active), title });
-        item.append(el('span', { class: 'wb-layer-name', text: label }));
-        if (count && count > 1) item.appendChild(el('span', { class: 'wb-layer-count', text: String(count) }));
-        d.layerBar.appendChild(item);
-      };
       tab('Grid', gridOpen, () => { gridOpen = true; render(file); }, 'The CESAM grid: three visions by six aspects, computed by the compiler');
       // A vision with several diagrams lists them once it is open: each is one click away.
       for (const t of cesamTabs(cesam(), graphs(), current ?? undefined, gridOpen)) tab(t.label, t.active, () => open(t.diagram), t.title, t.count, t.sub);
       return;
     }
     const own = graphsOfNotation(n, graphs(), cesam());
-    // In the notation's own order (SysML v2: the general view first).
+    // In the notation's own order (SysML v2: the general view first); a view with several diagrams lists them once it is open.
     const ordered = NOTATION_VIEWS[n].map((view) => VIEWPOINTS.find((v) => v.view === view)).filter((v): v is (typeof VIEWPOINTS)[number] => !!v);
-    for (const viewpoint of ordered) {
-      const diagrams = own.filter((g) => g.arc.view === viewpoint.view);
-      if (!diagrams.length) continue;
-      const active = diagrams.some((g) => g.id === current);
-      const item = button('', () => d.show(diagrams[0].id), { class: `wb-layer${active ? ' is-active' : ''}`, 'aria-pressed': String(active), title: `${viewpoint.label}${diagrams.length > 1 ? ` (${diagrams.length} diagrams)` : ''}` });
-      item.append(el('span', { class: 'wb-layer-name', text: viewpoint.short }));
-      if (diagrams.length > 1) item.appendChild(el('span', { class: 'wb-layer-count', text: String(diagrams.length) }));
-      d.layerBar.appendChild(item);
-    }
+    for (const t of viewTabs(ordered, own, current ?? undefined)) tab(t.label, t.active, () => open(t.diagram), t.title, t.count, t.sub);
     d.layerBar.appendChild(button('Diagrams…', d.more, { class: 'wb-layer wb-layer-more', title: 'Open a diagram by layer, here or in a tab of its own' }));
   }
 

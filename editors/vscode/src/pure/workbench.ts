@@ -1008,7 +1008,7 @@ export const CESAM_VISIONS: { id: string; label: string; short: string; question
   { id: 'constructional', label: 'Constructional vision', short: 'Constructional', question: 'What is it made of?' },
 ];
 
-/** One tab of the CESAM notation: a vision, or one diagram of the vision that is open. */
+/** One tab of a notation: a vision or a view, or one diagram of the one that is open. */
 export interface CesamTab {
   label: string;
   title: string;
@@ -1036,6 +1036,24 @@ export function cesamTabs(cesam: CesamSnapshot | undefined, drawn: Pick<ViewerGr
     const open = !gridOpen && own.some((c) => c.id === current);
     tabs.push({ label: vision.short, title: `${vision.label}: ${own.map((c) => c.view).join(', ')}`, diagram: own[0].id, active: open, ...(own.length > 1 ? { count: own.length } : {}) });
     if (open && own.length > 1) for (const c of own) tabs.push({ label: titles.get(c.id) || c.view, title: `${vision.label}: ${c.view}`, diagram: c.id, active: c.id === current, sub: true });
+  }
+  return tabs;
+}
+
+/**
+ * The tabs of a notation of views (Arcadia, SysML v2): one per view that has
+ * a diagram, in the notation's own order, and, for the view that is open when
+ * it has several diagrams, one per diagram under its own title, so that none
+ * of them needs the "Diagrams…" list to be reached.
+ */
+export function viewTabs(views: { view: string; label: string; short: string }[], drawn: Pick<ViewerGraph, 'id' | 'arc'>[], current: string | undefined): CesamTab[] {
+  const tabs: CesamTab[] = [];
+  for (const viewpoint of views) {
+    const own = drawn.filter((g) => g.arc.view === viewpoint.view);
+    if (!own.length) continue;
+    const open = own.some((g) => g.id === current);
+    tabs.push({ label: viewpoint.short, title: `${viewpoint.label}${own.length > 1 ? ` (${own.length} diagrams)` : ''}`, diagram: own[0].id, active: open, ...(own.length > 1 ? { count: own.length } : {}) });
+    if (open && own.length > 1) for (const g of own) tabs.push({ label: g.arc.title || g.id, title: `${viewpoint.label}: ${g.arc.title || g.id}`, diagram: g.id, active: g.id === current, sub: true });
   }
   return tabs;
 }
