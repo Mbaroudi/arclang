@@ -343,8 +343,10 @@ class VersioningTools:
             verdict = "matches its manifest and its tag" if run.ok else None
             if not run.ok and "FAIL" in run.stdout:
                 verdict = "DOES NOT MATCH its manifest or its tag"
-        elif action == "diff" and run.ok:
-            # Unlike `arclang diff`, this exits 0 whether the baselines differ or not:
-            # the first line claims neither, the report below says which.
-            verdict = "compared (read the changes below)"
+        elif action == "diff":
+            # Like `arclang diff`: 0 no difference, 1 a difference; anything else did not run.
+            if run.returncode == 0:
+                verdict = "no semantic change"
+            elif run.returncode == 1 and run.stdout.strip():
+                return f"{title}: the baselines differ\n\n{run.output}"
         return report(title, run, verdict)

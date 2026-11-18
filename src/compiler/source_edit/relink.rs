@@ -148,7 +148,8 @@ impl Document {
                 let header_start = block.open - header.len();
                 let name = (header_start..block.open)
                     .filter_map(|index| self.spot(index))
-                    .find(|spot| spot.quoted && Some(spot.text.as_str()) == ends.name)
+                    // The name is written quoted or as a bare word (`component_exchange Flow {`).
+                    .find(|spot| Some(spot.text.as_str()) == ends.name)
                     .or_else(|| self.name_attribute(&block, ends.name));
                 return Ok(RelationshipSpots { from, to, name });
             }

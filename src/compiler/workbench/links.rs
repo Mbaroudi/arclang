@@ -79,6 +79,10 @@ fn resolve<'g>(graph: &'g ElementGraph, designator: &str) -> Result<&'g ElementR
 fn spellings(graph: &ElementGraph, source: &str, element: &ElementRecord) -> Vec<String> {
     let mut all = vec![element.id.clone(), element.name.clone(), written_designator(graph, source, &element.id)];
     if let Some(owner) = element.owner.as_ref().and_then(|uuid| graph.elements.iter().find(|e| &e.uuid == uuid)) {
+        // A port with an id of its own is still written `Owner.name` by its exchanges.
+        all.push(format!("{}.{}", owner.id, element.name));
+        all.push(format!("{}.{}", owner.name, element.name));
+        all.push(format!("{}.{}", written_designator(graph, source, &owner.id), element.name));
         if let Some(local) = element.id.strip_prefix(&format!("{}.", owner.id)) {
             all.push(local.to_string());
             all.push(format!("{}.{local}", owner.name));
@@ -102,6 +106,14 @@ fn written_like(graph: &ElementGraph, source: &str, spot: &Spot, old: &ElementRe
         let new_local = new.owner.as_ref().and_then(|uuid| graph.elements.iter().find(|e| &e.uuid == uuid)).and_then(|owner| new.id.strip_prefix(&format!("{}.", owner.id)).map(str::to_string));
         options.extend(new_local);
         options.push(new.name.clone());
+    }
+    // The end was written `Owner.name`: the copy is written the same way, by its owner.
+    if spot.text.contains('.') {
+        if let Some(owner) = new.owner.as_ref().and_then(|uuid| graph.elements.iter().find(|e| &e.uuid == uuid)) {
+            options.push(format!("{}.{}", written_designator(graph, source, &owner.id), new.name));
+            options.push(format!("{}.{}", owner.id, new.name));
+            options.push(format!("{}.{}", owner.name, new.name));
+        }
     }
     options.push(full);
     options.push(new.id.clone());
@@ -352,7 +364,8 @@ pub fn duplicate(source: &str, element: &str, container: Option<Container>) -> R
     // The relationships are those of the original, plus the copy's own: one
     // that joins two elements already there (an exchange written inside the
     // copied block between the originals) is a second exchange, refused.
-    let old: std::collections::HashSet<&str> = graph.elements.iter().map(|e| e.uuid.as_str()).collect();
+    // An end may be a relationship too: a path involves the links it goes through.
+    let old: std::collections::HashSet<&str> = graph.elements.iter().map(|e| e.uuid.as_str()).chain(graph.relationships.iter().map(|r| r.uuid.as_str())).collect();
     let mut kept = edges(&graph);
     for r in &after.relationships {
         if !(old.contains(r.source.as_str()) && old.contains(r.target.as_str())) {
@@ -413,7 +426,8 @@ pub fn duplicate_many(source: &str, elements: &[String], container: Option<Conta
     }
     // An element inside another one copied comes with it.
     let tops: Vec<&ElementRecord> = picked.iter().copied().filter(|r| !picked.iter().any(|o| o.uuid != r.uuid && within(&graph, r, &o.uuid))).collect();
-    let old: std::collections::HashSet<&str> = graph.elements.iter().map(|e| e.uuid.as_str()).collect();
+    // An end may be a relationship too: a path involves the links it goes through.
+    let old: std::collections::HashSet<&str> = graph.elements.iter().map(|e| e.uuid.as_str()).chain(graph.relationships.iter().map(|r| r.uuid.as_str())).collect();
     let mut taken: std::collections::HashSet<String> = graph.elements.iter().flat_map(|e| [e.id.clone(), e.name.clone()]).collect();
     let mut renamed: BTreeMap<String, String> = BTreeMap::new();
     let mut names: std::collections::HashSet<String> = graph.elements.iter().map(|e| e.name.clone()).collect();
@@ -643,6 +657,30 @@ mod tests {
         assert!(into.contains("from_port: \"LC-A-2.p\"") && into.contains("to_port: \"LC-B-2.q\""), "{into}");
         // A scenario still refuses: its messages join participants that are not copied.
         assert!(duplicate_many(MODEL, &["S".to_string()], None).is_err());
+    }
+
+
+    #[test]
+    fn a_path_through_a_link_does_not_stop_an_unrelated_copy() {
+        // The reference model has a physical_path involving a link: the link is a
+        // relationship, and the path's involvement of it is not lost by a copy.
+        let model = include_str!("../../../mcp-server/src/arclang_mcp/resources/reference_model.arc");
+        let copy = duplicate(model, "LC-001", None).unwrap();
+        assert!(copy.contains("LC-001-2") || copy.contains("LC-002"), "{copy}");
+        assert!(copy.contains("involves: [\"ChassisCAN\"]"));
+    }
+
+
+    #[test]
+    fn exchanges_written_by_port_or_by_bare_name_are_copied_with_their_ends() {
+        let model = include_str!("../../../mcp-server/src/arclang_mcp/resources/reference_model.arc");
+        // A component exchange between ports written `LC-001.threat`.
+        let components = duplicate_many(model, &["LC-001".to_string(), "LC-002".to_string()], None).unwrap();
+        assert!(components.contains("from_port: \"LC-003.threat\"") && components.contains("to_port: \"LC-004.threat\""), "{components}");
+        // A functional exchange named by a bare word: its copy takes a name of its own.
+        let functions = duplicate_many(model, &["SF-001".to_string(), "SF-002".to_string()], None).unwrap();
+        assert!(functions.contains("functional_exchange \"ThreatFlow 2\""), "{functions}");
+        assert_eq!(functions.matches("functional_exchange ThreatFlow {").count(), 1, "{functions}");
     }
 
 }

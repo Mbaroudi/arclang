@@ -354,7 +354,12 @@ pub fn run_baseline(command: &BaselineCommand) -> Result<(), CliError> {
                     print!("{}", render::render(&result.diff, (*other).into()));
                 }
             }
-            Ok(())
+            // As `arclang diff`: a non-zero exit says the two baselines differ.
+            if result.diff.model_changed {
+                Err(CliError::DiffFound)
+            } else {
+                Ok(())
+            }
         }
         BaselineCommand::Verify { name, json } => {
             let v = baseline::verify(&cwd, name).map_err(failure)?;

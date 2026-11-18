@@ -401,6 +401,28 @@ pub fn compute(result: &CompilationResult, spec: &TableSpec, options: &Options) 
 
 /// Compute one table with a context already built (several tables of one model).
 pub fn compute_in(context: &Context, spec: &TableSpec) -> Result<Table, String> {
+    // A matrix reads `columns` as kinds; every other table as the columns shown,
+    // named by key (`id`) or by the label of the header (`Id`), in either case.
+    let is_matrix = matches!(spec.kind.as_str(), "traceability_matrix" | "allocation_matrix" | "interface_n2");
+    if spec.columns.is_empty() || is_matrix {
+        return compute_kind(context, spec);
+    }
+    let probe = compute_kind(context, &TableSpec { columns: Vec::new(), ..spec.clone() })?;
+    let mut keys = Vec::new();
+    for wanted in &spec.columns {
+        let found = probe.available_columns.iter().find(|c| c.key.eq_ignore_ascii_case(wanted) || c.label.eq_ignore_ascii_case(wanted));
+        match found {
+            Some(column) => keys.push(column.key.clone()),
+            None => {
+                let known: Vec<&str> = probe.available_columns.iter().map(|c| c.key.as_str()).collect();
+                return Err(format!("unknown column '{wanted}' for the {} table: one of {}", spec.kind, known.join(", ")));
+            }
+        }
+    }
+    compute_kind(context, &TableSpec { columns: keys, ..spec.clone() })
+}
+
+fn compute_kind(context: &Context, spec: &TableSpec) -> Result<Table, String> {
     let kind = spec.kind.as_str();
     let (columns, available, mut rows, matrix) = match kind {
         "requirements_coverage" => {

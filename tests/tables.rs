@@ -219,6 +219,15 @@ fn an_elements_table_picks_its_columns_among_the_attributes() {
     let edit = row(&table, "LC-RADAR").cells["description"].edit.as_ref().unwrap();
     assert_eq!((edit.op.as_str(), edit.key.as_deref()), ("set", Some("description")));
     assert_eq!(row(&table, "LC-RADAR").cells["name"].edit.as_ref().unwrap().op, "rename");
+    // A column is named by its key or by the label of its header, in any case; an unknown one is refused.
+    let by_label = TableSpec { kind: "elements".into(), row_type: Some("LogicalComponent".into()), columns: vec!["Id".into(), "NAME".into()], ..TableSpec::default() };
+    let by_label = tables::compute(&result, &by_label, &Options::default()).unwrap();
+    assert_eq!(by_label.columns.iter().map(|c| c.key.as_str()).collect::<Vec<_>>(), ["id", "name"]);
+    assert!(by_label.rows.iter().all(|r| !r.cells["name"].text.is_empty()));
+    let keys: Vec<&str> = by_label.available_columns.iter().map(|c| c.key.as_str()).collect();
+    assert_eq!(keys.iter().filter(|k| **k == "name").count(), 1, "{keys:?}");
+    let bogus = TableSpec { kind: "elements".into(), row_type: Some("LogicalComponent".into()), columns: vec!["id".into(), "bogus".into()], ..TableSpec::default() };
+    assert!(tables::compute(&result, &bogus, &Options::default()).unwrap_err().contains("unknown column 'bogus'"));
     let unknown = TableSpec { kind: "elements".into(), row_type: Some("Gizmo".into()), ..TableSpec::default() };
     assert!(tables::compute(&result, &unknown, &Options::default()).unwrap_err().contains("no kind of the metamodel"));
     let bad_scope = TableSpec { kind: "elements".into(), scope: Some("Nowhere".into()), ..TableSpec::default() };
