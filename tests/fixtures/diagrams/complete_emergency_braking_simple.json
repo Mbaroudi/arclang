@@ -1964,61 +1964,91 @@
           "id": "RadarSensor",
           "uuid": "215cd4f4-cecc-5e28-8627-b1bc97f349b2",
           "name": "RadarSensor",
-          "kind": "logical_component"
+          "kind": "logical_component",
+          "properties": {
+            "description": "Front-facing radar sensor"
+          }
         },
         {
           "id": "CameraSensor",
           "uuid": "6d348730-fd90-5fa5-a8ff-2800ba0bf3af",
           "name": "CameraSensor",
-          "kind": "logical_component"
+          "kind": "logical_component",
+          "properties": {
+            "description": "Front-facing camera"
+          }
         },
         {
           "id": "SensorFusion",
           "uuid": "e06c1f75-6138-5281-8439-f0eedb2c418f",
           "name": "SensorFusion",
-          "kind": "logical_component"
+          "kind": "logical_component",
+          "properties": {
+            "description": "Multi-sensor data fusion"
+          }
         },
         {
           "id": "ObjectTracker",
           "uuid": "d10a9e1a-7daa-51fa-84de-72a6f6a25f9a",
           "name": "ObjectTracker",
-          "kind": "logical_component"
+          "kind": "logical_component",
+          "properties": {
+            "description": "Object tracking and motion prediction"
+          }
         },
         {
           "id": "ThreatAssessment",
           "uuid": "a24f46c8-9b1e-52d7-9a48-546c7b5539da",
           "name": "ThreatAssessment",
-          "kind": "logical_component"
+          "kind": "logical_component",
+          "properties": {
+            "description": "Collision risk assessment"
+          }
         },
         {
           "id": "BrakeController",
           "uuid": "f2515a4b-2de8-5ef9-a629-2557bfc5e56f",
           "name": "BrakeController",
-          "kind": "logical_component"
+          "kind": "logical_component",
+          "properties": {
+            "description": "Emergency brake control"
+          }
         },
         {
           "id": "BrakeActuator",
           "uuid": "d09be69f-4ec5-5eba-ab3f-67fbb4611bf4",
           "name": "BrakeActuator",
-          "kind": "logical_component"
+          "kind": "logical_component",
+          "properties": {
+            "description": "Brake actuation on the hydraulic unit"
+          }
         },
         {
           "id": "DriverInterface",
           "uuid": "9a4477a1-5291-580f-ba39-8dbe3a3a2a2b",
           "name": "DriverInterface",
-          "kind": "logical_component"
+          "kind": "logical_component",
+          "properties": {
+            "description": "HMI for the warnings"
+          }
         },
         {
           "id": "VehicleCANGateway",
           "uuid": "e097ae2f-815b-570c-b6c5-66109149bacb",
           "name": "VehicleCANGateway",
-          "kind": "logical_component"
+          "kind": "logical_component",
+          "properties": {
+            "description": "Interface to the vehicle CAN bus: speed, pedals, steering"
+          }
         },
         {
           "id": "SystemSupervisor",
           "uuid": "ebf98e9a-7614-55b8-af69-3f28773fb51a",
           "name": "SystemSupervisor",
-          "kind": "logical_component"
+          "kind": "logical_component",
+          "properties": {
+            "description": "Health monitoring of the sensors and the controller"
+          }
         }
       ],
       "edges": [
