@@ -104,11 +104,14 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
     }
     // A `requirements` block is held as a system analysis too: the title is
     // the first block that analyses the system, not the requirements' name.
-    let analyses = model.system_analysis.iter().filter(|sa| {
-        !(sa.functions.is_empty() && sa.components.is_empty() && sa.external_actors.is_empty() && sa.functional_exchanges.is_empty())
-    });
-    builder.finish(view_title(
-        ViewKind::Sab,
-        analyses.map(|sa| sa.name.clone()).chain(model.system_analysis.iter().map(|sa| sa.name.clone())),
-    ))
+    let analyses: Vec<String> = model
+        .system_analysis
+        .iter()
+        .filter(|sa| !(sa.functions.is_empty() && sa.components.is_empty() && sa.external_actors.is_empty() && sa.functional_exchanges.is_empty()))
+        .map(|sa| sa.name.clone())
+        .filter(|name| !name.is_empty())
+        .collect();
+    // No block analyses the system by name: the name of whatever block there is.
+    let names = if analyses.is_empty() { model.system_analysis.iter().map(|sa| sa.name.clone()).collect() } else { analyses };
+    builder.finish(view_title(ViewKind::Sab, names.into_iter()))
 }

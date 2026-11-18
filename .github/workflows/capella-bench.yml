@@ -4,9 +4,10 @@ on:
   push:
     branches: [ main, develop, v3-foundation, capella-parity ]
     paths: [ 'src/**', 'tools/capella_bench/**', 'Cargo.toml', 'Cargo.lock', '.github/workflows/capella-bench.yml' ]
+  # No path filter here: this job is a required check, and a required check that
+  # never starts leaves the pull request waiting for ever.
   pull_request:
     branches: [ main, develop, v3-foundation, capella-parity ]
-    paths: [ 'src/**', 'tools/capella_bench/**', 'Cargo.toml', 'Cargo.lock', '.github/workflows/capella-bench.yml' ]
 
 env:
   CARGO_TERM_COLOR: always

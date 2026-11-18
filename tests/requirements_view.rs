@@ -15,7 +15,7 @@ system_analysis "Needs" {
 }
 
 physical_architecture "Hardware" {
-    node "Battery" { id: "PN-BATT" mass: 450 kg }
+    node "Battery" { id: "PN-BATT" mass: 450 kg description: "The traction pack" }
 }
 
 test_case "Range drive" { id: "TC-RANGE" verifies: ["REQ-RANGE", "REQ-CELL"] method: "test" verdict: "pass" }
@@ -53,6 +53,9 @@ fn the_view_draws_requirements_their_derivations_what_satisfies_and_what_verifie
     }
     assert_eq!(kind_of("TC-RANGE"), Some(NodeKind::TestCase));
     assert_eq!(kind_of("PN-BATT"), Some(NodeKind::PhysicalNode), "the element that satisfies a requirement");
+    let battery = diagram.nodes.iter().find(|n| n.id == "PN-BATT").unwrap();
+    assert_eq!(battery.compartment, ["id: PN-BATT"], "its id is in the box, as the traces name it (issue #226)");
+    assert_eq!(battery.properties.get("description").map(String::as_str), Some("The traction pack"), "its description, shown on hover as a test case's is");
     let range = diagram.nodes.iter().find(|n| n.id == "REQ-RANGE").unwrap();
     assert_eq!(range.name, "Range");
     assert_eq!(range.compartment, ["id: REQ-RANGE", "The car drives 300 km on one charge"]);

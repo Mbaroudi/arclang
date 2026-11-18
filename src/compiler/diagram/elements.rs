@@ -3,7 +3,7 @@
 
 use super::builder::identity;
 use super::NodeKind;
-use crate::compiler::ast::{LogicalComponent, LogicalFunction, Model, OperationalActivity, SystemFunction};
+use crate::compiler::ast::{AttributeValue, LogicalComponent, LogicalFunction, Model, OperationalActivity, SystemFunction};
 use std::collections::HashMap;
 
 /// A model element as another view refers to it.
@@ -12,6 +12,13 @@ pub(super) struct ElementRef<'a> {
     pub kind: NodeKind,
     pub id: &'a str,
     pub name: &'a str,
+    /// What the model says of the element (`description:`), for a view that shows it on hover.
+    pub description: Option<&'a str>,
+}
+
+/// The `description:` of an element, when it has one.
+fn description_of(attributes: &HashMap<String, AttributeValue>) -> Option<&str> {
+    attributes.get("description").and_then(|value| value.as_string()).filter(|text| !text.trim().is_empty())
 }
 
 /// Serialized name of a node kind (`logical_component`), as the viewer
@@ -54,7 +61,7 @@ pub(super) fn all_elements(model: &Model) -> Vec<ElementRef<'_>> {
 
     fn level_functions<'a>(functions: &'a [LogicalFunction], out: &mut Vec<ElementRef<'a>>) {
         for function in functions {
-            out.push(ElementRef { kind: NodeKind::Function, id: &function.id, name: &function.name });
+            out.push(ElementRef { kind: NodeKind::Function, id: &function.id, name: &function.name, description: description_of(&function.attributes) });
             level_functions(&function.sub_functions, out);
         }
     }
@@ -63,6 +70,7 @@ pub(super) fn all_elements(model: &Model) -> Vec<ElementRef<'_>> {
             kind: NodeKind::LogicalComponent,
             id: identity(&component.attributes, &component.name),
             name: &component.name,
+            description: description_of(&component.attributes),
         });
         level_functions(&component.functions, out);
         for sub in &component.sub_components {
@@ -74,6 +82,7 @@ pub(super) fn all_elements(model: &Model) -> Vec<ElementRef<'_>> {
             kind: NodeKind::Function,
             id: identity(&function.attributes, &function.id),
             name: &function.name,
+            description: description_of(&function.attributes),
         });
         for sub in &function.sub_functions {
             functions(sub, out);
@@ -84,6 +93,7 @@ pub(super) fn all_elements(model: &Model) -> Vec<ElementRef<'_>> {
             kind: NodeKind::OperationalActivity,
             id: identity(&activity.attributes, &activity.id),
             name: &activity.name,
+            description: description_of(&activity.attributes),
         });
         for sub in &activity.sub_activities {
             activities(sub, out);
@@ -103,6 +113,7 @@ pub(super) fn all_elements(model: &Model) -> Vec<ElementRef<'_>> {
                 kind: NodeKind::PhysicalNode,
                 id: identity(&node.attributes, &node.name),
                 name: &node.name,
+                description: description_of(&node.attributes),
             });
             level_functions(&node.functions, &mut found);
             for behavior in &node.behavior_components {
@@ -110,6 +121,7 @@ pub(super) fn all_elements(model: &Model) -> Vec<ElementRef<'_>> {
                     kind: NodeKind::BehaviorComponent,
                     id: &behavior.id,
                     name: &behavior.name,
+                    description: description_of(&behavior.attributes),
                 });
                 level_functions(&behavior.functions, &mut found);
             }
@@ -118,6 +130,7 @@ pub(super) fn all_elements(model: &Model) -> Vec<ElementRef<'_>> {
                     kind: NodeKind::HardwareComponent,
                     id: &hardware.id,
                     name: &hardware.name,
+                    description: None,
                 });
             }
         }
@@ -128,6 +141,7 @@ pub(super) fn all_elements(model: &Model) -> Vec<ElementRef<'_>> {
                 kind: NodeKind::SystemActor,
                 id: identity(&actor.attributes, &actor.id),
                 name: &actor.name,
+                description: description_of(&actor.attributes),
             });
         }
         for component in &sa.components {
@@ -135,6 +149,7 @@ pub(super) fn all_elements(model: &Model) -> Vec<ElementRef<'_>> {
                 kind: NodeKind::SystemComponent,
                 id: identity(&component.attributes, &component.name),
                 name: &component.name,
+                description: description_of(&component.attributes),
             });
         }
     }
@@ -149,6 +164,7 @@ pub(super) fn all_elements(model: &Model) -> Vec<ElementRef<'_>> {
                 kind: NodeKind::OperationalActor,
                 id,
                 name: &actor.name,
+                description: description_of(&actor.attributes),
             });
         }
         for entity in &oa.entities {
@@ -156,6 +172,7 @@ pub(super) fn all_elements(model: &Model) -> Vec<ElementRef<'_>> {
                 kind: NodeKind::OperationalEntity,
                 id: identity(&entity.attributes, &entity.id),
                 name: &entity.name,
+                description: description_of(&entity.attributes),
             });
             for activity in &entity.activities {
                 activities(activity, &mut found);
@@ -173,6 +190,7 @@ pub(super) fn all_elements(model: &Model) -> Vec<ElementRef<'_>> {
                     &process.id
                 },
                 name: &process.name,
+                description: description_of(&process.attributes),
             });
         }
     }
@@ -207,6 +225,7 @@ pub(super) fn all_elements(model: &Model) -> Vec<ElementRef<'_>> {
             kind: NodeKind::FunctionalChain,
             id,
             name: &chain.name,
+            description: description_of(&chain.attributes),
         });
     }
 
