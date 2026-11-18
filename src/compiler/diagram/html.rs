@@ -130,6 +130,33 @@ pub fn viewer_parts_themed(set: &DiagramSet, title: &str, theme: Option<&serde_j
     }
 }
 
+/// The viewer as two files, for a host that serves them itself and mounts
+/// the viewer on data it got another way (an HTTP API, a WebAssembly build).
+pub struct ViewerAssets {
+    /// The style sheet of the viewer.
+    pub style: &'static str,
+    /// One script: the layout engine (ELK) and the viewer's modules, in the
+    /// order the page of `arclang diagram -f html` loads them. Once it ran,
+    /// `ArcViz.mount(host, payload, ArcVizDeps)` mounts the viewer; the
+    /// payload is [`viewer_payload`], or the `/views` of a commit of the API.
+    pub script: String,
+}
+
+/// The viewer's files (see [`ViewerAssets`]).
+#[cfg(feature = "native")]
+pub fn viewer_assets() -> ViewerAssets {
+    let presets = format!(
+        "globalThis.ArcVizThemePresets = [{}];",
+        super::theme::PRESETS.iter().map(|(_, text)| text.trim()).collect::<Vec<_>>().join(",")
+    );
+    let deps = "globalThis.ArcVizDeps = { ELK: ELK, render: ArcVizRender, links: ArcVizLinks, navigation: ArcVizNavigation, \
+collapse: ArcVizCollapse, scope: ArcVizScope, exporter: ArcVizExport, stage: ArcVizStage, place: ArcVizPlace, \
+toolbar: ArcVizToolbar, theme: ArcVizTheme };";
+    let modules = [ELK_JS, RENDER_JS, LINKS_JS, NAVIGATION_JS, COLLAPSE_JS, SCOPE_JS, EXPORT_JS, STAGE_JS, PLACE_JS, &presets, COLOR_JS, THEME_JS, TOOLBAR_JS, LAYERS_JS, VIEWER_JS, deps];
+    // Each module ends its own statement: a file that does not end with `;` cannot swallow the next.
+    ViewerAssets { style: VIEWER_CSS, script: modules.join("\n;\n") }
+}
+
 /// A complete, self-contained HTML page showing a model's diagrams.
 pub fn standalone_html(set: &DiagramSet, title: &str) -> String {
     standalone_html_themed(set, title, None)

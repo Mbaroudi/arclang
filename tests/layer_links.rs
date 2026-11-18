@@ -229,3 +229,42 @@ fn a_deployed_component_is_drawn_under_its_name_and_keeps_what_was_written() {
     assert!(named.name == "Sensors" && !named.properties.contains_key("deploys"));
     assert_eq!(node(&by_name, &pab.id, "PN-ECU/Ghost").name, "Ghost");
 }
+
+/// Every node of every diagram of a set, with the view that draws it.
+fn drawn(set: &DiagramSet) -> Vec<(&str, &Node)> {
+    let mut out = Vec::new();
+    for diagram in &set.diagrams {
+        let mut stack: Vec<&Node> = diagram.nodes.iter().collect();
+        while let Some(node) = stack.pop() {
+            out.push((diagram.id.as_str(), node));
+            stack.extend(node.children.iter());
+        }
+    }
+    out
+}
+
+#[test]
+fn what_a_view_draws_under_a_shape_of_its_own_says_its_layer_too() {
+    let source = std::fs::read_to_string("examples/automotive/acc-stop-and-go/acc_stop_and_go.arc").unwrap();
+    let set = linked(&source);
+    let nodes = drawn(&set);
+    let kind = |node: &Node| serde_json::to_value(node.kind).unwrap().as_str().unwrap().to_string();
+    let layers_of = |wanted: &str| -> std::collections::BTreeSet<Option<&'static str>> { nodes.iter().filter(|(_, n)| kind(n) == wanted).map(|(_, n)| n.layer).collect() };
+
+    // The box of the system, the items of the product breakdown, the modes: one layer each, none left out.
+    assert_eq!(layers_of("system"), [Some("SA")].into());
+    assert_eq!(layers_of("configuration_item"), [Some("EPBS")].into());
+    assert_eq!(layers_of("mode"), [Some("Transverse")].into());
+    // A lifeline is on the layer of the participant it stands for.
+    let lifelines = layers_of("lifeline");
+    assert!(!lifelines.contains(&None) && lifelines.contains(&Some("OA")) && lifelines.contains(&Some("LA")), "{lifelines:?}");
+    // A value drawn on its own is on the layer of the element that holds it.
+    assert!(!layers_of("value_property").contains(&None));
+    // The parts of the SysML v2 views are the elements of the Arcadia layers, drawn otherwise.
+    let parts = layers_of("sysml_part");
+    for layer in ["OA", "SA", "LA", "PA"] {
+        assert!(parts.contains(&Some(layer)), "no SysML v2 part on {layer}: {parts:?}");
+    }
+    // What stands for no element says nothing.
+    assert_eq!(layers_of("initial_state"), [None].into());
+}

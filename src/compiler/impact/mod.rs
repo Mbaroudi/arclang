@@ -21,6 +21,7 @@
 //! The same model and seeds always give the same report.
 
 pub mod graph;
+pub mod layers;
 mod propagate;
 pub mod report;
 pub mod since;

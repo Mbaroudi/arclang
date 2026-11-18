@@ -262,6 +262,80 @@ async fn list_elements(
     }
 }
 
+/// The elements of a commit with their layer, and the links that join the
+/// layers: one document, the same in both vocabularies (the identities are
+/// those of the elements served beside it).
+async fn get_layers(State(api): Shared, Path((project_id, commit_id)): Path<(String, String)>) -> Response {
+    let workspace = read(&api.workspace);
+    match workspace.snapshot(&project_id, &commit_id) {
+        Ok(snapshot) if snapshot.layers.is_null() => not_found(format!("commit '{}' has no layers: it was not built from a compilation", commit_id)),
+        Ok(snapshot) => Json(snapshot.layers.clone()).into_response(),
+        Err(response) => response,
+    }
+}
+
+/// What the viewer draws of a commit: the payload `arclang diagram -f html`
+/// puts in its page (the diagrams, the layer of each element, the links
+/// between layers, the diagnostics), for a client that mounts the viewer
+/// itself.
+async fn get_views(State(api): Shared, Path((project_id, commit_id)): Path<(String, String)>) -> Response {
+    let workspace = read(&api.workspace);
+    match workspace.snapshot(&project_id, &commit_id) {
+        Ok(snapshot) => match &snapshot.views {
+            Some(views) => ([(header::CONTENT_TYPE, "application/json")], views.to_string()).into_response(),
+            None => not_found(format!("commit '{}' has no views: it was not built from a compilation", commit_id)),
+        },
+        Err(response) => response,
+    }
+}
+
+/// The realization ladder of each requirement of a commit: what each stage
+/// (simulation, SIL, PIL, HDL, SoC, board, twin) says of it, as `check
+/// --json` prints it. The verdicts are those kept beside the model the
+/// server reads; a commit they were not run on shows them stale or missing.
+async fn get_realization(State(api): Shared, Path((project_id, commit_id)): Path<(String, String)>) -> Response {
+    let workspace = read(&api.workspace);
+    match workspace.snapshot(&project_id, &commit_id) {
+        Ok(snapshot) if snapshot.realization.is_null() => not_found(format!("commit '{}' has no realization: it was not built from a compilation", commit_id)),
+        Ok(snapshot) => Json(snapshot.realization.clone()).into_response(),
+        Err(response) => response,
+    }
+}
+
+/// The variations of a commit, its configurations, and what each leaves out.
+async fn get_variants(State(api): Shared, Path((project_id, commit_id)): Path<(String, String)>) -> Response {
+    let workspace = read(&api.workspace);
+    match workspace.snapshot(&project_id, &commit_id) {
+        Ok(snapshot) if snapshot.variants.is_null() => not_found(format!("commit '{}' has no variants: it was not built from a compilation", commit_id)),
+        Ok(snapshot) => Json(snapshot.variants.clone()).into_response(),
+        Err(response) => response,
+    }
+}
+
+/// Where the located elements of a commit are: the GeoJSON of `arclang
+/// export -f geojson` (each feature named by the written id of its element),
+/// and what could not be drawn and why.
+async fn get_space(State(api): Shared, Path((project_id, commit_id)): Path<(String, String)>) -> Response {
+    let workspace = read(&api.workspace);
+    match workspace.snapshot(&project_id, &commit_id) {
+        Ok(snapshot) if snapshot.space.is_null() => not_found(format!("commit '{}' has no space: it was not built from a compilation", commit_id)),
+        Ok(snapshot) => Json(snapshot.space.clone()).into_response(),
+        Err(response) => response,
+    }
+}
+
+/// The C the state machines of a commit become: the generated source and
+/// header, and for each machine the lines of its code, of its step function
+/// and of each transition.
+async fn get_code(State(api): Shared, Path((project_id, commit_id)): Path<(String, String)>) -> Response {
+    let workspace = read(&api.workspace);
+    match workspace.snapshot(&project_id, &commit_id) {
+        Ok(snapshot) if snapshot.code.is_null() => not_found(format!("commit '{}' has no generated code: it has no state machine to generate, or was not built from a compilation", commit_id)),
+        Ok(snapshot) => Json(snapshot.code.clone()).into_response(),
+        Err(response) => response,
+    }
+}
+
 async fn list_roots(
     State(api): Shared,
     Path((project_id, commit_id)): Path<(String, String)>,
@@ -503,6 +577,12 @@ pub fn router(workspace: SharedWorkspace, vocabulary: Vocabulary) -> Router {
         .route("/projects/:project_id/commits/:commit_id/elements/:element_id", get(get_element))
         .route("/projects/:project_id/commits/:commit_id/elements/:element_id/relationships", get(get_relationships))
         .route("/projects/:project_id/commits/:commit_id/roots", get(list_roots))
+        .route("/projects/:project_id/commits/:commit_id/layers", get(get_layers))
+        .route("/projects/:project_id/commits/:commit_id/views", get(get_views))
+        .route("/projects/:project_id/commits/:commit_id/variants", get(get_variants))
+        .route("/projects/:project_id/commits/:commit_id/space", get(get_space))
+        .route("/projects/:project_id/commits/:commit_id/code", get(get_code))
+        .route("/projects/:project_id/commits/:commit_id/realization", get(get_realization))
         .route("/projects/:project_id/commits/:commit_id/changes", get(list_changes))
         .route("/projects/:project_id/query-results", post(query_results))
         .with_state(Api { workspace, vocabulary })

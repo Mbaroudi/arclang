@@ -201,6 +201,218 @@ async fn relationships_are_navigable_in_both_directions() {
 }
 
 #[tokio::test]
+async fn the_layers_of_a_commit_say_where_each_element_is_and_what_joins_them() {
+    let (project, commit) = ids().await;
+    let layers = get(&format!("/projects/{project}/commits/{commit}/layers")).await;
+    let elements = layers["elements"].as_array().unwrap();
+    let of = |id: &str| elements.iter().find(|e| e["id"] == id).unwrap_or_else(|| panic!("no element {id}"));
+    assert_eq!(of("LC-1")["layer"], "LA");
+    // An element says what holds it: the component of a function, the machine of a state.
+    let function = elements.iter().find(|e| e["kind"] == "LogicalFunction" && e["name"] == "Plan").expect("a function of LC-1");
+    assert_eq!(function["owner"], of("LC-1")["@id"]);
+    assert_eq!(of("PN-1")["layer"], "PA");
+    assert_eq!(of("SF-1")["layer"], "SA");
+    // The identities are those of the elements served beside the layers.
+    let served = get(&format!("/projects/{project}/commits/{commit}/elements/{}", of("LC-1")["@id"].as_str().unwrap())).await;
+    assert_eq!(served["declaredName"], "Controller");
+
+    let links = layers["links"].as_array().unwrap();
+    let link = |kind: &str, source: &str, target: &str| {
+        links
+            .iter()
+            .find(|l| l["kind"] == kind && l["source"]["@id"] == of(source)["@id"] && l["target"]["@id"] == of(target)["@id"])
+            .unwrap_or_else(|| panic!("no {kind} link from {source} to {target} in {links:#?}"))
+    };
+    // A deployment is not a trace: the views never had it; it joins two layers.
+    let deployment = link("deployment", "LC-1", "PN-1");
+    assert_eq!(deployment["label"], "deployed on");
+    assert_eq!(deployment["back"], "hosts");
+    assert_eq!(deployment["sourceLayer"], "LA");
+    assert_eq!(deployment["targetLayer"], "PA");
+    let satisfaction = link("satisfies", "LC-1", "REQ-1");
+    assert_eq!(satisfaction["label"], "satisfies");
+    link("verifies", "TC-1", "REQ-1");
+    // Each link is said once, read from the end that depends on the other.
+    assert!(!links.iter().any(|l| l["kind"] == "deployment" && l["source"]["@id"] == of("PN-1")["@id"]));
+}
+
+#[tokio::test]
+async fn the_views_of_a_commit_are_what_the_viewer_draws_of_it() {
+    let (project, commit) = ids().await;
+    let views = get(&format!("/projects/{project}/commits/{commit}/views")).await;
+    assert_eq!(views["title"], "Lane");
+    let graphs = views["graphs"].as_array().unwrap();
+    let logical = graphs.iter().find(|g| g["arc"]["view"] == "lab").expect("the logical architecture is drawn");
+    let controller = logical["children"].as_array().unwrap().iter().find(|n| n["id"] == "LC-1").expect("its component");
+    assert_eq!(controller["arc"]["layer"], "LA");
+    // The links between layers come with the views, as in the page `arclang diagram -f html` writes.
+    assert!(views["links"].as_array().unwrap().iter().any(|l| l["kind"] == "satisfies" && l["source_layer"] == "LA"), "{}", views["links"]);
+}
+
+#[tokio::test]
+async fn the_realization_of_a_commit_is_the_ladder_of_each_requirement() {
+    let (project, commit) = ids().await;
+    let realization = get(&format!("/projects/{project}/commits/{commit}/realization")).await;
+    let ladders = realization["requirements"].as_array().unwrap();
+    let ladder = ladders.iter().find(|l| l["requirement"] == "REQ-1").expect("the ladder of REQ-1");
+    assert!(ladder["stages"].is_array(), "{ladder}");
+}
+
+const PRODUCT_LINE: &str = r#"model Cars { name: "Cars" }
+logical_architecture "LA" {
+    component "Car" {
+        id: "LC-CAR"
+        component "Pack" {
+            id: "LC-PACK"
+            variation: true
+            component "Standard pack" { id: "LC-PACK-STD" variant: true component "Cells" { id: "LC-CELLS-STD" } }
+            component "Long range pack" { id: "LC-PACK-LR" variant: true component "Cells" { id: "LC-CELLS-LR" } }
+        }
+        component "Body" { id: "LC-BODY" }
+    }
+}
+configuration "City" { id: "CFG-CITY" selects: ["LC-PACK-STD"] }
+configuration "Touring" { id: "CFG-TOURING" selects: ["LC-PACK-LR"] }
+"#;
+
+#[tokio::test]
+async fn the_variants_of_a_commit_say_what_each_configuration_leaves_out() {
+    let (_, _, projects) = call(PRODUCT_LINE, "GET", "/projects", None).await;
+    let project = projects[0]["@id"].as_str().unwrap().to_string();
+    let (_, _, branches) = call(PRODUCT_LINE, "GET", &format!("/projects/{project}/branches"), None).await;
+    let commit = branches[0]["head"]["@id"].as_str().unwrap().to_string();
+    let (status, _, variants) = call(PRODUCT_LINE, "GET", &format!("/projects/{project}/commits/{commit}/variants"), None).await;
+    assert_eq!(status, StatusCode::OK, "{variants}");
+    let (_, _, layers) = call(PRODUCT_LINE, "GET", &format!("/projects/{project}/commits/{commit}/layers"), None).await;
+    let uuid = |id: &str| layers["elements"].as_array().unwrap().iter().find(|e| e["id"] == id).unwrap_or_else(|| panic!("no {id}"))["@id"].as_str().unwrap().to_string();
+
+    let point = &variants["variations"][0];
+    assert_eq!(point["id"], "LC-PACK");
+    assert_eq!(point["name"], "Pack");
+    assert_eq!(point["variants"].as_array().unwrap().len(), 2);
+    assert_eq!(point["variants"][0]["@id"], json!(uuid("LC-PACK-STD")));
+
+    let excluded = |configuration: &str| -> Vec<String> {
+        let found = variants["configurations"].as_array().unwrap().iter().find(|c| c["id"] == configuration).unwrap();
+        found["excluded"].as_array().unwrap().iter().map(|u| u.as_str().unwrap().to_string()).collect()
+    };
+    // The City leaves out the long range pack and what it holds; what is not in a variant stays.
+    let city = excluded("CFG-CITY");
+    assert!(city.contains(&uuid("LC-PACK-LR")) && city.contains(&uuid("LC-CELLS-LR")), "{city:?}");
+    for kept in ["LC-PACK-STD", "LC-CELLS-STD", "LC-PACK", "LC-BODY", "LC-CAR"] {
+        assert!(!city.contains(&uuid(kept)), "{kept} stays in the City");
+    }
+    let touring = excluded("CFG-TOURING");
+    assert!(touring.contains(&uuid("LC-PACK-STD")) && touring.contains(&uuid("LC-CELLS-STD")) && !touring.contains(&uuid("LC-CELLS-LR")), "{touring:?}");
+}
+
+#[tokio::test]
+async fn the_space_of_a_commit_places_what_has_a_location_and_nothing_else() {
+    let model = r#"model Grid { name: "Grid" }
+physical_architecture "P" {
+    node "Hub A" { id: "PN-A" location: { lat: 48.0 deg lon: 2.0 deg } }
+    node "Hub B" { id: "PN-B" location: { lat: 49.0 deg lon: 3.0 deg } }
+    node "Cabinet" { id: "PN-C" }
+    physical_link "AB" { id: "PL-AB" from: "PN-A" to: "PN-B" }
+    physical_link "BC" { id: "PL-BC" from: "PN-B" to: "PN-C" }
+}
+"#;
+    let (_, _, projects) = call(model, "GET", "/projects", None).await;
+    let project = projects[0]["@id"].as_str().unwrap().to_string();
+    let (_, _, branches) = call(model, "GET", &format!("/projects/{project}/branches"), None).await;
+    let commit = branches[0]["head"]["@id"].as_str().unwrap().to_string();
+    let (status, _, space) = call(model, "GET", &format!("/projects/{project}/commits/{commit}/space"), None).await;
+    assert_eq!(status, StatusCode::OK, "{space}");
+    let features = space["collection"]["features"].as_array().unwrap();
+    let ids: Vec<&str> = features.iter().map(|f| f["id"].as_str().unwrap()).collect();
+    assert!(ids.contains(&"PN-A") && ids.contains(&"PN-B") && ids.contains(&"PL-AB"), "{ids:?}");
+    assert!(!ids.contains(&"PN-C") && !ids.contains(&"PL-BC"), "an element with no location is not placed: {ids:?}");
+    // Longitude first, as GeoJSON has it.
+    assert_eq!(features.iter().find(|f| f["id"] == "PN-A").unwrap()["geometry"]["coordinates"], json!([2.0, 48.0]));
+    assert!(space["notes"][0].as_str().unwrap().contains("PL-BC"), "what could not be drawn is said: {}", space["notes"]);
+}
+
+const MACHINES: &str = r#"model Monitor { name: "Monitor" }
+state_machine "Wheel filter" {
+    id: "SM-FILTER"
+    variables: ["in raw: Real", "filtered: Real = 0"]
+    initial: "Run"
+    state Run { }
+    equation: "filtered = filtered + 0.25 * (raw - filtered)"
+}
+state_machine "Overspeed" {
+    id: "SM-OVER"
+    variables: ["in speed: Real", "out warning: Boolean = false"]
+    initial: "Normal"
+    state Normal { }
+    state Warning { entry: "warning := true" }
+    transition Normal -> Warning { guard: "speed > 130" }
+    transition Warning -> Normal { guard: "speed < 120" }
+}
+"#;
+
+#[tokio::test]
+async fn the_code_of_a_commit_says_where_each_machine_and_transition_is_in_it() {
+    let (_, _, projects) = call(MACHINES, "GET", "/projects", None).await;
+    let project = projects[0]["@id"].as_str().unwrap().to_string();
+    let (_, _, branches) = call(MACHINES, "GET", &format!("/projects/{project}/branches"), None).await;
+    let commit = branches[0]["head"]["@id"].as_str().unwrap().to_string();
+    let (status, _, code) = call(MACHINES, "GET", &format!("/projects/{project}/commits/{commit}/code"), None).await;
+    assert_eq!(status, StatusCode::OK, "{code}");
+    let source = code["files"].as_array().unwrap().iter().find(|f| f["name"].as_str().unwrap().ends_with(".c")).unwrap();
+    let text = source["text"].as_str().unwrap();
+    let lines: Vec<&str> = text.lines().collect();
+
+    let over = code["machines"].as_array().unwrap().iter().find(|m| m["name"] == "Overspeed").expect("the machine is placed");
+    // The section is the machine's own code: it starts at its marker and holds both transitions.
+    let (from, to) = (over["section"]["from"].as_u64().unwrap() as usize, over["section"]["to"].as_u64().unwrap() as usize);
+    assert!(lines[from - 1].contains("state_machine \"Overspeed\""), "{}", lines[from - 1]);
+    assert!(!lines[to - 1].trim().is_empty() && !lines[to - 1].contains("state_machine \""), "ends on its last line of code: {}", lines[to - 1]);
+    let transitions = over["transitions"].as_array().unwrap();
+    assert_eq!(transitions.len(), 2, "{transitions:?}");
+    assert_eq!(transitions[0]["label"], "transition Normal -> Warning");
+    let (t0, t1) = (transitions[0]["from"].as_u64().unwrap() as usize, transitions[0]["to"].as_u64().unwrap() as usize);
+    assert!(lines[t0 - 1].starts_with("/* transition Normal -> Warning"), "{}", lines[t0 - 1]);
+    assert_eq!(lines[t1 - 1], "}", "a transition ends on its closing brace");
+    assert!(from <= t0 && t1 <= to, "the transition is in the machine's section");
+    // The step function of the machine is its entry point.
+    let step = &over["step"];
+    assert!(lines[step["from"].as_u64().unwrap() as usize - 1].contains("_overspeed_step("), "{step}");
+    // The machine is the element the model declares: its identity is that of the element graph.
+    let (_, _, layers) = call(MACHINES, "GET", &format!("/projects/{project}/commits/{commit}/layers"), None).await;
+    let element = layers["elements"].as_array().unwrap().iter().find(|e| e["id"] == "SM-OVER").unwrap();
+    assert_eq!(over["@id"], element["@id"]);
+}
+
+#[tokio::test]
+async fn a_machine_computed_by_the_logic_has_its_vhdl_in_the_code() {
+    let model = std::fs::read_to_string("examples/energy/battery-charger/battery_charger.arc").unwrap();
+    let (_, _, projects) = call(&model, "GET", "/projects", None).await;
+    let project = projects[0]["@id"].as_str().unwrap().to_string();
+    let (_, _, branches) = call(&model, "GET", &format!("/projects/{project}/branches"), None).await;
+    let commit = branches[0]["head"]["@id"].as_str().unwrap().to_string();
+    let (status, _, code) = call(&model, "GET", &format!("/projects/{project}/commits/{commit}/code"), None).await;
+    assert_eq!(status, StatusCode::OK, "{code}");
+    let charger = code["machines"].as_array().unwrap().iter().find(|m| m["name"] == "Charger").expect("the machine on the logic is placed");
+    let vhdl = &charger["vhdl"];
+    assert!(vhdl["file"].as_str().unwrap().ends_with(".vhd"), "{charger}");
+    let file = code["files"].as_array().unwrap().iter().find(|f| f["name"] == vhdl["file"]).expect("its text is served");
+    assert_eq!(file["language"], "vhdl");
+    assert!(file["text"].as_str().unwrap().starts_with("-- state_machine \"Charger\", computed by the programmable logic"));
+    assert_eq!(vhdl["to"].as_u64().unwrap() as usize, file["text"].as_str().unwrap().lines().count());
+}
+
+#[tokio::test]
+async fn a_model_with_no_machine_has_no_code() {
+    let (_, _, projects) = call(MODEL, "GET", "/projects", None).await;
+    let project = projects[0]["@id"].as_str().unwrap().to_string();
+    let (_, _, branches) = call(MODEL, "GET", &format!("/projects/{project}/branches"), None).await;
+    let commit = branches[0]["head"]["@id"].as_str().unwrap().to_string();
+    let (status, _, _) = call(MODEL, "GET", &format!("/projects/{project}/commits/{commit}/code"), None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
 async fn pagination_uses_cursors_and_link_headers() {
     let (project, commit) = ids().await;
     let path = format!("/projects/{project}/commits/{commit}/elements");
