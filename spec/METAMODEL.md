@@ -1735,6 +1735,8 @@ A quantity is `<number> <unit>` (`latency: 25 ms`). Symbols are case-sensitive. 
 | `kWh` | energy (J) | 3600000 | `'kW*h'` |
 | `Pa` | pressure (Pa) | 1 | `Pa` |
 | `kPa` | pressure (Pa) | 1000 | `kPa` |
+| `MPa` | pressure (Pa) | 1000000 | `MPa` |
+| `GPa` | pressure (Pa) | 1000000000 | `GPa` |
 | `bar` | pressure (Pa) | 100000 | `bar` |
 | `K` | temperature (K) | 1 | `K` |
 | `°C` | temperature (K) | 1 + 273.15 | `K` |
