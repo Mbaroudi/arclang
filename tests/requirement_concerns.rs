@@ -174,7 +174,7 @@ fn the_requirements_view_draws_the_concern_framed_and_the_subject() {
     for line in ["subject: LC-CAR", "frames", "CON-SAFETY", "require", "mass <= 1200 kg", "assume", "ambient.T >= -20 °C"] {
         assert!(requirement.compartment.contains(&line.to_string()), "{line}: {:?}", requirement.compartment);
     }
-    assert_eq!(node("LC-CAR").compartment, ["requirements", "REQ-MASS"]);
+    assert_eq!(node("LC-CAR").compartment, ["id: LC-CAR", "requirements", "REQ-MASS"], "its id first, as the traces name it");
     let has = |s: &str, l: &str, t: &str| view.edges.iter().any(|e| e.source == s && e.label == l && e.target == t);
     assert!(has("REQ-MASS", "frames", "CON-SAFETY"));
     assert!(has("REQ-MASS", "subject", "LC-CAR"));
