@@ -18,6 +18,9 @@ def git(directory: Path, *arguments: str) -> str:
 def repository(workspace, model):
     """The workspace as a git repository, the reference model committed, then one rename left uncommitted."""
     git(workspace, "init", "-q", "-b", "main")
+    # The compiler runs git itself (a baseline is a tag): the repository says who commits, as a machine with no global identity needs.
+    git(workspace, "config", "user.name", "Test")
+    git(workspace, "config", "user.email", "test@example.invalid")
     git(workspace, "add", "braking.arc")
     git(workspace, "commit", "-q", "-m", "The reference model")
     model.write_text(model.read_text().replace('component "ThreatAssessor"', 'component "ThreatJudge"'))
