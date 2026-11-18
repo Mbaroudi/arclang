@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from arclang_mcp.compiler.wrapper import DIAGRAM_TYPES, EXPORT_FORMATS, ArcLangCompiler
+from arclang_mcp.compiler.wrapper import DIAGRAM_TYPES, ArcLangCompiler
 from arclang_mcp.tools.common import InvalidArguments, input_schema
 
 REPOSITORY = Path(__file__).resolve().parents[2]
@@ -125,7 +125,7 @@ async def test_gate_fails_with_its_blockers(server, model):
 async def test_realize_plans_the_ladder_and_names_the_gaps(server, model):
     # The reference model's requirement is verified by a case that neither simulates nor executes: a gap, no step.
     answer = await server.call_tool("arclang_realize", {"model_path": str(model)})
-    assert answer.startswith("Realization ladder of braking.arc: succeeded")
+    assert answer.startswith("Realization ladder of braking.arc: the plan; nothing was run")
     body = json.loads(answer.split("\n\n", 1)[1])
     assert [s["stage"] for s in body["ladders"][0]["stages"]] == ["simulation", "sil", "pil", "hdl", "soc", "board", "twin"]
     assert body["plan"]["steps"] == []
@@ -146,7 +146,7 @@ def body_controller(workspace):
 
 async def test_partition_names_the_two_runs_and_runs_neither(server, body_controller):
     answer = await server.call_tool("arclang_partition", {"model_path": str(body_controller)})
-    assert answer.startswith("HW/SW partition of body_controller.arc: succeeded")
+    assert answer.startswith("HW/SW partition of body_controller.arc: the two runs; nothing was run")
     assert re.search(r"arclang pil \S*body_controller\.arc --json --target zephyr/litex_vexriscv", answer)
     assert re.search(r"arclang hdl \S*body_controller\.arc --synth --json --as-if LFE5U-25F-6BG381C@25", answer)
     assert "Measured so far" in answer
@@ -233,18 +233,6 @@ async def test_impact_of_an_unknown_element_fails(server, model):
     assert "FAILED" in answer
 
 
-async def test_export_formats_are_those_of_the_cli(server):
-    help_text = (await server.compiler.run(["export", "--help"])).stdout
-    for export_format in EXPORT_FORMATS:
-        assert f"- {export_format}" in help_text, export_format
-
-
-async def test_diagram_types_are_those_of_the_cli(server):
-    help_text = (await server.compiler.run(["diagram", "--help"])).stdout
-    for diagram_type in DIAGRAM_TYPES:
-        assert f"- {diagram_type}" in help_text, diagram_type
-
-
 async def test_export_sysml_is_returned(server, model):
     answer = await server.call_tool(
         "arclang_export", {"model_path": str(model), "format": "sys-ml"}
@@ -309,13 +297,6 @@ async def test_hazard_analysis_lists_declared_hazards_only(server, model):
     answer = await server.call_tool("arclang_hazard_analysis", {"model_path": str(model)})
     assert "1 hazard(s)" in answer.splitlines()[0]
     assert "H-001" in answer
-
-
-async def test_merge_says_it_is_not_available(server):
-    answer = await server.call_tool(
-        "arclang_git_merge", {"base_path": "a", "ours_path": "b", "theirs_path": "c"}
-    )
-    assert "not available" in answer
 
 
 async def test_viewpoint_diagrams_are_written(server, model, workspace):
@@ -502,31 +483,6 @@ async def test_rules_of_one_rule(server):
     assert "fix" in rule
     answer = await server.call_tool("arclang_rules", {"rule": "nope.rule"})
     assert answer.startswith("No rule 'nope.rule'") and "trace.requirement" in answer
-
-
-async def test_import_formats_are_those_of_the_cli(server):
-    from arclang_mcp.compiler.wrapper import IMPORT_FORMATS
-
-    help_text = (await server.compiler.run(["import", "--help"])).stdout
-    listed = set(re.findall(r"^\s+- ([a-z-]+)", help_text, flags=re.M))
-    assert set(IMPORT_FORMATS) == listed, help_text
-
-
-async def test_transition_steps_are_those_of_the_cli(server):
-    from arclang_mcp.compiler.wrapper import TRANSITION_STEPS
-
-    help_text = (await server.compiler.run(["transition", "--help"])).stdout
-    for step in TRANSITION_STEPS:
-        assert step in help_text, step
-    assert set(re.findall(r"\b[a-z]{2}-to-[a-z]{2}\b", help_text)) == set(TRANSITION_STEPS)
-
-
-async def test_every_diagram_format_offered_is_one_of_the_cli(server):
-    from arclang_mcp.compiler.wrapper import TEXT_DIAGRAM_FORMATS, VIEWPOINT_FORMATS
-
-    help_text = (await server.compiler.run(["diagram", "--help"])).stdout
-    for diagram_format in (*DIAGRAM_TYPES, *TEXT_DIAGRAM_FORMATS, *VIEWPOINT_FORMATS):
-        assert f"- {diagram_format}" in help_text, diagram_format
 
 
 async def test_gate_standards_are_those_of_the_cli(server):

@@ -152,3 +152,114 @@ async def test_a_quoted_requirement_id_and_an_unquoted_quantity_compile(server, 
     assert check.ok
     findings = json.loads(check.stdout)["findings"]
     assert not [f for f in findings if f["rule"].startswith("metamodel")]
+
+
+# ------------------------------------------- the shorter examples of the rules
+
+
+def fenced_models(rules: str):
+    """Every fenced block of ArcLang in the rules: each is a model of its own."""
+    return re.findall(r"^```arc\n(.*?)^```", rules, flags=re.M | re.S)
+
+
+async def test_every_fenced_model_of_the_rules_compiles_and_is_formatted(server, workspace):
+    from arclang_mcp.resources.syntax_guide import EXAMPLES, example
+
+    blocks = fenced_models(get_syntax_rules())
+    assert len(blocks) == len(EXAMPLES) + 1, "the examples and the reference model"
+    for number, block in enumerate(blocks):
+        candidate = workspace / f"block_{number}.arc"
+        candidate.write_text(block)
+        check = await server.compiler.check(candidate)
+        assert check.ok and "No compilation errors" in check.stdout, f"block {number}: {check.output}"
+        assert "metamodel:" not in check.stdout, f"block {number}: {check.stdout}"
+        assert (await server.compiler.format(candidate, check=True)).ok, f"block {number} is not formatted"
+    for name in EXAMPLES:
+        assert example(name) + "\n" in blocks, name
+
+
+def test_the_rules_teach_the_recent_constructs_in_a_model_that_compiles():
+    """Each construct is named in the prose AND written in a fenced model (compiled above)."""
+    rules = get_syntax_rules()
+    written = "\n".join(fenced_models(rules))
+    prose = re.sub(r"^```arc\n.*?^```", "", rules, flags=re.M | re.S)
+    for construct in (
+        "execute:", "simulate:", "expects:", "twin", "drives:", "compares:", "correspondence",
+        "io_binding", "level:", "verification_levels:", "organization", "document",
+        "responsible:", "documented_by:", "risk", "bears_on", "mitigated_by",
+    ):
+        assert construct in prose, f"the rules do not explain {construct}"
+        assert re.search(rf"^\s*{re.escape(construct)}", written, flags=re.M), f"no model writes {construct}"
+
+
+async def test_the_executed_case_is_one_the_compiler_can_run(server, workspace):
+    from arclang_mcp.resources.syntax_guide import example
+
+    model = workspace / "wiper.arc"
+    model.write_text(example("executed_case"))
+    listed = await server.call_tool("arclang_debug", {"model_path": "wiper.arc", "list": True})
+    assert '"Wiper"' in listed
+    ladder = await server.call_tool("arclang_realize", {"model_path": "wiper.arc"})
+    # The case executes: the plan has the stages that run it, and names them.
+    assert "arclang sil" in ladder and "TC-WIPE" in ladder
+    schedule = await server.call_tool("arclang_schedule", {"model_path": "wiper.arc", "wcet": {"Wiper": 100}})
+    assert "Wiper task" in schedule and schedule.splitlines()[0].endswith(": succeeded")
+    # No verdict is recorded for it: until it is run, the gate does not pass on it.
+    gate = await server.call_tool("arclang_gate", {"model_path": "wiper.arc"})
+    assert gate.splitlines()[0].startswith("Production gate of wiper.arc: FAIL")
+
+
+async def test_the_twin_of_the_rules_is_a_twin_for_the_compiler(server, workspace):
+    from arclang_mcp.resources.syntax_guide import example
+
+    (workspace / "heating.arc").write_text(example("twin"))
+    twins = await server.call_tool("arclang_twin", {"model_path": "heating.arc", "list": True})
+    assert json.loads(twins.split("\n\n", 1)[1])[0]["id"] == "TW-JANUARY"
+    cases = await server.call_tool("arclang_verify", {"model_path": "heating.arc", "list": True})
+    assert "TC-DESIGN-DAY" in cases
+
+
+async def test_the_levels_of_the_v_block_the_gate_when_one_is_missing(server, workspace):
+    from arclang_mcp.resources.syntax_guide import example
+
+    model = workspace / "v.arc"
+    model.write_text(example("v_model"))
+    gate = await server.call_tool("arclang_gate", {"model_path": "v.arc"})
+    assert gate.splitlines()[0] == "Production gate of v.arc: PASS", gate
+    text = model.read_text()
+    track = next(line for line in text.splitlines() if "TC-TRACK" in line)
+    model.write_text(text.replace(track + "\n", ""))
+    gate = await server.call_tool("arclang_gate", {"model_path": "v.arc"})
+    assert gate.splitlines()[0].startswith("Production gate of v.arc: FAIL"), gate
+    assert "validation level" in gate
+
+
+async def test_responsibility_documents_and_risks_are_relationships(server, workspace):
+    from arclang_mcp.resources.syntax_guide import example
+
+    (workspace / "v.arc").write_text(example("v_model"))
+    impact = await server.call_tool("arclang_impact", {"model_path": "v.arc", "element": "ORG-CHASSIS"})
+    assert "LC-BRAKE" in impact and "REQ-STOP" in impact and "responsible for" in impact
+    reached = await server.call_tool("arclang_impact", {"model_path": "v.arc", "element": "LC-BRAKE", "format": "json"})
+    assert "RISK-1" in reached and "DOC-SRS" in await server.call_tool(
+        "arclang_impact", {"model_path": "v.arc", "element": "REQ-STOP", "format": "json"}
+    )
+
+
+async def test_the_correspondence_of_the_rules_is_what_prove_reads(server, workspace, recorded):
+    from arclang_mcp.resources.syntax_guide import example
+
+    (workspace / "toggle.arc").write_text(example("correspondence"))
+    await server.call_tool("arclang_prove", {"model_path": "toggle.arc", "correspondence": "Toggle sketch"})
+    assert "--correspondence=Toggle sketch" in recorded.last
+
+
+def test_the_example_of_the_correspondence_is_the_one_the_compiler_proves():
+    """The same machine and correspondence as tests/fixtures/sketches/toggle.arc, which CI proves."""
+    from pathlib import Path
+
+    from arclang_mcp.resources.syntax_guide import example
+
+    proven = (Path(__file__).resolve().parents[2] / "tests/fixtures/sketches/toggle.arc").read_text()
+    squeezed = lambda text: re.sub(r"\s+", "", re.sub(r"^//.*$", "", text, flags=re.M))  # noqa: E731
+    assert squeezed(example("correspondence")) == squeezed(proven)
