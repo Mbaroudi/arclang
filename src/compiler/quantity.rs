@@ -410,6 +410,8 @@ pub const UNITS: &[UnitSpec] = &[
     // Pressure
     unit("Pa", Dimension::Pressure, 1.0, "Pa"),
     unit("kPa", Dimension::Pressure, 1e3, "kPa"),
+    unit("MPa", Dimension::Pressure, 1e6, "MPa"),
+    unit("GPa", Dimension::Pressure, 1e9, "GPa"),
     unit("bar", Dimension::Pressure, 1e5, "bar"),
     // Temperature. A degree Celsius is a temperature level (20 °C is
     // 293.15 K); a difference of temperatures is written in K.
@@ -564,6 +566,15 @@ impl fmt::Display for Quantity {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_modulus_and_a_strength_are_pressures_in_their_usual_units() {
+        // Materials are given in MPa and GPa; both are pressures and compare with one another.
+        assert_eq!(Quantity::parse("3.5 GPa").unwrap().canonical(), 3.5e9);
+        assert_eq!(Quantity::parse("50 MPa").unwrap().canonical(), 5.0e7);
+        assert_eq!(Quantity::parse("3.5 GPa").unwrap().dimension(), Quantity::parse("1 bar").unwrap().dimension());
+        assert_eq!(Quantity::parse("3.5 GPa").unwrap().to_unit("MPa").unwrap().value, 3500.0);
+    }
+
     use super::*;
 
     #[test]
