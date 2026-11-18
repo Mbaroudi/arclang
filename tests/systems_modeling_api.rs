@@ -207,6 +207,9 @@ async fn the_layers_of_a_commit_say_where_each_element_is_and_what_joins_them() 
     let elements = layers["elements"].as_array().unwrap();
     let of = |id: &str| elements.iter().find(|e| e["id"] == id).unwrap_or_else(|| panic!("no element {id}"));
     assert_eq!(of("LC-1")["layer"], "LA");
+    // An element says what holds it: the component of a function, the machine of a state.
+    let function = elements.iter().find(|e| e["kind"] == "LogicalFunction" && e["name"] == "Plan").expect("a function of LC-1");
+    assert_eq!(function["owner"], of("LC-1")["@id"]);
     assert_eq!(of("PN-1")["layer"], "PA");
     assert_eq!(of("SF-1")["layer"], "SA");
     // The identities are those of the elements served beside the layers.

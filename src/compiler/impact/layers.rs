@@ -25,7 +25,7 @@ pub fn document(result: &crate::CompilationResult) -> Value {
         .nodes
         .iter()
         .filter(|node| node.element.is_some())
-        .map(|node| json!({ "@id": node.uuid, "id": node.id, "name": node.name, "kind": node.kind, "layer": node.layer }))
+        .map(|node| json!({ "@id": node.uuid, "id": node.id, "name": node.name, "kind": node.kind, "layer": node.layer, "owner": node.element.and_then(|index| context.element(index).owner.clone()) }))
         .collect();
     let mut links = Vec::new();
     for (from, edges) in graph.edges.iter().enumerate() {
