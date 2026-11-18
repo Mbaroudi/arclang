@@ -99,6 +99,8 @@ pub struct Snapshot {
     pub variants: Value,
     /// Where the located elements are, as GeoJSON, or null likewise.
     pub space: Value,
+    /// The C the state machines become, and where each is in it, or null likewise (or when there is no machine).
+    pub code: Value,
     /// SHA-256 of the rendered records: equal digests = equal content.
     pub digest: String,
     pub unresolved: Vec<String>,
@@ -233,6 +235,7 @@ impl Snapshot {
             realization: Value::Null,
             variants: Value::Null,
             space: Value::Null,
+            code: Value::Null,
             digest,
             unresolved: graph.unresolved.clone(),
             warnings,
@@ -255,6 +258,7 @@ impl Snapshot {
         snapshot.realization = json!({ "requirements": crate::compiler::realization::ladders(result, None) });
         snapshot.variants = crate::compiler::impact::layers::variants(result);
         snapshot.space = crate::compiler::impact::layers::space(result);
+        snapshot.code = crate::compiler::impact::layers::code(result);
         snapshot
     }
 
@@ -283,6 +287,7 @@ impl Snapshot {
             realization: Value::Null,
             variants: Value::Null,
             space: Value::Null,
+            code: Value::Null,
             digest: String::new(),
             unresolved: Vec::new(),
             warnings: Vec::new(),

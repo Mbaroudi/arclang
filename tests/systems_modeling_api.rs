@@ -329,6 +329,68 @@ physical_architecture "P" {
     assert!(space["notes"][0].as_str().unwrap().contains("PL-BC"), "what could not be drawn is said: {}", space["notes"]);
 }
 
+const MACHINES: &str = r#"model Monitor { name: "Monitor" }
+state_machine "Wheel filter" {
+    id: "SM-FILTER"
+    variables: ["in raw: Real", "filtered: Real = 0"]
+    initial: "Run"
+    state Run { }
+    equation: "filtered = filtered + 0.25 * (raw - filtered)"
+}
+state_machine "Overspeed" {
+    id: "SM-OVER"
+    variables: ["in speed: Real", "out warning: Boolean = false"]
+    initial: "Normal"
+    state Normal { }
+    state Warning { entry: "warning := true" }
+    transition Normal -> Warning { guard: "speed > 130" }
+    transition Warning -> Normal { guard: "speed < 120" }
+}
+"#;
+
+#[tokio::test]
+async fn the_code_of_a_commit_says_where_each_machine_and_transition_is_in_it() {
+    let (_, _, projects) = call(MACHINES, "GET", "/projects", None).await;
+    let project = projects[0]["@id"].as_str().unwrap().to_string();
+    let (_, _, branches) = call(MACHINES, "GET", &format!("/projects/{project}/branches"), None).await;
+    let commit = branches[0]["head"]["@id"].as_str().unwrap().to_string();
+    let (status, _, code) = call(MACHINES, "GET", &format!("/projects/{project}/commits/{commit}/code"), None).await;
+    assert_eq!(status, StatusCode::OK, "{code}");
+    let source = code["files"].as_array().unwrap().iter().find(|f| f["name"].as_str().unwrap().ends_with(".c")).unwrap();
+    let text = source["text"].as_str().unwrap();
+    let lines: Vec<&str> = text.lines().collect();
+
+    let over = code["machines"].as_array().unwrap().iter().find(|m| m["name"] == "Overspeed").expect("the machine is placed");
+    // The section is the machine's own code: it starts at its marker and holds both transitions.
+    let (from, to) = (over["section"]["from"].as_u64().unwrap() as usize, over["section"]["to"].as_u64().unwrap() as usize);
+    assert!(lines[from - 1].contains("state_machine \"Overspeed\""), "{}", lines[from - 1]);
+    assert!(!lines[to - 1].trim().is_empty() && !lines[to - 1].contains("state_machine \""), "ends on its last line of code: {}", lines[to - 1]);
+    let transitions = over["transitions"].as_array().unwrap();
+    assert_eq!(transitions.len(), 2, "{transitions:?}");
+    assert_eq!(transitions[0]["label"], "transition Normal -> Warning");
+    let (t0, t1) = (transitions[0]["from"].as_u64().unwrap() as usize, transitions[0]["to"].as_u64().unwrap() as usize);
+    assert!(lines[t0 - 1].starts_with("/* transition Normal -> Warning"), "{}", lines[t0 - 1]);
+    assert_eq!(lines[t1 - 1], "}", "a transition ends on its closing brace");
+    assert!(from <= t0 && t1 <= to, "the transition is in the machine's section");
+    // The step function of the machine is its entry point.
+    let step = &over["step"];
+    assert!(lines[step["from"].as_u64().unwrap() as usize - 1].contains("_overspeed_step("), "{step}");
+    // The machine is the element the model declares: its identity is that of the element graph.
+    let (_, _, layers) = call(MACHINES, "GET", &format!("/projects/{project}/commits/{commit}/layers"), None).await;
+    let element = layers["elements"].as_array().unwrap().iter().find(|e| e["id"] == "SM-OVER").unwrap();
+    assert_eq!(over["@id"], element["@id"]);
+}
+
+#[tokio::test]
+async fn a_model_with_no_machine_has_no_code() {
+    let (_, _, projects) = call(MODEL, "GET", "/projects", None).await;
+    let project = projects[0]["@id"].as_str().unwrap().to_string();
+    let (_, _, branches) = call(MODEL, "GET", &format!("/projects/{project}/branches"), None).await;
+    let commit = branches[0]["head"]["@id"].as_str().unwrap().to_string();
+    let (status, _, _) = call(MODEL, "GET", &format!("/projects/{project}/commits/{commit}/code"), None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
 #[tokio::test]
 async fn pagination_uses_cursors_and_link_headers() {
     let (project, commit) = ids().await;

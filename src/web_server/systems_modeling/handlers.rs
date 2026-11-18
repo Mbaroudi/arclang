@@ -324,6 +324,18 @@ async fn get_space(State(api): Shared, Path((project_id, commit_id)): Path<(Stri
     }
 }
 
+/// The C the state machines of a commit become: the generated source and
+/// header, and for each machine the lines of its code, of its step function
+/// and of each transition.
+async fn get_code(State(api): Shared, Path((project_id, commit_id)): Path<(String, String)>) -> Response {
+    let workspace = read(&api.workspace);
+    match workspace.snapshot(&project_id, &commit_id) {
+        Ok(snapshot) if snapshot.code.is_null() => not_found(format!("commit '{}' has no generated code: it has no state machine to generate, or was not built from a compilation", commit_id)),
+        Ok(snapshot) => Json(snapshot.code.clone()).into_response(),
+        Err(response) => response,
+    }
+}
+
 async fn list_roots(
     State(api): Shared,
     Path((project_id, commit_id)): Path<(String, String)>,
@@ -569,6 +581,7 @@ pub fn router(workspace: SharedWorkspace, vocabulary: Vocabulary) -> Router {
         .route("/projects/:project_id/commits/:commit_id/views", get(get_views))
         .route("/projects/:project_id/commits/:commit_id/variants", get(get_variants))
         .route("/projects/:project_id/commits/:commit_id/space", get(get_space))
+        .route("/projects/:project_id/commits/:commit_id/code", get(get_code))
         .route("/projects/:project_id/commits/:commit_id/realization", get(get_realization))
         .route("/projects/:project_id/commits/:commit_id/changes", get(list_changes))
         .route("/projects/:project_id/query-results", post(query_results))

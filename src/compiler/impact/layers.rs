@@ -102,3 +102,70 @@ pub fn space(result: &crate::CompilationResult) -> Value {
     let (text, notes) = crate::compiler::spatial::geojson::export(&result.ast);
     json!({ "collection": serde_json::from_str::<Value>(&text).unwrap_or(Value::Null), "notes": notes })
 }
+
+/// The C a model's state machines become, and where each machine is in it.
+///
+/// What `arclang export -f c` generates for the behavior of the model: the
+/// source and the header of the machines, with for each machine (an element
+/// of the model, by its identity) the lines of its own code, the lines of its
+/// step function, and the lines of each transition. The generated text is
+/// served as it is written; the lines are those of that text. `null` when the
+/// model has no machine to generate.
+pub fn code(result: &crate::CompilationResult) -> Value {
+    let Ok(plan) = crate::compiler::embedded::plan::plan(&result.ast) else { return Value::Null };
+    let Ok((files, notes)) = crate::compiler::embedded::export(&result.ast) else { return Value::Null };
+    let source_name = format!("{}.c", plan.ident);
+    let header_name = format!("{}.h", plan.ident);
+    let text_of = |name: &str| files.iter().find(|(file, _)| file == name).map(|(_, text)| text.as_str()).unwrap_or("");
+    let source = text_of(&source_name);
+    let lines: Vec<&str> = source.lines().collect();
+    let context = Context::new(result, "ISO26262");
+
+    // A machine's own code runs from its marker to the next marker, or to the first function of the model.
+    let marker = |name: &str| format!("/* ---- state_machine \"{}\" ---- */", crate::compiler::embedded::cgen::comment(name));
+    let starts: Vec<(usize, &str)> = plan.machines.iter().filter_map(|m| lines.iter().position(|l| *l == marker(&m.name)).map(|at| (at, m.name.as_str()))).collect();
+    let public_start = lines.iter().position(|l| l.starts_with(&format!("void {}_init(", plan.ident))).unwrap_or(lines.len());
+    let function = |name: &str| -> Option<Value> {
+        let start = lines.iter().position(|l| l.starts_with(&format!("void {name}(")))?;
+        let end = lines[start..].iter().position(|l| *l == "}").map(|at| start + at)?;
+        Some(json!({ "file": source_name, "from": start + 1, "to": end + 1 }))
+    };
+    let machines: Vec<Value> = plan
+        .machines
+        .iter()
+        .filter_map(|m| {
+            let &(from, _) = starts.iter().find(|(_, name)| *name == m.name)?;
+            let next = starts.iter().map(|(at, _)| *at).filter(|at| *at > from).min().unwrap_or(public_start);
+            // The section ends with its last line of code, not with the blank line before the next.
+            let mut to = next;
+            while to > from && lines[to - 1].trim().is_empty() {
+                to -= 1;
+            }
+            let transitions: Vec<Value> = (from..to)
+                .filter(|&at| lines[at].starts_with("/* transition "))
+                .map(|at| {
+                    let end = lines[at..to].iter().position(|l| *l == "}").map(|rest| at + rest).unwrap_or(at);
+                    json!({ "label": lines[at].trim_start_matches("/* ").trim_end_matches(" */"), "from": at + 1, "to": end + 1 })
+                })
+                .collect();
+            let uuid = context.graph.elements.iter().find(|e| e.kind == "StateMachine" && (e.id == m.id || e.name == m.name)).map(|e| e.uuid.clone());
+            Some(json!({
+                "@id": uuid,
+                "name": m.name,
+                "section": { "file": source_name, "from": from + 1, "to": to },
+                "step": function(&format!("{}_{}_step", plan.ident, m.ident)),
+                "transitions": transitions,
+            }))
+        })
+        .collect();
+    let others: Vec<&str> = files.iter().map(|(name, _)| name.as_str()).filter(|name| *name != source_name && *name != header_name).collect();
+    json!({
+        "files": [
+            { "name": source_name, "language": "c", "text": source },
+            { "name": header_name, "language": "c", "text": text_of(&header_name) },
+        ],
+        "other_files": others,
+        "machines": machines,
+        "notes": notes,
+    })
+}
