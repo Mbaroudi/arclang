@@ -12,15 +12,14 @@ MCP client (Claude Desktop, Claude Code, ...)
 server.py            lists tools and resources, routes each call to its group
         |
         v
-tools/*.py           one handler per tool: resolve paths, call the wrapper,
-        |            prefix the compiler's output with the outcome
+tools/*.py           one handler per tool: resolve paths, write the command
+        |            line, prefix the compiler's output with the outcome
         v
-compiler/wrapper.py  the only place that writes an `arclang` command line
+compiler/wrapper.py  ArcLangCompiler.run: the one place a command is run
         |  subprocess, argument list, no shell
         v
-arclang (4.3.0+)     check, rules, build, gate, trace, impact, diff, import,
-                     export, diagram, format, set, unset, rename, transition,
-                     review, metamodel, workbench, edit
+arclang              every subcommand but those tools/cli.py leaves out by
+                     name (serve, lsp, repl, explorer, clean, sync, plugin)
 ```
 
 ## Modules
@@ -28,9 +27,14 @@ arclang (4.3.0+)     check, rules, build, gate, trace, impact, diff, import,
 | Module | Role |
 |---|---|
 | `server.py` | Builds the tool table from the groups, serves the resources, runs over stdio. Works with the MCP Python SDK 1.x (decorators) and 2.x (handlers passed to the constructor) |
-| `compiler/wrapper.py` | `ArcLangCompiler`: one method per subcommand, returning a `Run` (command, exit code, stdout, stderr). Parsers that read only lines the binary prints |
-| `tools/common.py` | Path resolution, the shape of an answer (`report`) |
-| `tools/core.py` | Check (text or JSON findings), rules, build, gate, trace, impact, diff, export, metamodel, review |
+| `compiler/wrapper.py` | `ArcLangCompiler.run`, which every command goes through and which returns a `Run` (command, exit code, stdout, stderr); a method per subcommand for the first tools; the lists of formats, views, kinds and operations, held equal to the CLI's by the tests; parsers that read only lines the binary prints |
+| `tools/cli.py` | The server against the command line: `COVERS` (tool to subcommands), `NOT_EXPOSED` (subcommands no tool runs, with reasons), `OPTIONS` (each option that is not an argument of the same name: reached under another name, passed by the server, or left out with its reason) |
+| `tools/common.py` | Path resolution, `CommandLine` (options written `--option=value`, positionals after `--`, every path resolved), the guards for program names and serial ports, the shape of an answer (`report`) |
+| `tools/core.py` | Check (text, JSON or SARIF), rules, build, gate, realize, partition, schedule, trace (validate, suspects, review), impact, diff, export, metamodel, review |
+| `tools/simulation.py` | Verify, the stages (cosim, sil, pil, hdl, soc, hil), twin, observe, debug: one tool per command, each with a bounded time |
+| `tools/versioning.py` | Merge by element, history of an element, restore at a revision, baselines |
+| `tools/delivery.py` | Tables, documents, a new model, the pull-request report, SARIF, the pipeline files |
+| `tools/recover.py` | Prove, recover (generated C, a device tree, a binary, a proposal), drift |
 | `tools/edit.py` | Format and the lossless edits, with a diff preview |
 | `tools/workbench.py` | The compiler's workbench API, as the VS Code extension uses it: `arclang workbench` reduced to the picture its agent reads (counts, elements by id, one element with its relationships, findings, gate, diagrams) or one raw section; `arclang edit` applied request by request on a copy in a private temporary directory, the whole list refused when one request is, the file written only with `write: true` |
 | `tools/transform.py` | Import (writes only at `output_path`, then checks the result) and the Arcadia transition (plan as JSON, or the edited model as a diff until `write: true`) |
@@ -38,8 +42,7 @@ arclang (4.3.0+)     check, rules, build, gate, trace, impact, diff, import,
 | `tools/safety.py` | Safety summary; hazards the model declares |
 | `tools/expert.py` + `mbse_expert.py` | Keyword sorting of requirements, skeleton, SVG checks |
 | `tools/batch.py` | Several operations in one call, each reduced |
-| `tools/integration.py` | Tools the compiler does not back: they say so |
-| `resources/` | The syntax rules and the reference model |
+| `resources/` | The syntax rules, the reference model and the shorter examples the rules show |
 | `ai/generator.py` | Snippet templates; a Claude model when `ANTHROPIC_API_KEY` is set |
 | `utils/config.py` | `.arclang-mcp.toml` and environment |
 
@@ -48,9 +51,15 @@ tool's description and its behavior are read and changed together.
 
 ## Rules the code holds to
 
-1. **Only the wrapper writes command lines**, and only with options the CLI
-   has. Positional arguments follow `--`, so a value such as `-5` or a file
-   named `--write` is never read as an option.
+1. **Every command goes through `ArcLangCompiler.run`**, as an argument
+   list, with only options the CLI has. The first tools call a method of
+   the wrapper; the later ones write their command line next to their
+   schema with `CommandLine`. Positional arguments follow `--`, and an
+   option's value is written `--option=value`, so a value such as `-5`,
+   `--help` or a file named `--write` is never read as an option.
+   `tools/cli.py` says which subcommand each tool runs, and the tests hold
+   it to `arclang --help`: a subcommand or an option no tool reaches fails
+   a test until it is offered or left out there by name.
 2. **An answer is the compiler's output plus one outcome line.** The outcome
    comes from the exit code, or from a line the compiler prints
    (`PRODUCTION GATE: PASS`). Where the exit code is ambiguous the output
@@ -71,8 +80,15 @@ tool's description and its behavior are read and changed together.
    the final text.
    `arclang_review` is a dry run without `send: true`. The generation tools
    call a Claude model only when a key is configured, and say which wrote the
-   text.
-6. **Nothing is invented.** The requirement analysis assigns a safety level
+   text. A run that takes minutes or needs hardware is asked for by name
+   (`run: true`, `prove: true`, `verify: auto`, `live` with `for_seconds`)
+   and has a bounded time.
+6. **A call names no program to run.** What an agent read can ask it for any
+   command, as for any path. A C compiler is a bare name on the `PATH`; a
+   serial port is a device name; a command line (`recover --with`,
+   `hil --command`) is passed on only when the person who started the
+   server set `ARCLANG_MCP_ALLOW_COMMANDS=1`. `--open` is never passed.
+7. **Nothing is invented.** The requirement analysis assigns a safety level
    only when the text states one; the skeleton writes no trace, actor or
    hardware; a diagram type without a check gets no score.
 
@@ -104,4 +120,9 @@ a sandbox.
 
 `tests/` runs the real binary: every tool, the resources against the compiler,
 the failure paths (a model that does not compile, an unknown element, a missing
-key), and a full session over stdio. See the README for how to run them.
+key), and a full session over stdio. `test_cli_parity.py` reads the CLI's
+`--help` and holds `tools/cli.py` and the lists of the wrapper to it;
+`test_command_lines.py` checks that each argument said to reach an option
+writes it. The one stand-in is the `recorded` fixture: for the commands that
+simulate, build for a target, prove or drive a board, the command line is
+recorded and the compiler is not run. See the README for how to run them.

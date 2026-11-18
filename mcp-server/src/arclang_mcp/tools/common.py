@@ -5,6 +5,7 @@ What every tool group shares: path resolution and the shape of a report.
 import difflib
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -51,6 +52,151 @@ def resolve_path(workspace_root: Path, path: str) -> Path:
                 f"(separated by '{os.pathsep}'; '{ANYWHERE}' is any path)"
             )
     return target
+
+
+class CommandLine:
+    """The arguments of one `arclang <subcommand>`, built from a tool's arguments.
+
+    Every option is written `--option=value`, so that a value such as `--help` or
+    `-5` is the value of its option and never an option of its own; the positional
+    arguments follow `--`. Every path, read or written, goes through `resolve_path`.
+    """
+
+    def __init__(self, workspace_root: Path, args: Dict[str, Any], *command: str):
+        self.workspace_root = workspace_root
+        self.args = args
+        self.parts: List[str] = list(command)
+
+    def given(self, key: str) -> bool:
+        return self.args.get(key) is not None and self.args.get(key) != ""
+
+    def flag(self, key: str, option: str) -> "CommandLine":
+        """`option` when the boolean argument `key` is true."""
+        if self.args.get(key) is True:
+            self.parts.append(option)
+        return self
+
+    def add(self, *options: str) -> "CommandLine":
+        """Options the tool always passes."""
+        self.parts += options
+        return self
+
+    def value(self, key: str, option: str) -> "CommandLine":
+        """`option=<value>` when the argument `key` is given."""
+        if self.given(key):
+            value = self.args[key]
+            text = f"{value:g}" if isinstance(value, float) else str(value)
+            self.parts.append(f"{option}={text}")
+        return self
+
+    def each(self, key: str, option: str) -> "CommandLine":
+        """`option=<item>` for each item of the list argument `key`."""
+        for item in self.args.get(key) or []:
+            self.parts.append(f"{option}={item}")
+        return self
+
+    def joined(self, key: str, option: str) -> "CommandLine":
+        """`option=<a,b,c>` for a list the CLI reads comma separated."""
+        items = [str(item) for item in self.args.get(key) or []]
+        if any("," in item for item in items):
+            raise InvalidArguments(f"an item of '{key}' must not hold a comma")
+        if items:
+            self.parts.append(f"{option}={','.join(items)}")
+        return self
+
+    def path(self, key: str, option: str, make_parent: bool = False) -> Optional[Path]:
+        """`option=<path>` when `key` is given: the path resolved, refused outside the roots."""
+        if not self.given(key):
+            return None
+        target = resolve_path(self.workspace_root, self.args[key])
+        if make_parent:
+            target.parent.mkdir(parents=True, exist_ok=True)
+        self.parts.append(f"{option}={target}")
+        return target
+
+    def end(self, *positional: Any) -> List[str]:
+        """The finished argument list, the positional arguments after `--`."""
+        return [*self.parts, "--", *(str(item) for item in positional)]
+
+
+def bounded_seconds(args: Dict[str, Any], key: str, default: int, most: int) -> int:
+    """A number of seconds the call gives, from 1 to `most`; `default` when it gives none."""
+    seconds = args.get(key, default)
+    if isinstance(seconds, bool) or not isinstance(seconds, int) or not 1 <= seconds <= most:
+        raise InvalidArguments(f"'{key}' is a number of seconds from 1 to {most}")
+    return seconds
+
+
+# Set to 1 by the person who starts the server to let a call name a program to run.
+ALLOW_COMMANDS = "ARCLANG_MCP_ALLOW_COMMANDS"
+SERIAL_PORT = re.compile(r"^(/dev/[A-Za-z0-9._-]+|COM[0-9]+)$")
+PROGRAM_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]*$")
+
+
+def commands_allowed() -> bool:
+    return os.environ.get(ALLOW_COMMANDS, "").strip().lower() in ("1", "true", "yes")
+
+
+def command_argument(args: Dict[str, Any], key: str, instead: str) -> Optional[str]:
+    """A command line the call asks the compiler to run (a proposer, a stand-in for a board).
+
+    What an agent read can ask it for any command, as for any path: the server
+    passes one on only when the person who started it said so. `instead` says
+    what works without that.
+    """
+    command = args.get(key)
+    if command is None or command == "":
+        return None
+    if not commands_allowed():
+        raise InvalidArguments(
+            f"'{key}' names a program to run, and this server runs none a call names unless it "
+            f"was started with {ALLOW_COMMANDS}=1. {instead}"
+        )
+    return str(command)
+
+
+def program_name(value: Any, key: str) -> str:
+    """A program found on the PATH by its bare name (a C compiler: gcc, clang, gcc-15)."""
+    if not isinstance(value, str) or not PROGRAM_NAME.match(value):
+        raise InvalidArguments(
+            f"'{key}' is the bare name of a program on the PATH (gcc, clang, gcc-15), not a path "
+            f"or a command line, got {json.dumps(value)}"
+        )
+    return value
+
+
+def serial_port(args: Dict[str, Any], key: str) -> Optional[str]:
+    """A serial port, by its device name: the one path a tool takes that is not a file."""
+    port = args.get(key)
+    if port is None or port == "":
+        return None
+    if not isinstance(port, str) or not SERIAL_PORT.match(port):
+        raise InvalidArguments(
+            f"'{key}' is a serial port (/dev/cu.usbmodem1101, /dev/ttyACM0, COM3), "
+            f"got {json.dumps(port)}"
+        )
+    return port
+
+
+def repository_root(workspace_root: Path, directory: Path) -> Path:
+    """The top of the git repository `directory` is in (itself when in none), refused outside the roots.
+
+    The commands that write for a repository (`ci init`, `baseline create`) write at
+    its top, wherever in it they are run: the top is a path the server writes to.
+    """
+    start = directory.resolve()
+    top = next((place for place in (start, *start.parents) if (place / ".git").exists()), start)
+    resolve_path(workspace_root, str(top))
+    return top
+
+
+def listing(directory: Path, limit: int = 60) -> str:
+    """The files under a directory the compiler filled, with their sizes."""
+    files = sorted(path for path in directory.rglob("*") if path.is_file())
+    lines = [f"- {path.relative_to(directory)} ({path.stat().st_size} bytes)" for path in files[:limit]]
+    if len(files) > limit:
+        lines.append(f"- ... and {len(files) - limit} more")
+    return "\n".join(lines) or "(no file)"
 
 
 def schema(properties: Dict[str, Any], *required: str) -> Dict[str, Any]:

@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-from arclang_mcp.compiler.wrapper import EDIT_OPS, WORKBENCH_GATE_STANDARDS
 from arclang_mcp.tools.common import InvalidArguments
 
 REPOSITORY = Path(__file__).resolve().parents[2]
@@ -142,12 +141,7 @@ async def test_workbench_arguments_are_the_clis(server, aeb):
         await server.call_tool("arclang_workbench", {"path": str(aeb), "gate_standard": "iso26262"})
     with pytest.raises(InvalidArguments, match="'section' must be one of"):
         await server.call_tool("arclang_workbench", {"path": str(aeb), "section": "all"})
-    help_text = (await server.compiler.run(["workbench", "--help"])).stdout
-    for standard in WORKBENCH_GATE_STANDARDS:
-        assert standard in help_text
-    help_text = (await server.compiler.run(["edit", "--help"])).stdout
-    for op in EDIT_OPS:
-        assert f'"{op}"' in help_text
+    # The standards and the edit operations are held equal to the CLI's in test_cli_parity.py.
 
 
 async def test_edit_applies_the_requests_in_order_without_writing(server, aeb):

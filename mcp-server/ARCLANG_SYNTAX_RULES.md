@@ -4,8 +4,8 @@
 
 # ArcLang syntax rules
 
-For the compiler this server runs (`arclang` 4.3; the `arclang://metamodel`
-resource prints the language version). The compiler is STRICT: any construct
+For the compiler this server runs (the `arclang://metamodel` resource prints
+the language version). The compiler is STRICT: any construct
 outside the grammar is a compile error with its line and column. Nothing is
 skipped silently. Do not guess: check with `arclang_validate` after every
 change (`as_json: true` names the rule and the fix of each finding, and
@@ -86,6 +86,201 @@ an element kind accepts and with which type.
     Never record a verdict for a test nobody ran: leave the case without one
     and tell the engineer what remains to run.
 
+## Verification that runs
+
+A `test_case` computes its verdict instead of recording one when it says how
+to run. `execute: { machine: ... step: ... stop_time: ... inputs: [...] }`
+runs a state machine: each input is `"<instant>: <event>"` (or
+`"<instant>: <variable> = <value>"`), and each line of `expects:` names the
+requirement it checks, then an expression on the run: `at(<instant>,
+"<Machine>".<State or variable>)`, with `min`, `max`, `final`, `mean` for a
+simulated quantity. The same case is run on the model, as C on this computer
+(`arclang_sil`), on the target's processor (`arclang_pil`) and in logic
+(`arclang_hdl`, `arclang_soc`); `arclang_realize` says which of those stages
+each requirement has, and climbs the missing ones with `run: true`.
+
+An `io_binding` is the state machine as a task of a target: its `period`,
+its inputs (`"<event> <- gpio 4 rising"`) and its outputs
+(`"<State> -> gpio 20"`). `arclang_schedule` says whether every task meets
+its period.
+
+```arc
+// A case whose verdict is computed: the state machine is run, its expects: judged.
+// The same case is run as C by arclang_sil and on the target by arclang_pil.
+model Wiper {
+    requirements system {
+        req "REQ-WIPE" "Slow wiping" { description: "The wiper runs slow when the stalk asks for it" }
+    }
+    architecture logical { component "Wiper control" { id: "LC-WIPE" } }
+    test_case "TC-WIPE" {
+        verifies: ["REQ-WIPE"]
+        method: "test"
+        execute: {
+            machine: "Wiper"
+            step: 20 ms
+            stop_time: 200 ms
+            inputs: ["20 ms: stalk slow", "100 ms: stalk off"]
+        }
+        expects: [
+            "REQ-WIPE: at(40 ms, \"Wiper\".Slow) == 1",
+            "REQ-WIPE: at(120 ms, \"Wiper\".Slow) == 0"
+        ]
+    }
+}
+
+state_machine "Wiper" {
+    initial: "Off"
+    state Off {}
+    state Slow {}
+    transition Off -> Slow { trigger: "stalk slow" }
+    transition Slow -> Off { trigger: "stalk off" }
+}
+
+io_binding "Wiper task" {
+    machine: "Wiper"
+    target: "zephyr/litex_vexriscv"
+    period: 20 ms
+    inputs: ["stalk slow <- gpio 4 rising", "stalk off <- gpio 6 rising"]
+    outputs: ["Slow -> gpio 20"]
+}
+
+trace "LC-WIPE" satisfies "REQ-WIPE" { rationale: "Runs the wiper" }
+```
+
+`simulate: { model: "<Package.Class>" stop_time: ... sources: [...] }` runs
+the physics in OpenModelica instead (`arclang_verify`): a hand-written
+Modelica class, or the package `arclang_export` writes with `format:
+modelica`. A `twin` drives the same physics with measured data: `data:` is
+the file and its time column, `drives:` imposes a column on a variable
+(`variable <- column unit`), `compares:` holds the model to a measurement
+(`variable ~ column unit within tolerance [for N %]`), and `expects:` checks
+the requirements on that run. `arclang_twin` runs the twins.
+
+```arc
+// A case that simulates the physics, and a twin that drives the same physics with measurements.
+model Heating {
+    requirements system {
+        req "REQ-COMFORT" "Comfort" { description: "The room stays at 20 °C or more" }
+    }
+    architecture physical {
+        node "Outdoor" { id: "PN-OUTDOOR" }
+        node "Living space" { id: "PN-SPACE" }
+    }
+    test_case "TC-DESIGN-DAY" {
+        verifies: ["REQ-COMFORT"]
+        simulate: { model: "HeatingPhysics.StandardDay" stop_time: 24 h sources: ["physics/HeatingPhysics.mo"] }
+        expects: ["REQ-COMFORT: min(\"PN-SPACE\".room.T) >= 20 °C"]
+    }
+}
+
+twin "January cold day" {
+    id: "TW-JANUARY"
+    verifies: ["REQ-COMFORT"]
+    simulate: { model: "HeatingPhysics.StandardDay" sources: ["physics/HeatingPhysics.mo"] }
+    data: { file: "data/house-2026-01-14.csv" time: "timestamp" }
+    drives: ["\"PN-OUTDOOR\".T <- outdoor_c °C"]
+    compares: ["\"PN-SPACE\".room.T ~ indoor_c °C within 0.5 K for 99 %"]
+    expects: ["REQ-COMFORT: min(\"PN-SPACE\".room.T) >= 20 °C"]
+}
+```
+
+Never write `verdict: "pass"` on a case that says `execute:` or `simulate:`:
+its verdict is the run's, and it has none until the run is made.
+
+## Code written by hand
+
+A `correspondence` says that a piece of code written by hand (an Arduino
+sketch) IS a state machine of the model: `source:` is the file beside the
+model, `period:` the time of one `loop()`, `reads:` and `writes:` tie each
+pin to a variable or a state, `state:` ties the sketch's variables to the
+machine (`<C expression> is in <State>`, `... is <variable>`, `... is time
+in <State>`), `invariant:` bounds the sketch's variables. It claims nothing
+by itself: `arclang_prove` proves it or refutes it with a case, and
+`arclang_observe` measures a real board against it.
+
+```arc
+// Code written by hand (toggle.ino) and the model that says what it is: arclang_prove decides.
+model "Toggle" {
+    version: "1.0.0"
+}
+
+state_machine "Lamp" {
+    variables: ["in button: Boolean", "led: Boolean = false"]
+    initial: "OffReleased"
+    state OffReleased {}
+    state OnHeld { entry: "led := true" }
+    state OnReleased {}
+    state OffHeld { entry: "led := false" }
+    transition OffReleased -> OnHeld { guard: "button" }
+    transition OnHeld -> OnReleased { guard: "not button" }
+    transition OnReleased -> OffHeld { guard: "button" }
+    transition OffHeld -> OffReleased { guard: "not button" }
+}
+
+correspondence "Toggle sketch" {
+    machine: "Lamp"
+    source: "toggle.ino"
+    period: 10 ms
+    reads: ["digitalRead(BUTTON) is button"]
+    writes: ["digitalWrite(LED) is led"]
+    state: [
+        "lit == 0 && was == 0 is in OffReleased",
+        "lit == 1 && was == 1 is in OnHeld",
+        "lit == 1 && was == 0 is in OnReleased",
+        "lit == 0 && was == 1 is in OffHeld",
+        "lit == 1 is led"
+    ]
+    invariant: ["lit == 0 || lit == 1", "was == 0 || was == 1"]
+}
+```
+
+## Levels of the V, responsibility, documents, risks
+
+A `test_case` says the `level:` of the V it belongs to (`component`,
+`subsystem`, `system`, `validation`) and a requirement its plan,
+`verification_levels: [...]`: the requirement is verified when a case of
+EACH planned level verifies it, and the gate blocks on a level no case
+verifies at. A case that states no level is at none.
+
+`organization` and `document` are top-level elements; any element names the
+organization that answers for it (`responsible:`) and the documents that
+describe it (`documented_by: [...]`), by id or by name. A `risk` is a risk
+of the project, not a hazard of the product: `likelihood` and `severity`
+(low, medium, high), what it `bears_on` and what it is `mitigated_by`; its
+level is computed, never written. All of them are followed by
+`arclang_impact` and shown by `arclang_table`.
+
+```arc
+// Levels of the V, who answers for an element, what documents it, and a risk of the project.
+model Braking {
+    requirements system {
+        requirement "Stops before the obstacle" {
+            id: "REQ-STOP"
+            verification_levels: ["system", "validation"]
+            responsible: "ORG-CHASSIS"
+            documented_by: ["DOC-SRS"]
+        }
+    }
+    architecture logical {
+        component "Brake controller" { id: "LC-BRAKE" responsible: "Chassis team" }
+    }
+    test_case "Braking on the bench" { id: "TC-BENCH" verifies: ["REQ-STOP"] level: "system" verdict: "pass" }
+    test_case "Braking on the track" { id: "TC-TRACK" verifies: ["REQ-STOP"] level: "validation" method: "demonstration" verdict: "pass" }
+}
+
+organization "Chassis team" { id: "ORG-CHASSIS" }
+document "System requirements specification" { id: "DOC-SRS" category: "specification" }
+risk "Brake supplier delay" {
+    id: "RISK-1"
+    likelihood: "medium"
+    severity: "high"
+    bears_on: ["LC-BRAKE"]
+    mitigated_by: ["REQ-STOP"]
+}
+
+trace "LC-BRAKE" satisfies "REQ-STOP" { rationale: "Commands the braking" }
+```
+
 ## Editing a model: precise requests, not a rewrite
 
 Do not rewrite a file to change one thing: the compiler edits the text
@@ -102,7 +297,10 @@ with a list of requests, applied in order on one text:
 The other ops are `unset`, `rename` (the identity is kept), `add_raw` (one
 declaration as source: an exchange, a message, a transition), `remove`,
 `move` (a function reallocated, a component nested elsewhere),
-`remove_trace` and `wrap_fragment`. The whole list is refused, and nothing
+`remove_trace`, `wrap_fragment` and `wrap_invariant` (messages of a scenario
+in a fragment, or under a state asserted on a lifeline), `reconnect` (a
+relationship to another source or target) and `duplicate` /
+`duplicate_many` (copies with ids made unique). The whole list is refused, and nothing
 changes, when any request names an unknown element or would leave a model
 that does not compile; the answer names the request and the reason. Nothing
 is written without `write: true`: the answer is the diff.
@@ -136,6 +334,9 @@ model EmergencyBraking {
             description: "The system shall brake when a collision is imminent"
             priority: "Critical"
             safety_level: "ASIL-D"
+            // The verification plan: the levels of the V a case must verify it at.
+            verification_levels: ["system"]
+            documented_by: ["DOC-001"]
         }
     }
 
@@ -174,6 +375,7 @@ model EmergencyBraking {
             id: "LC-002"
             is: "Periodic task"
             safety_level: "ASIL-D"
+            responsible: "ORG-001"
             port in threat { id: "LP-002" data_type: "ThreatLevel" }
             function "Compute braking force" { id: "LF-002" latency: 10 ms }
         }
@@ -233,6 +435,7 @@ model EmergencyBraking {
         description: "Target cut-in at 50 km/h"
         verifies: ["REQ-BRK-001"]
         method: test
+        level: "system"
         verdict: "pass"
     }
 }
@@ -275,6 +478,25 @@ exchange_item ThreatAssessed {
 }
 
 // Modes and states (Arcadia transverse): mode = chosen, state = undergone.
+// Who answers for an element (responsible:), what documents it (documented_by:),
+// and a risk of the project: its level is computed from likelihood and severity.
+organization "Chassis team" {
+    id: "ORG-001"
+}
+
+document "Braking system requirements" {
+    id: "DOC-001"
+    category: "specification"
+}
+
+risk "Radar supplier delay" {
+    id: "RISK-001"
+    likelihood: "medium"
+    severity: "high"
+    bears_on: ["LC-001"]
+    mitigated_by: ["REQ-BRK-001"]
+}
+
 state_machine BrakingModes {
     initial: "Standby"
     mode Standby { description: "Armed, monitoring" }

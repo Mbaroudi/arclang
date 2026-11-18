@@ -18,12 +18,13 @@ from ..ai.generator import COMPONENT_BLOCKS, AIGenerator
 from ..compiler.wrapper import (
     DIAGRAM_TYPES,
     TEXT_DIAGRAM_FORMATS,
+    THEMES,
     VIEWPOINT_FORMATS,
     VIEWS,
     ArcLangCompiler,
     Run,
 )
-from .common import MODEL_PATH, report, resolve_path, schema
+from .common import MODEL_PATH, CommandLine, InvalidArguments, report, resolve_path, schema
 
 VIEWPOINT_EXTENSIONS = {"viewpoints": "json", "elk": "json", "html": "html"}
 # File extension of each `arclang diagram -f` format arclang_generate_diagram offers.
@@ -114,8 +115,14 @@ TOOLS: List[Tool] = [
         description=(
             "The Arcadia viewpoint diagrams of a model (`arclang diagram`): operational "
             "(oab), system (sab), logical (lab), physical (pab), modes and states (msm), "
-            "scenarios (es). `html` is a self-contained viewer; `viewpoints` is the diagram "
-            "model as JSON; `elk` the ELK layout graphs. Returns what was written and where."
+            "scenarios (es), capabilities (cap), the class diagram (cdb), the product "
+            "breakdown (pbs), requirements (req), parametric (par), or `cesam`: the views of "
+            "the CESAM framework, titled and ordered by its grid. `html` is a self-contained "
+            "viewer; `viewpoints` is the diagram model as JSON; `elk` the ELK layout graphs. "
+            "`layout_path` shows them with a layout file (folds, open containers, manual "
+            "placement; default: `<model>.layout.json` next to the model when it exists); "
+            "`theme` colors the HTML viewer. Returns what was written and where; the page is "
+            "never opened in a browser."
         ),
         inputSchema=schema(
             {
@@ -130,6 +137,15 @@ TOOLS: List[Tool] = [
                     "type": "string",
                     "enum": list(VIEWS),
                     "description": "Only this kind of view (default: all)",
+                },
+                "layout_path": {
+                    "type": "string",
+                    "description": "The layout file the diagrams are shown with",
+                },
+                "theme": {
+                    "type": "string",
+                    "description": "html only: a preset (" + ", ".join(THEMES) + ") or the "
+                    "path of an arclang-theme.json file",
                 },
                 "output_path": {
                     "type": "string",
@@ -146,7 +162,8 @@ TOOLS: List[Tool] = [
             "types (they need the Node renderer, ARCLANG_DIAGRAM_SERVICE), a text diagram "
             "for `mermaid` (.mmd) and `plant-uml` (.puml). A type the model has no content "
             "for (no scenario, no state machine) fails: the compiler's message is returned. "
-            "For the Arcadia viewpoints prefer arclang_viewpoint_diagrams."
+            "`title` is the diagram's title. For the Arcadia viewpoints prefer "
+            "arclang_viewpoint_diagrams."
         ),
         inputSchema=schema(
             {
@@ -155,6 +172,10 @@ TOOLS: List[Tool] = [
                     "type": "string",
                     "enum": [*DIAGRAM_TYPES, *TEXT_DIAGRAM_FORMATS],
                     "description": "Type of diagram",
+                },
+                "title": {
+                    "type": "string",
+                    "description": 'The title of the diagram (default: "System Architecture")',
                 },
                 "output_path": {
                     "type": "string",
@@ -345,7 +366,20 @@ class GenerationTools:
             extension = VIEWPOINT_EXTENSIONS[diagram_format]
             output = model.with_name(f"{model.stem}.{diagram_format}.{extension}")
         output.parent.mkdir(parents=True, exist_ok=True)
-        run = await self.compiler.diagram(model, diagram_format, output, view=args.get("view"))
+        line = CommandLine(
+            self.workspace_root, args, "diagram", f"--format={diagram_format}", f"--output={output}"
+        )
+        line.value("view", "--view")
+        line.path("layout_path", "--layout")
+        theme = args.get("theme")
+        if theme and diagram_format != "html":
+            raise InvalidArguments("'theme' colors the HTML viewer: it goes with 'format: html'")
+        if theme in THEMES:
+            line.add(f"--theme={theme}")
+        elif theme:
+            # Not a preset: a theme file, a path like any other.
+            line.add(f"--theme={resolve_path(self.workspace_root, theme)}")
+        run = await self.compiler.run(line.end(model))
         return report(f"Viewpoint diagrams of {model.name} ({diagram_format})", run)
 
     async def _generate_diagram(self, args: Dict[str, Any]) -> str:
@@ -358,7 +392,10 @@ class GenerationTools:
             self.workspace_root, args.get("output_path") or f"{diagram_type}.{extension}"
         )
         output.parent.mkdir(parents=True, exist_ok=True)
-        run = await self.compiler.diagram(model, diagram_type, output)
+        line = CommandLine(
+            self.workspace_root, args, "diagram", f"--format={diagram_type}", f"--output={output}"
+        )
+        run = await self.compiler.run(line.value("title", "--title").end(model))
         return report(f"{diagram_type} diagram of {model.name}", run)
 
     async def generate_all(self, model: Path, output_dir: Path) -> Dict[str, Dict[str, Any]]:

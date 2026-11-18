@@ -2,9 +2,10 @@
 Safety tools: what the compiler reports about the safety content of a model.
 
 Neither tool certifies anything. `arclang_safety_check` returns the output
-of `arclang safety`; the verdict on a model is `arclang_gate`'s. The
-compiler's `--fmea`, `--fta` and `--report` options answer "Not implemented"
-in this version, so they are not offered.
+of `arclang safety`: the counts of declared safety content, and with `fmea`,
+`fta` or `report` the FMEA entries, the fault tree of every hazard, or the
+safety report in Markdown, each computed from the model. The verdict on a
+model is `arclang_gate`'s.
 `arclang_hazard_analysis` lists the hazards the model DECLARES: it derives
 no hazard of its own.
 """
@@ -17,15 +18,20 @@ from typing import Any, Awaitable, Callable, Dict, List
 from mcp.types import Tool
 
 from ..compiler.wrapper import SAFETY_STANDARDS, ArcLangCompiler
-from .common import MODEL_PATH, report, resolve_path, schema
+from .common import MODEL_PATH, CommandLine, report, resolve_path, schema
 
 TOOLS: List[Tool] = [
     Tool(
         name="arclang_safety_check",
         description=(
             "Safety content of a model (`arclang safety`): safety analysis blocks, hazards "
-            "and FMEA entries counted for a standard. This is a summary, not a compliance "
-            "verdict: for PASS/FAIL (HARA and ASIL consistency, mitigations) use arclang_gate."
+            "and FMEA entries counted for a standard. `fmea: true` reports the FMEA entries "
+            "(`--fmea`), `fta: true` the fault tree of every hazard with its failure modes, "
+            "rate and budget (`--fta`), `report: true` the safety report in Markdown "
+            "(hazards, FMEA by risk, fault trees, mitigations: `--report`), written to "
+            "`output_path` when given. Every figure is computed from the model. This is not "
+            "a compliance verdict: for PASS/FAIL (HARA and ASIL consistency, mitigations) "
+            "use arclang_gate."
         ),
         inputSchema=schema(
             {
@@ -34,6 +40,21 @@ TOOLS: List[Tool] = [
                     "type": "string",
                     "enum": list(SAFETY_STANDARDS),
                     "description": "Safety standard: iso26262, do178c or iec61508",
+                },
+                "fmea": {"type": "boolean", "description": "Report the FMEA entries", "default": False},
+                "fta": {
+                    "type": "boolean",
+                    "description": "The fault tree of every hazard",
+                    "default": False,
+                },
+                "report": {
+                    "type": "boolean",
+                    "description": "The safety report in Markdown",
+                    "default": False,
+                },
+                "output_path": {
+                    "type": "string",
+                    "description": "Where the report is written (default: returned)",
                 },
             },
             "model_path",
@@ -74,9 +95,17 @@ class SafetyTools:
     async def _safety_check(self, args: Dict[str, Any]) -> str:
         model = resolve_path(self.workspace_root, args["model_path"])
         standard = args["standard"]
-        run = await self.compiler.safety(model, standard=standard)
-        verdict = "summary printed (not a compliance verdict)" if run.ok else None
-        return report(f"Safety content of {model.name} ({standard})", run, verdict)
+        line = CommandLine(self.workspace_root, args, "safety", f"--standard={standard}")
+        line.flag("fmea", "--fmea").flag("fta", "--fta").flag("report", "--report")
+        output = line.path("output_path", "--output", make_parent=True)
+        run = await self.compiler.run(line.end(model))
+        asked = [name for name in ("fmea", "fta", "report") if args.get(name)]
+        what = ", ".join(asked) if asked else "summary"
+        verdict = f"{what} printed (not a compliance verdict)" if run.ok else None
+        answer = report(f"Safety content of {model.name} ({standard})", run, verdict)
+        if run.ok and output is not None and output.is_file():
+            answer += f"\n\nWritten to {output}"
+        return answer
 
     async def _hazard_analysis(self, args: Dict[str, Any]) -> str:
         model = resolve_path(self.workspace_root, args["model_path"])

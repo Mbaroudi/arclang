@@ -24,6 +24,9 @@ model EmergencyBraking {
             description: "The system shall brake when a collision is imminent"
             priority: "Critical"
             safety_level: "ASIL-D"
+            // The verification plan: the levels of the V a case must verify it at.
+            verification_levels: ["system"]
+            documented_by: ["DOC-001"]
         }
     }
 
@@ -62,6 +65,7 @@ model EmergencyBraking {
             id: "LC-002"
             is: "Periodic task"
             safety_level: "ASIL-D"
+            responsible: "ORG-001"
             port in threat { id: "LP-002" data_type: "ThreatLevel" }
             function "Compute braking force" { id: "LF-002" latency: 10 ms }
         }
@@ -121,6 +125,7 @@ model EmergencyBraking {
         description: "Target cut-in at 50 km/h"
         verifies: ["REQ-BRK-001"]
         method: test
+        level: "system"
         verdict: "pass"
     }
 }
@@ -163,6 +168,25 @@ exchange_item ThreatAssessed {
 }
 
 // Modes and states (Arcadia transverse): mode = chosen, state = undergone.
+// Who answers for an element (responsible:), what documents it (documented_by:),
+// and a risk of the project: its level is computed from likelihood and severity.
+organization "Chassis team" {
+    id: "ORG-001"
+}
+
+document "Braking system requirements" {
+    id: "DOC-001"
+    category: "specification"
+}
+
+risk "Radar supplier delay" {
+    id: "RISK-001"
+    likelihood: "medium"
+    severity: "high"
+    bears_on: ["LC-001"]
+    mitigated_by: ["REQ-BRK-001"]
+}
+
 state_machine BrakingModes {
     initial: "Standby"
     mode Standby { description: "Armed, monitoring" }
