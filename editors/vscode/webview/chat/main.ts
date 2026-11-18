@@ -2,13 +2,15 @@
 // markup strings): a transcript, a proposal card with the compiler-checked
 // diff and Apply, code blocks of Modelica answers with their "not verified"
 // label, and a composer. It holds no key and makes no request: the host does.
+import { refineDiff } from '../../src/pure/diff-words';
 import type { FromChatPage, ToChatPage } from '../../src/ai/chat/protocol';
 import type { ProposalView } from '../../src/ai/core/protocol';
 import { QUICK_ACTIONS } from '../../src/ai/core/protocol';
 import { el } from '../dom';
+import { keepTurn, readKept, type KeptTurn } from '../../src/pure/chat-history';
 import { prose } from './markdown';
 
-const vscode = acquireVsCodeApi() as unknown as { postMessage: (m: FromChatPage) => void };
+const vscode = acquireVsCodeApi() as unknown as { postMessage: (m: FromChatPage) => void; getState: () => unknown; setState: (state: unknown) => void };
 const post = (message: FromChatPage) => vscode.postMessage(message);
 const openLink = (url: string) => post({ type: 'chat-open-link', url });
 /** A model block longer than this shows its first lines in a bounded box. */
@@ -20,6 +22,13 @@ type State = Extract<ToChatPage, { type: 'chat-state' }>;
 let state: State | null = null;
 let busy = false;
 const turns = new Map<string, { body: HTMLElement; text: string; node: HTMLElement }>();
+/** What was asked and answered, kept with the view: it is shown again after the window or the browser is reopened. */
+let kept: KeptTurn[] = readKept(vscode.getState());
+const metaOf = new Map<string, string>();
+function keep(turn: KeptTurn): void {
+  kept = keepTurn(kept, turn);
+  vscode.setState({ turns: kept });
+}
 
 const root = document.getElementById('chat') as HTMLElement;
 const header = el('header', { class: 'chat-head' });
@@ -106,6 +115,8 @@ function renderHeader(): void {
   fresh.addEventListener('click', () => {
     transcript.textContent = '';
     turns.clear();
+    kept = [];
+    vscode.setState({ turns: kept });
     welcome();
     post({ type: 'chat-new' });
   });
@@ -297,7 +308,11 @@ function proposalCard(id: string, session: string, proposal: ProposalView, provi
     }
     if (proposal.diff.length) {
       const diff = el('pre', { class: 'chat-diff', 'aria-label': 'Diff of the model source' });
-      for (const line of proposal.diff.slice(0, 160)) diff.append(el('span', { class: line.startsWith('+') ? 'add' : line.startsWith('-') ? 'del' : line.startsWith('@@') ? 'hunk' : 'ctx', text: `${line}\n` }));
+      // A line replaced by another says which words changed.
+      for (const line of refineDiff(proposal.diff.slice(0, 160))) {
+        if (!line.changed) diff.append(el('span', { class: line.kind, text: `${line.text}\n` }));
+        else diff.append(el('span', { class: line.kind }, [line.text.slice(0, line.changed[0]), el('mark', { class: 'chg', text: line.text.slice(line.changed[0], line.changed[1]) }), `${line.text.slice(line.changed[1])}\n`]));
+      }
       // Written in the file, the change is in the editor: the diff stays folded.
       const fold = el('details', { class: 'chat-fold' }, [el('summary', { text: `The change in the source: +${proposal.added} −${proposal.removed} lines` }), diff]);
       if (!written) (fold as HTMLDetailsElement).open = true;
@@ -400,6 +415,7 @@ function send(): void {
   lastQuestion = text;
   const turn = addTurn(`u${Date.now()}`, 'you', 'You');
   renderText(turn.body, text, false);
+  keep({ who: 'you', meta: 'You', text });
   if (pendingRefine) {
     post({ type: 'chat-refine', session: pendingRefine, text });
     pendingRefine = null;
@@ -443,6 +459,7 @@ window.addEventListener('message', (event: MessageEvent<ToChatPage>) => {
       transcript.querySelector('.chat-welcome')?.remove();
       const meta = `${message.label}${message.file ? ` · ${message.file}` : ''}`;
       const turn = addTurn(message.id, 'ai', meta);
+      metaOf.set(message.id, meta);
       turn.body.append(waiting());
       turns.set(message.id, { ...turn, text: '' });
       questionOf.set(message.id, lastQuestion);
@@ -463,6 +480,7 @@ window.addEventListener('message', (event: MessageEvent<ToChatPage>) => {
       turn.body.textContent = '';
       turn.body.append(proposalCard(message.id, message.session, message.proposal, message.provider, message.written));
       turn.body.append(turnActions(message.id, () => message.proposal.explanation));
+      if (message.proposal.explanation) keep({ who: 'ai', meta: metaOf.get(message.id) ?? 'Assistant', text: `${message.proposal.explanation}${message.proposal.ok && !message.proposal.explainOnly ? `\n\n(A change of the model came with this answer: +${message.proposal.added} −${message.proposal.removed} lines.)` : ''}` });
       setBusy(false);
       scroll();
       return;
@@ -477,6 +495,7 @@ window.addEventListener('message', (event: MessageEvent<ToChatPage>) => {
         turn.body.prepend(el('div', { class: 'chat-unverified', role: 'note' }, [el('strong', { text: message.notVerified.label }), ' ', message.notVerified.where]));
       }
       turn.body.append(turnActions(message.id, () => message.text));
+      keep({ who: 'ai', meta: metaOf.get(message.id) ?? 'Assistant', text: message.text });
       setBusy(false);
       scroll();
       return;
@@ -525,5 +544,10 @@ window.addEventListener('message', (event: MessageEvent<ToChatPage>) => {
 });
 
 renderHeader();
-welcome();
+if (kept.length) {
+  // The conversation before the window was closed: its words, without the buttons of the changes it proposed.
+  for (const [index, turn] of kept.entries()) renderText(addTurn(`k${index}`, turn.who, turn.meta).body, turn.text, false);
+  transcript.append(el('div', { class: 'chat-note', text: 'The conversation above is from before this window was reopened: it is kept in this browser, "Clear" removes it. The assistant remembers its last turns.' }));
+  scroll();
+} else welcome();
 post({ type: 'chat-hello' });
