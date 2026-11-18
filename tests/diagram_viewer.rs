@@ -268,3 +268,15 @@ fn explorer_carries_the_traces_and_the_navigation_that_follows_them() {
         "manual placement is mounted"
     );
 }
+
+#[test]
+fn the_viewer_is_also_given_as_files_a_host_serves_itself() {
+    let assets = html::viewer_assets();
+    assert!(assets.style.contains(".arcviz"), "the style sheet of the viewer");
+    // The engine first, the viewer last, then what `ArcViz.mount` is given.
+    let at = |needle: &str| assets.script.find(needle).unwrap_or_else(|| panic!("the script lacks {needle}"));
+    assert!(at("function mount(host, payload, deps, options)") < at("globalThis.ArcVizDeps = {"));
+    assert!(at("ArcVizRender") < at("globalThis.ArcVizDeps = {"));
+    // It is a script file, not markup: nothing of it is escaped for an HTML page.
+    assert!(!assets.script.contains("<script"));
+}
