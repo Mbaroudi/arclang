@@ -385,6 +385,24 @@ async fn the_code_of_a_commit_says_where_each_machine_and_transition_is_in_it() 
 }
 
 #[tokio::test]
+async fn a_machine_computed_by_the_logic_has_its_vhdl_in_the_code() {
+    let model = std::fs::read_to_string("examples/energy/battery-charger/battery_charger.arc").unwrap();
+    let (_, _, projects) = call(&model, "GET", "/projects", None).await;
+    let project = projects[0]["@id"].as_str().unwrap().to_string();
+    let (_, _, branches) = call(&model, "GET", &format!("/projects/{project}/branches"), None).await;
+    let commit = branches[0]["head"]["@id"].as_str().unwrap().to_string();
+    let (status, _, code) = call(&model, "GET", &format!("/projects/{project}/commits/{commit}/code"), None).await;
+    assert_eq!(status, StatusCode::OK, "{code}");
+    let charger = code["machines"].as_array().unwrap().iter().find(|m| m["name"] == "Charger").expect("the machine on the logic is placed");
+    let vhdl = &charger["vhdl"];
+    assert!(vhdl["file"].as_str().unwrap().ends_with(".vhd"), "{charger}");
+    let file = code["files"].as_array().unwrap().iter().find(|f| f["name"] == vhdl["file"]).expect("its text is served");
+    assert_eq!(file["language"], "vhdl");
+    assert!(file["text"].as_str().unwrap().starts_with("-- state_machine \"Charger\", computed by the programmable logic"));
+    assert_eq!(vhdl["to"].as_u64().unwrap() as usize, file["text"].as_str().unwrap().lines().count());
+}
+
+#[tokio::test]
 async fn a_model_with_no_machine_has_no_code() {
     let (_, _, projects) = call(MODEL, "GET", "/projects", None).await;
     let project = projects[0]["@id"].as_str().unwrap().to_string();

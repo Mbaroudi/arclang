@@ -108,7 +108,8 @@ pub fn space(result: &crate::CompilationResult) -> Value {
 /// What `arclang export -f c` generates for the behavior of the model: the
 /// source and the header of the machines, with for each machine (an element
 /// of the model, by its identity) the lines of its own code, the lines of its
-/// step function, and the lines of each transition. The generated text is
+/// step function, and the lines of each transition. A machine computed by the
+/// programmable logic also has its VHDL file (`vhdl`). The generated text is
 /// served as it is written; the lines are those of that text. `null` when the
 /// model has no machine to generate.
 pub fn code(result: &crate::CompilationResult) -> Value {
@@ -130,11 +131,30 @@ pub fn code(result: &crate::CompilationResult) -> Value {
         let end = lines[start..].iter().position(|l| *l == "}").map(|at| start + at)?;
         Some(json!({ "file": source_name, "from": start + 1, "to": end + 1 }))
     };
+    // A machine computed by the programmable logic has a VHDL file of its own, named in its first line.
+    let logic: Vec<(String, String, String)> = crate::compiler::embedded::hdl::export(&result.ast)
+        .map(|(files, _)| {
+            files
+                .into_iter()
+                .filter(|(name, _)| name.ends_with(".vhd"))
+                .filter_map(|(name, text)| {
+                    let first = text.lines().next()?.to_string();
+                    let machine = first.strip_prefix("-- state_machine \"")?.split("\", computed by the programmable logic").next()?.to_string();
+                    first.contains("computed by the programmable logic").then_some((machine, name, text))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     let machines: Vec<Value> = plan
         .machines
         .iter()
         .filter_map(|m| {
-            let &(from, _) = starts.iter().find(|(_, name)| *name == m.name)?;
+            let vhdl = logic.iter().find(|(machine, _, _)| *machine == m.name).map(|(_, name, text)| json!({ "file": name, "from": 1, "to": text.lines().count() }));
+            let uuid = context.graph.elements.iter().find(|e| e.kind == "StateMachine" && (e.id == m.id || e.name == m.name)).map(|e| e.uuid.clone());
+            let Some(&(from, _)) = starts.iter().find(|(_, name)| *name == m.name) else {
+                // No C of its own: the machine is on the logic, or it is not drawn at all.
+                return vhdl.map(|vhdl| json!({ "@id": uuid, "name": m.name, "section": Value::Null, "step": Value::Null, "transitions": [], "vhdl": vhdl }));
+            };
             let next = starts.iter().map(|(at, _)| *at).filter(|at| *at > from).min().unwrap_or(public_start);
             // The section ends with its last line of code, not with the blank line before the next.
             let mut to = next;
@@ -148,22 +168,21 @@ pub fn code(result: &crate::CompilationResult) -> Value {
                     json!({ "label": lines[at].trim_start_matches("/* ").trim_end_matches(" */"), "from": at + 1, "to": end + 1 })
                 })
                 .collect();
-            let uuid = context.graph.elements.iter().find(|e| e.kind == "StateMachine" && (e.id == m.id || e.name == m.name)).map(|e| e.uuid.clone());
             Some(json!({
                 "@id": uuid,
                 "name": m.name,
                 "section": { "file": source_name, "from": from + 1, "to": to },
                 "step": function(&format!("{}_{}_step", plan.ident, m.ident)),
                 "transitions": transitions,
+                "vhdl": vhdl,
             }))
         })
         .collect();
     let others: Vec<&str> = files.iter().map(|(name, _)| name.as_str()).filter(|name| *name != source_name && *name != header_name).collect();
+    let mut shown = vec![json!({ "name": source_name, "language": "c", "text": source }), json!({ "name": header_name, "language": "c", "text": text_of(&header_name) })];
+    shown.extend(logic.iter().map(|(_, name, text)| json!({ "name": name, "language": "vhdl", "text": text })));
     json!({
-        "files": [
-            { "name": source_name, "language": "c", "text": source },
-            { "name": header_name, "language": "c", "text": text_of(&header_name) },
-        ],
+        "files": shown,
         "other_files": others,
         "machines": machines,
         "notes": notes,
