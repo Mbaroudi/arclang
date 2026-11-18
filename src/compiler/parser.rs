@@ -793,7 +793,9 @@ impl Parser {
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             match self.current() {
                 Token::Actor => {
-                    actors.push(self.parse_actor()?);
+                    let (actor, performed) = self.parse_operational_actor()?;
+                    actors.push(actor);
+                    activities.extend(performed);
                 }
                 Token::Identifier(ref id) if id == "operational_entity" || id == "entity" => {
                     entities.push(self.parse_operational_entity()?);
@@ -801,7 +803,8 @@ impl Parser {
                 Token::Identifier(ref id) if id == "operational_capability" => {
                     capabilities.extend(self.parse_operational_capabilities()?);
                 }
-                Token::Identifier(ref id) if id == "operational_activity" => {
+                // `activity`, as inside an entity: one that no entity holds.
+                Token::Identifier(ref id) if id == "operational_activity" || (id == "activity" && !self.peek_is_colon()) => {
                     activities.push(self.parse_operational_activity()?);
                 }
                 Token::Identifier(ref id) if id == "operational_exchange" || id == "exchange" || id == "interaction" => {
@@ -916,19 +919,36 @@ impl Parser {
         })
     }
     
-    fn parse_actor(&mut self) -> Result<Actor, String> {
+    /// An actor of the operational analysis: its attributes, and the
+    /// activities it performs, written in its block as in an entity's. They
+    /// are activities of the analysis, performed by the actor.
+    fn parse_operational_actor(&mut self) -> Result<(Actor, Vec<OperationalActivity>), String> {
         self.expect(Token::Actor)?;
         let name = self.expect_name()?;
-        let attributes = self.parse_attributes_block()?;
-        
-        Ok(Actor {
-            name,
-            id: None,
-            icon: "person".to_string(),
-            attributes,
-        })
+        self.expect(Token::LeftBrace)?;
+        let mut attributes = HashMap::new();
+        let mut activities = Vec::new();
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            match self.current().clone() {
+                Token::Identifier(ref id) if (id == "operational_activity" || id == "activity") && !self.peek_is_colon() => {
+                    activities.push(self.parse_operational_activity()?);
+                }
+                _ => {
+                    let (key, value) = self.parse_attribute()?;
+                    attributes.insert(key, value);
+                }
+            }
+        }
+        self.expect(Token::RightBrace)?;
+        let performer = attributes.get("id").and_then(|v| v.as_string()).map(|s| s.to_string()).unwrap_or_else(|| name.clone());
+        for activity in &mut activities {
+            if activity.performed_by.is_empty() {
+                activity.performed_by = performer.clone();
+            }
+        }
+        Ok((Actor { name, id: None, icon: "person".to_string(), attributes }, activities))
     }
-    
+
     /// Parse: operational_activity Name { attributes, port in|out Name, nested activities }
     fn parse_operational_activity(&mut self) -> Result<OperationalActivity, String> {
         self.advance(); // Skip 'operational_activity'
