@@ -5,7 +5,7 @@
 // CESAM opens on its grid, drawn from what the compiler computes, and each
 // cell opens the diagrams that draw that view.
 import type { CesamSnapshot, Notation, Snapshot, ViewerGraph } from '../src/pure/workbench';
-import { CESAM_VISIONS, NOTATIONS, NOTATION_VIEWS, VIEWPOINTS, defaultNotation, graphsOfNotation } from '../src/pure/workbench';
+import { CESAM_VISIONS, NOTATIONS, NOTATION_VIEWS, VIEWPOINTS, cesamTabs, defaultNotation, graphsOfNotation } from '../src/pure/workbench';
 import { button, clear, el } from './dom';
 
 export interface NotationDeps {
@@ -85,18 +85,15 @@ export function installNotation(d: NotationDeps): NotationApi {
     const current = d.current();
     const n = notation();
     if (n === 'cesam') {
-      const tab = (label: string, active: boolean, onClick: () => void, title: string, count?: number) => {
-        const item = button('', onClick, { class: `wb-layer${active ? ' is-active' : ''}`, 'aria-pressed': String(active), title });
+      const tab = (label: string, active: boolean, onClick: () => void, title: string, count?: number, sub = false) => {
+        const item = button('', onClick, { class: `wb-layer${sub ? ' wb-layer-sub' : ''}${active ? ' is-active' : ''}`, 'aria-pressed': String(active), title });
         item.append(el('span', { class: 'wb-layer-name', text: label }));
         if (count && count > 1) item.appendChild(el('span', { class: 'wb-layer-count', text: String(count) }));
         d.layerBar.appendChild(item);
       };
       tab('Grid', gridOpen, () => { gridOpen = true; render(file); }, 'The CESAM grid: three visions by six aspects, computed by the compiler');
-      for (const vision of CESAM_VISIONS) {
-        const own = (cesam()?.diagrams ?? []).filter((c) => c.vision === vision.id && graphs().some((g) => g.id === c.id));
-        if (!own.length) continue;
-        tab(vision.short, !gridOpen && own.some((c) => c.id === current), () => open(own[0].id), `${vision.label}: ${own.map((c) => c.view).join(', ')}`, own.length);
-      }
+      // A vision with several diagrams lists them once it is open: each is one click away.
+      for (const t of cesamTabs(cesam(), graphs(), current ?? undefined, gridOpen)) tab(t.label, t.active, () => open(t.diagram), t.title, t.count, t.sub);
       return;
     }
     const own = graphsOfNotation(n, graphs(), cesam());

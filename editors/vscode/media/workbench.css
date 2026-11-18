@@ -142,6 +142,9 @@ html, body {
 }
 .wb-layer-count { font-size: 11px; font-weight: 600; padding: 0 6px; border-radius: 8px; background: var(--vscode-badge-background, #4d4d4d); color: var(--vscode-badge-foreground, #fff); }
 .wb-layer.is-active .wb-layer-count { background: rgba(255, 255, 255, 0.25); color: inherit; }
+/* A diagram of the open CESAM vision, listed after the vision's tab. */
+.wb-layer-sub { font-size: 12px; padding-inline: 8px; opacity: 0.85; border-style: dashed; }
+.wb-layer-sub.is-active { opacity: 1; border-style: solid; }
 .wb-toolrow {
   display: flex;
   align-items: center;
