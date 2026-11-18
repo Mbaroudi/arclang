@@ -2,6 +2,7 @@
 // markup strings): a transcript, a proposal card with the compiler-checked
 // diff and Apply, code blocks of Modelica answers with their "not verified"
 // label, and a composer. It holds no key and makes no request: the host does.
+import { refineDiff } from '../../src/pure/diff-words';
 import type { FromChatPage, ToChatPage } from '../../src/ai/chat/protocol';
 import type { ProposalView } from '../../src/ai/core/protocol';
 import { QUICK_ACTIONS } from '../../src/ai/core/protocol';
@@ -307,7 +308,11 @@ function proposalCard(id: string, session: string, proposal: ProposalView, provi
     }
     if (proposal.diff.length) {
       const diff = el('pre', { class: 'chat-diff', 'aria-label': 'Diff of the model source' });
-      for (const line of proposal.diff.slice(0, 160)) diff.append(el('span', { class: line.startsWith('+') ? 'add' : line.startsWith('-') ? 'del' : line.startsWith('@@') ? 'hunk' : 'ctx', text: `${line}\n` }));
+      // A line replaced by another says which words changed.
+      for (const line of refineDiff(proposal.diff.slice(0, 160))) {
+        if (!line.changed) diff.append(el('span', { class: line.kind, text: `${line.text}\n` }));
+        else diff.append(el('span', { class: line.kind }, [line.text.slice(0, line.changed[0]), el('mark', { class: 'chg', text: line.text.slice(line.changed[0], line.changed[1]) }), `${line.text.slice(line.changed[1])}\n`]));
+      }
       // Written in the file, the change is in the editor: the diff stays folded.
       const fold = el('details', { class: 'chat-fold' }, [el('summary', { text: `The change in the source: +${proposal.added} −${proposal.removed} lines` }), diff]);
       if (!written) (fold as HTMLDetailsElement).open = true;
