@@ -304,6 +304,22 @@ offered to agent mode when `arclang-mcp` is on the PATH or the setting
 `arclang.mcp.command` names how to start it, for example
 `uv run --directory /path/to/arclang/mcp-server arclang-mcp`.
 
+## For other extensions
+
+ArcLang exports a small API for companion extensions (version 1; a new method never changes an old one):
+
+```ts
+const arclang = vscode.extensions.getExtension('arclang.arclang');
+const api = await arclang?.activate();            // the exports
+const answer = await api.workbench(uri);          // { ok: true, workbench } or { ok: false, errors }
+api.onDidChangeModel((file) => refresh(file));    // a save, or a burst of edits settled for 300 ms
+await api.reveal(uri, { id: 'LC-001' });          // show the declaration in the editor
+```
+
+`compilerPath()` is the binary the extension runs; `run(args, { cwd })` runs it with the same rules (nothing runs on an
+untrusted workspace: exit code 126; a missing compiler: 127; it never throws); `activeModel()` is the model the user is on.
+Desktop only.
+
 ## Install
 
 - VS Code: [ArcLang on the Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=arclang.arclang)
