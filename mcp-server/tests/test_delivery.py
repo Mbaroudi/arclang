@@ -195,11 +195,11 @@ async def test_ci_init_prints_the_files_and_writes_them_only_when_told(server, r
     written = await server.call_tool(
         "arclang_ci_init",
         {"directory": ".", "provider": "github", "write": True, "models": ["braking.arc"],
-         "standard": "do178c", "branch": "main", "arclang_version": "4.12.0"},
+         "standard": "do178c", "branch": "main", "arclang_version": "4.13.0"},
     )
     workflow = (repository / ".github" / "workflows" / "arclang.yml").read_text()
     assert "written at the top of" in written.splitlines()[0], written
-    assert "braking.arc" in workflow and "do178c" in workflow and "4.12.0" in workflow
+    assert "braking.arc" in workflow and "do178c" in workflow and "4.13.0" in workflow
     again = await server.call_tool("arclang_ci_init", {"directory": ".", "provider": "github", "write": True})
     assert "FAILED" in again.splitlines()[0] and "nothing was written" in again
     forced = await server.call_tool(

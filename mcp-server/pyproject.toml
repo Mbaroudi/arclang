@@ -1,6 +1,6 @@
 [project]
 name = "arclang-mcp"
-version = "4.12.0"
+version = "4.13.0"
 description = "MCP server for the ArcLang compiler: every command of the arclang CLI as a tool (check, gate, simulate and run the stages, prove and recover, versions and merge, tables and documents, read and edit through the workbench API, import and export)"
 authors = [
     {name = "Malek Baroudi", email = "malek@arclang.dev"},
