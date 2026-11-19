@@ -26,8 +26,10 @@ import { registerCi } from './cicd'; // cicd hook
 import { registerSimulation } from './simulation'; // simulation hook
 import { registerTraces } from './traces';
 import { registerDocuments } from './document';
+import { ArcLangApi, createApi } from './api';
 
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
+export async function activate(context: vscode.ExtensionContext): Promise<ArcLangApi> {
+  const api = createApi(context); // the API other extensions use
   const register = (command: string, callback: (...args: unknown[]) => unknown) =>
     context.subscriptions.push(vscode.commands.registerCommand(command, callback));
 
@@ -96,6 +98,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   if (workspaceTrusted() && vscode.workspace.textDocuments.some((d) => d.languageId === 'arclang')) {
     if (await warnIfMissing()) await startClient(context);
   }
+  return api;
 }
 
 export async function deactivate(): Promise<void> {
