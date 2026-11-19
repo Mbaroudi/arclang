@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
+## 4.13.0
 
+- Added: the example `examples/aerospace/tower-catch`: a heavy vehicle's belly flop, flip, landing burn and catch by two arms, simulated in OpenModelica, six requirements, the production gate passes (DO-178C); a flip started too low fails it.
 - Added: the extension exports an API (version 1) to other extensions: `vscode.extensions.getExtension('arclang.arclang')?.exports` gives the compiler's path, `run(args)` (same trust rule as the extension, never a throw), `workbench(file)` (the model's workbench document, or why there is none), `onDidChangeModel` (one event per burst of edits or a save), `activeModel()` and `reveal(file, element)`. A companion extension no longer has to find the compiler or watch the files itself. Desktop only: the web extension does not export it.
 - Fixed: `duplicate_many` refused a `component_exchange` whose ends are ports written `LC-001.threat` (the form the syntax rules recommend): the copy is now joined to the copied ports. The copy of a `functional_exchange` written with a bare name (`functional_exchange ThreatFlow {`) took the same name as the original; it takes `"ThreatFlow 2"`.
 - Fixed: `duplicate` was refused on any model with a `physical_path` ("the copy would lose a relationship of the model"), even for an unrelated element, the reference model of the MCP server included. A path involves links, which are relationships, and the check did not count them. `duplicate` and `duplicate_many` now keep them.

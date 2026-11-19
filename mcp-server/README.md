@@ -12,7 +12,7 @@ extension and its agent use) without losing its comments, import SysML v2,
 Capella or ReqIF, and export (SysML v2, Capella, ReqIF, C, VHDL, FMU,
 Modelica, STEP, GeoJSON...).
 
-Version 4.12.0, for the `arclang` compiler built from this repository, of the
+Version 4.13.0, for the `arclang` compiler built from this repository, of the
 same version: the tools are written against the options that compiler's
 `--help` prints, and a test fails when the two disagree. An answer warns
 when the compiler is older than 4.3.0; between 4.3.0 and the current one, a
