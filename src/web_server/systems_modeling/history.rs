@@ -17,6 +17,44 @@ pub(super) fn git(directory: &FsPath, args: &[&str]) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
+/// The largest file copied because a model names it: a revision is a copy of what the compiler reads, not of a dataset.
+const MAX_NAMED_FILE: usize = 20 * 1024 * 1024;
+
+/// The extensions of the files a model names and a verdict depends on.
+const NAMED_EXTENSIONS: &[&str] = &["mo", "py", "csv", "step", "stp", "kicad_sch", "kicad_pcb", "c", "h", "vhd", "vhdl"];
+
+/// The files a model's text names, as paths from the repository's root: a quoted relative path to a file of a kind a verdict
+/// depends on (`"physics/Dynamics.mo"`, `"part:wheel.py"`, `"data/measure.csv"`), taken from the model's own directory. A path
+/// that leaves the repository, an absolute one and an URL are not taken.
+fn named_files(text: &str, relative: &FsPath) -> Vec<PathBuf> {
+    let base = relative.parent().unwrap_or_else(|| FsPath::new(""));
+    let mut found: Vec<PathBuf> = Vec::new();
+    for (i, piece) in text.split('"').enumerate() {
+        if i % 2 == 0 || piece.is_empty() || piece.contains(char::is_whitespace) || piece.contains("://") {
+            continue;
+        }
+        // `part:wheel.py`, `circuit:board.kicad_sch`, `pcb:board.kicad_pcb`
+        let path = piece.split_once(':').filter(|(scheme, _)| matches!(*scheme, "part" | "circuit" | "pcb")).map_or(piece, |(_, rest)| rest);
+        let extension = FsPath::new(path).extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase);
+        if !extension.map_or(false, |e| NAMED_EXTENSIONS.contains(&e.as_str())) || path.starts_with('/') || path.contains('\\') {
+            continue;
+        }
+        let mut normalized = PathBuf::new();
+        let mut leaves = false;
+        for component in base.join(path).components() {
+            match component {
+                std::path::Component::ParentDir => leaves |= !normalized.pop(),
+                std::path::Component::CurDir => {}
+                other => normalized.push(other.as_os_str()),
+            }
+        }
+        if !leaves && !normalized.as_os_str().is_empty() && !found.contains(&normalized) {
+            found.push(normalized);
+        }
+    }
+    found
+}
+
 /// Write `relative` as it was at `revision`, and every file it imports
 /// (transitively), under `destination`, keeping relative paths.
 fn materialize(root: &FsPath, revision: &str, relative: &FsPath, destination: &FsPath, done: &mut Vec<PathBuf>) -> Result<(), String> {
@@ -31,6 +69,20 @@ fn materialize(root: &FsPath, revision: &str, relative: &FsPath, destination: &F
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     std::fs::write(&target, &content).map_err(|e| e.to_string())?;
+    // What the model names besides its imports (the Modelica sources of a simulation, the script of a part, the data of a
+    // twin) as it was at that revision: the verdicts kept beside the model are keyed by them, and a revision copied
+    // without them would read every such verdict as stale.
+    for file in named_files(&content, relative) {
+        if let Ok(bytes) = git(root, &["show", &format!("{}:{}", revision, file.to_string_lossy().replace('\\', "/"))]) {
+            if bytes.len() <= MAX_NAMED_FILE {
+                let at = destination.join(&file);
+                if let Some(parent) = at.parent() {
+                    std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+                }
+                std::fs::write(&at, &bytes).map_err(|e| e.to_string())?;
+            }
+        }
+    }
     for line in content.lines() {
         let line = line.trim_start();
         let Some(rest) = line.strip_prefix("import") else { continue };
@@ -279,4 +331,25 @@ pub(super) fn valid_ref_name(kind: &str, name: &str) -> Result<(), String> {
         return Err(format!("'{}' is not a valid {} name", name, if kind == "heads" { "branch" } else { "tag" }));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_files_a_model_names_are_found_from_its_directory_and_nothing_else() {
+        let text = r#"
+import "catalog.arc"
+twin "T" { simulate: { model: "Dyn.Spool" sources: ["physics/Dyn.mo"] } data: { file: "data/day one.csv" } }
+twin "U" { data: { file: "data/day.csv" } }
+node "A" { realized_by: ["part:wheel.py", "circuit:board.kicad_sch"] description: "see https://example.com/a.py" }
+node "B" { realized_by: ["part:../shared/rotor.py", "part:../../outside.py"] note: "/etc/passwd.py" }
+"#;
+        let found = named_files(text, FsPath::new("models/turbo.arc"));
+        let expected: Vec<PathBuf> = ["models/physics/Dyn.mo", "models/data/day.csv", "models/wheel.py", "models/board.kicad_sch", "shared/rotor.py"].iter().map(PathBuf::from).collect();
+        assert_eq!(found, expected, "a name with a space, an URL, an absolute path and a path leaving the repository are left out");
+        assert_eq!(named_files("model M { }", FsPath::new("m.arc")), Vec::<PathBuf>::new());
+        assert_eq!(named_files("a: \"physics/Dyn.mo\"", FsPath::new("m.arc")), vec![PathBuf::from("physics/Dyn.mo")]);
+    }
 }
