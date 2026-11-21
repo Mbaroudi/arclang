@@ -39,7 +39,21 @@ Run on a Mac with a throwaway `CODEX_HOME`, so nothing of a user's configuration
 - `mcpServer/tool/call` of `arclang_engineering` through Codex reached the real `arclang-server`:
   `connectors` listed the four engines, `model` of the 16-point optical transform gave `every limit holds`.
 
-Not checked: a model session using a skill or running a subagent (it needs a Codex login), and the
-Codex desktop application.
+- A real model session (`codex exec`, Codex logged in) was asked to judge `fft16.arc`: it read the skills
+  `engineering-verdicts` and `engineering-photonics`, called `arclang_engineering` on the real
+  `arclang-server`, quoted the first line (`every limit holds`) and kept the claim to "for this simulation",
+  then delegated a check to the `verdict_auditor` subagent, whose conclusion said the same and added that
+  the physical chip's performance is not established.
+
+Two things learned there:
+
+- In `codex exec` (no one to approve), an MCP tool call is refused with "requires approval, but approval
+  policy is never". Allow the tools of the server explicitly:
+  `default_tools_approval_mode = "approve"` under `[mcp_servers.arclang]`. Interactively, Codex asks.
+- Environment variables given under `[plugins."arclang@arclang".mcp_servers.arclang.env]` did not reach the
+  plugin's server in the test (the server that ran was the installed one). Use the variables of your shell, or
+  register the server with `[mcp_servers.arclang.env]` instead of the plugin's own.
+
+Not checked: the Codex desktop application.
 
 Do not edit the generated files: edit `plugins/claude-code` and run `build.py`.
