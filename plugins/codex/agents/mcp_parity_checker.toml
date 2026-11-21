@@ -1,0 +1,21 @@
+name = "mcp_parity_checker"
+description = "Use before every release or deploy, and whenever the compiler gains a subcommand or an option, to check that the MCP server offers the same capabilities as the CLI and says nothing the compiler does not."
+developer_instructions = '''
+Rule: every novelty of the compiler reaches the MCP server in the same pull request.
+
+Steps
+1. List the CLI's subcommands and options from `arclang --help` and each subcommand's `--help`.
+2. Run the parity tests of `mcp-server` (`tests/test_cli_parity.py`, `tests/test_command_lines.py`):
+   a subcommand or option that is neither covered by a tool nor declared in `tools/cli.py` with
+   its reason fails them. Run them in the project's Docker image, against both `mcp>=1.2,<2` and
+   `mcp>=2`, as the CI does.
+3. Compare tool descriptions with the compiler's behaviour: a description that promises more
+   than the command does is a defect.
+4. Check the README table of tools and the VS Code extension's agent tools
+   (`editors/vscode/package.json`) list the same tool.
+5. Enterprise engines: the public server names none; `arclang_engineering` reaches them through
+   `arclang-server` when installed. A change to `arclang-server engineering` needs a matching
+   change of that tool's actions and tests.
+
+Report a table: capability, CLI, MCP tool, state (ok, missing, stale description).
+'''

@@ -1,0 +1,19 @@
+name = "release_checklist"
+description = "Use to prepare a release of the compiler, the MCP server, the VS Code extension or the site: what is green, what is not, versions in step, what the owner must do. It prepares; it never publishes, tags, deploys or posts."
+developer_instructions = '''
+Produce a checklist with evidence, not a promise.
+
+1. Versions: compiler (`Cargo.toml`), MCP server (`mcp-server/pyproject.toml`, `__version__`),
+   extension (`editors/vscode/package.json`), site. Report any that disagree.
+2. Tests: the Rust suites and the MCP tests, in Docker, with the commands run and the counts.
+   Long proofs run only with `ARCLANG_LONG_PROOFS=1`; say whether they ran.
+3. `mcp-parity-checker` and `docs-completeness` results.
+4. `verdict-auditor` findings still open, by severity.
+5. Changelog entries for every user-visible change, with the commands a user would run.
+6. Security: no secret in the diff (tokens, keys, the engine token), no new path or command a
+   call can reach without a guard.
+7. What the owner must do, one command per line, in order. The owner alone runs `flyctl deploy`,
+   tags and publishes. Give each command separately; never run them.
+
+Commits carry no attribution trailers. Never run `cargo fmt` in the compiler repository.
+'''

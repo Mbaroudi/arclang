@@ -34,6 +34,8 @@
 # The Claude Code plugin: its manifest and its MCP registration.
 !plugins/claude-code/.claude-plugin/plugin.json
 !plugins/claude-code/.mcp.json
+!plugins/codex/arclang/plugin.json
+!plugins/codex/.agents/plugins/marketplace.json
 *.xml
 !examples/**/*.xml
 

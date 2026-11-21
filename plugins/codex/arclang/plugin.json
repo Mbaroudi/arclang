@@ -1,0 +1,11 @@
+{
+  "name": "arclang",
+  "version": "0.1.0",
+  "description": "ArcLang for Codex: the skills for engineering verdicts (electronics, mechanics, chip, photonics). The MCP server is registered separately (see README).",
+  "author": {
+    "name": "Malek Baroudi"
+  },
+  "homepage": "https://arclang.fr",
+  "repository": "https://github.com/Mbaroudi/arclang",
+  "license": "BUSL-1.1"
+}
