@@ -303,14 +303,15 @@ class ArcLangCompiler:
         arguments: Sequence[str],
         timeout: Optional[float] = None,
         cwd: Optional[Path] = None,
+        binary: Optional[str] = None,
     ) -> Run:
-        """Run `arclang <arguments>`. A binary that cannot run is a failed Run.
+        """Run `arclang <arguments>` (or another program of the same kind, `binary`). A binary that cannot run is a failed Run.
 
         The working directory is the workspace, or `cwd` for the commands that
         work on the git repository they are run in (`ci`, `report`, `sarif`,
         `baseline`).
         """
-        command = (self.binary_path, *arguments)
+        command = (binary or self.binary_path, *arguments)
         limit = timeout or self.timeout
         where = cwd or self.workspace_root
         try:
@@ -321,7 +322,7 @@ class ArcLangCompiler:
                 cwd=str(where) if where.is_dir() else None,
             )
         except OSError as failure:
-            return Run(command, -1, "", f"cannot run '{self.binary_path}': {failure}")
+            return Run(command, -1, "", f"cannot run '{command[0]}': {failure}")
         try:
             stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=limit)
         except asyncio.TimeoutError:

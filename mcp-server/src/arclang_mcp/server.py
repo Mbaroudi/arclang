@@ -25,6 +25,7 @@ from .tools import (
     core,
     delivery,
     edit,
+    engineering,
     expert,
     generation,
     recover,
@@ -39,6 +40,7 @@ from .tools.common import check_arguments, mime_type
 from .tools.core import CoreTools
 from .tools.delivery import DeliveryTools
 from .tools.edit import EditTools
+from .tools.engineering import EngineeringTools
 from .tools.expert import ExpertTools
 from .tools.generation import GenerationTools
 from .tools.recover import RecoverTools
@@ -97,6 +99,7 @@ class ArcLangMCPServer:
         self.core_tools = CoreTools(self.compiler, self.workspace_root)
         self.edit_tools = EditTools(self.compiler, self.workspace_root)
         self.workbench_tools = WorkbenchTools(self.compiler, self.workspace_root)
+        self.engineering_tools = EngineeringTools(self.compiler, self.workspace_root)
         self.generation_tools = GenerationTools(self.compiler, self.config)
         self.safety_tools = SafetyTools(self.compiler, self.config)
         self.simulation_tools = SimulationTools(self.compiler, self.workspace_root)
@@ -112,6 +115,7 @@ class ArcLangMCPServer:
             (core.TOOLS, self.core_tools.execute),
             (edit.TOOLS, self.edit_tools.execute),
             (workbench.TOOLS, self.workbench_tools.execute),
+            (engineering.TOOLS, self.engineering_tools.execute),
             (transform.TOOLS, self.transform_tools.execute),
             (recover.TOOLS, self.recover_tools.execute),
             (generation.TOOLS, self.generation_tools.execute),

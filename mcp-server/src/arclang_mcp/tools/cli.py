@@ -102,6 +102,8 @@ WITHOUT_SUBCOMMAND: Dict[str, str] = {
     "arclang_assess_diagram_quality": "string checks on an SVG; runs no command",
     "arclang_suggest_diagram_enhancements": "names enhancements from those checks; runs no command",
     "arclang_generate_mbse_report": "a Markdown summary of an analysis; runs no command",
+    "arclang_engineering": "runs `arclang-server engineering` of the Enterprise edition when it is installed, "
+    "never `arclang`; says so when it is not",
     "arclang_execute_batch": "several of the operations above in one call, each through its own command",
 }
 
