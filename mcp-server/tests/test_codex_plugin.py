@@ -49,6 +49,11 @@ def test_a_subagent_has_the_three_required_fields(path: Path):
     assert not {"sandbox_mode", "approval_policy", "model_provider", "mcp_servers"} & set(agent)
 
 
+def test_the_plugin_starts_the_server():
+    servers = json.loads((CODEX / "arclang" / ".mcp.json").read_text())["mcpServers"]
+    assert servers["arclang"]["command"] == "arclang-mcp"
+
+
 def test_the_mcp_example_is_a_valid_table():
     table = tomllib.loads((CODEX / "config.toml.example").read_text())["mcp_servers"]["arclang"]
     assert table["command"] == "arclang-mcp" and table["tool_timeout_sec"] >= 900

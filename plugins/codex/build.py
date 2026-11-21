@@ -23,12 +23,14 @@ FRONT = re.compile(r"\A---\nname: (?P<name>[^\n]+)\ndescription: (?P<description
 MANIFEST = {
     "name": "arclang",
     "version": "0.1.0",
-    "description": "ArcLang for Codex: the skills for engineering verdicts (electronics, mechanics, chip, photonics). The MCP server is registered separately (see README).",
+    "description": "ArcLang for Codex: the MCP server (arclang-mcp) and the skills for engineering verdicts (electronics, mechanics, chip, photonics).",
     "author": {"name": "Malek Baroudi"},
     "homepage": "https://arclang.fr",
     "repository": "https://github.com/Mbaroudi/arclang",
     "license": "BUSL-1.1",
 }
+# Codex starts this server with the plugin (checked with Codex 0.171.0: the server is listed under the plugin).
+MCP = {"mcpServers": {"arclang": {"command": "arclang-mcp"}}}
 MARKETPLACE = {
     "name": "arclang",
     "interface": {"displayName": "ArcLang"},
@@ -67,6 +69,7 @@ def expected() -> dict:
     """Every file to write: relative path -> text."""
     files = {
         "arclang/plugin.json": json.dumps(MANIFEST, indent=2, ensure_ascii=False) + "\n",
+        "arclang/.mcp.json": json.dumps(MCP, indent=2) + "\n",
         ".agents/plugins/marketplace.json": json.dumps(MARKETPLACE, indent=2) + "\n",
     }
     for skill in sorted(SOURCE.glob("skills/*/SKILL.md")):
