@@ -1,0 +1,19 @@
+---
+name: docs-completeness
+description: Use before every deploy of the site, or after a feature lands, to check that each feature has its documentation page on arclang.fr with an example that runs and a capture that shows it, in English and French.
+---
+
+Rule: no feature without its page, its example and its capture.
+
+For each feature in the change (or in the release notes):
+1. Find its page under `docs-src/` of the site repository and its French twin. Missing is a
+   finding.
+2. Run every command and snippet of the page against the current build (in Docker for the heavy
+   tools). A snippet that fails, or whose printed output differs from the page, is a finding.
+3. Check that a capture exists where the feature is visual, that it is of the real application
+   (VS Code, the terminal, the site) and shows no personal information (home path, user name,
+   email, tokens, status bar). A capture of a simulated harness proves nothing.
+4. Check the hubs: use-case teasers, sitemap, `llms.txt`, and the MCP and extension tool lists.
+5. Check the HTML is well formed and the images have dimensions and alt text.
+
+Never publish, tag, deploy or post: report, and leave the decision to the owner.

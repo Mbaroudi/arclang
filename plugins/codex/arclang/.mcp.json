@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "arclang": {
+      "command": "arclang-mcp"
+    }
+  }
+}

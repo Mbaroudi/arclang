@@ -1,0 +1,15 @@
+# The plugin starts the server by itself; this table is for using the server WITHOUT the plugin.
+# Register the ArcLang MCP server in Codex: copy this table into ~/.codex/config.toml
+# (or .codex/config.toml in a trusted project), or run:
+#
+#   codex mcp add arclang -- arclang-mcp
+#
+# `arclang-mcp` is the server of this repository (pip install -e mcp-server).
+[mcp_servers.arclang]
+command = "arclang-mcp"
+# A chip layout or a topology run is minutes: the default tool timeout is 60 s.
+tool_timeout_sec = 900
+startup_timeout_sec = 30
+# Only with the server alone (the plugin already starts it). To pass what the server reads, from
+# your environment, uncomment: `codex doctor` warns when a listed variable is not set.
+# env_vars = ["ARCLANG_BINARY", "ARCLANG_SERVER", "ARCLANG_WORKSPACE"]

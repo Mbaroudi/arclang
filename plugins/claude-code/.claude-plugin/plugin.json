@@ -1,0 +1,9 @@
+{
+  "name": "arclang",
+  "version": "0.1.0",
+  "description": "ArcLang for Claude Code: the MCP server, the skills for engineering verdicts (electronics, mechanics, chip, photonics) and the agents that carry a model from simulation to proof, to code, to hardware, and that keep ArcLang itself modern and complete.",
+  "author": { "name": "Malek Baroudi" },
+  "homepage": "https://arclang.fr",
+  "repository": "https://github.com/Mbaroudi/arclang",
+  "license": "BUSL-1.1"
+}
