@@ -44,10 +44,15 @@ ACTIONS = {
     "impact": "what a change reaches: units, requirements, cases, artifacts",
     "size": "a parameter of a part tried over a range, each value solved and judged",
     "trade": "the same part under several materials of the registry, each solved and judged",
+    "propose-value": "a component of a circuit part tried over the values of a standard series, each simulated and judged",
+    "propose": "a part's shape proposed for several shares of material kept, each judged by the solvers; nothing is written",
+    "calibrate": "a parameter of a twin's physics fitted over a range to the measurements the twin holds",
 }
 NEEDS_MODEL = tuple(name for name in ACTIONS if name != "connectors")
 # The most values `size` tries, as the server allows.
 SIZE_VALUES_MAX = 41
+# `propose-value` tries each value of a series in the range: three decades at most (72 values of E24).
+SERIES_DECADES_MAX = 1000
 
 NAME = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.:+-]*$")
 TARGET = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.:/+-]*$")
@@ -65,7 +70,12 @@ TOOLS: List[Tool] = [
             "its engine is built: call it first), model (run the engines, keep the verdicts), "
             "status (are the kept verdicts fresh against the model; runs nothing), credibility "
             "(what each verdict rests on: the six questions), artifacts, history, impact (what "
-            "a change reaches), size (a parameter over a range), trade (materials compared). "
+            "a change reaches), size (a parameter over a range), trade (materials compared), "
+            "propose-value (a component over a standard series, each value judged), propose (a "
+            "shape per share of material kept, each judged; writes nothing), calibrate (a twin's "
+            "physics parameter fitted to its measurements; it runs the twin, so the server needs the "
+            "open compiler with `arclang twin` (ARCLANG_BIN) and OpenModelica). A proposal or a fit is a candidate: "
+            "the limits and a fresh `model` decide, and the model is never changed by it. "
             "Say a limit holds only when the first line says every limit holds; a stale or "
             "missing verdict is not a pass. These are simulations and calculations on a model, "
             "not measurements of a product: say what the credibility answer says and no more. "
@@ -82,10 +92,19 @@ TOOLS: List[Tool] = [
                     "description": "impact: what changes: a file, a registry entry, an element or a requirement",
                 },
                 "since": {"type": "string", "description": "impact: a git revision; what changed since is added to the targets"},
-                "part": {"type": "string", "description": "size, trade: the part (PN-...)"},
-                "parameter": {"type": "string", "description": "size: the parameter sized"},
-                "from": {"type": "number", "description": "size: first value"},
-                "to": {"type": "number", "description": "size: last value"},
+                "part": {"type": "string", "description": "size, trade, propose-value, propose: the part (PN-...)"},
+                "parameter": {"type": "string", "description": "size: the parameter sized; calibrate: the parameter of the physics fitted"},
+                "from": {"type": "number", "description": "size, propose-value, calibrate: first value (propose-value: above 0)"},
+                "to": {"type": "number", "description": "size, propose-value, calibrate: last value"},
+                "component": {"type": "string", "description": "propose-value: the component to size (R1 for instance)"},
+                "series": {"type": "string", "description": "propose-value: the standard series (default E24)"},
+                "volume": {
+                    "type": "array",
+                    "items": {"type": "number"},
+                    "description": "propose: the shares of the part to keep, each from 0.1 to 0.9 (0.7, 0.5, 0.4 for instance)",
+                },
+                "twin": {"type": "string", "description": "calibrate: the twin (TW-...)"},
+                "source": {"type": "string", "description": "calibrate: the physics file, relative to the model, when the twin names none"},
                 "step": {"type": "number", "description": f"size: step, above 0; at most {SIZE_VALUES_MAX} values are tried"},
                 "materials": {
                     "type": "array",
@@ -214,6 +233,35 @@ class EngineeringTools:
                 "--part", name_of(args.get("part"), "part"),
                 "--materials", ",".join(name_of(m, "materials") for m in materials),
             ]
+        elif action == "propose-value":
+            only(args, action, "part", "component", "series", "from", "to")
+            low, high = number_of(args, "from"), number_of(args, "to")
+            if low <= 0 or high < low or high / low > SERIES_DECADES_MAX:
+                raise InvalidArguments(f"'from' is above 0 and under 'to', and 'to' is at most {SERIES_DECADES_MAX} times 'from'")
+            words += [
+                "--part", name_of(args.get("part"), "part"),
+                "--component", name_of(args.get("component"), "component"),
+                "--series", name_of(args.get("series", "E24"), "series"),
+                "--from", f"{low:g}", "--to", f"{high:g}",
+            ]
+        elif action == "propose":
+            only(args, action, "part", "volume")
+            shares = args.get("volume")
+            if not isinstance(shares, list) or not 1 <= len(shares) <= 8 or any(isinstance(v, bool) or not isinstance(v, (int, float)) or not 0.1 <= v <= 0.9 for v in shares):
+                raise InvalidArguments("'volume' lists one to eight shares, each from 0.1 to 0.9")
+            words += ["--part", name_of(args.get("part"), "part"), "--volume", ",".join(f"{v:g}" for v in shares)]
+        elif action == "calibrate":
+            only(args, action, "twin", "parameter", "from", "to", "source")
+            low, high = number_of(args, "from"), number_of(args, "to")
+            if high <= low:
+                raise InvalidArguments("'from' is under 'to'")
+            words += [
+                "--twin", name_of(args.get("twin"), "twin"),
+                "--parameter", name_of(args.get("parameter"), "parameter"),
+                "--from", f"{low:g}", "--to", f"{high:g}",
+            ]
+            if args.get("source") is not None:
+                words += ["--source", name_of(args["source"], "source", TARGET)]
         else:
             only(args, action)
         return words

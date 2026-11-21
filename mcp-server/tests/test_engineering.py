@@ -143,6 +143,22 @@ async def test_each_action_builds_the_command_the_server_reads(server, model, st
             dict(action="trade", part="PN-MOUNT", materials=["MAT-PLA", "MAT-ALU"]),
             ["engineering", "trade", path, "--part", "PN-MOUNT", "--materials", "MAT-PLA,MAT-ALU"],
         ),
+        (
+            dict(action="propose-value", part="PN-LED", component="R1", series="E96", **{"from": 100, "to": 1000}),
+            ["engineering", "propose-value", path, "--part", "PN-LED", "--component", "R1", "--series", "E96", "--from", "100", "--to", "1000"],
+        ),
+        (
+            dict(action="propose-value", part="PN-LED", component="R1", **{"from": 47, "to": 1000}),
+            ["engineering", "propose-value", path, "--part", "PN-LED", "--component", "R1", "--series", "E24", "--from", "47", "--to", "1000"],
+        ),
+        (
+            dict(action="propose", part="PN-PLATE", volume=[0.7, 0.5, 0.4]),
+            ["engineering", "propose", path, "--part", "PN-PLATE", "--volume", "0.7,0.5,0.4"],
+        ),
+        (
+            dict(action="calibrate", twin="TW-LED", parameter="Vf", source="physics/LedBoard.mo", **{"from": 1.5, "to": 2.5}),
+            ["engineering", "calibrate", path, "--twin", "TW-LED", "--parameter", "Vf", "--from", "1.5", "--to", "2.5", "--source", "physics/LedBoard.mo"],
+        ),
     ]
     for arguments, expected in cases:
         await call(server, model_path=path, **arguments)
@@ -162,6 +178,18 @@ REFUSED = [
     dict(action="size", part="PN-1", parameter="t", **{"from": 1, "to": 2, "step": 0}),
     dict(action="trade", part="PN-1", materials=["MAT-A"]),
     dict(action="trade", part="PN-1", materials=["MAT-A,MAT-B", "MAT-C"]),
+    dict(action="propose-value", part="PN-1", component="R1", **{"from": 0, "to": 10}),
+    dict(action="propose-value", part="PN-1", component="R1", **{"from": 1, "to": 5000}),
+    dict(action="propose-value", part="PN-1", component="--out", **{"from": 1, "to": 10}),
+    dict(action="propose-value", part="PN-1", component="R1", series="E24 --x", **{"from": 1, "to": 10}),
+    dict(action="propose", part="PN-1", volume=[]),
+    dict(action="propose", part="PN-1", volume=[0.05]),
+    dict(action="propose", part="PN-1", volume=[0.95]),
+    dict(action="propose", part="PN-1", volume=["0.5"]),
+    dict(action="propose", part="PN-1", volume=[0.5], out="proposals"),  # the tool writes nothing
+    dict(action="calibrate", twin="TW-1", parameter="Vf", **{"from": 3, "to": 1}),
+    dict(action="calibrate", twin="TW-1", parameter="Vf", source="../secret", **{"from": 1, "to": 3}),
+    dict(action="calibrate", twin="--twin", parameter="Vf", **{"from": 1, "to": 3}),
     dict(action="model", timeout=0),
     dict(action="model", timeout=99999),
 ]

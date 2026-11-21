@@ -30,9 +30,11 @@ node "LED board" {
   counts of KiCad's own rule checks, compared with `==`, `<=` or `<` and no unit. A count
   of findings is a rule, not a datum: it has no registry entry.
 - A series value can be proposed (E24, E96, over a range, each simulated and judged: the
-  CLI action `propose-value` of the Enterprise edition); the engine proposes, the limits
-  decide. `arclang_engineering` exposes `size` and `trade`; for `propose-value` give the
-  command to run in a terminal.
+  `arclang_engineering action=propose-value`: `part`, `component`, `series` (default E24),
+  `from`, `to`, at most three decades); the engine proposes, the limits decide, and the
+  model is not changed: write the value yourself, then run `action=model`. A twin's
+  physics parameter can be fitted to its measurements with `action=calibrate` (`twin`,
+  `parameter`, `from`, `to`, optional `source`): a fit is a candidate, not a verdict.
 
 Workflow: `arclang_engineering action=connectors` (is the circuit engine built?), then
 `action=model`, then read the first line before anything else. See `engineering-verdicts` and

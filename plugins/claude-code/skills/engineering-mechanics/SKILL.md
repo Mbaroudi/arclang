@@ -28,7 +28,9 @@ node "Bracket arm" {
 - `action=size`: a parameter over a range (`part`, `parameter`, `from`, `to`, `step`; at most
   41 values), each solved and judged. `action=trade`: the same shape and loads under two or
   more materials of the registry; it proposes the lightest that passes and does not change
-  the model.
+  the model. `action=propose`: for each share of the part to keep (`volume`, 0.1 to 0.9), the
+  stiffest shape the topology optimisation finds, judged by the solvers; it writes nothing and
+  the model is not changed: take a shape, put it in the model, then run `action=model`.
 - Stress goes with the square of the speed for a rotating wheel: sweep the speed, do not
   extrapolate from one point.
 
