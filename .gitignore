@@ -31,6 +31,9 @@
 !src/compiler/embedded/targets/**/target.json
 # ArcLang Studio as a dev container.
 !.devcontainer/devcontainer.json
+# The Claude Code plugin: its manifest and its MCP registration.
+!plugins/claude-code/.claude-plugin/plugin.json
+!plugins/claude-code/.mcp.json
 *.xml
 !examples/**/*.xml
 
