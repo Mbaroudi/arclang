@@ -97,6 +97,9 @@ fn short_kind(xsi: &str) -> String {
     }
 }
 
+/// The deepest the elements of a document may nest (a Capella model nests a few dozen levels).
+const MAX_DEPTH: usize = 1000;
+
 /// Parse an XMI document into a tree. Fails on malformed XML.
 pub fn parse(xml: &str) -> Result<Node, String> {
     let mut reader = Reader::from_str(xml);
@@ -122,6 +125,10 @@ pub fn parse(xml: &str) -> Result<Node, String> {
                 if is_empty {
                     stack.last_mut().expect("document").children.push(node);
                 } else {
+                    // The tree is walked and dropped one call per level.
+                    if stack.len() > MAX_DEPTH {
+                        return Err(format!("XML error at byte {}: elements nested deeper than {MAX_DEPTH} levels", reader.buffer_position()));
+                    }
                     stack.push(node);
                 }
             }

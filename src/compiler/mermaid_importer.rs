@@ -125,6 +125,11 @@ impl MermaidImporter {
     }
 }
 
+/// A text as it is written between the quotes of an ArcLang string.
+fn arc_text(text: &str) -> String {
+    text.replace('\\', "\\\\").replace('"', "\\\"").replace(['\r', '\n'], " ")
+}
+
 pub struct ArcLangGenerator;
 
 impl ArcLangGenerator {
@@ -133,6 +138,13 @@ impl ArcLangGenerator {
     }
     
     pub fn generate(&self, model: &MermaidModel) -> Result<String, CompilerError> {
+        // What the diagram names is written into strings of the model.
+        let model = &MermaidModel {
+            title: arc_text(&model.title),
+            nodes: model.nodes.iter().map(|n| MermaidNode { id: arc_text(&n.id), label: arc_text(&n.label), category: n.category.as_deref().map(arc_text) }).collect(),
+            edges: model.edges.iter().map(|e| MermaidEdge { from: arc_text(&e.from), to: arc_text(&e.to) }).collect(),
+            subgraphs: model.subgraphs.clone(),
+        };
         let mut output = String::new();
         
         output.push_str(&format!("// Generated from Mermaid diagram: {}\n", model.title));
