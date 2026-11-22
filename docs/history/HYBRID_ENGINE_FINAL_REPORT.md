@@ -248,7 +248,7 @@ Arrows:
 ### Generate Hybrid-Optimized Diagram
 
 ```bash
-cd /Users/malek/arclang/arcviz-web/apps/diagram-service
+cd ~/arclang/arcviz-web/apps/diagram-service
 
 # Test with hybrid engine
 node test-operational-hybrid.js test-operational-data.json output.svg

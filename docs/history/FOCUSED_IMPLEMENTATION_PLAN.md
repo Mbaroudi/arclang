@@ -461,7 +461,7 @@ arclang context model.arc --focus "Controller" --depth 2 -o context_deep.html
 
 **Testing:**
 ```bash
-cd /Users/malek/Arclang/examples/automotive
+cd ~/arclang/examples/automotive
 arclang context acc_complete_architecture.arc --focus "Distance Controller" --depth 1 -o acc_context.html
 ```
 

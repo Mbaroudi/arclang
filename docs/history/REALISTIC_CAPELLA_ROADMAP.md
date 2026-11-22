@@ -430,7 +430,7 @@ arclang watch model.arc
 
 ### 1. Add Completeness Validation (2 days)
 ```bash
-cd /Users/malek/Arclang
+cd ~/arclang
 cargo test  # Ensure tests pass
 
 # Add to src/compiler/semantic.rs

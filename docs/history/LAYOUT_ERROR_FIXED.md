@@ -25,7 +25,7 @@ This caused edges to reference function IDs (LF-001, LF-002, etc.) that didn't e
 ## Solution
 
 ### Fix 1: Parse Function Nodes ✅
-**File**: `/Users/malek/Arclang/arcviz-web/apps/api/src/services/compiler.ts` (lines 171-193)
+**File**: `~/arclang/arcviz-web/apps/api/src/services/compiler.ts` (lines 171-193)
 
 Added function parsing within component parsing:
 ```typescript
@@ -54,7 +54,7 @@ while ((funcMatch = functionRegex.exec(body)) !== null) {
 ```
 
 ### Fix 2: Filter Invalid Edges ✅
-**File**: `/Users/malek/Arclang/arcviz-web/apps/api/src/services/compiler.ts` (lines 308-319)
+**File**: `~/arclang/arcviz-web/apps/api/src/services/compiler.ts` (lines 308-319)
 
 Added edge validation to filter out references to non-existent nodes:
 ```typescript
@@ -109,7 +109,7 @@ All edges now reference valid nodes only.
 ### Step 2: Test the Fix
 1. Open browser: `http://localhost:3002/visualizer`
 2. Click **"Upload .arc File"** button
-3. Select: `/Users/malek/Arclang/examples/automotive/acc_complete_architecture.arc`
+3. Select: `~/arclang/examples/automotive/acc_complete_architecture.arc`
 4. Click **"Compile & Visualize"**
 
 ### Expected Result ✅

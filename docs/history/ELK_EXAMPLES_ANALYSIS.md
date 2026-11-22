@@ -1,6 +1,6 @@
 # ELK Models Repository Analysis for ArcLang
 
-**Repository:** `/Users/malek/Arclang/elk-models`  
+**Repository:** `~/arclang/elk-models`  
 **Purpose:** Comprehensive analysis of ELK layout examples to identify features relevant for ArcLang/Capella-style diagrams  
 **Date:** 2025-10-28
 

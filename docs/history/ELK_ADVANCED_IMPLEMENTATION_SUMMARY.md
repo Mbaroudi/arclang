@@ -17,7 +17,7 @@ All critical Capella diagram features have been successfully implemented in ArcL
   - PA level uses `layered` algorithm with `DOWN` direction
   - Each level can override algorithm independently
 
-**Code Location**: `/Users/malek/Arclang/src/compiler/elk_json_generator.rs:298-326`
+**Code Location**: `~/arclang/src/compiler/elk_json_generator.rs:298-326`
 
 ```rust
 fn get_level_layout_config(&self, level: &str) -> LayoutConfig {
@@ -46,7 +46,7 @@ fn get_level_layout_config(&self, level: &str) -> LayoutConfig {
   - Input interfaces default to WEST
   - Output interfaces default to EAST
 
-**Code Location**: `/Users/malek/Arclang/src/compiler/elk_json_generator.rs:251-266`
+**Code Location**: `~/arclang/src/compiler/elk_json_generator.rs:251-266`
 
 ```rust
 fn determine_port_side(&self, interface_name: &str, direction: &str) -> String {
@@ -75,7 +75,7 @@ fn determine_port_side(&self, interface_name: &str, direction: &str) -> String {
   - Clean port layout
   - Configurable spacing (default: 10.0 units)
 
-**Code Location**: `/Users/malek/Arclang/src/compiler/elk_json_generator.rs:218-249`
+**Code Location**: `~/arclang/src/compiler/elk_json_generator.rs:218-249`
 
 ### 4. **Mixed Directions at Different Hierarchy Levels** ✅
 - **Feature**: Each level/container can have different flow direction
@@ -94,7 +94,7 @@ fn determine_port_side(&self, interface_name: &str, direction: &str) -> String {
   - `positionChoiceConstraint`: Control node position within layer
   - Interactive mode for drag-and-drop node repositioning
 
-**Code Location**: `/Users/malek/Arclang/src/compiler/elk_json_generator.rs:69-73`
+**Code Location**: `~/arclang/src/compiler/elk_json_generator.rs:69-73`
 
 ```rust
 pub struct LayoutConstraints {
@@ -238,7 +238,7 @@ Or simply double-click the HTML file.
 
 ### Test Command
 ```bash
-cd /Users/malek/Arclang
+cd ~/arclang
 cargo build --release
 ./target/release/arclang export \
   examples/automotive/adaptive_cruise_control.arc \

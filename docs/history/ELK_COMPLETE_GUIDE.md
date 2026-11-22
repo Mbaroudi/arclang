@@ -334,7 +334,7 @@ logical_architecture "Control System" {
 
 ```bash
 # Build
-cd /Users/malek/Arclang
+cd ~/arclang
 cargo build --release
 
 # Test with automotive example
@@ -618,14 +618,14 @@ layer_spacing: 120.0,
 ## 📞 Support
 
 **Documentation**:
-- `/Users/malek/Arclang/ELK_ADVANCED_IMPLEMENTATION_SUMMARY.md`
-- `/Users/malek/Arclang/ELK_SPACING_FIX.md`
-- `/Users/malek/Arclang/ELK_COMPLETE_GUIDE.md` (this file)
+- `~/arclang/ELK_ADVANCED_IMPLEMENTATION_SUMMARY.md`
+- `~/arclang/ELK_SPACING_FIX.md`
+- `~/arclang/ELK_COMPLETE_GUIDE.md` (this file)
 
 **Examples**:
-- `/Users/malek/Arclang/examples/automotive/adaptive_cruise_control.arc`
-- `/Users/malek/Arclang/examples/elk_advanced_demo.arc`
+- `~/arclang/examples/automotive/adaptive_cruise_control.arc`
+- `~/arclang/examples/elk_advanced_demo.arc`
 
 **Source Code**:
-- `/Users/malek/Arclang/src/compiler/elk_json_generator.rs`
-- `/Users/malek/Arclang/src/compiler/elk_html_template.rs`
+- `~/arclang/src/compiler/elk_json_generator.rs`
+- `~/arclang/src/compiler/elk_html_template.rs`

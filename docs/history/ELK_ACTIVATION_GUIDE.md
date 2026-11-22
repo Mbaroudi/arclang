@@ -107,7 +107,7 @@ Open `src/compiler/arcviz_explorer_template.html` and add BEFORE the final `</sc
 ### Step 2: Test with remote_start
 
 ```bash
-cd /Users/malek/Arclang
+cd ~/arclang
 cargo run --bin arclang -- explorer examples/automotive/remote_start/remote_start_architecture.arc
 open examples/automotive/remote_start/remote_start_architecture_explorer.html
 ```

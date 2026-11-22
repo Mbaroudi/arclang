@@ -17,7 +17,7 @@ Your ArcViz visualizer now provides **professional MBSE visualization** with:
 ## Quick Start
 
 1. Click **"Upload .arc File"**
-2. Select: `/Users/malek/Arclang/examples/automotive/acc_complete_architecture.arc`
+2. Select: `~/arclang/examples/automotive/acc_complete_architecture.arc`
 3. Click **"Compile & Visualize"**
 4. Use the **layer dropdown** to switch views
 

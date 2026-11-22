@@ -10,7 +10,7 @@
 
 ### What You Already Have
 
-From `/Users/malek/Arclang/src/compiler/`:
+From `~/arclang/src/compiler/`:
 - ✅ `arcviz_elk.rs` (987 lines) - ELK integration exists
 - ✅ `arcviz_ultimate_routing.rs` (515 lines) - Custom routing
 - ✅ `arcviz_smart_routing.rs` (710 lines) - Smart routing
