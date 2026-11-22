@@ -310,7 +310,12 @@ const FUNCTIONS: [&str; 4] = ["has", "size", "count", "count_in"];
 struct Parser {
     tokens: Vec<Token>,
     at: usize,
+    /// How deep `not` and the parentheses are at this token.
+    depth: usize,
 }
+
+/// The deepest a predicate may nest: beyond it the text is refused, not descended into.
+const MAX_DEPTH: usize = 200;
 
 impl Parser {
     fn peek(&self) -> Option<&Token> {
@@ -346,6 +351,16 @@ impl Parser {
     }
 
     fn not(&mut self) -> Result<Pred, String> {
+        self.depth += 1;
+        if self.depth > MAX_DEPTH {
+            return Err(format!("nested deeper than {MAX_DEPTH} levels"));
+        }
+        let pred = self.not_inner();
+        self.depth -= 1;
+        pred
+    }
+
+    fn not_inner(&mut self) -> Result<Pred, String> {
         if self.word("not") {
             self.at += 1;
             return Ok(Pred::Not(Box::new(self.not()?)));
@@ -400,7 +415,7 @@ impl Parser {
 }
 
 pub fn parse(text: &str) -> Result<Pred, String> {
-    let mut parser = Parser { tokens: tokens(text)?, at: 0 };
+    let mut parser = Parser { tokens: tokens(text)?, at: 0, depth: 0 };
     let pred = parser.or()?;
     if let Some(extra) = parser.peek() {
         return Err(format!("unexpected {extra:?} after the predicate"));
@@ -484,16 +499,38 @@ fn relationship_type(r: &super::elements::RelationshipRecord) -> Option<&str> {
 }
 
 fn holds(pred: &Pred, element: &Element<'_>) -> Result<bool, String> {
+    Ok(judge(pred, element)? == Some(true))
+}
+
+/// Whether a predicate holds, or `None` when it compares a value the element does not have: what
+/// is not known is neither true nor false, and `not` leaves it unknown. So `not (mass > 50 kg)`
+/// does not hold for an element with no mass, as `mass <= 50 kg` does not.
+fn judge(pred: &Pred, element: &Element<'_>) -> Result<Option<bool>, String> {
     Ok(match pred {
-        Pred::And(a, b) => holds(a, element)? && holds(b, element)?,
-        Pred::Or(a, b) => holds(a, element)? || holds(b, element)?,
-        Pred::Not(a) => !holds(a, element)?,
+        Pred::And(a, b) => match (judge(a, element)?, judge(b, element)?) {
+            (Some(false), _) | (_, Some(false)) => Some(false),
+            (Some(true), Some(true)) => Some(true),
+            _ => None,
+        },
+        Pred::Or(a, b) => match (judge(a, element)?, judge(b, element)?) {
+            (Some(true), _) | (_, Some(true)) => Some(true),
+            (Some(false), Some(false)) => Some(false),
+            _ => None,
+        },
+        Pred::Not(a) => judge(a, element)?.map(|held| !held),
         Pred::Truth(term) => match element.value(term) {
-            Value::Bool(b) => b,
-            Value::Missing => false,
+            Value::Bool(b) => Some(b),
+            Value::Missing => Some(false),
             other => return Err(format!("{term:?} is {}, not true or false: compare it (`{} > 0`)", describe(&other), show(term))),
         },
-        Pred::Compare(lhs, cmp, rhs) => compare(element.value(lhs), *cmp, element.value(rhs), lhs, rhs)?,
+        Pred::Compare(lhs, cmp, rhs) => {
+            let (a, b) = (element.value(lhs), element.value(rhs));
+            if a == Value::Missing || b == Value::Missing {
+                None
+            } else {
+                Some(compare(a, *cmp, b, lhs, rhs)?)
+            }
+        }
     })
 }
 
@@ -513,6 +550,7 @@ fn describe(value: &Value) -> String {
         Value::Missing => "missing".to_string(),
     }
 }
+
 
 fn compare(a: Value, cmp: Cmp, b: Value, lhs: &Term, rhs: &Term) -> Result<bool, String> {
     // Equal within a fraction of the larger of the two, never within an

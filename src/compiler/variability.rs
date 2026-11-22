@@ -130,12 +130,14 @@ pub fn check(ast: &Model) -> Result<Vec<String>, String> {
         }
     }
     for config in &ast.configurations {
-        let mut chosen: HashMap<String, String> = HashMap::new();
+        // The variant chosen for each variation, and as the configuration wrote it: one variant named
+        // by its id and by its name is one choice.
+        let mut chosen: HashMap<String, (String, String)> = HashMap::new();
         for selected in &config.selects {
-            let (variation, _) = resolve(&variations, selected)
+            let (variation, variant) = resolve(&variations, selected)
                 .map_err(|holders| format!("configuration '{}': '{selected}' names variants of several variations ({}): select it by id", config.name, holders.join(", ")))?
                 .ok_or_else(|| format!("configuration '{}': '{selected}' is not a variant of any variation", config.name))?;
-            if let Some(previous) = chosen.insert(variation.clone(), selected.clone()).filter(|previous| previous != selected) {
+            if let Some((_, previous)) = chosen.insert(variation.clone(), (variant.clone(), selected.clone())).filter(|(previous, _)| previous != &variant) {
                 return Err(format!("configuration '{}' selects '{previous}' and '{selected}', two variants of variation '{variation}'", config.name));
             }
         }
