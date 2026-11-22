@@ -152,11 +152,15 @@ pub enum Commands {
         output: Option<PathBuf>,
     },
     
+    /// Not implemented: there is no PLM connector. Kept so that a script that calls it gets the same answer.
+    #[clap(hide = true)]
     Sync {
         #[clap(subcommand)]
         sync_command: SyncCommands,
     },
     
+    /// Not implemented: there is no plugin system.
+    #[clap(hide = true)]
     Plugin {
         #[clap(subcommand)]
         plugin_command: PluginCommands,
@@ -1009,7 +1013,8 @@ pub enum Commands {
         #[clap(long)]
         stdio: bool,
         
-        #[clap(long)]
+        /// Not implemented: the language server speaks on the standard input.
+        #[clap(long, hide = true)]
         port: Option<u16>,
     },
     
@@ -1024,11 +1029,15 @@ pub enum Commands {
         open: bool,
     },
     
+    /// Not implemented.
+    #[clap(hide = true)]
     Repl {
         #[clap(value_parser)]
         project: Option<PathBuf>,
     },
     
+    /// Not implemented.
+    #[clap(hide = true)]
     Clean {
         #[clap(value_parser)]
         project: PathBuf,
@@ -1044,7 +1053,8 @@ pub enum Commands {
         #[clap(long)]
         metrics: bool,
         
-        #[clap(long)]
+        /// Not implemented.
+        #[clap(long, hide = true)]
         dependencies: bool,
     },
     
@@ -1338,6 +1348,8 @@ pub enum ExportFormat {
     Mermaid,
     PlantUML,
     HTML,
+    /// Not implemented: export HTML and print it.
+    #[value(hide = true)]
     PDF,
     Terraform,
     SysML,
