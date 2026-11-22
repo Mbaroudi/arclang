@@ -197,7 +197,7 @@ The test script is **fully functional** and successfully generates all 6 Arcadia
 ## Usage
 
 ```bash
-cd /Users/malek/arclang
+cd ~/arclang
 ./test_complete_example.sh
 ```
 

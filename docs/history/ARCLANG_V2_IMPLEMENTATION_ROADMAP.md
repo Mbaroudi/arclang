@@ -1028,8 +1028,8 @@ Phase 4: Verification & Validation
 
 1. **SysML v2 Specification**: https://www.omg.org/spec/SysML/2.0/
 2. **Capella Metamodel**: Capella XML Schema Documentation
-3. **ArcLang V2 Unified Syntax**: `/Users/malek/arclang/ARCLANG_V2_UNIFIED_SYNTAX.md`
-4. **SysML v2 Mapping**: `/Users/malek/arclang/SYSML_V2_CAPELLA_ARCLANG_MAPPING.md`
+3. **ArcLang V2 Unified Syntax**: `~/arclang/ARCLANG_V2_UNIFIED_SYNTAX.md`
+4. **SysML v2 Mapping**: `~/arclang/SYSML_V2_CAPELLA_ARCLANG_MAPPING.md`
 5. **SysML v2 Examples**: https://github.com/Systems-Modeling/SysML-v2-Release
 
 ---

@@ -48,7 +48,7 @@ Complete multi-cloud infrastructure generation system built from ArcLang archite
 #### Databricks Generator (`terraform_databricks_generator.rs`)
 - **1000+ lines** generating 624 lines of HCL
 - **Services**: Unity Catalog, clusters, SQL warehouses, jobs, RBAC, monitoring
-- **Output**: `/Users/malek/Arclang/terraform/databricks.tf`
+- **Output**: `~/arclang/terraform/databricks.tf`
 
 #### Azure Complete Generator (`terraform_azure_generator.rs`)
 - **800+ lines** of production code
@@ -156,7 +156,7 @@ PA-GOV-001 (Governance) → IAM + KMS + Secrets + Config
 ### Generate AWS Infrastructure
 
 ```bash
-cd /Users/malek/Arclang
+cd ~/arclang
 
 # Compile and generate
 cargo run --release -- export examples/data_platform_migration.arc \
@@ -377,7 +377,7 @@ infracost comment github --path infracost.json \
 
 1. **ArcLang Compiler**:
    ```bash
-   cd /Users/malek/Arclang
+   cd ~/arclang
    cargo build --release
    ```
 

@@ -346,7 +346,7 @@ export interface OperationalAnalysis {
 ### Week 4: Setup Diagram Service
 
 ```bash
-cd /Users/malek/Arclang/arcviz-web
+cd ~/arclang/arcviz-web
 mkdir -p apps/diagram-service/src/{renderers,layouts,svg,utils}
 
 # package.json

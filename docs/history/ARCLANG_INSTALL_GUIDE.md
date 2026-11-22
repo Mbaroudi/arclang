@@ -20,7 +20,7 @@ Install `arclang` binary so it's accessible from:
 
 ```bash
 # Navigate to project
-cd /Users/malek/arclang
+cd ~/arclang
 
 # Build release binary
 cargo build --release
@@ -40,7 +40,7 @@ arclang --version
 
 ```bash
 # Navigate to project
-cd /Users/malek/arclang
+cd ~/arclang
 
 # Build and install in one command
 cargo build-install
@@ -57,7 +57,7 @@ arclang --version
 
 ```bash
 # Build binary
-cd /Users/malek/arclang
+cd ~/arclang
 cargo build --release
 
 # Copy to PATH manually
@@ -114,7 +114,7 @@ Edit: `~/Library/Application Support/Claude/claude_desktop_config.json`
       "command": "arclang-mcp",
       "args": [],
       "env": {
-        "ARCLANG_WORKSPACE": "/Users/malek/arclang/examples",
+        "ARCLANG_WORKSPACE": "~/arclang/examples",
         "ARCLANG_COMPILER": "arclang"
       }
     }
@@ -128,7 +128,7 @@ Edit: `~/Library/Application Support/Claude/claude_desktop_config.json`
 
 ```bash
 # Install MCP server if not already done
-cd /Users/malek/arclang/mcp-server
+cd ~/arclang/mcp-server
 pip install -e .
 
 # Test directly
@@ -149,7 +149,7 @@ arclang-mcp
 
 ```bash
 # Make changes to Rust code
-cd /Users/malek/arclang
+cd ~/arclang
 
 # Rebuild and reinstall
 cargo build --release
@@ -160,7 +160,7 @@ cargo build --release
 
 ```bash
 # Make changes to Rust code
-cd /Users/malek/arclang
+cd ~/arclang
 
 # Build and install in one command
 cargo build-install
@@ -172,7 +172,7 @@ cargo build-install
 #!/bin/bash
 # rebuild.sh - Rebuild and reinstall arclang
 
-cd /Users/malek/arclang
+cd ~/arclang
 
 echo "Building arclang..."
 cargo build --release
@@ -211,7 +211,7 @@ cd /tmp
 arclang --version
 
 # 6. Test compilation (if you have a .arc file)
-arclang compile /Users/malek/arclang/examples/automotive/acc_minimal.arc
+arclang compile ~/arclang/examples/automotive/acc_minimal.arc
 ```
 
 All commands should succeed without errors.
@@ -259,7 +259,7 @@ chmod +x ~/.local/bin/arclang
 {
   "mcpServers": {
     "arclang": {
-      "command": "/Users/malek/.local/bin/arclang",
+      "command": "~/.local/bin/arclang",
       ...
     }
   }
@@ -273,7 +273,7 @@ chmod +x ~/.local/bin/arclang
     "arclang": {
       "command": "arclang",
       "env": {
-        "PATH": "/Users/malek/.local/bin:/usr/local/bin:/usr/bin:/bin",
+        "PATH": "~/.local/bin:/usr/local/bin:/usr/bin:/bin",
         ...
       }
     }
@@ -290,7 +290,7 @@ chmod +x ~/.local/bin/arclang
 **Solution**:
 ```bash
 # Rebuild and reinstall
-cd /Users/malek/arclang
+cd ~/arclang
 cargo clean
 cargo build --release
 ./install-arclang.sh
@@ -305,11 +305,11 @@ arclang --version
 
 | Item | Location |
 |------|----------|
-| Source code | `/Users/malek/arclang/src/` |
-| Compiled binary (release) | `/Users/malek/arclang/target/release/arclang` |
+| Source code | `~/arclang/src/` |
+| Compiled binary (release) | `~/arclang/target/release/arclang` |
 | Installed binary | `~/.local/bin/arclang` |
-| Install script | `/Users/malek/arclang/install-arclang.sh` |
-| Cargo config | `/Users/malek/arclang/.cargo/config.toml` |
+| Install script | `~/arclang/install-arclang.sh` |
+| Cargo config | `~/arclang/.cargo/config.toml` |
 | MCP config | `~/Library/Application Support/Claude/claude_desktop_config.json` |
 
 ---

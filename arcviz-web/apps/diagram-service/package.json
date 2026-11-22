@@ -1,0 +1,41 @@
+{
+  "name": "@arcviz/diagram-service",
+  "version": "1.0.0",
+  "description": "Capella-quality diagram rendering service for ArcLang models",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "arclang",
+    "capella",
+    "mbse",
+    "diagrams",
+    "visualization",
+    "svg"
+  ],
+  "author": "ArcLang Contributors",
+  "license": "SEE LICENSE IN ../../../LICENSE",
+  "dependencies": {
+    "elkjs": "^0.9.3",
+    "d3": "^7.9.0",
+    "dagre": "^0.8.5",
+    "@types/d3": "^7.4.3",
+    "@types/dagre": "^0.7.52"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "typescript": "^5.3.3",
+    "jest": "^29.7.0",
+    "@types/jest": "^29.5.11",
+    "ts-jest": "^29.1.1",
+    "eslint": "^8.56.0",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0"
+  }
+}

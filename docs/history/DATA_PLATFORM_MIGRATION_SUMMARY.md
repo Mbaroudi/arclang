@@ -327,7 +327,7 @@
 - Malek Baroudi (Lead Architect)
 - Bilel Laasami (Systems Architect)
 
-**Repository**: `/Users/malek/Arclang/`
+**Repository**: `~/arclang/`
 
 **Documentation**:
 - Model: `examples/data_platform_migration.arc`

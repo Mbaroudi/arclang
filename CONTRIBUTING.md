@@ -264,7 +264,7 @@ mod tests {
 
 ### Improving Safety Analysis
 
-1. Review existing algorithms in `safety/`
+1. Review existing algorithms in `src/compiler/` (`fta.rs`, `production_gate.rs`)
 2. Propose improvements with rationale
 3. Implement with comprehensive tests
 4. Validate against safety standards

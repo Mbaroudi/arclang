@@ -191,7 +191,7 @@ One renderer instead of 5+ different implementations:
 
 ### Test with example
 ```bash
-cd /Users/malek/Arclang
+cd ~/arclang
 cargo build
 cargo run --bin arclang -- export \
   examples/business/data_platform_migration/data_platform_migration.arc \

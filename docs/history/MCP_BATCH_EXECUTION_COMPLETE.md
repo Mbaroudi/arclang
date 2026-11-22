@@ -4,7 +4,7 @@
 
 ### 1. New MCP Tool: `arclang_execute_batch`
 
-**Location**: `/Users/malek/arclang/mcp-server/src/arclang_mcp/server.py`
+**Location**: `~/arclang/mcp-server/src/arclang_mcp/server.py`
 
 - Lines 412-479: Tool definition with complete schema
 - Lines 506-723: Batch execution implementation with 7 operation types
@@ -162,18 +162,18 @@ return only violations and counts."
 
 ## Files Created/Modified
 
-1. ✅ `/Users/malek/arclang/mcp-server/src/arclang_mcp/server.py`
+1. ✅ `~/arclang/mcp-server/src/arclang_mcp/server.py`
    - Added `arclang_execute_batch` tool definition
    - Implemented `_execute_batch()` method with 7 operations
    - Added routing in `call_tool()` handler
 
-2. ✅ `/Users/malek/arclang/mcp-server/BATCH_EXECUTION_GUIDE.md`
+2. ✅ `~/arclang/mcp-server/BATCH_EXECUTION_GUIDE.md`
    - Complete usage documentation
    - 7 operation type examples
    - Token efficiency analysis
    - Integration instructions
 
-3. ✅ `/Users/malek/arclang/MCP_BATCH_EXECUTION_COMPLETE.md` (this file)
+3. ✅ `~/arclang/MCP_BATCH_EXECUTION_COMPLETE.md` (this file)
    - Implementation summary
    - Benefits and use cases
 
@@ -183,7 +183,7 @@ return only violations and counts."
 
 **To Test Manually**:
 ```bash
-cd /Users/malek/arclang/mcp-server
+cd ~/arclang/mcp-server
 python -m arclang_mcp
 ```
 

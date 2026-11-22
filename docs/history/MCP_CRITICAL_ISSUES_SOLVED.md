@@ -8,7 +8,7 @@
 ## Issue #1: File Access & Path Management 🟢 SOLVED
 
 ### Problem (Was)
-- ❌ MCP server could only access files in `/Users/malek/arclang/`
+- ❌ MCP server could only access files in `~/arclang/`
 - ❌ Could not test with files in `/home/claude/` or other directories
 - ❌ No way to specify absolute paths
 - ❌ Blocked all remote testing
@@ -34,7 +34,7 @@ def _resolve_path(self, path_str: str) -> Path:
     """Resolve path relative to workspace root or allow absolute paths.
     
     Supports:
-    - Absolute paths: /Users/malek/test.arc or /home/claude/test.arc
+    - Absolute paths: ~/test.arc or /home/claude/test.arc
     - Relative paths: examples/test.arc (resolved to workspace_root)
     - ~ expansion: ~/test.arc (expands to user home)
     """
@@ -53,19 +53,19 @@ def _resolve_path(self, path_str: str) -> Path:
 1. **Absolute Paths** (Any directory):
    ```
    /home/claude/test_model.arc
-   /Users/malek/arclang/examples/test.arc
+   ~/arclang/examples/test.arc
    /tmp/quick_test.arc
    ```
 
 2. **Relative Paths** (Workspace-relative):
    ```
    examples/automotive/acc_complete.arc
-   test_model.arc (→ /Users/malek/arclang/test_model.arc)
+   test_model.arc (→ ~/arclang/test_model.arc)
    ```
 
 3. **Home Directory Expansion**:
    ```
-   ~/test_model.arc (→ /Users/malek/test_model.arc)
+   ~/test_model.arc (→ ~/test_model.arc)
    ~/claude/test.arc (→ /home/claude/test.arc if on Linux)
    ```
 

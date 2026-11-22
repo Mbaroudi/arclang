@@ -60,7 +60,7 @@ All systems are **READY** for testing!
 
 #### Start MCP Server
 ```bash
-cd /Users/malek/Arclang/mcp-server
+cd ~/arclang/mcp-server
 /opt/homebrew/bin/python3.11 -m arclang_mcp.server
 ```
 
@@ -75,7 +75,7 @@ cd /Users/malek/Arclang/mcp-server
          "command": "/opt/homebrew/bin/python3.11",
          "args": ["-m", "arclang_mcp.server"],
          "env": {
-           "ARCLANG_WORKSPACE": "/Users/malek/Arclang"
+           "ARCLANG_WORKSPACE": "~/arclang"
          }
        }
      }
@@ -116,7 +116,7 @@ cd /Users/malek/Arclang/mcp-server
 curl -X POST http://localhost:4001/api/diagrams/generate \
   -H "Content-Type: application/json" \
   -d '{
-    "modelPath": "/Users/malek/Arclang/examples/acc.arc",
+    "modelPath": "~/arclang/examples/acc.arc",
     "diagramType": "operational"
   }'
 ```
@@ -126,7 +126,7 @@ curl -X POST http://localhost:4001/api/diagrams/generate \
 curl -X POST http://localhost:4001/api/diagrams/generate-all \
   -H "Content-Type: application/json" \
   -d '{
-    "modelPath": "/Users/malek/Arclang/examples/acc.arc",
+    "modelPath": "~/arclang/examples/acc.arc",
     "outputDir": "./test-diagrams"
   }'
 ```
@@ -226,15 +226,15 @@ curl http://localhost:4001/api/diagrams/types
 lsof -ti:4001 -ti:3002 | xargs kill -9
 
 # Start API server
-cd /Users/malek/Arclang/arcviz-web/apps/api
+cd ~/arclang/arcviz-web/apps/api
 PORT=4001 npm run dev
 
 # Start web server (in new terminal)
-cd /Users/malek/Arclang/arcviz-web/apps/web
+cd ~/arclang/arcviz-web/apps/web
 npm run dev
 
 # Start MCP server (in new terminal)
-cd /Users/malek/Arclang/mcp-server
+cd ~/arclang/mcp-server
 /opt/homebrew/bin/python3.11 -m arclang_mcp.server
 
 # Open in browser

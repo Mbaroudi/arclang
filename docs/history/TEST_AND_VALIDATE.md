@@ -3,7 +3,7 @@
 ## Run the Complete Example (5 minutes)
 
 ```bash
-cd /Users/malek/arclang
+cd ~/arclang
 
 # Run complete test
 ./test_complete_example.sh

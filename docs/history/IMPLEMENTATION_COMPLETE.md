@@ -490,7 +490,7 @@ arclang diagram system.arc -o diagrams.svg --format all
 
 **4. Documentation**
 - ✅ `/mcp-server/README.md` - Updated with new tools
-- ✅ `/Users/malek/Arclang/MCP_WEB_UPDATE_PLAN.md` - Implementation plan (all checkboxes complete)
+- ✅ `~/arclang/MCP_WEB_UPDATE_PLAN.md` - Implementation plan (all checkboxes complete)
 
 #### Features Added
 - AI can generate diagrams via natural language (MCP)

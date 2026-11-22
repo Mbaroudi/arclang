@@ -131,14 +131,14 @@ Rust CLI → Diagram Service → SVG
 ### Option 2: Fix CLI Integration (1-2 hours)
 1. Build ArcLang Rust project
    ```bash
-   cd /Users/malek/Arclang
+   cd ~/arclang
    cargo build --release
    ```
 
 2. Add to API server PATH
    ```typescript
    // In API src/index.ts
-   process.env.PATH = `/Users/malek/Arclang/target/release:${process.env.PATH}`
+   process.env.PATH = `~/arclang/target/release:${process.env.PATH}`
    ```
 
 3. Test diagram generation
