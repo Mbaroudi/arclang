@@ -312,6 +312,12 @@ impl RequirementStatus<'_> {
 pub fn requirement_status<'a>(model: &'a Model, semantic: &'a SemanticModel, requirement: &str) -> RequirementStatus<'a> {
     let mut satisfied_by: Vec<&str> = Vec::new();
     for trace in semantic.traces.iter().filter(|t| t.trace_type == "satisfies" && t.to == requirement) {
+        // What satisfies a requirement is an element of the architecture: another requirement or a
+        // test case that says it satisfies this one adds no element that does.
+        let from = trace.from.as_str();
+        if resolve_requirement(model, from).is_some() || model.test_cases.iter().any(|test| test.id == from || test.name == from) {
+            continue;
+        }
         if !satisfied_by.contains(&trace.from.as_str()) {
             satisfied_by.push(&trace.from);
         }
