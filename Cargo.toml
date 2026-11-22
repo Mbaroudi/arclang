@@ -47,7 +47,7 @@ uuid = { version = "1.6", features = ["v5", "serde"] }
 
 # ---- Native only (CLI / LSP / web server) ----
 clap = { version = "4.4", features = ["derive", "cargo"], optional = true }
-colored = { version = "2.0", optional = true }
+colored = { version = "3.1", optional = true }
 opener = { version = "0.7", optional = true }
 axum = { version = "0.7", optional = true }
 tower = { version = "0.4", optional = true }
