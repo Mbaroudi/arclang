@@ -161,12 +161,30 @@ impl Series {
         self.units.get(name).and_then(|u| parse_unit(u))
     }
 
+    /// The unit of a variable and what its zero stands at in SI: `degC` is the kelvin, 273.15
+    /// higher. A reading in such a unit is a level, converted whole (`80 degC` is 353.15 K).
+    pub fn unit_and_zero(&self, name: &str) -> Option<(Unit, f64)> {
+        let text = self.units.get(name)?.trim();
+        parse_unit(text).map(|unit| (unit, 0.0)).or_else(|| crate::compiler::quantity::lookup_unit(text).map(|s| (Unit { factor: s.factor, dim: s.dimension.vector() }, s.offset)))
+    }
+
     pub fn values(&self, column: usize) -> impl Iterator<Item = f64> + '_ {
         self.rows.iter().map(move |r| r[column])
     }
 
     pub fn times(&self) -> impl Iterator<Item = f64> + '_ {
         self.values(0)
+    }
+
+    /// An error when the run stops before the instant it was asked to reach: a simulation that
+    /// fails or ends part of the way leaves the steps it made, and they are not the run.
+    pub fn reaches(&self, stop: f64) -> Result<(), String> {
+        let last = self.times().last().ok_or("the result is empty")?;
+        if last.is_finite() && last >= stop - 1e-6 * stop.abs().max(1e-6) {
+            Ok(())
+        } else {
+            Err(format!("the simulation stopped at {last} s, before the {stop} s it was to run: its result is not judged"))
+        }
     }
 
     /// The names of the columns, `time` first.

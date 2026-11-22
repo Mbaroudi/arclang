@@ -60,6 +60,27 @@ A verdict is expected to tighten between versions, never to loosen.
   error. A model that relied on the old absolute tolerance to compare a
   value with zero writes its tolerance (`within`), or compares at the scale
   it means.
+- **What the gate asks for (after 4.13).** A requirement is satisfied by an
+  element of the architecture: a `satisfies` trace from another requirement
+  or from a test case no longer counts. A hazard whose fault tree fails
+  beyond the rate of its integrity level blocks the gate (`check` already
+  warned), and one whose failure modes carry no `fit:` is a warning.
+  `mitigated_by: []` is no mitigation. A negative latency is not a time and
+  blocks, instead of being subtracted from its chain.
+- **Rules.** A comparison on an attribute the element does not have is
+  neither true nor false, and `not` leaves it so: `not (mass > 50 kg)` no
+  longer holds for an element with no mass, as `mass <= 50 kg` never did.
+  Write `not has(mass) or ...` to let such an element pass.
+- **Simulations.** A result that stops before `stop_time` is an error, not
+  a run judged on the steps it made. A variable whose Modelica unit is
+  `degC` is read in kelvin (`max(T) <= 55 °C` used to compare 80 with
+  328.15). `sources:` are files of the model's folder (no absolute path, no
+  `..`), a swept variable is a path with whole-number subscripts, and `nan`
+  or `inf` is no level, no bound and no parameter of a law.
+- **Nesting.** A text whose braces, brackets and parentheses nest deeper
+  than 200 levels is refused (a `.arc` model, a SysML v2 text, a rule); a
+  Capella file beyond 1000 levels of elements too. They used to end the
+  process.
 
 ## Identity stability guarantee
 

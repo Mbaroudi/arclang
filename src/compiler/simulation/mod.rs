@@ -441,6 +441,10 @@ fn read_spec(map: &HashMap<String, AttributeValue>) -> Result<Spec, String> {
         Some(AttributeValue::String(one)) => vec![one.clone()],
         Some(_) => return Err("simulate: sources are file paths".to_string()),
     };
+    // As for the data of a twin: the model reads the files of its own folder, not any file of the machine.
+    if let Some(outside) = sources.iter().find(|file| std::path::Path::new(file).is_absolute() || file.split(['/', '\\']).any(|part| part == "..")) {
+        return Err(format!("simulate: sources: '{outside}' must be a path inside the model's folder"));
+    }
     let tolerance = match map.get("tolerance") {
         None => None,
         Some(v) => Some(v.as_number().filter(|t| *t > 0.0).ok_or("simulate: tolerance is a positive number")?),
