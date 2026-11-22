@@ -547,7 +547,7 @@ fn simulate(tool: &Tool, export: &Export, base: &Path, spec: &Spec, expects: &[S
     for (index, (point, (csv, xml))) in points.iter().zip(&results).enumerate() {
         let evaluated = match csv {
             None => Err(format!("the simulation of {} failed: {}", spec.model, simulation_messages(&run.output, index))),
-            Some(csv) => applied(point, point_section(&run.output, index)).and_then(|()| evaluate_point(csv, xml, spec.stop_time, &parsed, &mut notes)),
+            Some(csv) => applied(point, point_section(&run.output, index)).and_then(|()| evaluate_point(csv, xml, (!Series::ended_by_the_model(point_section(&run.output, index))).then_some(spec.stop_time), &parsed, &mut notes)),
         };
         let inputs = if sampled { point.iter().map(|(variable, level)| (variable.clone(), level.si)).collect() } else { Vec::new() };
         outcomes.push(match evaluated {
@@ -618,9 +618,12 @@ fn applied(point: &Point, section: &str) -> Result<(), String> {
 }
 
 /// The expectations on the result of one point.
-fn evaluate_point(csv: &str, xml: &str, stop: f64, parsed: &[expects::Expect], notes: &mut Vec<String>) -> Result<Vec<expects::Evaluated>, String> {
+/// `stop`: the instant the run was to reach, `None` when the model ended it itself.
+fn evaluate_point(csv: &str, xml: &str, stop: Option<f64>, parsed: &[expects::Expect], notes: &mut Vec<String>) -> Result<Vec<expects::Evaluated>, String> {
     let mut series = Series::from_csv(csv)?;
-    series.reaches(stop)?;
+    if let Some(stop) = stop {
+        series.reaches(stop)?;
+    }
     series.set_units(units_from_init_xml(xml));
     parsed.iter().map(|expect| expects::evaluate(expect, &mut Context { series: &series, notes })).collect()
 }

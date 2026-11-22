@@ -176,6 +176,12 @@ impl Series {
         self.values(0)
     }
 
+    /// Whether the log of a run says the model ended it itself (`terminate("the pack is
+    /// charged")`): such a run is whole, however early it stops.
+    pub fn ended_by_the_model(log: &str) -> bool {
+        log.contains("Simulation call terminate()")
+    }
+
     /// An error when the run stops before the instant it was asked to reach: a simulation that
     /// fails or ends part of the way leaves the steps it made, and they are not the run.
     pub fn reaches(&self, stop: f64) -> Result<(), String> {
@@ -183,7 +189,7 @@ impl Series {
         if last.is_finite() && last >= stop - 1e-6 * stop.abs().max(1e-6) {
             Ok(())
         } else {
-            Err(format!("the simulation stopped at {last} s, before the {stop} s it was to run: its result is not judged"))
+            Err(format!("the simulation stopped at {last} s, before the {stop} s it was to run, and the model did not end it (terminate): its result is not judged"))
         }
     }
 
@@ -398,6 +404,11 @@ mod tests {
         assert_eq!(series.at(x, 1.0), Some(5.0), "after the event");
         assert_eq!(series.at(x, 3.0), None);
         assert!(Series::from_csv("\"x\"\n1\n").is_err());
+        // A run that stops early is not the run, unless its model ended it.
+        assert!(series.reaches(2.0).is_ok());
+        assert!(series.reaches(5.0).unwrap_err().contains("did not end it"));
+        assert!(Series::ended_by_the_model("LOG_STDOUT        | info    | Simulation call terminate() at time 2068.616656"));
+        assert!(!Series::ended_by_the_model("LOG_SUCCESS       | info    | The simulation finished successfully."));
         assert!(Series::from_csv("\"time\",\"x\"\n0,a\n").is_err());
         let xml = r#"<ScalarVariable name = "a" /><ScalarVariable
     name = "body.distance" valueReference="1000" variability="continuous"

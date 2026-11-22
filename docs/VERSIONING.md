@@ -72,7 +72,8 @@ A verdict is expected to tighten between versions, never to loosen.
   longer holds for an element with no mass, as `mass <= 50 kg` never did.
   Write `not has(mass) or ...` to let such an element pass.
 - **Simulations.** A result that stops before `stop_time` is an error, not
-  a run judged on the steps it made. A variable whose Modelica unit is
+  a run judged on the steps it made, unless the model ended the run itself
+  (`terminate(...)`: the pack is charged, the trip is driven). A variable whose Modelica unit is
   `degC` is read in kelvin (`max(T) <= 55 °C` used to compare 80 with
   328.15). `sources:` are files of the model's folder (no absolute path, no
   `..`), a swept variable is a path with whole-number subscripts, and `nan`

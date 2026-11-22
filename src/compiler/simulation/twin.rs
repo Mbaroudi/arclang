@@ -1113,7 +1113,7 @@ pub fn run_on(result: &CompilationResult, model_path: &Path, twin: &Twin, spec: 
         Err(error) => return finish(Outcome { verdict: "error".to_string(), ..outcome }, error),
     };
     series.set_units(units_from_init_xml(&xml));
-    if let Err(error) = series.reaches(outcome.duration.max(1e-6)) {
+    if let Some(error) = series.reaches(outcome.duration.max(1e-6)).err().filter(|_| !Series::ended_by_the_model(&run.output)) {
         return finish(Outcome { verdict: "error".to_string(), ..outcome }, error);
     }
 
