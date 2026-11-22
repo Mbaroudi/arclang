@@ -135,9 +135,11 @@ fn mission_hours(attributes: &std::collections::HashMap<String, AttributeValue>)
 
 /// Probability that the top event happens within `hours`, from the rates (FIT) of its events.
 fn top_probability(gate: Gate, fits: &[f64], hours: f64) -> f64 {
-    let failed = |fit: f64| 1.0 - (-fit * 1e-9 * hours).exp();
+    // `exp_m1` keeps the digits of a small rate, which `1 - exp(-x)` loses.
+    let failed = |fit: f64| -(-fit * 1e-9 * hours).exp_m1();
     match gate {
-        Gate::Or => 1.0 - fits.iter().map(|f| 1.0 - failed(*f)).product::<f64>(),
+        // One event is enough: the survivals multiply, so the rates add.
+        Gate::Or => failed(fits.iter().sum()),
         Gate::And => fits.iter().map(|f| failed(*f)).product(),
     }
 }
@@ -388,7 +390,7 @@ safety_analysis {
         let two = &trees[1];
         assert_eq!(two.gate, Gate::And);
         assert!(two.single_points.is_empty());
-        let expected = (1.0 - (-4e-9 * 10.0f64).exp()) * (1.0 - (-3e-9 * 10.0f64).exp());
+        let expected = (-4e-9 * 10.0f64).exp_m1() * (-3e-9 * 10.0f64).exp_m1();
         assert!((two.probability.unwrap() - expected).abs() < 1e-24, "{:?}", two.probability);
         assert!(trees[2].events.is_empty() && trees[2].budget.is_none());
         assert!(result.warnings.iter().all(|w| !w.starts_with("safety:")), "{:?}", result.warnings);

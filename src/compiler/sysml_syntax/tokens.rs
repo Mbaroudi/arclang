@@ -108,8 +108,23 @@ pub(super) fn tokenize(text: &str) -> Result<Vec<Token>, String> {
             return Err(format!("unexpected character '{}'", c));
         }
     }
+    // The reader descends once per level: a text nested deeper than any model is refused here.
+    let mut depth = 0usize;
+    for token in &tokens {
+        match token {
+            Token::Symbol("{" | "(" | "[") => depth += 1,
+            Token::Symbol("}" | ")" | "]") => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        if depth > MAX_NESTING {
+            return Err(format!("nested deeper than {MAX_NESTING} levels of braces, brackets and parentheses"));
+        }
+    }
     Ok(tokens)
 }
+
+/// The deepest an exported SysML text may nest its bodies and expressions.
+const MAX_NESTING: usize = 200;
 
 pub(super) fn is_symbol(token: Option<&Token>, symbol: &str) -> bool {
     matches!(token, Some(Token::Symbol(s)) if *s == symbol)

@@ -311,7 +311,8 @@ impl Adapter {
                     break;
                 }
                 if let Some(value) = header.strip_prefix("Content-Length:") {
-                    length = value.trim().parse::<usize>().ok();
+                    // A message of the protocol is a few kilobytes: a length beyond any is not allocated.
+                    length = value.trim().parse::<usize>().ok().filter(|length| *length <= 64 * 1024 * 1024);
                 }
             }
             let Some(length) = length else { continue };

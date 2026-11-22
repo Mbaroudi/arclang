@@ -72,6 +72,9 @@ const RULES: &[Rule] = &[
     rule!("metamodel.type", Severity::Error, "Typed attribute violated",
         "A declared attribute does not fit its type: a quantity of the wrong dimension, an unknown enumeration value, a list where one value is expected. The production gate blocks on it.",
         "Write a value of the declared type; `arclang metamodel` lists the type and the accepted values."),
+    rule!("metamodel.unknown-attribute", Severity::Warning, "Attribute close to one the compiler reads",
+        "An attribute whose key is one letter or so from a key the compiler reads on this kind: probably a slip, and the compiler reads nothing from it.",
+        "Write the key the message names, or keep yours if it is your own."),
     rule!("metamodel.unit", Severity::Warning, "Quantity without a unit",
         "A bare number where the metamodel expects a quantity: the unit is assumed, the model should state it.",
         "Write the unit with the number: `latency: 25 ms`."),
@@ -184,7 +187,9 @@ pub fn classify_warning(message: &str) -> Finding {
         let after_element = element.and_then(|e| rest.find(&format!("'{e}'")).map(|at| &rest[at + e.len() + 2..]));
         let attribute = after_element.and_then(|tail| tail.strip_prefix('.')).and_then(|tail| tail.split(':').next()).map(str::trim);
         let text = after_element.and_then(|tail| tail.find(": ").map(|at| &tail[at + 2..])).unwrap_or(rest);
-        let rule_id = if text.contains("faster than light") {
+        let rule_id = if text.contains("not an attribute the compiler reads") {
+            "metamodel.unknown-attribute"
+        } else if text.contains("faster than light") {
             "spatial.latency"
         } else if text.contains("is shorter than its route") || text.contains("is shorter than the distance between its ends") {
             "spatial.length"
