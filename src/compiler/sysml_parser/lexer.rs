@@ -101,8 +101,23 @@ pub fn tokenize(text: &str) -> Result<Vec<Token>, String> {
         tokens.push(Token { kind: Kind::Symbol(symbol), offset: start, line });
         i += symbol.len();
     }
+    // The parser descends once per level: a text nested deeper than any model is refused here.
+    let mut depth = 0usize;
+    for token in &tokens {
+        match token.kind {
+            Kind::Symbol("{" | "(" | "[") => depth += 1,
+            Kind::Symbol("}" | ")" | "]") => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        if depth > MAX_NESTING {
+            return Err(format!("line {}: nested deeper than {MAX_NESTING} levels of braces, brackets and parentheses", token.line));
+        }
+    }
     Ok(tokens)
 }
+
+/// The deepest a SysML text may nest its bodies and expressions.
+const MAX_NESTING: usize = 200;
 
 fn find(bytes: &[u8], from: usize, needle: &[u8]) -> Option<usize> {
     (from..bytes.len().saturating_sub(needle.len() - 1)).find(|&j| bytes[j..].starts_with(needle))

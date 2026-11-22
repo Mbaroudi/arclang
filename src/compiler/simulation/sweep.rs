@@ -46,22 +46,34 @@ pub(super) fn resolve(variable: &str, aliases: &BTreeMap<String, String>) -> Res
     Ok(format!("{instance}{path}"))
 }
 
+/// A path to a variable of the simulated model: names joined by dots, each with at most one
+/// subscript of whole numbers (`cells[3].T`, `m[1,2]`). Nothing else: the path is written into
+/// the script the simulator runs.
 pub(super) fn is_path(text: &str) -> bool {
     !text.is_empty()
         && text.split('.').all(|part| {
-            let part = part.split('[').next().unwrap_or("");
-            part.chars().next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_') && part.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+            let (name, subscript) = match part.split_once('[') {
+                Some((name, rest)) => (name, Some(rest)),
+                None => (part, None),
+            };
+            let named = name.chars().next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_') && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+            let subscripted = subscript.is_none_or(|rest| {
+                rest.strip_suffix(']').is_some_and(|inner| !inner.is_empty() && inner.split(',').all(|index| !index.is_empty() && index.chars().all(|c| c.is_ascii_digit())))
+            });
+            named && subscripted
         })
 }
 
 /// `253.15 K` (SI 253.15), `100 km/h` (27.78 m/s), `0.9` (a plain number).
 fn level(text: &str) -> Result<Level, String> {
     let text = text.trim();
+    // `nan` and `inf` parse as numbers and are no value a parameter can be set to.
+    let finite = |n: f64| if n.is_finite() { Ok(Level { si: n, shown: text.to_string() }) } else { Err(format!("sweep: '{text}' is not a finite number")) };
     if let Ok(n) = text.parse::<f64>() {
-        return Ok(Level { si: n, shown: text.to_string() });
+        return finite(n);
     }
     let q = Quantity::parse(text).map_err(|_| format!("sweep: '{text}' is neither a number nor a quantity with a known unit"))?;
-    Ok(Level { si: q.canonical(), shown: text.to_string() })
+    finite(q.canonical())
 }
 
 /// `130 km/h` -> (130, "km/h"); `0.9` -> (0.9, "").

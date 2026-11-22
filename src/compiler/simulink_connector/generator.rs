@@ -175,7 +175,7 @@ impl Generator {
     }
 
     fn modeler_id(&self, i: usize) -> Option<String> {
-        self.p[i].originator.as_ref().filter(|o| !o.is_empty()).map(|o| format!("ModelerId:{o}"))
+        self.p[i].originator.as_ref().filter(|o| !o.is_empty()).map(|o| format!("ModelerId:{}", quoted_text(o)))
     }
 
     fn add_modeler_id(&mut self, i: usize, full: &str) {
@@ -189,7 +189,7 @@ impl Generator {
 
     fn add_labels(&mut self, target: &str, i: usize) {
         if let Some(layer) = self.layer(i) {
-            self.say(format!("addLabel({target}, 'Capella Layer', '{layer}');"));
+            self.say(format!("addLabel({target}, 'Capella Layer', '{}');", quoted_text(&layer)));
         }
     }
 
@@ -454,10 +454,10 @@ impl Generator {
             self.say(format!("{name}.DataType = {dt};"));
         }
         if !empty(&self.p[signal].initial_value) {
-            self.say(format!("{name}.InitialValue = '{}';", text(&self.p[signal].initial_value)));
+            self.say(format!("{name}.InitialValue = '{}';", quoted_text(&text(&self.p[signal].initial_value))));
         }
         if !empty(&self.p[signal].unit) {
-            self.say(format!("{name}.Unit = '{}';", text(&self.p[signal].unit)));
+            self.say(format!("{name}.Unit = '{}';", quoted_text(&text(&self.p[signal].unit))));
         }
         self.add_modeler_id(signal, &name);
         self.fields(signal, &name, &["Description"]);
@@ -471,7 +471,7 @@ impl Generator {
         self.fields(enumeration, &name, &["DataScope", "DefaultValue", "Description", "HeaderFile", "StorageType"]);
         for literal in self.p[enumeration].literals.clone() {
             let literal_name = self.name(literal)?;
-            self.say(format!("appendEnumeral({name}, '{literal_name}', {}, '');", self.p[literal].value));
+            self.say(format!("appendEnumeral({name}, '{}', {}, '');", quoted_text(&literal_name), self.p[literal].value));
         }
         self.say(format!("removeEnumeral({name},1);"));
         self.say(format!("assignin('base', '{name}', {name});"));

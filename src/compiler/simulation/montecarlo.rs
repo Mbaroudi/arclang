@@ -102,11 +102,13 @@ pub struct Requirement {
 /// `1850 kg` -> (1850, "kg"); `0.9` -> (0.9, ""). The unit must be known.
 fn number_and_unit(text: &str) -> Result<(f64, String), String> {
     let text = text.trim();
+    // `nan` and `inf` parse as numbers and are none a law or a bound can be made of.
+    let finite = |n: f64| if n.is_finite() { Ok(n) } else { Err(format!("uncertain: '{text}' is not a finite number")) };
     if let Ok(n) = text.parse::<f64>() {
-        return Ok((n, String::new()));
+        return Ok((finite(n)?, String::new()));
     }
     let q = Quantity::parse(text).map_err(|_| format!("uncertain: '{text}' is neither a number nor a quantity with a known unit"))?;
-    Ok((q.value, q.unit.clone()))
+    Ok((finite(q.value)?, q.unit.clone()))
 }
 
 /// `normal(1850 kg, 40 kg)`: its law, and the one unit its arguments share.
