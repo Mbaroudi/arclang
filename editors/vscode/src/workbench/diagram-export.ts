@@ -11,6 +11,7 @@ import { buildPptx, pngSize } from '../pure/pptx';
 import { buildPdf } from '../pure/pdf';
 import type { SlideData, SlideFormat } from '../pure/workbench';
 import type { DiagramAction, FromWebview, ThemeEntry, ToWebview } from '../pure/workbench';
+import { chosenTarget } from '../pure/versioned';
 import { writeImageToClipboard } from './clipboard-image';
 import { ThemeStore } from './themes';
 
@@ -86,8 +87,9 @@ export class DiagramExports implements vscode.Disposable {
         await this.askSlides(message.views, message.current, message.format ?? 'pptx');
         return true;
       case 'pptx':
-        if (message.format === 'pdf') await this.writePdf(message.slides, message.title, message.target);
-        else await this.writePptx(message.slides, message.title, message.target);
+        // Where the file goes is what the command said (or the save dialog), never what the page sends back.
+        if (message.format === 'pdf') await this.writePdf(message.slides, message.title, chosenTarget(this.pending.target, message.target));
+        else await this.writePptx(message.slides, message.title, chosenTarget(this.pending.target, message.target));
         return true;
       case 'theme-choose': {
         const entry = (await this.store.list()).find((e) => e.key === message.key);

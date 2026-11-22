@@ -10,7 +10,7 @@ import { WorkbenchPanel } from '../workbench/panel';
 import { isModelDocument, documentDir } from '../workbench/source';
 import { createBaseline, listBaselines, verifyBaseline } from './baseline';
 import { applyCompare, compareActive, sessionOf, startCompare, stopCompare } from './compare';
-import { listRefs, repoTop, safeRevision, showAt } from './git';
+import { listRefs, repoTop, safeRevision, setGitGuard, showAt } from './git';
 import { elementHistory, snapshotAt } from './history';
 import { installMergeDriver, registerConflicts } from './merge';
 import { handleTimeline, mergeBranch, openTimeline, switchBranch } from './timeline';
@@ -131,7 +131,11 @@ export async function handleSemgitMessage(panel: WorkbenchPanel, message: Semgit
   }
 }
 
+const UNTRUSTED_GIT = 'ArcLang does not run git in an untrusted workspace. Trust the workspace (Workspaces: Manage Workspace Trust) to compare, read the history, branch and merge.';
+
 export function registerSemgit(context: vscode.ExtensionContext): void {
+  // A repository's own configuration can name programs git runs: not in a workspace that is not trusted.
+  setGitGuard(() => (vscode.workspace.isTrusted ? null : UNTRUSTED_GIT));
   const register = (command: string, callback: (...args: unknown[]) => unknown) => context.subscriptions.push(vscode.commands.registerCommand(command, callback));
   context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(REVISION_SCHEME, new RevisionText()));
   register('arclang.compare', (arg?: unknown, ref?: unknown) => compareWith(arg, typeof ref === 'string' ? ref : undefined));

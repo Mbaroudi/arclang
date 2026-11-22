@@ -18,8 +18,17 @@ export function setGitRunner(run: (args: string[], cwd: string) => Promise<GitRe
   runner = run;
 }
 
+/** Why git may not run here (an untrusted workspace: its git configuration can name programs to run), or null. */
+let guard: () => string | null = () => null;
+
+export function setGitGuard(refusal: () => string | null): void {
+  guard = refusal;
+}
+
 export function git(args: string[], cwd: string): Promise<GitResult> {
   if (runner) return runner(args, cwd);
+  const refusal = guard();
+  if (refusal) return Promise.resolve({ code: 1, stdout: '', stderr: refusal });
   return new Promise((resolve) => {
     execFile('git', args, { cwd, maxBuffer: 64 * 1024 * 1024 }, (error, stdout, stderr) => {
       resolve({ code: error && typeof error.code === 'number' ? error.code : error ? 1 : 0, stdout: String(stdout), stderr: String(stderr) });

@@ -349,12 +349,25 @@ export async function applySession(sessionId: string): Promise<{ ok: boolean; er
   const proposal = live?.proposal;
   if (!live || !proposal || !proposal.view.ok) return { ok: false, error: 'nothing to apply' };
   const written: WrittenFile[] = [];
+  // Whatever stops the proposal after a file was written takes the files back: applied whole, or not at all.
+  const undone = async (error: string): Promise<{ ok: boolean; error: string }> => {
+    const left = await restoreFiles(written);
+    return { ok: false, error: left.length ? `${error}. Could not be taken back: ${left.join(', ')}` : error };
+  };
+  // A whole text replaces the document only on the text it was computed on: checked before anything is written.
+  if (!proposal.requests.length && proposal.source && proposal.version !== undefined && live.document.version !== proposal.version) {
+    return { ok: false, error: 'the model changed since this proposal was made: it would undo those changes, so it is not applied. Ask again.' };
+  }
   const folder = vscode.Uri.joinPath(live.document.uri, '..');
   for (const file of proposal.files ?? []) {
     const uri = vscode.Uri.joinPath(folder, ...file.path.split('/'));
     const previous = await vscode.workspace.fs.readFile(uri).then((b) => b, () => null);
-    await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(uri, '..'));
-    await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(file.content.endsWith('\n') ? file.content : `${file.content}\n`));
+    try {
+      await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(uri, '..'));
+      await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(file.content.endsWith('\n') ? file.content : `${file.content}\n`));
+    } catch (error) {
+      return undone(`${file.path} could not be written: ${error instanceof Error ? error.message : String(error)}`);
+    }
     written.push({ uri, previous });
   }
   if (!proposal.requests.length && !proposal.source && written.length) {
@@ -366,20 +379,16 @@ export async function applySession(sessionId: string): Promise<{ ok: boolean; er
   authorship.assistantWrites(live.document.uri.toString());
   if (proposal.requests.length) {
     const outcome = await applyRequests(live.document, proposal.requests);
-    if (!outcome.ok) {
-      await restoreFiles(written);
-      return { ok: false, error: outcome.error };
-    }
+    if (!outcome.ok) return undone(outcome.error ?? 'the edit was refused');
   } else if (proposal.source) {
-    // A whole text replaces the document: only on the text it was computed on.
     if (proposal.version !== undefined && live.document.version !== proposal.version) {
-      return { ok: false, error: 'the model changed since this proposal was made: it would undo those changes, so it is not applied. Ask again.' };
+      return undone('the model changed since this proposal was made: it would undo those changes, so it is not applied. Ask again.');
     }
     const back = await documentTextFor(live.document, proposal.source);
-    if (!back.ok) return { ok: false, error: back.error };
-    if (!(await replaceWhole(live.document, back.text))) return { ok: false, error: 'VS Code did not apply the edit' };
+    if (!back.ok) return undone(back.error);
+    if (!(await replaceWhole(live.document, back.text))) return undone('VS Code did not apply the edit');
   } else {
-    return { ok: false, error: 'the answer has no change to apply' };
+    return undone('the answer has no change to apply');
   }
   logLine(`ask ${sessionId}: applied by the user`);
   live.proposal = null;
@@ -425,11 +434,16 @@ async function modelicaOf(document: vscode.TextDocument, proposed: string, files
 }
 
 /** Files written with a proposal, as they were before (removed when they did not exist). */
-export async function restoreFiles(files: WrittenFile[]): Promise<void> {
+export async function restoreFiles(files: WrittenFile[]): Promise<string[]> {
+  const left: string[] = [];
   for (const file of files) {
-    if (file.previous) await vscode.workspace.fs.writeFile(file.uri, file.previous);
-    else await vscode.workspace.fs.delete(file.uri).then(undefined, () => undefined);
+    const back = file.previous ? vscode.workspace.fs.writeFile(file.uri, file.previous) : vscode.workspace.fs.delete(file.uri);
+    await Promise.resolve(back).then(undefined, () => {
+      // A file that was not there and is not there any more is taken back.
+      if (file.previous) left.push(file.uri.path.split('/').pop() ?? file.uri.path);
+    });
   }
+  return left;
 }
 
 export async function diffSession(sessionId: string): Promise<void> {
