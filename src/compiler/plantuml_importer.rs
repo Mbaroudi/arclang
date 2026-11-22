@@ -198,6 +198,11 @@ impl PlantUMLImporter {
     }
 }
 
+/// A text as it is written between the quotes of an ArcLang string.
+fn arc_text(text: &str) -> String {
+    text.replace('\\', "\\\\").replace('"', "\\\"").replace(['\r', '\n'], " ")
+}
+
 pub struct PlantUMLArcLangGenerator;
 
 impl PlantUMLArcLangGenerator {
@@ -206,6 +211,13 @@ impl PlantUMLArcLangGenerator {
     }
     
     pub fn generate(&self, model: &PlantUMLModel) -> Result<String, CompilerError> {
+        // What the diagram names is written into strings of the model.
+        let model = &PlantUMLModel {
+            diagram_type: model.diagram_type.clone(),
+            components: model.components.iter().map(|c| PlantUMLComponent { id: arc_text(&c.id), name: arc_text(&c.name), component_type: arc_text(&c.component_type), parent: c.parent.as_deref().map(arc_text) }).collect(),
+            relations: model.relations.iter().map(|r| PlantUMLRelation { from: arc_text(&r.from), to: arc_text(&r.to), relation_type: arc_text(&r.relation_type) }).collect(),
+            packages: model.packages.clone(),
+        };
         let mut output = String::new();
         
         output.push_str("// Generated from PlantUML diagram\n");

@@ -617,9 +617,9 @@ pub struct Context<'a> {
     pub notes: &'a mut Vec<String>,
 }
 
-fn variable_unit(context: &Context<'_>, variable: &str) -> Result<(usize, Option<Unit>), String> {
+fn variable_unit(context: &Context<'_>, variable: &str) -> Result<(usize, Option<(Unit, f64)>), String> {
     let column = context.series.column(variable).ok_or_else(|| format!("'{variable}' is not a variable of the simulation result"))?;
-    Ok((column, context.series.unit(variable)))
+    Ok((column, context.series.unit_and_zero(variable)))
 }
 
 fn eval(term: &Term, context: &mut Context<'_>) -> Result<Value, String> {
@@ -670,7 +670,7 @@ fn eval(term: &Term, context: &mut Context<'_>) -> Result<Value, String> {
             // The scale of a reading is the largest level its signal reached.
             let reached = series.values(column).filter(|v| v.is_finite()).fold(raw.abs(), |most, v| most.max(v.abs()));
             Ok(match unit {
-                Some(unit) => Value { si: raw * unit.factor, dim: Some(unit.dim), scale: reached * unit.factor.abs() },
+                Some((unit, zero)) => Value { si: raw * unit.factor + zero, dim: Some(unit.dim), scale: reached * unit.factor.abs() + zero.abs() },
                 None => {
                     context.notes.push(format!("the unit of '{variable}' is unknown: compared as a value in SI units"));
                     Value { si: raw, dim: None, scale: reached }

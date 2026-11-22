@@ -95,6 +95,8 @@ fn read_time(attributes: &HashMap<String, AttributeValue>, key: &str) -> TimeRea
     match value.as_quantity() {
         None => TimeRead::Invalid(format!("{} is not a quantity", value.display())),
         Some(Ok(quantity)) => match quantity.as_millis() {
+            // A time that is taken is not negative: a negative latency would hide another in a sum.
+            Some(ms) if !(ms.is_finite() && ms >= 0.0) => TimeRead::Invalid(format!("'{quantity}' is not a time that can be taken (negative or not finite)")),
             Some(ms) => TimeRead::Millis(ms),
             None => TimeRead::Invalid(format!(
                 "'{}' is a {}, not a time",
@@ -102,6 +104,7 @@ fn read_time(attributes: &HashMap<String, AttributeValue>, key: &str) -> TimeRea
                 quantity.dimension().label()
             )),
         },
+        Some(Err(QuantityError::MissingUnit(number))) if !(number.is_finite() && number >= 0.0) => TimeRead::Invalid(format!("{number} is not a time that can be taken (negative or not finite)")),
         Some(Err(QuantityError::MissingUnit(number))) => TimeRead::UnitlessMillis(number),
         Some(Err(error)) => TimeRead::Invalid(error.to_string()),
     }
@@ -392,7 +395,12 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
                 }
             }
             // Mitigations must reference declared requirements
-            if let Some(AttributeValue::List(items)) = hazard.attributes.get("mitigated_by") {
+            let mitigations = match hazard.attributes.get("mitigated_by") {
+                // A list that names nothing mitigates nothing.
+                Some(AttributeValue::List(items)) if items.iter().any(|item| item.as_string().is_some()) => Some(items),
+                _ => None,
+            };
+            if let Some(items) = mitigations {
                 for item in items {
                     if let Some(reference) = item.as_string() {
                         if !names_a_requirement(reference) {
@@ -410,6 +418,33 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
                     Severity::Blocker,
                     format!("hazard '{}' has no mitigation (mitigated_by: [requirement ids])", hazard.name),
                 );
+            }
+        }
+    }
+
+    // A hazard whose fault tree fails more often than its integrity level allows is not mitigated
+    // enough, whatever its requirements say; one whose failure modes have no rate has no figure.
+    if let Ok(trees) = super::fta::trees(ast) {
+        for tree in &trees {
+            let Some(budget) = &tree.budget else { continue };
+            match tree.within_budget() {
+                Some(false) => push(
+                    "safety.fault_tree",
+                    Severity::Blocker,
+                    format!(
+                        "hazard '{}': its fault tree fails at {} FIT, beyond the {} FIT of {}",
+                        tree.name,
+                        super::fta::fit_text(tree.fit.unwrap_or_default()),
+                        super::fta::fit_text(budget.fit),
+                        budget.from
+                    ),
+                ),
+                None if !tree.events.is_empty() => push(
+                    "safety.fault_tree",
+                    Severity::Warning,
+                    format!("hazard '{}': a failure mode that leads to it has no rate (fit:), so its fault tree has no figure to hold against the {} FIT of {}", tree.name, super::fta::fit_text(budget.fit), budget.from),
+                ),
+                _ => {}
             }
         }
     }

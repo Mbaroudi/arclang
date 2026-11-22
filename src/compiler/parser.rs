@@ -25,6 +25,9 @@ pub struct Parser {
     written: Vec<std::collections::HashSet<String>>,
 }
 
+/// The deepest a model may nest its blocks, lists and expressions.
+const MAX_NESTING: usize = 200;
+
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
         Self {
@@ -52,9 +55,32 @@ impl Parser {
         self.parse_with_warnings().map(|outcome| outcome.model)
     }
 
+    /// Refuses a text whose braces, brackets and parentheses nest deeper than any model does: the
+    /// parser and every walk of the model after it descend once per level, and a text nested
+    /// thousands deep would end the process instead of an error.
+    fn check_nesting(&self) -> Result<(), String> {
+        let mut depth = 0usize;
+        for (index, token) in self.tokens.iter().enumerate() {
+            match token {
+                Token::LeftBrace | Token::LeftBracket | Token::LeftParen => depth += 1,
+                Token::RightBrace | Token::RightBracket | Token::RightParen => depth = depth.saturating_sub(1),
+                _ => {}
+            }
+            if depth > MAX_NESTING {
+                let message = format!("Nested deeper than {MAX_NESTING} levels of braces, brackets and parentheses");
+                return Err(match self.spans.get(index) {
+                    Some(span) => format!("{message} at {span}"),
+                    None => message,
+                });
+            }
+        }
+        Ok(())
+    }
+
     /// Parse the whole input as ONE attribute value (`"text"`, `25 ms`,
     /// `[A, B]`, `{ cpu: 4 }`): what may stand after `key:` in a block.
     pub fn parse_value(mut self) -> Result<AttributeValue, String> {
+        self.check_nesting()?;
         let value = self.parse_attribute_value()?;
         if self.is_at_end() {
             Ok(value)
@@ -64,6 +90,7 @@ impl Parser {
     }
 
     pub fn parse_with_warnings(mut self) -> Result<ParseOutcome, String> {
+        self.check_nesting()?;
         let mut model = self.parse_model_root()?;
         model.traces.append(&mut self.pending_traces);
         Ok(ParseOutcome { model, warnings: self.warnings })
