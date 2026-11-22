@@ -567,7 +567,7 @@ pub fn read_measurements(text: &str, data: &Data) -> Result<Measurements, String
     for (number, line) in lines.enumerate() {
         let fields = split(line, delimiter);
         let Some(raw) = fields.get(time_column) else { continue };
-        let t = instant(raw, data.time_unit).ok_or_else(|| format!("line {}: '{raw}' is not an instant (a number, or a date-time like 2026-10-28T08:15:00Z)", number + 2))?;
+        let t = instant(raw, data.time_unit).filter(|t| t.is_finite()).ok_or_else(|| format!("line {}: '{raw}' is not an instant (a number, or a date-time like 2026-10-28T08:15:00Z)", number + 2))?;
         if start.is_empty() {
             start = raw.clone();
         }
@@ -1139,6 +1139,9 @@ pub fn run_on(result: &CompilationResult, model_path: &Path, twin: &Twin, spec: 
         Err(error) => return finish(Outcome { verdict: "error".to_string(), ..outcome }, error),
     };
     series.set_units(units_from_init_xml(&xml));
+    if let Some(error) = series.reaches(outcome.duration.max(1e-6)).err().filter(|_| !Series::ended_by_the_model(&run.output)) {
+        return finish(Outcome { verdict: "error".to_string(), ..outcome }, error);
+    }
 
     let judged = judge(outcome, spec, &export.instances, &series, &measurements);
     let reason = judged.reason.clone();

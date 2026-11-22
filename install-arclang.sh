@@ -4,7 +4,7 @@
 
 set -e
 
-PROJECT_DIR="/Users/malek/arclang"
+PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BINARY_SOURCE="$PROJECT_DIR/target/release/arclang"
 INSTALL_DIR="$HOME/.local/bin"
 INSTALL_PATH="$INSTALL_DIR/arclang"

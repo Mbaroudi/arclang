@@ -87,13 +87,13 @@ impl MermaidGenerator {
             "Safety Requirements".to_string()
         }
         // Analytics patterns (business)
-        else if id.starts_with("ANLX00") && id.ends_with("1") || id.ends_with("2") {
+        else if id.starts_with("ANLX00") && (id.ends_with("1") || id.ends_with("2")) {
             "Executive Analytics".to_string()
-        } else if id.starts_with("ANLX00") && id.ends_with("3") || id.ends_with("4") {
+        } else if id.starts_with("ANLX00") && (id.ends_with("3") || id.ends_with("4")) {
             "Market Analytics".to_string()
-        } else if id.starts_with("ANLX00") && id.ends_with("5") || id.ends_with("6") {
+        } else if id.starts_with("ANLX00") && (id.ends_with("5") || id.ends_with("6")) {
             "Merchant Analytics".to_string()
-        } else if id.starts_with("ANLX00") && id.ends_with("7") || id.ends_with("8") {
+        } else if id.starts_with("ANLX00") && (id.ends_with("7") || id.ends_with("8")) {
             "Client Analytics".to_string()
         } else if id.starts_with("ANLX00") && id.ends_with("9") || id.starts_with("ANLX010") {
             "Financial Analytics".to_string()

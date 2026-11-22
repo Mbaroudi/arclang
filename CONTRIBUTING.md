@@ -25,7 +25,7 @@ By participating in this project, you agree to abide by our Code of Conduct. Ple
 ### Building from Source
 
 ```bash
-git clone https://github.com/arclang/arclang.git
+git clone https://github.com/Mbaroudi/arclang.git
 cd arclang
 cargo build
 cargo test

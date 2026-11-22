@@ -70,7 +70,7 @@ the long-term goal.
   the `@arclang` assistant and agent on VS Code's language models, SysML v2
   files in the same workbench. Every gesture is an `arclang edit` request the
   compiler may refuse; text and views edit the same file.
-- **MCP server** (`mcp-server/`, version 4.1.0) giving LLM agents the compiler's
+- **MCP server** (`mcp-server/`, versioned with the compiler) giving LLM agents the compiler's
   commands, 1:1 with the CLI: check, gate, diff, impact, lossless edits
   (`set`/`unset`/`rename`/`format`), exports (SysML v2, Capella, ReqIF), viewpoint
   diagrams and the metamodel as the reference. Tested against the real binary.
