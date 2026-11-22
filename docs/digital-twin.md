@@ -53,6 +53,13 @@ variable (or an input) in the Modelica source. A variable that a formula
 defines (the weather of a design day, say) is driven: the measurement
 replaces the formula.
 
+The formula is the one in the variable's declaration (`Real T = ...;`). A
+driven variable given by an equation instead is defined twice once the twin
+drives it. OpenModelica builds nothing from such a model and gives no
+message, so the twin counts the equations and the unknowns first and says
+it: `its model has 9 equations for 8 unknowns, 1 too many`. For any other
+failure, `arclang twin -v` prints OpenModelica's log.
+
 For each comparison the twin reports:
 - the largest deviation and the RMS deviation, in the column's unit;
 - the share of the samples within the tolerance;

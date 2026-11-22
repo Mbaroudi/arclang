@@ -3642,6 +3642,17 @@ impl CliRunner {
                 if !o.reason.is_empty() && o.verdict != "pass" {
                     println!("  {}", o.reason);
                 }
+                // "See the log": it is printed with -v, and named when it is not.
+                if o.verdict == "error" && !o.log.trim().is_empty() {
+                    if self.verbose {
+                        println!("  OpenModelica log:");
+                        for line in o.log.lines().filter(|l| !l.trim().is_empty()) {
+                            println!("    | {line}");
+                        }
+                    } else if o.reason.contains("see the log") {
+                        println!("  (arclang twin -v prints OpenModelica's log)");
+                    }
+                }
             }
         }
         if outcomes.iter().any(|o| o.verdict != "pass") {

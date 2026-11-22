@@ -100,6 +100,7 @@ impl Model {
         let tool = tool::locate(config)?;
         let (dir, staged) = twin::stage(export, model, sources, targets, base)?;
         let mut lines = twin::load_lines(export, &staged);
+        lines.extend(twin::check_lines());
         lines.push("setCommandLineOptions(\"--fmiFlags=s:cvode\");".to_string());
         lines.push(format!("print(\"@@fmu \" + buildModelFMU({}, version=\"2.0\", fmuType=\"cs\", fileNamePrefix=\"{FMU}\") + \"\\n\");", "ArcLangTwin"));
         lines.push("print(getErrorString());".to_string());
