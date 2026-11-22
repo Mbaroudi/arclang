@@ -4,16 +4,11 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { asFile, run, withTempFile, workspaceTrusted, UNTRUSTED_MESSAGE } from '../cli';
+import { PerVersion } from '../pure/versioned';
 import { Metamodel, parseSnapshot, Snapshot } from '../pure/workbench';
 import { arcTextOf, documentDir, isModelDocument } from './source';
 
-interface Cached {
-  version: number;
-  snapshot: Snapshot;
-}
-
-const cache = new Map<string, Cached>();
-const pending = new Map<string, Promise<Snapshot>>();
+const snapshots = new PerVersion<Snapshot>();
 /** The folders whose verdicts are watched, and how one more is (set once the refresh is registered). */
 const watched = new Map<string, vscode.Disposable>();
 let watchVerdicts: (folder: string) => void = () => undefined;
@@ -50,34 +45,34 @@ async function compute(document: vscode.TextDocument): Promise<Snapshot> {
 /** The snapshot of the document's current text; cached by document version. */
 export function snapshotOf(document: vscode.TextDocument): Promise<Snapshot> {
   const key = document.uri.toString();
-  const cached = cache.get(key);
-  if (cached && cached.version === document.version) return Promise.resolve(cached.snapshot);
-  const running = pending.get(key);
-  if (running) return running;
   const version = document.version;
-  overtaken.delete(key);
+  const cached = snapshots.cached(key, version);
+  if (cached) return Promise.resolve(cached);
   if (document.uri.scheme === 'file') watchVerdicts(path.dirname(document.uri.fsPath));
   // Every outcome is cached for the version, a refusal too: the views refresh
   // when a snapshot arrives, and one that is never cached is asked again, and again.
-  const work = (async () => {
-    const snapshot = await compute(document);
+  // A snapshot under way for an older version is not the answer for this one: it gets its own.
+  const { work, started } = snapshots.get(
+    key,
+    version,
+    () => {
+      overtaken.delete(key);
+      return compute(document);
+    },
     // Verdicts written meanwhile are not in it: it is given, not kept.
-    if (!overtaken.delete(key)) cache.set(key, { version, snapshot });
-    return snapshot;
-  })();
-  pending.set(key, work);
-  work.finally(() => pending.delete(key)).catch(() => undefined);
-  work.then(() => emitter.fire(document.uri)).catch(() => undefined);
+    () => !overtaken.delete(key),
+  );
+  if (started) work.then(() => emitter.fire(document.uri)).catch(() => undefined);
   return work;
 }
 
 /** The last snapshot computed for a document, if any, without computing one. */
 export function lastSnapshot(document: vscode.TextDocument): Snapshot | null {
-  return cache.get(document.uri.toString())?.snapshot ?? null;
+  return snapshots.last(document.uri.toString()) ?? null;
 }
 
 export function forgetSnapshot(uri: vscode.Uri): void {
-  cache.delete(uri.toString());
+  snapshots.forget(uri.toString());
 }
 
 let metamodelCache: { key: string; value: Metamodel | null } | null = null;
@@ -110,8 +105,8 @@ function verdictsChanged(folder: string): void {
   for (const document of vscode.workspace.textDocuments) {
     if (!isModelDocument(document) || document.uri.scheme !== 'file' || path.dirname(document.uri.fsPath) !== folder) continue;
     const key = document.uri.toString();
-    if (pending.has(key)) overtaken.add(key);
-    if (cache.delete(key) || pending.has(key)) emitter.fire(document.uri);
+    if (snapshots.busy(key)) overtaken.add(key);
+    if (snapshots.forget(key) || snapshots.busy(key)) emitter.fire(document.uri);
   }
 }
 
@@ -158,14 +153,14 @@ export function registerSnapshotRefresh(context: vscode.ExtensionContext, delayM
     vscode.workspace.onDidCloseTextDocument((document) => forgetSnapshot(document.uri)),
     // What was refused while the workspace was restricted is asked again once it is trusted.
     vscode.workspace.onDidGrantWorkspaceTrust(() => {
-      const uris = [...cache.keys()].map((key) => vscode.Uri.parse(key));
-      cache.clear();
+      const uris = snapshots.keys().map((key) => vscode.Uri.parse(key));
+      snapshots.clear();
       for (const uri of uris) emitter.fire(uri);
     }),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration('arclang.binary')) metamodelCache = null;
       // A preference of the page (what follows a move by hand) changes no snapshot: no redraw of every view.
-      if (event.affectsConfiguration('arclang') && !event.affectsConfiguration('arclang.workbench.reorganize')) cache.clear();
+      if (event.affectsConfiguration('arclang') && !event.affectsConfiguration('arclang.workbench.reorganize')) snapshots.clear();
     }),
   );
 }
