@@ -330,6 +330,10 @@ jobs:
           cargo install wasm-pack --locked --version 0.15.0
           cd wasm && wasm-pack build --target web --release
 
+      # The tests of the browser build's own crate (what it answers to the playground and the extension).
+      - name: Test the compiler's browser crate
+        run: cd wasm && cargo test
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
