@@ -917,8 +917,15 @@ pub fn load_lines(export: &Export, staged: &[String]) -> Vec<String> {
     lines
 }
 
+/// Asks OpenModelica to count the wrapper's equations and unknowns before it is built. A wrapper
+/// that does not build stops the script there and leaves no message: this count is then what says why.
+pub fn check_lines() -> Vec<String> {
+    vec![format!("print(\"@@check \" + checkModel({WRAPPER}) + \"\\n\");"), "print(getErrorString());".to_string()]
+}
+
 fn script(export: &Export, staged: &[String], spec: &Spec, stop: f64, intervals: usize) -> String {
     let mut lines = load_lines(export, staged);
+    lines.extend(check_lines());
     lines.push(format!(
         "simulate({WRAPPER}, startTime=0, stopTime={}, numberOfIntervals={intervals}, tolerance={}, outputFormat=\"csv\", fileNamePrefix=\"{RESULT}\", simflags=\"-csvInput=twin_inputs.csv\");",
         modelica::names::real(stop),
@@ -1009,7 +1016,26 @@ pub fn failure(output: &str, what: &str) -> String {
         return format!("drives: '{name}' is a parameter of the physics: a measurement can only drive a variable; declare it as a variable (or an input) in the Modelica source");
     }
     let errors: Vec<&str> = output.lines().filter(|l| l.contains("Error")).take(4).collect();
+    // OpenModelica builds nothing from a model with more equations than unknowns, or fewer, and says nothing of it.
+    if let Some((equations, variables)) = balance(output).filter(|(e, v)| e != v && errors.is_empty()) {
+        return if equations > variables {
+            format!(
+                "the twin could not be {what}: its model has {equations} equations for {variables} unknowns, {} too many. A driven variable takes its value where it is declared (`Real x = ...;`), which the measurement replaces; given by an equation instead, it is defined twice",
+                equations - variables
+            )
+        } else {
+            format!("the twin could not be {what}: its model has {equations} equations for {variables} unknowns, {} missing: a variable of the physics has no equation", variables - equations)
+        };
+    }
     format!("the twin could not be {what}{}", if errors.is_empty() { " (see the log)".to_string() } else { format!(": {}", errors.join(" ")) })
+}
+
+/// The equations and the unknowns OpenModelica counted in the wrapper (`check_lines`), when it did.
+fn balance(output: &str) -> Option<(u64, u64)> {
+    let after = output.split("@@check ").nth(1)?;
+    let line = after.lines().find(|l| l.contains(" equation(s) and "))?;
+    let mut numbers = line.split_whitespace().filter_map(|w| w.parse::<u64>().ok());
+    Some((numbers.next()?, numbers.next()?))
 }
 
 /// The variables of the model the twin reads: what it is compared on, what its expectations read.
@@ -1192,6 +1218,31 @@ pub fn judge(mut outcome: Outcome, spec: &Spec, instances: &BTreeMap<String, Str
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const REFUSED: &str = "@@load twin.mo true\n\n@@check Check of ArcLangTwin completed successfully.\nClass ArcLangTwin has 9 equation(s) and 8 variable(s).\n4 of these are trivial equation(s).\n\nrecord SimulationResult\n    messages = \"Failed to build model: ArcLangTwin\",\nend SimulationResult;\n";
+
+    #[test]
+    fn a_model_with_an_equation_too_many_says_so_and_what_a_driven_variable_needs() {
+        let reason = failure(REFUSED, "simulated");
+        assert!(reason.contains("9 equations for 8 unknowns, 1 too many"), "{reason}");
+        assert!(reason.contains("where it is declared"), "{reason}");
+        assert!(!reason.contains("see the log"), "{reason}");
+    }
+
+    #[test]
+    fn a_model_with_an_equation_missing_says_so() {
+        let reason = failure(&REFUSED.replace("9 equation(s) and 8", "7 equation(s) and 8"), "built as an FMU");
+        assert!(reason.contains("could not be built as an FMU: its model has 7 equations for 8 unknowns, 1 missing"), "{reason}");
+    }
+
+    #[test]
+    fn a_balanced_model_that_fails_keeps_the_errors_openmodelica_gives() {
+        let balanced = REFUSED.replace("9 equation(s) and 8", "8 equation(s) and 8");
+        assert_eq!(failure(&balanced, "simulated"), "the twin could not be simulated (see the log)");
+        let reason = failure(&format!("{REFUSED}Error: division by zero at time 3\n"), "simulated");
+        assert!(reason.ends_with("Error: division by zero at time 3"), "{reason}");
+        assert_eq!(failure("record SimulationResult\nend SimulationResult;\n", "simulated"), "the twin could not be simulated (see the log)");
+    }
 
     fn attributes(text: &str) -> HashMap<String, AttributeValue> {
         let source = format!("model T {{ name: \"t\" }}\ntwin \"W\" {}\n", text);
