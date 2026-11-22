@@ -78,6 +78,18 @@ A verdict is expected to tighten between versions, never to loosen.
   328.15). `sources:` are files of the model's folder (no absolute path, no
   `..`), a swept variable is a path with whole-number subscripts, and `nan`
   or `inf` is no level, no bound and no parameter of a law.
+- **What a result says between two steps.** A variable the model declares
+  as changing only at events (a Boolean, an integer, a discrete real) keeps
+  its value between two steps: `at(5 s, pump.on)` is 0 or 1, never 0.5, and
+  its mean counts each value for the time it was kept. A variable whose unit
+  the model declares and the compiler does not read is compared with a plain
+  number only; against a quantity (`max(x) <= 400 m/s`) the case is an error
+  that names the unit, where a note used to say it was compared as SI.
+- **Measurements of a twin.** A cell that is written and is not a number
+  (`ERR`, `N/A`) in a column the twin reads is an error naming the line; it
+  used to be skipped like an empty cell. An empty cell and `NaN` stay "no
+  value". `ARCLANG_OMC_TIMEOUT` that is not a whole number of seconds above
+  zero is said on the standard error, and the default applies.
 - **Nesting.** A text whose braces, brackets and parentheses nest deeper
   than 200 levels is refused (a `.arc` model, a SysML v2 text, a rule); a
   Capella file beyond 1000 levels of elements too. They used to end the

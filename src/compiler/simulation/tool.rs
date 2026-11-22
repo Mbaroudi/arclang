@@ -61,7 +61,13 @@ impl ToolConfig {
         ToolConfig {
             omc: read("ARCLANG_OMC"),
             docker_image: read("ARCLANG_OMC_DOCKER"),
-            timeout: read("ARCLANG_OMC_TIMEOUT").and_then(|s| s.parse::<u64>().ok()).map(Duration::from_secs),
+            timeout: read("ARCLANG_OMC_TIMEOUT").and_then(|s| match s.parse::<u64>() {
+                Ok(seconds) if seconds > 0 => Some(Duration::from_secs(seconds)),
+                _ => {
+                    eprintln!("warning: ARCLANG_OMC_TIMEOUT is '{s}', not a whole number of seconds above zero: the default of {} s applies", DEFAULT_TIMEOUT.as_secs());
+                    None
+                }
+            }),
         }
     }
 }

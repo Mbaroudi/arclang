@@ -14,7 +14,7 @@
 //! refresh the twin is judged over the latest window of what the model
 //! computed, as a twin on a file is.
 
-use super::results::{units_from_init_xml, Series};
+use super::results::{held_from_init_xml, units_from_init_xml, Series};
 use super::tool::{self, Tool, ToolConfig};
 use super::twin::{self, Measurements, Outcome, Spec};
 use super::twin_live::Buffer;
@@ -72,6 +72,8 @@ pub struct Model {
     /// The variables read after each step, as the run names them.
     pub variables: Vec<String>,
     pub units: BTreeMap<String, String>,
+    /// The variables that change only at events: held between two steps.
+    pub held: std::collections::BTreeSet<String>,
     pub instances: BTreeMap<String, String>,
     pub omc_version: String,
     pub tool_text: String,
@@ -127,11 +129,14 @@ impl Model {
             inputs,
             variables,
             units: BTreeMap::new(),
+            held: Default::default(),
             instances: export.instances.clone(),
             omc_version,
         };
         model.start()?;
-        model.units = units_from_init_xml(&std::fs::read_to_string(model.dir.join("fmu/modelDescription.xml")).unwrap_or_default());
+        let description = std::fs::read_to_string(model.dir.join("fmu/modelDescription.xml")).unwrap_or_default();
+        model.units = units_from_init_xml(&description);
+        model.held = held_from_init_xml(&description);
         Ok(model)
     }
 
@@ -166,11 +171,14 @@ impl Model {
             inputs,
             variables,
             units: BTreeMap::new(),
+            held: Default::default(),
             instances: BTreeMap::new(),
             omc_version: String::new(),
         };
         model.start()?;
-        model.units = units_from_init_xml(&std::fs::read_to_string(model.dir.join("fmu/modelDescription.xml")).unwrap_or_default());
+        let description = std::fs::read_to_string(model.dir.join("fmu/modelDescription.xml")).unwrap_or_default();
+        model.units = units_from_init_xml(&description);
+        model.held = held_from_init_xml(&description);
         Ok(model)
     }
 
@@ -385,6 +393,7 @@ impl Stepping {
         let header: Vec<String> = std::iter::once("time".to_string()).chain(self.model.variables.iter().map(|v| format!("\"{v}\""))).collect();
         let mut series = Series::from_csv(&format!("{}\n{}\n", header.join(","), rows.join("\n"))).ok()?;
         series.set_units(self.model.units.clone());
+        series.set_held(self.model.held.clone());
         Some(series)
     }
 

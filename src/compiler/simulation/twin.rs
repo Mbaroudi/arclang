@@ -22,7 +22,7 @@
 //! simulated case's are. The run lasts as long as the data.
 
 use super::expects::{self, Context};
-use super::results::{units_from_init_xml, Series};
+use super::results::{held_from_init_xml, units_from_init_xml, Series};
 use super::tool::{self, ToolConfig};
 use crate::compiler::ast::{AttributeValue, Twin};
 use crate::compiler::modelica::{self, Export};
@@ -522,6 +522,9 @@ pub struct Measurements {
     pub columns: BTreeMap<String, Vec<Option<f64>>>,
     /// The first instant as written (a date-time, or a number).
     pub start: String,
+    /// By column: the first cell that is written and is not a number (its line, its text). A
+    /// twin that reads such a column is not judged on the cells that happen to be numbers.
+    pub unreadable: BTreeMap<String, (usize, String)>,
 }
 
 fn split(line: &str, delimiter: char) -> Vec<String> {
@@ -564,6 +567,7 @@ pub fn read_measurements(text: &str, data: &Data) -> Result<Measurements, String
     let mut times = Vec::new();
     let mut cells: Vec<Vec<Option<f64>>> = vec![Vec::new(); names.len()];
     let mut start = String::new();
+    let mut unreadable: BTreeMap<String, (usize, String)> = BTreeMap::new();
     for (number, line) in lines.enumerate() {
         let fields = split(line, delimiter);
         let Some(raw) = fields.get(time_column) else { continue };
@@ -573,7 +577,20 @@ pub fn read_measurements(text: &str, data: &Data) -> Result<Measurements, String
         }
         times.push(t);
         for (i, column) in cells.iter_mut().enumerate() {
-            column.push(fields.get(i).and_then(|v| v.replace(',', ".").parse::<f64>().ok()).filter(|v| v.is_finite()));
+            let text = fields.get(i).map(String::as_str).unwrap_or("");
+            // An empty cell, or one that says "not a number", is no value; any other text is not skipped.
+            let value = match text.replace(',', ".").parse::<f64>() {
+                Ok(v) if v.is_finite() => Some(v),
+                Ok(v) if v.is_nan() => None,
+                _ if text.is_empty() => None,
+                _ => {
+                    if i != time_column {
+                        unreadable.entry(names[i].clone()).or_insert((number + 2, text.to_string()));
+                    }
+                    None
+                }
+            };
+            column.push(value);
         }
     }
     if times.len() < 2 {
@@ -585,7 +602,7 @@ pub fn read_measurements(text: &str, data: &Data) -> Result<Measurements, String
     let first = times[0];
     let times: Vec<f64> = times.iter().map(|t| t - first).collect();
     let columns = names.into_iter().zip(cells).enumerate().filter(|(i, _)| *i != time_column).map(|(_, (n, c))| (n, c)).collect();
-    Ok(Measurements { times, columns, start })
+    Ok(Measurements { times, columns, start, unreadable })
 }
 
 /// A window as people read it: 45 s, 15 min, 6 h, 2 d.
@@ -690,7 +707,7 @@ pub fn read_parquet(path: &Path, data: &Data) -> Result<Measurements, String> {
         return Err("the instants of the data go back in time: sort the file by its time column".to_string());
     }
     let first = times[0];
-    Ok(Measurements { times: times.iter().map(|t| t - first).collect(), columns, start })
+    Ok(Measurements { times: times.iter().map(|t| t - first).collect(), columns, start, unreadable: BTreeMap::new() })
 }
 
 #[cfg(not(feature = "native"))]
@@ -701,6 +718,9 @@ pub fn read_parquet(_path: &Path, _data: &Data) -> Result<Measurements, String> 
 /// A measured column in SI at each instant, empty cells left out.
 fn channel(m: &Measurements, column: &str, unit: Option<&UnitSpec>) -> Result<Vec<(f64, f64)>, String> {
     let values = m.columns.get(column).ok_or_else(|| format!("the data has no column '{column}' (its columns: {})", m.columns.keys().cloned().collect::<Vec<_>>().join(", ")))?;
+    if let Some((line, text)) = m.unreadable.get(column) {
+        return Err(format!("the column '{column}' holds '{text}' at line {line}, which is not a number: leave a cell empty where there is no value"));
+    }
     let points: Vec<(f64, f64)> = m.times.iter().zip(values).filter_map(|(t, v)| v.map(|v| (*t, unit.map_or(v, |u| u.to_canonical(v))))).collect();
     if points.is_empty() {
         return Err(format!("the column '{column}' has no value"));
@@ -1113,6 +1133,7 @@ pub fn run_on(result: &CompilationResult, model_path: &Path, twin: &Twin, spec: 
         Err(error) => return finish(Outcome { verdict: "error".to_string(), ..outcome }, error),
     };
     series.set_units(units_from_init_xml(&xml));
+    series.set_held(held_from_init_xml(&xml));
     if let Some(error) = series.reaches(outcome.duration.max(1e-6)).err().filter(|_| !Series::ended_by_the_model(&run.output)) {
         return finish(Outcome { verdict: "error".to_string(), ..outcome }, error);
     }
@@ -1318,6 +1339,18 @@ mod tests {
         assert_eq!(parse_compare("T ~ room °C within 0.5 K for 99 %").unwrap().share, 0.99);
         assert_eq!(parse_compare("T ~ room °C within 0.5 K").unwrap().share, 1.0);
         assert!(parse_compare("T ~ room within 0.5 for 120 %").unwrap_err().contains("0 to 100"));
+    }
+
+    #[test]
+    fn a_cell_that_is_not_a_number_is_not_skipped() {
+        let data = Data { file: "x.csv".into(), live: None, time: "t".into(), time_unit: lookup_unit("s").unwrap(), delimiter: None };
+        let m = read_measurements("t,room,state,gap\n0,20,OK,\n1,ERR,OK,NaN\n2,21,OK,3\n", &data).unwrap();
+        assert_eq!(m.unreadable.get("room"), Some(&(3, "ERR".to_string())));
+        let error = channel(&m, "room", None).unwrap_err();
+        assert!(error.contains("'ERR' at line 3"), "{error}");
+        // A column of text the twin does not read is no one's concern; an empty cell and NaN are no value.
+        assert!(m.unreadable.contains_key("state"));
+        assert_eq!(channel(&m, "gap", None).unwrap(), vec![(2.0, 3.0)]);
     }
 
     #[test]
