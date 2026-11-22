@@ -7,7 +7,7 @@ The MCP server is already installed and ready to use with Claude Desktop.
 ### 1. Start the MCP Server
 
 ```bash
-cd /Users/malek/Arclang/mcp-server
+cd ~/arclang/mcp-server
 /opt/homebrew/bin/python3.11 -m arclang_mcp.server
 ```
 
@@ -21,7 +21,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
     "arclang": {
       "command": "/opt/homebrew/bin/python3.11",
       "args": ["-m", "arclang_mcp.server"],
-      "cwd": "/Users/malek/Arclang/mcp-server"
+      "cwd": "~/arclang/mcp-server"
     }
   }
 }

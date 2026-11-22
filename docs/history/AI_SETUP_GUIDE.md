@@ -2,7 +2,7 @@
 
 ## 📍 Emplacement de `generateWithAI()`
 
-**Fichier**: `/Users/malek/Arclang/arcviz-web/apps/api/src/services/ai-generator.ts`
+**Fichier**: `~/arclang/arcviz-web/apps/api/src/services/ai-generator.ts`
 
 Cette fonction gère la génération de code ArcLang via Claude AI (Anthropic).
 
@@ -23,7 +23,7 @@ Cette fonction gère la génération de code ArcLang via Claude AI (Anthropic).
 **Option A**: Créer/modifier `.env` dans `/arcviz-web/apps/api/`
 
 ```bash
-cd /Users/malek/Arclang/arcviz-web/apps/api
+cd ~/arclang/arcviz-web/apps/api
 cp .env.example .env
 nano .env
 ```
@@ -37,7 +37,7 @@ ANTHROPIC_API_KEY=sk-ant-api03-votre-vraie-clé-ici
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-api03-votre-vraie-clé-ici
-cd /Users/malek/Arclang/arcviz-web/apps/api
+cd ~/arclang/arcviz-web/apps/api
 npm run dev
 ```
 
@@ -48,7 +48,7 @@ npm run dev
 lsof -ti:4000 | xargs kill -9
 
 # Redémarrer avec la nouvelle configuration
-cd /Users/malek/Arclang/arcviz-web/apps/api
+cd ~/arclang/arcviz-web/apps/api
 npm run dev
 ```
 
@@ -249,7 +249,7 @@ Si vous préférez OpenAI au lieu de Claude:
 ### 1. Installer SDK OpenAI
 
 ```bash
-cd /Users/malek/Arclang/arcviz-web/apps/api
+cd ~/arclang/arcviz-web/apps/api
 npm install openai
 ```
 
@@ -323,9 +323,9 @@ LOG_LEVEL=debug npm run dev
 ## 📚 Ressources
 
 - **Claude API Docs**: https://docs.anthropic.com/claude/reference/messages_post
-- **ArcLang Syntax**: `/Users/malek/Arclang/SYNTAX_ENFORCEMENT_GUIDE.md`
-- **API Routes**: `/Users/malek/Arclang/arcviz-web/apps/api/src/routes/ai.ts`
-- **AI Generator**: `/Users/malek/Arclang/arcviz-web/apps/api/src/services/ai-generator.ts`
+- **ArcLang Syntax**: `~/arclang/SYNTAX_ENFORCEMENT_GUIDE.md`
+- **API Routes**: `~/arclang/arcviz-web/apps/api/src/routes/ai.ts`
+- **AI Generator**: `~/arclang/arcviz-web/apps/api/src/services/ai-generator.ts`
 
 ---
 

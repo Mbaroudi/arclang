@@ -199,7 +199,7 @@ NEXT STEPS (USER ACTION REQUIRED):
      → Do NOT initialize with README/license/.gitignore
   
   2. Connect and push:
-     cd /Users/malek/Arclang
+     cd ~/arclang
      git remote add origin https://github.com/YOUR_USERNAME/arclang.git
      git branch -M main
      git push -u origin main
@@ -239,7 +239,7 @@ TEST EXAMPLES:
  PROJECT STRUCTURE
 ═══════════════════════════════════════════════════════════════════════════
 
-/Users/malek/Arclang/
+~/arclang/
 ├── .git/                           # Git repository
 ├── .gitignore                      # Git ignore rules
 ├── LICENSE                         # MIT License

@@ -20,7 +20,7 @@ open diagram.html
 
 ### Example
 ```bash
-cd /Users/malek/Arclang
+cd ~/arclang
 arclang export examples/automotive/acc_complete_architecture.arc -o acc_ultimate.html -f arc-viz-ultimate
 open acc_ultimate.html
 ```
@@ -308,7 +308,7 @@ arclang export examples/defense/mission_computer.arc \
 
 ### Build
 ```bash
-cd /Users/malek/Arclang
+cd ~/arclang
 cargo build --release
 ```
 

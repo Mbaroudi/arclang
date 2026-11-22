@@ -6,7 +6,7 @@
 **Problem**: Cargo.toml referenced missing test binary files (`test_explorer.rs`, `test_d3.rs`, `test_elk.rs`)
 **Solution**: Removed the missing binary declarations from Cargo.toml
 
-**File Modified**: `/Users/malek/Arclang/Cargo.toml`
+**File Modified**: `~/arclang/Cargo.toml`
 
 ### 2. **Visualizer Shows Default Sample Instead of Compiled Architecture** ✅
 **Problem**: When navigating to `http://localhost:3002/visualizer`, the page always showed a default sample graph instead of allowing users to load their compiled `.arc` files.
@@ -25,7 +25,7 @@
 - Added "Upload .arc File" button with file input
 - Updated UI to show filename when a file is loaded
 
-**File Modified**: `/Users/malek/Arclang/arcviz-web/apps/web/app/visualizer/page.tsx`
+**File Modified**: `~/arclang/arcviz-web/apps/web/app/visualizer/page.tsx`
 
 ### 3. **Capella Style Template Already Implemented** ✅
 **Status**: The Capella-style color scheme is already properly implemented!
@@ -52,13 +52,13 @@ The visualizer uses Capella-inspired colors based on safety levels:
 - `realizes`: Purple (#8b5cf6) - Realization traces
 - `data`: Gray (#6b7280) - Data flow connections
 
-**File**: `/Users/malek/Arclang/arcviz-web/apps/web/lib/elk/elk-layout.ts` (lines 110-147)
+**File**: `~/arclang/arcviz-web/apps/web/lib/elk/elk-layout.ts` (lines 110-147)
 
 ## How to Use the Enhanced Visualizer
 
 ### Step 1: Start the ArcViz Web Server
 ```bash
-cd /Users/malek/Arclang/arcviz-web
+cd ~/arclang/arcviz-web
 npm run dev
 ```
 

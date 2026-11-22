@@ -9,7 +9,7 @@
 
 ### 1. AST Extension (100% Complete)
 
-Successfully extended `/Users/malek/Arclang/src/compiler/ast.rs` with complete Capella MBSE modeling capabilities:
+Successfully extended `~/arclang/src/compiler/ast.rs` with complete Capella MBSE modeling capabilities:
 
 #### **Operational Analysis Layer**
 - ✅ `Entity` struct with type (Actor/System/Environment), icon, description
@@ -147,7 +147,7 @@ The extended AST now fully supports:
 The parser needs to be updated to initialize structs with new required fields:
 
 **Files to modify:**
-- `/Users/malek/Arclang/src/compiler/parser.rs` (main parser logic)
+- `~/arclang/src/compiler/parser.rs` (main parser logic)
 
 **Required changes:**
 
@@ -276,15 +276,15 @@ Current errors (16 total):
 
 ## Files Modified
 
-- ✅ `/Users/malek/Arclang/src/compiler/ast.rs` (+330 lines)
+- ✅ `~/arclang/src/compiler/ast.rs` (+330 lines)
 
 ---
 
 ## Files to Modify Next
 
-- ⏳ `/Users/malek/Arclang/src/compiler/parser.rs` (struct initialization fixes)
-- ⏳ `/Users/malek/Arclang/src/compiler/semantic.rs` (may need updates)
-- ⏳ `/Users/malek/Arclang/src/compiler/codegen.rs` (JSON export for diagrams)
+- ⏳ `~/arclang/src/compiler/parser.rs` (struct initialization fixes)
+- ⏳ `~/arclang/src/compiler/semantic.rs` (may need updates)
+- ⏳ `~/arclang/src/compiler/codegen.rs` (JSON export for diagrams)
 
 ---
 

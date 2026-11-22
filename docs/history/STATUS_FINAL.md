@@ -43,11 +43,11 @@ Les routes chat vérifient `request.user?.id` mais le frontend n'envoie pas de c
 #### Option A: Login Flow Complet (Recommandé)
 ```bash
 # 1. Démarrer API
-cd /Users/malek/Arclang/arcviz-web/apps/api
+cd ~/arclang/arcviz-web/apps/api
 npm run dev  # Port 4000
 
 # 2. Démarrer Web
-cd /Users/malek/Arclang/arcviz-web/apps/web
+cd ~/arclang/arcviz-web/apps/web
 npm run dev  # Port 3002
 
 # 3. Se connecter
@@ -146,7 +146,7 @@ const userId = (request as any).user?.id || 'cmhbzei430000pdhh58zdw8kc';
 
 Puis rebuild et redémarrer:
 ```bash
-cd /Users/malek/Arclang/arcviz-web/apps/api
+cd ~/arclang/arcviz-web/apps/api
 # Note: Build échoue à cause d'erreurs existantes, mais dev marche
 npm run dev
 ```
@@ -156,11 +156,11 @@ npm run dev
 
 ```bash
 # Terminal 1: API (doit être démarrée)
-cd /Users/malek/Arclang/arcviz-web/apps/api
+cd ~/arclang/arcviz-web/apps/api
 npm run dev
 
 # Terminal 2: Web
-cd /Users/malek/Arclang/arcviz-web/apps/web
+cd ~/arclang/arcviz-web/apps/web
 npm run dev
 
 # Navigateur:
@@ -222,7 +222,7 @@ function renderExchange(edge: DiagramEdge): SvgElement {
 
 4. **Rebuild:**
 ```bash
-cd /Users/malek/Arclang/arcviz-web/apps/diagram-service
+cd ~/arclang/arcviz-web/apps/diagram-service
 npm run build
 ```
 
@@ -358,7 +358,7 @@ curl -X POST http://localhost:4000/api/chat/conversations \
 
 ```bash
 # 1. Rebuild service
-cd /Users/malek/Arclang/arcviz-web/apps/diagram-service
+cd ~/arclang/arcviz-web/apps/diagram-service
 npm run build
 
 # 2. Tester renderer isolément

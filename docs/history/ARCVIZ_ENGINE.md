@@ -281,7 +281,7 @@ ARCVIZ_CONFIG.port.spacing = 60;
 ### Compiler un nouveau diagramme
 
 ```bash
-cd /Users/malek/Arclang
+cd ~/arclang
 cargo run --bin arclang -- explorer examples/remote_start_architecture.arc
 ```
 

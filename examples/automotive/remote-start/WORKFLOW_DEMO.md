@@ -224,7 +224,7 @@ trace "STK-RS-002" satisfies "SYS-RS-002" {}
 
 **Command:**
 ```bash
-cd /Users/malek/Arclang
+cd ~/arclang
 cargo run --bin arclang -- explorer examples/remote_start_architecture.arc
 ```
 

@@ -5,6 +5,7 @@ import * as vscode from 'vscode';
 import { asFile, failureText, run, RunResult, withTempFile } from '../cli';
 import { clip, exitLine, parseCheckReport, renderTransitionPlan, summarizeCheck, TransitionPlan } from '../pure/arc';
 import { confirmEdits, mdText } from '../pure/confirm';
+import { staleEdit } from '../pure/versioned';
 import { EditRequest, layerOfKind, Metamodel, neighbors, Snapshot } from '../pure/workbench';
 import { applyRequests } from '../workbench/edits';
 import { metamodelJson, snapshotOf } from '../workbench/snapshot';
@@ -71,12 +72,21 @@ function checkAnswer(label: string, result: RunResult): vscode.LanguageModelTool
   return answer([exitLine(label, result.code), summarizeCheck(parsed), parsed.findings.length ? `Findings as JSON:\n${clip(JSON.stringify(parsed.findings, null, 1), MAX_RESULT)}` : undefined]);
 }
 
-/** Replaces the whole text of the document at `file` with `text`, as an undoable edit. */
-async function replaceDocument(file: string, text: string): Promise<void> {
-  const document = openDocument(file) ?? (await vscode.workspace.openTextDocument(vscode.Uri.file(file)));
+/** The document of a file, opened if it is not, so that the version its text is read at is known. */
+async function documentOf(file: string): Promise<vscode.TextDocument> {
+  return openDocument(file) ?? (await vscode.workspace.openTextDocument(vscode.Uri.file(file)));
+}
+
+/**
+ * Replaces the whole text of `document` with `text`, as an undoable edit, when the document is
+ * still at the version the text was computed on. Null when written, else why nothing was.
+ */
+async function replaceDocument(document: vscode.TextDocument, readAt: number, text: string): Promise<string | null> {
+  const stale = staleEdit(readAt, document.version, path.basename(document.uri.fsPath));
+  if (stale) return stale;
   const edit = new vscode.WorkspaceEdit();
   edit.replace(document.uri, new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length)), text);
-  await vscode.workspace.applyEdit(edit);
+  return (await vscode.workspace.applyEdit(edit)) ? null : 'VS Code did not apply the edit: nothing was written.';
 }
 
 /** The `#### Kind` section of the Markdown metamodel, or every line naming the kind. */
@@ -194,10 +204,13 @@ export function registerTools(context: vscode.ExtensionContext): void {
         const { element, key, value } = options.input;
         const file = allowedPath(options.input.path);
         if (!file) return refused(options.input.path);
+        const document = await documentOf(file);
+        const readAt = document.version;
         const result = await runOnModel(file, (m) => ['set', '--', m, element, key, value], token);
         const label = `set ${path.basename(file)} ${element} ${key} ${value}`;
         if (result.code !== 0) return answer([exitLine(label, result.code), failureText(result)]);
-        await replaceDocument(file, result.stdout);
+        const notWritten = await replaceDocument(document, readAt, result.stdout);
+        if (notWritten) return answer([exitLine(label, 1), `Not applied: ${notWritten}`]);
         return answer([exitLine(label, 0), `Applied in the editor to ${path.basename(file)} (not saved); the compiler accepted the edited model.`]);
       },
     }),
@@ -214,10 +227,13 @@ export function registerTools(context: vscode.ExtensionContext): void {
         const { element, name } = options.input;
         const file = allowedPath(options.input.path);
         if (!file) return refused(options.input.path);
+        const document = await documentOf(file);
+        const readAt = document.version;
         const result = await runOnModel(file, (m) => ['rename', '--', m, element, name], token);
         const label = `rename ${path.basename(file)} ${element} ${name}`;
         if (result.code !== 0) return answer([exitLine(label, result.code), failureText(result)]);
-        await replaceDocument(file, result.stdout);
+        const notWritten = await replaceDocument(document, readAt, result.stdout);
+        if (notWritten) return answer([exitLine(label, 1), `Not applied: ${notWritten}`]);
         return answer([exitLine(label, 0), `Applied in the editor to ${path.basename(file)} (not saved).`]);
       },
     }),

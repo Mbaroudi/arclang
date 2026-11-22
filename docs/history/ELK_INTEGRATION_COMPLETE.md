@@ -266,8 +266,8 @@ arclang diagram emergency_braking_simple.arc --format operational --output opera
 
 - **ELK Documentation**: https://eclipse.dev/elk/
 - **ELK.js Library**: https://github.com/kieler/elkjs
-- **ArcLang Repository**: /Users/malek/arclang
-- **Diagram Service**: /Users/malek/arclang/arcviz-web/apps/diagram-service
+- **ArcLang Repository**: ~/arclang
+- **Diagram Service**: ~/arclang/arcviz-web/apps/diagram-service
 - **Solution Document**: DIAGRAM_RENDERING_SOLUTION.md
 
 ## Conclusion

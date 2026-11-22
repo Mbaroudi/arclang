@@ -407,8 +407,9 @@ Detailed Results:
 def main():
     # Configuration
     arclang_bin = './target/release/arclang'  # Use release build for speed
-    examples_dir = '/Users/malek/Arclang/examples'
-    output_dir = '/Users/malek/arclang/test_results'
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    examples_dir = os.path.join(root, 'examples')
+    output_dir = os.path.join(root, 'test_results')
     
     # Check if binary exists
     if not os.path.exists(arclang_bin):

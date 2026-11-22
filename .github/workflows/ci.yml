@@ -216,7 +216,7 @@ jobs:
           key: ${{ runner.os }}-cargo-roundtrip-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -287,7 +287,7 @@ jobs:
       - name: Build compiler
         run: cargo build --release
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -329,6 +329,10 @@ jobs:
         run: |
           cargo install wasm-pack --locked --version 0.15.0
           cd wasm && wasm-pack build --target web --release
+
+      # The tests of the browser build's own crate (what it answers to the playground and the extension).
+      - name: Test the compiler's browser crate
+        run: cd wasm && cargo test
 
       - uses: actions/setup-node@v4
         with:

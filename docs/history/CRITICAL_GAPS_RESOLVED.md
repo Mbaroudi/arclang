@@ -17,7 +17,7 @@ Both critical issues identified in the audit have been **completely resolved**:
 ## Gap #1: File Access & Path Management 🟢 FIXED
 
 ### Problem Identified
-❌ **MCP server limited to** `/Users/malek/arclang/` **only**
+❌ **MCP server limited to** `~/arclang/` **only**
 - Could not test files in `/home/claude/` or `/tmp/`
 - No support for absolute paths
 - Blocked remote assessment
@@ -46,7 +46,7 @@ def _resolve_path(self, path_str: str) -> Path:
     """Resolve path relative to workspace root or allow absolute paths.
     
     Supports:
-    - Absolute paths: /Users/malek/test.arc or /home/claude/test.arc
+    - Absolute paths: ~/test.arc or /home/claude/test.arc
     - Relative paths: examples/test.arc (resolved to workspace_root)
     - ~ expansion: ~/test.arc (expands to user home)
     """
@@ -66,8 +66,8 @@ def _resolve_path(self, path_str: str) -> Path:
 |-----------|---------|------------|
 | **Absolute** | `/tmp/test.arc` | Used directly ✅ |
 | **Absolute** | `/home/claude/test.arc` | Used directly ✅ |
-| **Relative** | `examples/test.arc` | `→ /Users/malek/arclang/examples/test.arc` ✅ |
-| **Home Expansion** | `~/test.arc` | `→ /Users/malek/test.arc` ✅ |
+| **Relative** | `examples/test.arc` | `→ ~/arclang/examples/test.arc` ✅ |
+| **Home Expansion** | `~/test.arc` | `→ ~/test.arc` ✅ |
 
 ### Verification Test ✅
 

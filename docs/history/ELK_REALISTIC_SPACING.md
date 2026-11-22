@@ -190,7 +190,7 @@ Component
 
 ### Test Command
 ```bash
-cd /Users/malek/Arclang
+cd ~/arclang
 cargo build --release
 ./target/release/arclang export \
   examples/automotive/adaptive_cruise_control.arc \

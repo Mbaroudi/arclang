@@ -259,7 +259,7 @@ NO edge/label overlaps ✅
 ## Test Commands
 
 ```bash
-cd /Users/malek/arclang/arcviz-web/apps/diagram-service
+cd ~/arclang/arcviz-web/apps/diagram-service
 
 # Generate with all fixes
 node test-operational-hybrid.js test-operational-data.json \
@@ -318,5 +318,5 @@ Dagre successfully:
 ---
 
 **Status**: ✅ **ALL OVERLAPS RESOLVED**  
-**File**: `/Users/malek/arclang/diagrams/operational_final_fixed.svg`  
+**File**: `~/arclang/diagrams/operational_final_fixed.svg`  
 **Ready for**: Production use in MBSE tooling

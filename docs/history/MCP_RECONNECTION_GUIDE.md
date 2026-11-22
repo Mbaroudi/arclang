@@ -6,7 +6,7 @@ The MCP server connection was lost due to a **Python syntax error** in the `mbse
 
 ## Root Cause
 
-**File**: `/Users/malek/arclang/mcp-server/src/arclang_mcp/mbse_expert.py`  
+**File**: `~/arclang/mcp-server/src/arclang_mcp/mbse_expert.py`  
 **Line 265**: Malformed f-string with nested quotes and mismatched parentheses
 
 ```python
@@ -51,9 +51,9 @@ tail -50 ~/Library/Logs/Claude/mcp-server-arclang.log
       "command": "/opt/homebrew/bin/python3.11",
       "args": ["-m", "arclang_mcp.server"],
       "env": {
-        "ARCLANG_WORKSPACE": "/Users/malek/arclang",
-        "ARCLANG_BINARY": "/Users/malek/.local/bin/arclang",
-        "PATH": "/Users/malek/.local/bin:/Users/malek/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin",
+        "ARCLANG_WORKSPACE": "~/arclang",
+        "ARCLANG_BINARY": "~/.local/bin/arclang",
+        "PATH": "~/.local/bin:~/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin",
         "ANTHROPIC_API_KEY": "[REDACTED]"
       }
     }
@@ -64,7 +64,7 @@ tail -50 ~/Library/Logs/Claude/mcp-server-arclang.log
 ### Verification Checklist
 
 - ✅ Python 3.11 installed: `/opt/homebrew/bin/python3.11`
-- ✅ ArcLang binary available: `/Users/malek/.local/bin/arclang` (version 1.0.0)
+- ✅ ArcLang binary available: `~/.local/bin/arclang` (version 1.0.0)
 - ✅ MCP package installed: `arclang-mcp 0.1.0` (editable install)
 - ✅ Syntax error fixed: `mbse_expert.py` line 265
 - ✅ Server can start: Import successful

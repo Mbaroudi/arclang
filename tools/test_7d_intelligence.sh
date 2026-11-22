@@ -54,7 +54,7 @@ EOF
 echo "Compiling with Rust compiler to see 7D Intelligence logs..."
 echo ""
 
-cd /Users/malek/arclang
+cd "$(dirname "$0")/.."
 
 # Use the Rust library directly via a simple Rust program
 cat > /tmp/test_7d.rs << 'RUST'
