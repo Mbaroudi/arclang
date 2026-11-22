@@ -89,6 +89,7 @@ impl Buffer {
             times: rows.iter().map(|(t, _)| t - first).collect(),
             columns: columns.iter().map(|c| (c.clone(), rows.iter().map(|(_, v)| v.get(c).copied()).collect())).collect(),
             start,
+            unreadable: BTreeMap::new(),
         })
     }
 }

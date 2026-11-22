@@ -727,6 +727,16 @@ fn label(term: &Term) -> String {
 
 pub fn evaluate(expect: &Expect, context: &mut Context<'_>) -> Result<Evaluated, String> {
     let wrap = |e: String| format!("expects \"{}\": {e}", expect.text);
+    // A variable whose unit the model declares and the compiler does not read is compared with a
+    // plain number only: against a quantity, its reading in SI is not known.
+    if let Some(written) = written_unit(&expect.lhs).or_else(|| written_unit(&expect.rhs)).or_else(|| expect.tolerance.as_ref().and_then(written_unit)).filter(|u| *u != "%") {
+        for variable in variables(expect) {
+            let declared = context.series.units().get(&variable).map(|u| u.trim()).filter(|u| !u.is_empty());
+            if let Some(unit) = declared.filter(|_| context.series.unit_and_zero(&variable).is_none()) {
+                return Err(wrap(format!("'{variable}' is in '{unit}', a unit the compiler does not read: it cannot be compared with a value in {written} (compare it with a plain number, in the model's unit, or give the variable a unit the compiler reads)")));
+            }
+        }
+    }
     let lhs = eval(&expect.lhs, context).map_err(wrap)?;
     let rhs = eval(&expect.rhs, context).map_err(wrap)?;
     same(lhs.dim, rhs.dim, &format!("comparing with {}", expect.cmp.symbol())).map_err(wrap)?;
@@ -1035,6 +1045,19 @@ mod comparison_tests {
         series.set_units([("x".to_string(), unit.to_string())].into_iter().collect());
         let expect = parse(text, &BTreeMap::new()).unwrap();
         evaluate(&expect, &mut Context { series: &series, notes: &mut Vec::new() }).unwrap()
+    }
+
+    #[test]
+    fn a_unit_the_compiler_does_not_read_is_not_compared_with_a_quantity() {
+        let mut series = Series::from_csv("\"time\",\"x\"\n0,3000\n1,3000\n").unwrap();
+        series.set_units([("x".to_string(), "furlong/fortnight".to_string())].into_iter().collect());
+        let run = |text: &str| evaluate(&parse(text, &BTreeMap::new()).unwrap(), &mut Context { series: &series, notes: &mut Vec::new() });
+        let error = run("max(x) <= 400 m/s").unwrap_err();
+        assert!(error.contains("furlong/fortnight") && error.contains("does not read"), "{error}");
+        assert!(run("max(x) == 3000 within 1 m/s").is_err());
+        // A plain number is a value in the model's own unit.
+        assert!(run("max(x) <= 4000").unwrap().holds);
+        assert!(run("max(x) == 3000 within 1 %").unwrap().holds);
     }
 
     #[test]
