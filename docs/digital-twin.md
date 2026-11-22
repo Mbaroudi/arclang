@@ -281,6 +281,45 @@ list, `arclang twin --live` stops before it connects and says which
 variable to set; the message never prints the credentials. Without
 credentials in the environment, any address is followed as before.
 
+## A simulator as the source (CARLA)
+
+The measurements can come from another simulator. In
+`examples/automotive/acc-carla-twin/`, a client of the
+[CARLA](https://carla.org/) driving simulator drives a lead vehicle and a
+follower, and publishes the lead's speed, the follower's speed and the gap
+between them on a local MQTT broker. The twin drives a Modelica model of
+the follower's gap law with the lead's speed and compares its speed and its
+gap with CARLA's:
+
+```arc
+twin "Follower in CARLA, live" {
+    id: "TW-CARLA-LIVE"
+    simulate: { model: "AccPhysics.Follow" sources: ["physics/AccPhysics.mo"] }
+    data: { mqtt: "mqtt://localhost:1883" topics: ["carla/acc"] window: 10 min refresh: 15 s record: "data/carla-live.csv" }
+    drives: ["v_lead <- lead_speed m/s"]
+    compares: [
+        "v_ego ~ ego_speed m/s within 1.5 m/s for 95 %",
+        "gap ~ gap m within 3 m for 95 %"
+    ]
+    expects: ["REQ-GAP: min(gap) >= 4 m"]
+}
+```
+
+```
+12:35:27 twin 'Follower in CARLA, live': PASS over 751 samples; v_ego within 99.7 %, gap within 100.0 %
+```
+
+The server runs without a graphics card (`-nullrhi`: physics and radar, no
+cameras) and faster than the clock; the twin counts its window in the
+data's own time, so it follows the run all the same. The example's README
+gives the three containers, a recorded run to replay without CARLA, and what
+happens when the client's vehicle stops answering as the model says: the
+twin fails.
+
+A driven variable takes its value in its declaration (`Real v_lead = 0;`),
+which the twin replaces. Given by an equation instead, the model has one
+equation too many once the twin drives it, and OpenModelica refuses it.
+
 ## Online
 
 On arclang.fr, signed in, "ArcLang: Run the digital twins" sends the

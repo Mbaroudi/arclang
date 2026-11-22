@@ -42,6 +42,7 @@ Simulation needs OpenModelica: on the desktop, *ArcLang: Set up OpenModelica*; o
 |---|---|---|
 | [Autonomous emergency braking (AEB)](automotive/emergency-braking/) | Intermediate | The flagship: an AEB system through every Arcadia level, with ISO 26262 safety, modes, a scenario and declared diagrams. |
 | [Adaptive cruise control with Stop & Go, the engineering model](automotive/acc-stop-and-go/) | Advanced | A full-speed-range ACC in CESAM: stakeholders, three visions, ECUs and bill of materials; the control law simulated, the modes executed, HARA, FMEA, fault trees and TARA. |
+| [Adaptive cruise control, followed in CARLA](automotive/acc-carla-twin/) | Advanced | A digital twin on a driving simulator: the model of a gap law compared, on a recorded run and live over MQTT, with the vehicle CARLA drives. |
 | [Adaptive cruise control, complete](automotive/adaptive-cruise/) | Intermediate | The full ACC: perception, fusion, target selection, longitudinal control, driver override and safety monitoring. |
 | [One-pedal drive](automotive/one-pedal-drive/) | Intermediate | The accelerator pedal also brakes: regeneration first, then the friction brake, then the hold at standstill. |
 | [An electric car product line](automotive/ev-product-line/) | Intermediate | What Arcadia gains from SysML v2: definitions, variants and configurations, typed allocations, tagged views, analyses. |
