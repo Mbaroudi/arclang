@@ -187,7 +187,7 @@ jobs:
           exit $fail
 
       - name: Install Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '20'
 
@@ -334,7 +334,7 @@ jobs:
       - name: Test the compiler's browser crate
         run: cd wasm && cargo test
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
