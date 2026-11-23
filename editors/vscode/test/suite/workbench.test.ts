@@ -92,6 +92,10 @@ suite('ArcLang workbench', () => {
       // again, as a later run would, until the views are told.
       let runs = 0;
       let written = 0;
+      // A watcher of the test's own, to tell a silent watcher from views not told.
+      let seen = 0;
+      const own = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.file(path.dirname(document.uri.fsPath)), '.arclang/sim-cache/**'));
+      subscriptions.push(own, own.onDidChange(() => seen++), own.onDidCreate(() => seen++));
       const heard = await until(() => {
         if (told === 0 && Date.now() - written >= 1000) {
           written = Date.now();
@@ -99,7 +103,7 @@ suite('ArcLang workbench', () => {
         }
         return told > 0;
       }, 30000);
-      assert.ok(heard, `the views are told (${runs} verdicts written)`);
+      assert.ok(heard, `the views are told (${runs} verdicts written, ${seen} seen by a watcher of the test)`);
       assert.notEqual(await snapshotOf(document), first, 'the snapshot is computed again');
     } finally {
       for (const subscription of subscriptions) subscription.dispose();
