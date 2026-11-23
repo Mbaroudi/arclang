@@ -19,10 +19,10 @@ The **Explorer HTML** uses the advanced **ELK (Eclipse Layout Kernel)** engine w
 ```bash
 # Generate interactive explorer with ELK layout
 arclang explorer emergency_braking_simple.arc \
-  --output /Users/malek/arclang/diagrams/emergency_braking_explorer.html
+  --output ~/arclang/diagrams/emergency_braking_explorer.html
 
 # Open in browser
-open /Users/malek/arclang/diagrams/emergency_braking_explorer.html
+open ~/arclang/diagrams/emergency_braking_explorer.html
 ```
 
 **Features**:
@@ -126,7 +126,7 @@ export async function renderOperationalActivity(
 
 2. **Add ELK dependency** to diagram-service:
 ```bash
-cd /Users/malek/arclang/arcviz-web/apps/diagram-service
+cd ~/arclang/arcviz-web/apps/diagram-service
 npm install elkjs
 ```
 
@@ -224,7 +224,7 @@ arclang explorer your_model.arc --output output.html --open
 
 ## Files Generated
 
-Location: `/Users/malek/arclang/diagrams/`
+Location: `~/arclang/diagrams/`
 
 ### Working Interactive Explorer
 - `emergency_braking_explorer.html` (100KB) - **USE THIS!**

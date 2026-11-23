@@ -3,12 +3,32 @@ name: SysML v2 pilot validation
 # Exports every active example to SysML v2, validates it with the OMG pilot
 # implementation, and checks that the SysML v2 vocabulary served by the API
 # agrees with the abstract syntax the pilot derives from the same text. Kept separate from the main CI workflow: it needs a
-# JVM and the pilot kernel, and must prove itself stable before it gates
-# merges.
+# JVM and the pilot kernel. It runs on the pull requests that touch what it
+# checks, and is not a required check.
 on:
   workflow_dispatch:
   push:
     branches: [main]
+    paths:
+      - 'src/compiler/sysmlv2_generator.rs'
+      - 'src/compiler/sysml_export/**'
+      - 'src/compiler/metamodel.rs'
+      - 'src/compiler/quantity.rs'
+      - 'src/compiler/constraint.rs'
+      - 'examples/**'
+      - 'tools/sysmlv2_validate.py'
+      - 'tools/validate_sysml_corpus.sh'
+      - 'src/compiler/sysml_syntax/**'
+      - 'src/compiler/sysml_records.rs'
+      - 'src/compiler/sysml_library.rs'
+      - 'spec/sysml_library_index.json'
+      - 'tools/sysml_library_index.py'
+      - 'tools/sysml_abstract_syntax_check.py'
+      - 'tools/check_sysml_abstract_syntax_corpus.sh'
+      - '.github/workflows/sysml-pilot.yml'
+
+  # On a pull request that touches the same files, before the merge rather than after.
+  pull_request:
     paths:
       - 'src/compiler/sysmlv2_generator.rs'
       - 'src/compiler/sysml_export/**'

@@ -2,6 +2,7 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { failureText, run, withTempFile } from '../cli';
+import { staleEdit } from '../pure/versioned';
 import { clip, extractArcFence, parseCheckReport, renderTransitionPlan, summarizeCheck, TransitionPlan } from '../pure/arc';
 import { providerChatModel } from './chatModel';
 import { openProvider } from './client';
@@ -15,6 +16,8 @@ interface ArcChatResult extends vscode.ChatResult {
 interface PendingModel {
   text: string;
   uri?: vscode.Uri;
+  /** The version of the document the model was written from. */
+  version?: number;
 }
 
 const pendingModels = new Map<string, PendingModel>();
@@ -167,7 +170,7 @@ async function verifyAndOffer(
 
 function offer(text: string, target: vscode.TextDocument | undefined, stream: vscode.ChatResponseStream): void {
   const id = `m${++pendingCounter}`;
-  pendingModels.set(id, { text, uri: target?.uri });
+  pendingModels.set(id, { text, uri: target?.uri, version: target?.version });
   if (target) stream.button({ title: `Replace ${path.basename(target.uri.fsPath)} in the editor`, command: 'arclang.ai.apply', arguments: [id, 'replace'] });
   stream.button({ title: 'Open as a new file', command: 'arclang.ai.apply', arguments: [id, 'new'] });
 }
@@ -181,8 +184,11 @@ async function applyPending(id: string, mode: 'replace' | 'new'): Promise<void> 
   if (mode === 'replace' && pending.uri) {
     const document = await vscode.workspace.openTextDocument(pending.uri);
     const edit = new vscode.WorkspaceEdit();
+    // The model was written from the text as it was then: on another text it would undo what changed since.
+    const stale = pending.version === undefined ? null : staleEdit(pending.version, document.version, path.basename(document.uri.fsPath));
+    if (stale) return void vscode.window.showWarningMessage(`ArcLang: ${stale} "Open as a new file" still shows the model.`);
     edit.replace(document.uri, new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length)), pending.text);
-    await vscode.workspace.applyEdit(edit);
+    if (!(await vscode.workspace.applyEdit(edit))) return void vscode.window.showErrorMessage('ArcLang: VS Code did not apply the edit: nothing was written.');
     await vscode.window.showTextDocument(document, { preview: false });
     return;
   }

@@ -18,7 +18,7 @@ Le `localStorage` est vide, donc le visualizer attend indéfiniment.
 
 ### Ouvrir le test HTML:
 ```bash
-open /Users/malek/Arclang/TEST_CHAT_RAPIDE.html
+open ~/arclang/TEST_CHAT_RAPIDE.html
 ```
 
 ### Étapes:
@@ -146,7 +146,7 @@ Chercher les requêtes `/api/chat/*`
 
 #### Check 3: Base de Données
 ```bash
-cd /Users/malek/Arclang/arcviz-web/apps/api
+cd ~/arclang/arcviz-web/apps/api
 npx prisma studio
 ```
 
@@ -176,18 +176,18 @@ lsof -ti:4001 | xargs kill -9
 lsof -ti:3002 | xargs kill -9
 
 # 2. Clear cache webpack
-cd /Users/malek/Arclang/arcviz-web/apps/web
+cd ~/arclang/arcviz-web/apps/web
 rm -rf .next
 
 # 3. Redémarrer
-cd /Users/malek/Arclang/arcviz-web/apps/api
+cd ~/arclang/arcviz-web/apps/api
 npm run dev &
 
-cd /Users/malek/Arclang/arcviz-web/apps/web
+cd ~/arclang/arcviz-web/apps/web
 npm run dev &
 
 # 4. Ouvrir test HTML
-open /Users/malek/Arclang/TEST_CHAT_RAPIDE.html
+open ~/arclang/TEST_CHAT_RAPIDE.html
 ```
 
 ---

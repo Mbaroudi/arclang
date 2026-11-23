@@ -46,7 +46,7 @@ from PIL import Image
 import time
 
 driver = webdriver.Chrome()
-driver.get('file:///Users/malek/Arclang/adaptive_cruise_control.html')
+driver.get('file://~/arclang/adaptive_cruise_control.html')
 time.sleep(2)
 driver.save_screenshot('docs/acc_diagram.png')
 driver.quit()

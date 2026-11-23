@@ -12,7 +12,7 @@ L'interface chat nécessite:
 
 ```bash
 # 1. Créer utilisateur de test
-cd /Users/malek/Arclang/arcviz-web/apps/api
+cd ~/arclang/arcviz-web/apps/api
 npx ts-node prisma/seed-dev-user.ts
 
 # 2. Démarrer l'API
@@ -103,7 +103,7 @@ const userId = (request as any).user?.id || 'dev-user-123';
 
 ```bash
 # Option A: Avec Auth (Recommandé)
-cd /Users/malek/Arclang/arcviz-web/apps/api
+cd ~/arclang/arcviz-web/apps/api
 npx ts-node prisma/seed-dev-user.ts
 npm run dev
 # Puis se connecter sur http://localhost:3002/login
@@ -194,15 +194,15 @@ Une fois tout complété:
 
 ```bash
 # Terminal 1: API
-cd /Users/malek/Arclang/arcviz-web/apps/api
+cd ~/arclang/arcviz-web/apps/api
 npm run dev
 
 # Terminal 2: Web
-cd /Users/malek/Arclang/arcviz-web/apps/web  
+cd ~/arclang/arcviz-web/apps/web  
 npm run dev
 
 # Terminal 3: Tests
-cd /Users/malek/Arclang/arcviz-web/apps/diagram-service
+cd ~/arclang/arcviz-web/apps/diagram-service
 npm run test  # Si tests existent
 
 # Navigateur:

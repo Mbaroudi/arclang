@@ -186,7 +186,7 @@ Statut: ✅ **COMPLET ET OPÉRATIONNEL**
 ## 🏗️ Architecture de la Solution
 
 ### 1. **Diagram Service (TypeScript)** 
-📁 `/Users/malek/Arclang/arcviz-web/apps/diagram-service/`
+📁 `~/arclang/arcviz-web/apps/diagram-service/`
 
 #### Structure des fichiers:
 ```
@@ -241,7 +241,7 @@ type EdgeType =
 ```
 
 ### 2. **API Backend (Fastify)** 
-📁 `/Users/malek/Arclang/arcviz-web/apps/api/`
+📁 `~/arclang/arcviz-web/apps/api/`
 
 #### Endpoints de diagrammes:
 ```
@@ -279,7 +279,7 @@ Transforme le code ArcLang en modèles spécifiques à chaque type de diagramme:
 - `parseToFunctionalChainModel()` → `FunctionalChainModel`
 
 ### 3. **Frontend Web (Next.js + React)** 
-📁 `/Users/malek/Arclang/arcviz-web/apps/web/`
+📁 `~/arclang/arcviz-web/apps/web/`
 
 #### Pages principales:
 - `/app/page.tsx` - Landing page
@@ -326,7 +326,7 @@ export const api = {
 ```
 
 ### 4. **MCP Server (Python)** 
-📁 `/Users/malek/Arclang/mcp-server/`
+📁 `~/arclang/mcp-server/`
 
 #### Outils de génération (`tools/generation.py`):
 ```python

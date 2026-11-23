@@ -15,7 +15,7 @@
 ## Upload Your Architecture
 
 1. Click **"Upload .arc File"** button
-2. Select: `/Users/malek/Arclang/examples/automotive/acc_complete_architecture.arc`
+2. Select: `~/arclang/examples/automotive/acc_complete_architecture.arc`
 3. Click **"Compile & Visualize"**
 
 ## Switch Between Layers

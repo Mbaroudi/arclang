@@ -150,7 +150,7 @@ Browser screenshot or use headless Chrome:
 chrome --headless --screenshot=acc.png \
     --window-size=1920,1080 \
     --virtual-time-budget=1000 \
-    file:///Users/malek/Arclang/acc_smart.html
+    file://~/arclang/acc_smart.html
 ```
 
 ---

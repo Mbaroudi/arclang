@@ -320,7 +320,7 @@ for element in logical_elements {
 
 ```bash
 # Build ArcLang with metamodel intelligence
-cd /Users/malek/Arclang
+cd ~/arclang
 cargo build --release
 
 # Test with semantic example

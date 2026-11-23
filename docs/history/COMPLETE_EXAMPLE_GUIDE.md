@@ -37,7 +37,7 @@ This guide shows you how to test the **complete Automotive Emergency Braking Sys
 ### Step 1: Run the Test Script
 
 ```bash
-cd /Users/malek/arclang
+cd ~/arclang
 ./test_complete_example.sh
 ```
 

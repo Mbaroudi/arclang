@@ -6,7 +6,7 @@
 
 use super::cache::model_dir;
 use super::expects::{self, Expect};
-use super::results::{units_from_init_xml, Series};
+use super::results::{held_from_init_xml, units_from_init_xml, Series};
 use serde::Serialize;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -55,12 +55,15 @@ pub fn save(dir: &Path, test_id: &str, key: &str, labels: &[String], runs: &[(Op
         let Some(csv) = csv else { continue };
         let mut series = Series::from_csv(csv)?;
         series.set_units(units_from_init_xml(xml));
+        series.set_held(held_from_init_xml(xml));
         let mut kept: std::collections::HashSet<String> = read.iter().cloned().collect();
         kept.extend(series.names().iter().skip(1).filter(|n| worth_keeping(n, parts, &read)).take(COLUMNS).cloned());
         let trimmed = series.trimmed(&|name| kept.contains(name), STEPS);
         std::fs::write(target.join(format!("{index}.csv")), trimmed.to_csv()).map_err(|e| e.to_string())?;
         let units = serde_json::to_string(trimmed.units()).map_err(|e| e.to_string())?;
         std::fs::write(target.join(format!("{index}.units.json")), units).map_err(|e| e.to_string())?;
+        let held = serde_json::to_string(trimmed.held()).map_err(|e| e.to_string())?;
+        std::fs::write(target.join(format!("{index}.held.json")), held).map_err(|e| e.to_string())?;
     }
     // A single run has no point to choose.
     let points = if labels.len() == 1 && labels[0].is_empty() { Vec::new() } else { labels.to_vec() };
@@ -125,6 +128,7 @@ pub fn load(dir: &Path, test_id: &str, point: usize, current_key: &str, parts: &
     let mut series = Series::from_csv(&csv)?;
     let units: BTreeMap<String, String> = std::fs::read_to_string(target.join(format!("{point}.units.json"))).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
     series.set_units(units.clone());
+    series.set_held(std::fs::read_to_string(target.join(format!("{point}.held.json"))).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default());
     let mut elements = Vec::new();
     for (id, path) in parts {
         let values: Vec<Variable> = series

@@ -28,7 +28,7 @@ Your ArcLang repository is now ready for GitHub! All files have been committed.
 GitHub will show you instructions. Use these commands:
 
 ```bash
-cd /Users/malek/Arclang
+cd ~/arclang
 
 # Add GitHub as remote (replace USERNAME with your GitHub username)
 git remote add origin https://github.com/USERNAME/arclang.git
@@ -63,7 +63,7 @@ You should see:
 
 ### Initial Push
 ```bash
-cd /Users/malek/Arclang
+cd ~/arclang
 git remote add origin https://github.com/USERNAME/arclang.git
 git branch -M main
 git push -u origin main
@@ -136,7 +136,7 @@ cat ~/.ssh/id_ed25519.pub
 # 4. Click "Add SSH key"
 
 # Change remote to SSH
-cd /Users/malek/Arclang
+cd ~/arclang
 git remote set-url origin git@github.com:USERNAME/arclang.git
 ```
 
@@ -293,7 +293,7 @@ Your ArcLang project is **production-ready** and **ready to publish**!
 
 **Final Command to Push**:
 ```bash
-cd /Users/malek/Arclang
+cd ~/arclang
 git remote add origin https://github.com/YOUR_USERNAME/arclang.git
 git branch -M main
 git push -u origin main

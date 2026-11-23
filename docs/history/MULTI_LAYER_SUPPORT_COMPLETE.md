@@ -137,7 +137,7 @@ http://localhost:3002/visualizer
 ### Step 2: Upload Your Architecture
 Click **"Upload .arc File"** and select:
 ```
-/Users/malek/Arclang/examples/automotive/acc_complete_architecture.arc
+~/arclang/examples/automotive/acc_complete_architecture.arc
 ```
 
 ### Step 3: Compile

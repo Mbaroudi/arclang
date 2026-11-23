@@ -14,13 +14,13 @@ The MCP server's `ArcLangCompiler` wrapper was passing relative paths directly t
 
 **Example:**
 - User passes: `test-complete-phase1-4.arc`
-- MCP config has: `ARCLANG_WORKSPACE=/Users/malek/arclang`
+- MCP config has: `ARCLANG_WORKSPACE=~/arclang`
 - CLI was called with: `arclang diagram test-complete-phase1-4.arc` (from unknown working directory)
 - **Result**: File not found
 
 ## Solution
 
-Updated `/Users/malek/arclang/mcp-server/src/arclang_mcp/compiler/wrapper.py`:
+Updated `~/arclang/mcp-server/src/arclang_mcp/compiler/wrapper.py`:
 
 ### 1. Added workspace_root to __init__ (line 26)
 ```python
@@ -55,9 +55,9 @@ CLI: ❌ File not found (wrong working directory)
 **After Fix:**
 ```
 User: arclang_generate_all_diagrams("test.arc", "diagrams")
-MCP: Resolves to /Users/malek/arclang/test.arc
-MCP: Resolves to /Users/malek/arclang/diagrams/operational.svg
-MCP: arclang diagram /Users/malek/arclang/test.arc -o /Users/malek/arclang/diagrams/operational.svg
+MCP: Resolves to ~/arclang/test.arc
+MCP: Resolves to ~/arclang/diagrams/operational.svg
+MCP: arclang diagram ~/arclang/test.arc -o ~/arclang/diagrams/operational.svg
 CLI: ✅ Success
 ```
 
@@ -74,16 +74,16 @@ CLI: ✅ Success
 }
 ```
 **Resolves to:**
-- Model: `/Users/malek/arclang/test-complete-phase1-4.arc`
-- Output: `/Users/malek/arclang/diagrams/*.svg`
+- Model: `~/arclang/test-complete-phase1-4.arc`
+- Output: `~/arclang/diagrams/*.svg`
 
 ### Absolute Paths (Also Supported)
 ```json
 {
   "tool": "arclang_generate_all_diagrams",
   "arguments": {
-    "model_path": "/Users/malek/arclang/test-complete-phase1-4.arc",
-    "output_dir": "/Users/malek/arclang/diagrams"
+    "model_path": "~/arclang/test-complete-phase1-4.arc",
+    "output_dir": "~/arclang/diagrams"
   }
 }
 ```
@@ -95,7 +95,7 @@ CLI: ✅ Success
 python3.11 -c "
 from pathlib import Path
 import os
-os.environ['ARCLANG_WORKSPACE'] = '/Users/malek/arclang'
+os.environ['ARCLANG_WORKSPACE'] = '~/arclang'
 from arclang_mcp.compiler.wrapper import ArcLangCompiler
 
 compiler = ArcLangCompiler({})
@@ -108,17 +108,17 @@ print(f'Resolved path exists: {resolved.exists()}')
 
 **Output:**
 ```
-✓ Workspace: /Users/malek/arclang
+✓ Workspace: ~/arclang
 ✓ Resolved path exists: True
 ```
 
 ## Files Modified
 
-1. ✅ `/Users/malek/arclang/mcp-server/src/arclang_mcp/compiler/wrapper.py`
+1. ✅ `~/arclang/mcp-server/src/arclang_mcp/compiler/wrapper.py`
    - Added `self.workspace_root` initialization
    - Updated `generate_diagram()` with path resolution logic
 
-2. ✅ `/Users/malek/arclang/diagrams/` directory created
+2. ✅ `~/arclang/diagrams/` directory created
 
 ## Next Steps
 
@@ -142,8 +142,8 @@ output to diagrams, return summary only"
 ```
 
 Both will now correctly resolve:
-- `test-complete-phase1-4.arc` → `/Users/malek/arclang/test-complete-phase1-4.arc`
-- `diagrams` → `/Users/malek/arclang/diagrams/`
+- `test-complete-phase1-4.arc` → `~/arclang/test-complete-phase1-4.arc`
+- `diagrams` → `~/arclang/diagrams/`
 
 ---
 

@@ -103,7 +103,7 @@ All export formats working perfectly:
 
 ### Selenium Test Suite
 
-**Location:** `/Users/malek/arclang/tests/test_all_examples.py`
+**Location:** `~/arclang/tests/test_all_examples.py`
 
 **Features:**
 - Automated testing with headless Chrome

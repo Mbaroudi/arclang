@@ -122,6 +122,9 @@ pub struct Series {
     names: Vec<String>,
     rows: Vec<Vec<f64>>,
     units: BTreeMap<String, String>,
+    /// The variables that change only at events (Booleans, integers, discrete reals): between
+    /// two steps they keep their value.
+    held: std::collections::BTreeSet<String>,
 }
 
 impl Series {
@@ -146,11 +149,24 @@ impl Series {
         if rows.is_empty() {
             return Err("the result file holds no time step".to_string());
         }
-        Ok(Series { names, rows, units: BTreeMap::new() })
+        Ok(Series { names, rows, units: BTreeMap::new(), held: Default::default() })
     }
 
     pub fn set_units(&mut self, units: BTreeMap<String, String>) {
         self.units = units;
+    }
+
+    /// Which variables keep their value between two steps (see `held_from_init_xml`).
+    pub fn set_held(&mut self, held: std::collections::BTreeSet<String>) {
+        self.held = held;
+    }
+
+    pub fn is_held(&self, column: usize) -> bool {
+        self.names.get(column).is_some_and(|n| self.held.contains(n))
+    }
+
+    pub fn held(&self) -> &std::collections::BTreeSet<String> {
+        &self.held
     }
 
     pub fn column(&self, name: &str) -> Option<usize> {
@@ -214,7 +230,7 @@ impl Series {
 
     /// The first `steps` time steps: what was known at that instant.
     pub fn prefix(&self, steps: usize) -> Series {
-        Series { names: self.names.clone(), rows: self.rows[..steps.min(self.rows.len())].to_vec(), units: self.units.clone() }
+        Series { names: self.names.clone(), rows: self.rows[..steps.min(self.rows.len())].to_vec(), units: self.units.clone(), held: self.held.clone() }
     }
 
     /// Only the columns named (time is always kept), at most `steps` time
@@ -229,6 +245,7 @@ impl Series {
             names: columns.iter().map(|&i| self.names[i].clone()).collect(),
             rows: picked.iter().map(|&r| columns.iter().map(|&c| self.rows[r][c]).collect()).collect(),
             units: self.units.iter().filter(|(k, _)| keep(k)).map(|(k, v)| (k.clone(), v.clone())).collect(),
+            held: self.held.iter().filter(|k| keep(k)).cloned().collect(),
         }
     }
 
@@ -243,7 +260,8 @@ impl Series {
         out
     }
 
-    /// The mean over time (trapezoidal), or the value of a single instant.
+    /// The mean over time (trapezoidal; a held variable counts at the value it keeps), or the
+    /// value of a single instant.
     pub fn mean(&self, column: usize) -> Option<f64> {
         let first = self.rows.first()?;
         let last = self.rows.last()?;
@@ -251,11 +269,13 @@ impl Series {
         if span <= 0.0 {
             return Some(first[column]);
         }
-        let area: f64 = self.rows.windows(2).map(|w| (w[1][0] - w[0][0]) * (w[0][column] + w[1][column]) / 2.0).sum();
+        let held = self.is_held(column);
+        let area: f64 = self.rows.windows(2).map(|w| (w[1][0] - w[0][0]) * if held { w[0][column] } else { (w[0][column] + w[1][column]) / 2.0 }).sum();
         Some(area / span)
     }
 
-    /// The value at `time`, linearly interpolated; `None` outside the run.
+    /// The value at `time`: linearly interpolated, or, for a variable that changes only at
+    /// events, the value it keeps since the step before; `None` outside the run.
     pub fn at(&self, column: usize, time: f64) -> Option<f64> {
         let first = self.times().next()?;
         let last = self.times().last()?;
@@ -267,7 +287,7 @@ impl Series {
         let index = self.rows.iter().rposition(|r| r[0] <= time + tolerance).unwrap_or(0);
         let row = &self.rows[index];
         match self.rows.get(index + 1) {
-            Some(next) if next[0] > row[0] => Some(row[column] + (next[column] - row[column]) * (time - row[0]) / (next[0] - row[0])),
+            Some(next) if next[0] > row[0] && !self.is_held(column) => Some(row[column] + (next[column] - row[column]) * (time - row[0]) / (next[0] - row[0])),
             _ => Some(row[column]),
         }
     }
@@ -321,6 +341,37 @@ pub fn units_from_init_xml(xml: &str) -> BTreeMap<String, String> {
         let typed = block.find("<Real").map(|i| &block[i..]).and_then(|t| t.split('>').next());
         if let Some(unit) = typed.and_then(|t| xml_attribute(t, "unit")).filter(|u| !u.is_empty()) {
             out.insert(name, unit);
+        }
+    }
+    out
+}
+
+/// The variables a description declares as changing only at events: Booleans, integers,
+/// enumerations, and reals whose variability is `discrete`. A result holds them between steps.
+pub fn held_from_init_xml(xml: &str) -> std::collections::BTreeSet<String> {
+    let mut out = std::collections::BTreeSet::new();
+    if xml.contains("<ModelVariables") && !xml.contains("<ScalarVariable") {
+        // FMI 3.0: the variable is its own element, named by its type.
+        let body = xml.split("<ModelVariables").nth(1).and_then(|b| b.split("</ModelVariables>").next()).unwrap_or("");
+        for tag in body.split('<').skip(1) {
+            let tag = tag.split('>').next().unwrap_or("");
+            let kind = tag.split(|c: char| c.is_whitespace() || c == '/').next().unwrap_or("");
+            let Some(name) = xml_attribute(tag, "name") else { continue };
+            let whole = kind == "Boolean" || kind == "Enumeration" || kind.starts_with("Int") || kind.starts_with("UInt");
+            let real = kind.starts_with("Float");
+            if whole || (real && xml_attribute(tag, "variability").as_deref() == Some("discrete")) {
+                out.insert(name);
+            }
+        }
+        return out;
+    }
+    for block in xml.split("<ScalarVariable").skip(1) {
+        let block = block.split("</ScalarVariable>").next().unwrap_or(block);
+        let header = block.split('>').next().unwrap_or("");
+        let Some(name) = xml_attribute(header, "name") else { continue };
+        let whole = ["<Boolean", "<Integer", "<Enumeration"].iter().any(|t| block.contains(t));
+        if whole || xml_attribute(header, "variability").as_deref() == Some("discrete") {
+            out.insert(name);
         }
     }
     out
@@ -409,6 +460,24 @@ mod tests {
         assert!(series.reaches(5.0).unwrap_err().contains("did not end it"));
         assert!(Series::ended_by_the_model("LOG_STDOUT        | info    | Simulation call terminate() at time 2068.616656"));
         assert!(!Series::ended_by_the_model("LOG_SUCCESS       | info    | The simulation finished successfully."));
+        // A variable that changes only at events keeps its value between two steps.
+        let xml = r#"<ScalarVariable name="on" variability="discrete"><Boolean /></ScalarVariable>
+  <ScalarVariable name="gear" variability="discrete"><Integer /></ScalarVariable>
+  <ScalarVariable name="level" variability="discrete"><Real /></ScalarVariable>
+  <ScalarVariable name="T" variability="continuous"><Real unit="K" /></ScalarVariable>"#;
+        let held = held_from_init_xml(xml);
+        assert_eq!(held.iter().map(String::as_str).collect::<Vec<_>>(), ["gear", "level", "on"]);
+        let fmi3 = r#"<ModelVariables><Float64 name="T" unit="K"/><Boolean name="on"/><Int32 name="gear"/><Float64 name="level" variability="discrete"/></ModelVariables>"#;
+        assert_eq!(held_from_init_xml(fmi3).iter().map(String::as_str).collect::<Vec<_>>(), ["gear", "level", "on"]);
+        let mut stepped = Series::from_csv("\"time\",\"on\",\"T\"\n0,0,0\n10,1,10\n20,1,20\n").unwrap();
+        stepped.set_held(held);
+        let (on, t) = (stepped.column("on").unwrap(), stepped.column("T").unwrap());
+        assert_eq!(stepped.at(on, 5.0), Some(0.0), "not half on");
+        assert_eq!(stepped.at(on, 10.0), Some(1.0));
+        assert_eq!(stepped.at(t, 5.0), Some(5.0));
+        assert_eq!(stepped.mean(on), Some(0.5), "on for the second half");
+        assert_eq!(stepped.prefix(2).at(on, 5.0), Some(0.0));
+        assert_eq!(stepped.trimmed(&|n| n == "on", 10).at(1, 5.0), Some(0.0));
         assert!(Series::from_csv("\"time\",\"x\"\n0,a\n").is_err());
         let xml = r#"<ScalarVariable name = "a" /><ScalarVariable
     name = "body.distance" valueReference="1000" variability="continuous"

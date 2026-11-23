@@ -2,7 +2,7 @@
 
 ## Problems Identified
 
-1. **Outdated Binary**: `/Users/malek/.local/bin/arclang` was from Nov 1, missing Phase 1-4 parser fixes
+1. **Outdated Binary**: `~/.local/bin/arclang` was from Nov 1, missing Phase 1-4 parser fixes
 2. **Missing Output Directory**: MCP didn't create output directories before generating diagrams
 
 ## Solutions Applied
@@ -10,7 +10,7 @@
 ### 1. Updated Installed Binary
 ```bash
 cargo install --path . --force
-cp /Users/malek/.cargo/bin/arclang /Users/malek/.local/bin/arclang
+cp ~/.cargo/bin/arclang ~/.local/bin/arclang
 ```
 
 **Result**: Binary now includes:
@@ -20,7 +20,7 @@ cp /Users/malek/.cargo/bin/arclang /Users/malek/.local/bin/arclang
 - ✅ All Phase 1-4 features
 
 ### 2. Auto-Create Output Directories
-Updated `/Users/malek/arclang/mcp-server/src/arclang_mcp/compiler/wrapper.py` (lines 212-214):
+Updated `~/arclang/mcp-server/src/arclang_mcp/compiler/wrapper.py` (lines 212-214):
 
 ```python
 # Create output directory if it doesn't exist
@@ -86,9 +86,9 @@ Each diagram includes Phase 1-4 features:
 - Allocated functions shown inside components
 
 **Example Output Paths:**
-- `/Users/malek/arclang/diagrams/mcp-test/component.svg` (8KB)
-- `/Users/malek/arclang/diagrams/mcp-test/physical.svg` (5.3KB)
-- `/Users/malek/arclang/diagrams/mcp-test/operational.svg` (795B)
+- `~/arclang/diagrams/mcp-test/component.svg` (8KB)
+- `~/arclang/diagrams/mcp-test/physical.svg` (5.3KB)
+- `~/arclang/diagrams/mcp-test/operational.svg` (795B)
 - ...and 5 more diagram types
 
 ## Usage from Claude Desktop
@@ -112,13 +112,13 @@ After **restarting Claude Desktop** to reload MCP server:
 
 ## Files Modified
 
-1. ✅ `/Users/malek/.local/bin/arclang` - Updated to latest build
-2. ✅ `/Users/malek/arclang/mcp-server/src/arclang_mcp/compiler/wrapper.py` - Auto-creates directories
+1. ✅ `~/.local/bin/arclang` - Updated to latest build
+2. ✅ `~/arclang/mcp-server/src/arclang_mcp/compiler/wrapper.py` - Auto-creates directories
 
 ## Verification
 
 ```bash
-ls -lh /Users/malek/arclang/diagrams/mcp-test/
+ls -lh ~/arclang/diagrams/mcp-test/
 ```
 
 **Expected**: 8 SVG files with sizes ranging from 400B to 8KB

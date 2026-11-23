@@ -109,14 +109,13 @@ async def test_the_table_of_tools_is_the_list_of_tools(server):
 
 
 def test_the_exclusions_are_not_a_way_to_hide_a_capability():
-    """What is left out is interactive, stays running, opens a browser, or is not implemented."""
-    assert set(cli.NOT_EXPOSED) == {
-        "serve", "lsp", "repl", "explorer", "clean", "sync", "plugin", "help",
-    }, "a subcommand added to NOT_EXPOSED is a decision: change this list with it"
+    """What is left out is interactive, stays running or opens a browser."""
+    assert set(cli.NOT_EXPOSED) == {"serve", "lsp", "explorer", "help"}, "a subcommand added to NOT_EXPOSED is a decision: change this list with it"
 
 
 async def test_what_is_said_not_implemented_still_is_not(server, model):
-    """An exclusion whose reason is 'Not implemented' ends the day the compiler implements it."""
+    """What the help of the CLI hides is still not implemented: the day it is, it returns to the
+    help, and the tests above ask for a tool."""
     for arguments in (
         ["clean", "."],
         ["sync", "status", "."],
