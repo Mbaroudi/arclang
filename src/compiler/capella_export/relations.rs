@@ -21,6 +21,17 @@ pub(super) fn capability(context: &Context, mut el: El, id: &str, attributes: &H
             }
         }
     }
+    // What holds before and after the capability: a constraint of the
+    // capability each, named by `preCondition` and `postCondition`.
+    for (key, reference) in [("precondition", "preCondition"), ("postcondition", "postCondition")] {
+        let Some(body) = attributes.get(key).and_then(AttributeValue::as_string) else { continue };
+        let constraint = derived(&format!("{id}:{key}"));
+        el.set(reference, &format!("#{constraint}"));
+        el.push(
+            El::new("ownedConstraints", "capellacore:Constraint", &constraint)
+                .with(El::new("ownedSpecification", "datavalue:OpaqueExpression", &derived(&format!("{constraint}:expression"))).with(El::text("bodies", body)).with(El::text("languages", "capella:linkedText"))),
+        );
+    }
     if let Some(target) = realizes.and_then(|r| context.resolve(r)) {
         el.push(
             El::new("ownedAbstractCapabilityRealizations", "interaction:AbstractCapabilityRealization", &derived(&format!("{id}->{target}:realization")))

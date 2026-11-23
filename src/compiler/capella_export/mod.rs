@@ -450,7 +450,7 @@ fn available_in_states(model: &Model) -> Vec<(String, Vec<String>)> {
         out.push((a.id.clone(), states(&a.attributes)));
         a.sub_activities.iter().for_each(|s| activity(s, out, states));
     }
-    model.operational_analysis.iter().flat_map(|oa| &oa.activities).for_each(|a| activity(a, &mut out, &states));
+    model.operational_analysis.iter().flat_map(|oa| oa.activities.iter().chain(oa.entities.iter().flat_map(|e| &e.activities))).for_each(|a| activity(a, &mut out, &states));
     model.system_analysis.iter().flat_map(|sa| &sa.functions).for_each(|f| system(f, &mut out, &states));
     for la in &model.logical_architecture {
         la.functions.iter().for_each(|f| logical(f, &mut out, &states));

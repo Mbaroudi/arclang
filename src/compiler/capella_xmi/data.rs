@@ -146,14 +146,31 @@ fn is_quantity_literal(literal: &str) -> bool {
     !literal.starts_with('"') && crate::compiler::quantity::Quantity::parse(literal).is_ok()
 }
 
-/// The constraints owned by `node`: their expression bodies, as text.
+/// The constraints owned by `node`: their expression bodies, as text. The
+/// one a capability names as what holds before it, or after it, is its
+/// `precondition` or `postcondition`.
 pub(super) fn constraints_of(writer: &mut Writer, depth: usize, node: &Node) {
+    let capability = node.is("oa:OperationalCapability") || node.is("ctx:Capability") || node.is("la:CapabilityRealization");
+    let named = |reference: &str| text_attr(node, reference).filter(|_| capability).map(|r| r.trim_start_matches('#').to_string());
+    let (before, after) = (named("preCondition"), named("postCondition"));
     let mut bodies: Vec<String> = Vec::new();
+    let mut conditions: Vec<(&str, String)> = Vec::new();
     for constraint in node.tagged("ownedConstraints").filter(|c| c.is("capellacore:Constraint")) {
         let text = constraint_text(constraint);
-        if !text.is_empty() {
+        if text.is_empty() {
+            continue;
+        }
+        if before.as_deref() == Some(constraint.id()) {
+            conditions.push(("precondition", text));
+        } else if after.as_deref() == Some(constraint.id()) {
+            conditions.push(("postcondition", text));
+        } else {
             bodies.push(text);
         }
+    }
+    for (key, text) in &conditions {
+        writer.count("constraints");
+        writer.line(depth, &format!("{key}: {}", string_literal(text)));
     }
     if !bodies.is_empty() {
         writer.count_by("constraints", bodies.len());

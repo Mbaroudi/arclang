@@ -226,7 +226,7 @@ pub(super) fn capability_realization(context: &Context, realization: &crate::com
     let mut el = apply(
         El::new("ownedCapabilityRealizations", kind, &realization.id).attr("name", &realization.name),
         &realization.attributes,
-        &["involves", "realizes", "extends", "includes", "specializes", "parent", "mission"],
+        &["involves", "realizes", "extends", "includes", "specializes", "parent", "mission", "precondition", "postcondition"],
     );
     for involved in &realization.involves {
         let Some(target) = context.resolve(involved).map(str::to_string) else { continue };

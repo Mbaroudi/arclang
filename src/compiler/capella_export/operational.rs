@@ -49,12 +49,18 @@ fn register_activity(context: &mut Context, activity: &OperationalActivity) {
     }
 }
 
+/// The activities written inside an entity, each with the entity that
+/// performs it.
+fn inside_entities(oa: &OperationalAnalysis) -> impl Iterator<Item = (&str, &OperationalActivity)> {
+    oa.entities.iter().flat_map(|e| e.activities.iter().map(move |a| (e.id.as_str(), a)))
+}
+
 pub(super) fn register(context: &mut Context, oa: &OperationalAnalysis) {
     for entity in entities(oa) {
         context.register(&entity.id, &entity.id);
         context.register(entity.name, &entity.id);
     }
-    for activity in &oa.activities {
+    for activity in oa.activities.iter().chain(inside_entities(oa).map(|(_, a)| a)) {
         register_activity(context, activity);
     }
     for (index, exchange) in oa.exchanges.iter().enumerate() {
@@ -136,11 +142,19 @@ pub(super) fn write(context: &mut Context, oa: &OperationalAnalysis) -> El {
     }
     let mut performed = HashMap::new();
     performers(context, &oa.activities, &mut performed);
+    // An activity written inside an entity is performed by it, unless it names
+    // another performer itself.
+    for (entity, activity) in inside_entities(oa) {
+        performers(context, std::slice::from_ref(activity), &mut performed);
+        if !performed.values().any(|ids| ids.contains(&activity.id)) {
+            performed.entry(entity.to_string()).or_default().push(activity.id.clone());
+        }
+    }
 
     // Interactions and their ends, for the processes.
     let mut ends: HashMap<String, (String, String)> = HashMap::new();
     let mut root = El::new("ownedOperationalActivities", "oa:OperationalActivity", &derived(&format!("{id}:root-activity"))).attr("name", "Root Operational Activity");
-    for a in &oa.activities {
+    for a in oa.activities.iter().chain(inside_entities(oa).map(|(_, a)| a)) {
         root.push(activity(a));
     }
     let mut entity_means = Vec::new();
@@ -196,7 +210,7 @@ pub(super) fn write(context: &mut Context, oa: &OperationalAnalysis) -> El {
         let mut el = apply(
             El::new("ownedOperationalCapabilities", "oa:OperationalCapability", &capability.id).attr("name", &capability.name),
             &capability.attributes,
-            &["involves", "extends", "includes", "specializes", "parent", "level"],
+            &["involves", "extends", "includes", "specializes", "parent", "level", "precondition", "postcondition"],
         );
         for involved in &capability.involves {
             let Some(target) = context.resolve(involved).map(str::to_string) else { continue };
