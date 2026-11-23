@@ -53,7 +53,7 @@ export class LayersPanel {
   }
 
   toggle(force?: boolean): void {
-    const open = force ?? this.root.hidden;
+    const open = force ?? Boolean(this.root.hidden);
     this.root.hidden = !open;
     this.d.pressed(open);
     if (open) {
