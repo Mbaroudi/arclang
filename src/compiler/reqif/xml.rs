@@ -91,16 +91,15 @@ fn reference(name: &str) -> Option<char> {
     }
 }
 
-fn local(name: &[u8]) -> String {
-    let name = String::from_utf8_lossy(name);
-    name.rsplit(':').next().unwrap_or(&name).to_string()
+fn local(name: &str) -> String {
+    name.rsplit(':').next().unwrap_or(name).to_string()
 }
 
 fn element(e: &quick_xml::events::BytesStart) -> Node {
     let attributes = e
         .attributes()
         .flatten()
-        .map(|a| (local(a.key.as_ref()), unescape(&String::from_utf8_lossy(&a.value))))
+        .map(|a| (local(a.key.as_ref()), unescape(&a.value)))
         .collect();
     Node { name: local(e.name().as_ref()), attributes, ..Node::default() }
 }
@@ -134,16 +133,16 @@ pub fn parse(xml: &str) -> Result<Node, String> {
                 parent.children.push(node);
             }
             Event::Text(t) => {
-                let text = t.decode().map_err(|e| e.to_string())?;
-                push_text(stack.last_mut().expect("the document is open"), &unescape(&text));
+                let text: &str = &t;
+                push_text(stack.last_mut().expect("the document is open"), &unescape(text));
             }
             Event::CData(t) => {
-                let text = t.decode().map_err(|e| e.to_string())?.to_string();
-                push_text(stack.last_mut().expect("the document is open"), &text);
+                let text: &str = &t;
+                push_text(stack.last_mut().expect("the document is open"), text);
             }
             Event::GeneralRef(r) => {
-                let name = r.decode().map_err(|e| e.to_string())?;
-                let decoded = reference(&name).map(String::from).unwrap_or_else(|| format!("&{name};"));
+                let name: &str = &r;
+                let decoded = reference(name).map(String::from).unwrap_or_else(|| format!("&{name};"));
                 push_text(stack.last_mut().expect("the document is open"), &decoded);
             }
             _ => {}

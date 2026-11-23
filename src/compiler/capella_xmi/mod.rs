@@ -112,10 +112,10 @@ pub fn parse(xml: &str) -> Result<Node, String> {
         let is_empty = matches!(event, Event::Empty(_));
         match event {
             Event::Start(start) | Event::Empty(start) => {
-                let mut node = Node { tag: String::from_utf8_lossy(start.name().as_ref()).to_string(), ..Default::default() };
+                let mut node = Node { tag: start.name().as_ref().to_string(), ..Default::default() };
                 for attribute in start.attributes().flatten() {
-                    let key = String::from_utf8_lossy(attribute.key.as_ref()).to_string();
-                    let value = unescape(&String::from_utf8_lossy(&attribute.value));
+                    let key = attribute.key.as_ref().to_string();
+                    let value = unescape(&attribute.value);
                     if key == "xsi:type" || key == "xmi:type" {
                         node.kind = short_kind(&value);
                     } else {
@@ -133,14 +133,14 @@ pub fn parse(xml: &str) -> Result<Node, String> {
                 }
             }
             Event::Text(text) => {
-                let text = unescape(&String::from_utf8_lossy(&text));
+                let text = unescape(&text);
                 stack.last_mut().expect("document").text.push_str(&text);
             }
             // quick-xml reports `&lt;`, `&#xA;`… in a text apart from it.
             Event::GeneralRef(reference) => {
                 let resolved = match reference.resolve_char_ref() {
                     Ok(Some(c)) => Some(c),
-                    _ => match reference.decode().as_deref() {
+                    _ => match Ok::<&str, ()>(&reference) {
                         Ok("lt") => Some('<'),
                         Ok("gt") => Some('>'),
                         Ok("amp") => Some('&'),
@@ -154,7 +154,7 @@ pub fn parse(xml: &str) -> Result<Node, String> {
                 }
             }
             Event::CData(data) => {
-                let text = String::from_utf8_lossy(&data);
+                let text: &str = &data;
                 stack.last_mut().expect("document").text.push_str(&text);
             }
             Event::End(_) => {
