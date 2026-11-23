@@ -56,7 +56,7 @@ pub(super) fn tokenize(text: &str) -> Result<Vec<Token>, String> {
             if tokens.last() == Some(&Token::Word("doc".to_string())) {
                 tokens.pop();
                 let body: String = chars[start..end].iter().collect();
-                tokens.push(Token::Doc(body.trim().to_string()));
+                tokens.push(Token::Doc(crate::compiler::sysml_export::text::comment_body(&body)));
             }
             i = end + 2;
         } else if c == '\'' || c == '"' {
