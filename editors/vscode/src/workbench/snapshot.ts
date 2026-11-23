@@ -106,7 +106,10 @@ function verdictsChanged(folder: string): void {
     if (!isModelDocument(document) || document.uri.scheme !== 'file' || path.dirname(document.uri.fsPath) !== folder) continue;
     const key = document.uri.toString();
     if (snapshots.busy(key)) overtaken.add(key);
-    if (snapshots.forget(key) || snapshots.busy(key)) emitter.fire(document.uri);
+    snapshots.forget(key);
+    // Told whether a snapshot was kept or not: a view may still show one that
+    // was dropped since (a setting changed), and would never ask again.
+    emitter.fire(document.uri);
   }
 }
 
