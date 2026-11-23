@@ -53,6 +53,92 @@ fn noted(text: &str) -> String {
     text.replace("*/", "* /").replace(['\r', '\n'], " ")
 }
 
+/// The names a generated file declares, scope by scope: two names of the
+/// model that become the same identifier in one scope are a clash, and the
+/// file would not compile, or would silently mean one of the two.
+#[derive(Default)]
+pub(crate) struct Declared {
+    seen: std::collections::BTreeMap<(String, String), String>,
+    clashes: Vec<String>,
+}
+
+impl Declared {
+    /// `ident`, declared in `scope` for `origin` (what the model calls it).
+    pub(crate) fn add(&mut self, scope: &str, ident: &str, origin: &str) {
+        match self.seen.get(&(scope.to_string(), ident.to_string())) {
+            Some(first) => {
+                let within = if scope.is_empty() { String::new() } else { format!(" in {scope}") };
+                self.clashes.push(format!("{first} and {origin} both become `{ident}`{within}"));
+            }
+            None => {
+                self.seen.insert((scope.to_string(), ident.to_string()), origin.to_string());
+            }
+        }
+    }
+
+    pub(crate) fn clashes(self) -> Vec<String> {
+        self.clashes
+    }
+}
+
+/// Why no file is written: the names to tell apart in the model.
+pub fn refusal(what: &str, clashes: &[String]) -> String {
+    format!("{what} not generated: names of the model become the same identifier ({}); rename one of each pair", clashes.join("; "))
+}
+
+/// The names of the model that `generate_c_headers` would declare twice.
+pub fn clashes(ast: &Model) -> Vec<String> {
+    let mut d = Declared::default();
+    for dt in &ast.data_types {
+        let name = c_ident(&dt.name);
+        if let Some(values) = &dt.enumeration_values {
+            for v in values {
+                d.add("", &format!("{}_{}", name.to_uppercase(), c_ident(&v.name).to_uppercase()), &format!("value '{}' of '{}'", v.name, dt.name));
+            }
+        }
+        if dt.enumeration_values.is_some() || dt.base_type.is_some() {
+            d.add("", &format!("{name}_t"), &format!("data type '{}'", dt.name));
+        }
+    }
+    for class in &ast.classes {
+        d.add("", &format!("{}_t", c_ident(&class.name)), &format!("class '{}'", class.name));
+        for field in &class.fields {
+            d.add(&format!("class '{}'", class.name), &c_ident(&field.name), &format!("field '{}'", field.name));
+        }
+    }
+    for item in &ast.exchange_items {
+        d.add("", &format!("{}_msg_t", c_ident(&item.name)), &format!("exchange item '{}'", item.name));
+        for attr in &item.attributes {
+            d.add(&format!("exchange item '{}'", item.name), &c_ident(&attr.name), &format!("attribute '{}'", attr.name));
+        }
+    }
+    for la in &ast.logical_architecture {
+        for comp in &la.components {
+            let comp_id = if comp.id.is_empty() { &comp.name } else { &comp.id };
+            let prefix = c_ident(comp_id);
+            for port in &comp.ports {
+                let verb = if matches!(port.direction, PortDirection::In) { "on" } else { "send" };
+                d.add("", &format!("{prefix}_{verb}_{}", c_ident(&port.name)), &format!("port '{}' of '{comp_id}'", port.name));
+            }
+            for iface in &comp.interfaces_in {
+                d.add("", &format!("{prefix}_on_{}", c_ident(&iface.name)), &format!("'{}' required by '{comp_id}'", iface.name));
+            }
+            for iface in &comp.interfaces_out {
+                d.add("", &format!("{prefix}_send_{}", c_ident(&iface.name)), &format!("'{}' provided by '{comp_id}'", iface.name));
+            }
+        }
+    }
+    for machine in &ast.state_machines {
+        let mname = c_ident(&machine.name);
+        d.add("", &format!("{mname}_state_t"), &format!("state machine '{}'", machine.name));
+        d.add("", &format!("{mname}_step"), &format!("state machine '{}'", machine.name));
+        for state in &machine.states {
+            d.add("", &format!("{}_{}", mname.to_uppercase(), c_ident(&state.name).to_uppercase()), &format!("state '{}' of '{}'", state.name, machine.name));
+        }
+    }
+    d.clashes()
+}
+
 pub fn generate_c_headers(model: &SemanticModel, ast: &Model) -> String {
     let model_name = model.name.clone().unwrap_or_else(|| "arclang_model".into());
     let guard = format!("ARCLANG_{}_INTERFACES_H", c_ident(&model_name).to_uppercase());

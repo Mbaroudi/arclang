@@ -69,6 +69,67 @@ fn one_line(text: &str) -> String {
     text.replace(['\r', '\n'], " ")
 }
 
+/// The services to declare: one for each component that sends something,
+/// with what it sends, each once. A component the model shows at several
+/// levels under one name is one service.
+fn services(model: &SemanticModel) -> Vec<(&str, Vec<&str>)> {
+    let mut services: Vec<(&str, Vec<&str>)> = Vec::new();
+    for comp in &model.components {
+        let outgoing = model.interfaces.iter().filter(|i| {
+            let root = i.from.split('.').next().unwrap_or(&i.from);
+            root == comp.id || root == comp.name
+        });
+        for iface in outgoing {
+            let at = match services.iter().position(|(name, _)| *name == comp.name.as_str()) {
+                Some(at) => at,
+                None => {
+                    services.push((comp.name.as_str(), Vec::new()));
+                    services.len() - 1
+                }
+            };
+            if !services[at].1.contains(&iface.name.as_str()) {
+                services[at].1.push(iface.name.as_str());
+            }
+        }
+    }
+    services
+}
+
+/// The names of the model that `generate_proto` would declare twice.
+pub fn clashes(model: &SemanticModel, ast: &Model) -> Vec<String> {
+    let mut d = super::c_header_generator::Declared::default();
+    d.add("", "Ack", "the acknowledgement message");
+    for dt in &ast.data_types {
+        if let Some(values) = &dt.enumeration_values {
+            d.add("", &pascal(&dt.name), &format!("data type '{}'", dt.name));
+            let prefix = snake(&dt.name).to_uppercase();
+            d.add("", &format!("{prefix}_UNSPECIFIED"), &format!("the unspecified value of '{}'", dt.name));
+            for v in values {
+                d.add("", &format!("{prefix}_{}", snake(&v.name).to_uppercase()), &format!("value '{}' of '{}'", v.name, dt.name));
+            }
+        }
+    }
+    for class in &ast.classes {
+        d.add("", &pascal(&class.name), &format!("class '{}'", class.name));
+        for field in &class.fields {
+            d.add(&format!("class '{}'", class.name), &snake(&field.name), &format!("field '{}'", field.name));
+        }
+    }
+    for item in &ast.exchange_items {
+        d.add("", &format!("{}Msg", pascal(&item.name)), &format!("exchange item '{}'", item.name));
+        for attr in &item.attributes {
+            d.add(&format!("exchange item '{}'", item.name), &snake(&attr.name), &format!("attribute '{}'", attr.name));
+        }
+    }
+    for (component, sent) in services(model) {
+        d.add("", &format!("{}Service", pascal(component)), &format!("component '{component}'"));
+        for exchange in sent {
+            d.add(&format!("component '{component}'"), &pascal(exchange), &format!("exchange '{exchange}'"));
+        }
+    }
+    d.clashes()
+}
+
 pub fn generate_proto(model: &SemanticModel, ast: &Model) -> String {
     let model_name = model.name.clone().unwrap_or_else(|| "arclang_model".into());
     let mut out = String::new();
@@ -148,25 +209,10 @@ pub fn generate_proto(model: &SemanticModel, ast: &Model) -> String {
         }
         "Ack".into()
     };
-    for comp in &model.components {
-        let outgoing: Vec<_> = model
-            .interfaces
-            .iter()
-            .filter(|i| {
-                let root = i.from.split('.').next().unwrap_or(&i.from);
-                root == comp.id || root == comp.name
-            })
-            .collect();
-        if outgoing.is_empty() {
-            continue;
-        }
-        out.push_str(&format!("service {}Service {{\n", pascal(&comp.name)));
-        for iface in outgoing {
-            out.push_str(&format!(
-                "  rpc {}({}) returns (Ack);\n",
-                pascal(&iface.name),
-                msg_for(&iface.name)
-            ));
+    for (component, sent) in services(model) {
+        out.push_str(&format!("service {}Service {{\n", pascal(component)));
+        for exchange in sent {
+            out.push_str(&format!("  rpc {}({}) returns (Ack);\n", pascal(exchange), msg_for(exchange)));
         }
         out.push_str("}\n\n");
     }

@@ -1351,6 +1351,10 @@ pub enum ExportFormat {
     /// Not implemented: export HTML and print it.
     #[value(hide = true)]
     PDF,
+    /// A Databricks platform on AWS to start from, not a translation of the
+    /// model: the schemas (one per layer of its components), the SQL
+    /// warehouses and the governance groups come from the model; the
+    /// clusters, jobs, buckets and monitoring are a fixed skeleton to edit
     Terraform,
     SysML,
     /// The abstract syntax of the SysML v2 export, as the JSON records the
@@ -3854,6 +3858,10 @@ impl CliRunner {
                             .map_err(|e| CliError::Compilation(e.to_string()))?
                     }
                     ExportFormat::CHeaders => {
+                        let clashes = crate::compiler::c_header_generator::clashes(&result.ast);
+                        if !clashes.is_empty() {
+                            return Err(CliError::Compilation(crate::compiler::c_header_generator::refusal("C header", &clashes)));
+                        }
                         crate::compiler::c_header_generator::generate_c_headers(
                             &result.semantic_model, &result.ast)
                     }
@@ -3875,6 +3883,10 @@ impl CliRunner {
                         exported.text
                     }
                     ExportFormat::Proto => {
+                        let clashes = crate::compiler::proto_generator::clashes(&result.semantic_model, &result.ast);
+                        if !clashes.is_empty() {
+                            return Err(CliError::Compilation(crate::compiler::c_header_generator::refusal("Protobuf file", &clashes)));
+                        }
                         crate::compiler::proto_generator::generate_proto(
                             &result.semantic_model, &result.ast)
                     }
@@ -4031,6 +4043,7 @@ impl CliRunner {
                     ExportFormat::Terraform => {
                         use crate::compiler::terraform_databricks_generator::{generate_terraform_databricks, TerraformConfig};
                         let config = TerraformConfig::default();
+                        eprintln!("  note: a Databricks platform on AWS to start from: only the schemas, the SQL warehouses and the governance groups come from the model");
                         generate_terraform_databricks(&result.semantic_model, &config)
                             .map_err(|e| CliError::Compilation(e.to_string()))?
                     }

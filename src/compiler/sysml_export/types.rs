@@ -107,6 +107,9 @@ pub(super) fn write(e: &mut Exporter<'_>) {
                     e.line("end source;");
                     e.line("end target;");
                 }
+                if let Some(description) = ty.attributes.get("description").and_then(|d| d.as_string()) {
+                    e.line(&text::doc(description));
+                }
                 if !ty.required.is_empty() {
                     e.line(&text::doc(&format!("instances must provide: {}", ty.required.join(", "))));
                 }

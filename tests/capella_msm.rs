@@ -216,9 +216,14 @@ fn a_state_names_the_states_of_its_regions() {
 
 #[test]
 fn a_diagram_names_an_element_by_its_id_as_it_is() {
-    // EMF looks a fragment up without decoding it: Capella resolves `#Two regions.Link`,
-    // not `#Two%20regions.Link` (the connector then found no diagram for the region).
+    // EMF looks a fragment up without decoding it: an id is never written
+    // percent-encoded (the connector then found no diagram for the region).
+    // A region's id, made of names, has spaces: it is written as an id
+    // Capella can hold, the same in the model and in the diagram.
     let exported = exported(MACHINES, "msm");
-    assert!(exported.aird.contains("msm.capella#Two regions.Link\""), "the region's own id");
     assert!(!exported.aird.contains("#Two%20regions"));
+    let region = exported.capella.lines().find(|l| l.contains("capellacommon:Region") && l.contains("name=\"Link\"")).unwrap_or_else(|| panic!("{}", exported.capella));
+    let id = region.split(" id=\"").nth(1).and_then(|r| r.split('"').next()).unwrap();
+    assert!(!id.contains(' '), "{id}");
+    assert!(exported.aird.contains(&format!("msm.capella#{id}\"")), "the region's own id, {id}");
 }

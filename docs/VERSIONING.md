@@ -108,6 +108,27 @@ A verdict is expected to tighten between versions, never to loosen.
   system, or a capability realization) are Capella's pre-condition and
   post-condition, a constraint each, and come back as such on import; they
   used to be written as property values, and read back among `constraints`.
+- **JSON export.** The keys of every object of `export -f json` (and of the
+  YAML made from it, and of the `model.json` of a baseline) are in
+  alphabetical order, so the file is the same bytes on every run. The order
+  used to change from one run to the next; the fields of an element are no
+  longer in the order of their declaration.
+- **Capella ids.** An id with a space or a `#` cannot be referred to in a
+  Capella file (a reference is `#id`, several are separated by spaces): the
+  export writes an id made up from it, everywhere, and says so for each id
+  the model writes. It used to write the id as it was, in a file that
+  capellambse refused to read. An element without `id:` is concerned too,
+  its id being its name.
+- **C header and Protobuf exports.** Two names of the model that become the
+  same identifier (`Wheel Speed` and `Wheel_Speed`, `frontLeft` and
+  `front_left`) are told and no file is written; one used to be generated
+  that did not compile. A component shown at several levels under one name
+  is one Protobuf service, where it was declared once per level.
+- **SysML v2.** The description of a `type` is exported and read back. A
+  function made of functions that have a type comes back with them; in a
+  model of the Arcadia profile it used to be taken for a chain and left out.
+  A chain is what `#Chain` marks, or an action with typed steps and
+  successions.
 
 ## Identity stability guarantee
 
