@@ -124,7 +124,7 @@ All three primary diagram types (Operational, Component, Physical) now use the *
 
 ## Test Model
 
-**File**: `/Users/malek/arclang/emergency_braking_simple.arc`
+**File**: `~/arclang/emergency_braking_simple.arc`
 
 ### Model Statistics
 - **Operational Analysis**: 2 actors, 3 activities
@@ -336,7 +336,7 @@ All primary ArcLang diagram types now use the **ELK (Eclipse Layout Kernel)** en
 
 ---
 
-**Generated Diagrams**: `/Users/malek/arclang/diagrams/`
+**Generated Diagrams**: `~/arclang/diagrams/`
 - `operational_elk.svg` (4.2KB)
 - `component_elk.svg` (7.0KB)
 - `physical_elk.svg` (2.6KB)

@@ -183,7 +183,7 @@ arclang explorer emergency_braking_simple.arc \
 
 ```bash
 # Generate all diagram types at once
-cd /Users/malek/arclang
+cd ~/arclang
 for format in operational component physical tree; do
   arclang diagram emergency_braking_simple.arc \
     --format $format \
@@ -193,7 +193,7 @@ done
 
 ## 📁 Generated Files
 
-**Location**: `/Users/malek/arclang/diagrams/`
+**Location**: `~/arclang/diagrams/`
 
 ### Test Diagrams
 - ✅ `operational_elk.svg` - 4.2KB - Activities in swimlanes with ELK
@@ -341,7 +341,7 @@ open diagrams/physical_elk.svg     # ✅ Clear deployment
 
 ---
 
-**Location**: `/Users/malek/arclang/`  
+**Location**: `~/arclang/`  
 **Diagrams**: `diagrams/` folder  
 **Documentation**: 4 comprehensive reports created  
 **Test Model**: `emergency_braking_simple.arc`

@@ -1,4 +1,4 @@
-const { chromium } = require('/Users/malek/node_modules/playwright');
+const { chromium } = require('playwright');
 (async () => {
   const browser = await chromium.launch({ args: ['--host-resolver-rules=MAP *.vscode-cdn.net ~NOTFOUND'] });
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });

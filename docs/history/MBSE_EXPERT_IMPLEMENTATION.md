@@ -524,8 +524,8 @@ After restarting Claude Desktop:
 
 ## Files Modified
 
-1. ✅ `/Users/malek/arclang/mcp-server/src/arclang_mcp/mbse_expert.py` - Created expert system
-2. ✅ `/Users/malek/arclang/mcp-server/src/arclang_mcp/server.py` - Added 5 MBSE tools + routing
+1. ✅ `~/arclang/mcp-server/src/arclang_mcp/mbse_expert.py` - Created expert system
+2. ✅ `~/arclang/mcp-server/src/arclang_mcp/server.py` - Added 5 MBSE tools + routing
 
 ---
 

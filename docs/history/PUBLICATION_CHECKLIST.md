@@ -48,7 +48,7 @@
 
 ### Step 2: Connect Local to GitHub ⏳
 ```bash
-cd /Users/malek/Arclang
+cd ~/arclang
 git remote add origin https://github.com/YOUR_USERNAME/arclang.git
 git branch -M main
 git push -u origin main
@@ -264,7 +264,7 @@ Before going live, verify:
 # 1. Create GitHub repo first (on github.com)
 
 # 2. Then run these commands:
-cd /Users/malek/Arclang
+cd ~/arclang
 git remote add origin https://github.com/YOUR_USERNAME/arclang.git
 git branch -M main
 git push -u origin main

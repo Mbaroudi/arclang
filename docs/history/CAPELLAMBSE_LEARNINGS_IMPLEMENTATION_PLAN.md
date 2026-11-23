@@ -1113,7 +1113,7 @@ complexity = bridge.analyze_complexity()
 
 ## Updated Roadmap Integration
 
-Add to `/Users/malek/Arclang/README.md`:
+Add to `~/arclang/README.md`:
 
 ```markdown
 ### Version 1.3 (Enhanced Capabilities - Capellambse-Inspired) - Q1 2025

@@ -108,18 +108,14 @@ WITHOUT_SUBCOMMAND: Dict[str, str] = {
 }
 
 # Subcommands no tool runs, each with its reason. Anything interactive, anything
-# that stays running, anything that opens a browser, and what the compiler does
-# not implement.
+# that stays running, anything that opens a browser. What the compiler does not
+# implement is not in its help, and so is not named here.
 NOT_EXPOSED: Dict[str, str] = {
     "serve": "a server that stays running (the modeling API over HTTP): a tool call "
     "answers and ends; start it yourself, it is another way in, not a capability missing here",
     "lsp": "the language server of an editor: a conversation on the standard input",
-    "repl": "an interactive prompt",
     "explorer": "writes a page for a person to browse and can open a browser; an agent "
     "reads the same model through arclang_workbench and draws it with arclang_viewpoint_diagrams",
-    "clean": "the CLI answers 'Not implemented'",
-    "sync": "the CLI answers 'Not implemented' (there is no PLM connector)",
-    "plugin": "the CLI answers 'Not implemented' (there is no plugin system)",
     "help": "clap's own: the help of a subcommand, which the tool descriptions carry",
 }
 
@@ -263,7 +259,6 @@ OPTIONS: Dict[str, Dict[str, Reach]] = {
     "safety": {"--output": OUTPUT},
     "info": {
         "--metrics": ByServer("always passed: the counts are what the tool is for"),
-        "--dependencies": Never("the CLI answers 'Not implemented'"),
     },
     "set": {},
     "review": {

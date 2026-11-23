@@ -55,9 +55,7 @@ EXPORT_FORMATS: Tuple[str, ...] = (
 )
 
 # Export formats the CLI lists and the server does not offer, with the reason.
-EXPORT_FORMATS_NOT_OFFERED: Dict[str, str] = {
-    "pdf": "the CLI answers 'Not implemented' (export html and print it)",
-}
+EXPORT_FORMATS_NOT_OFFERED: Dict[str, str] = {}
 
 # Export formats whose `-o` is a DIRECTORY the compiler fills.
 DIRECTORY_EXPORT_FORMATS: Tuple[str, ...] = ("fmi", "modelica", "c", "fmu", "zephyr", "vhdl")

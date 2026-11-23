@@ -22,7 +22,7 @@
 //! simulated case's are. The run lasts as long as the data.
 
 use super::expects::{self, Context};
-use super::results::{units_from_init_xml, Series};
+use super::results::{held_from_init_xml, units_from_init_xml, Series};
 use super::tool::{self, ToolConfig};
 use crate::compiler::ast::{AttributeValue, Twin};
 use crate::compiler::modelica::{self, Export};
@@ -522,6 +522,9 @@ pub struct Measurements {
     pub columns: BTreeMap<String, Vec<Option<f64>>>,
     /// The first instant as written (a date-time, or a number).
     pub start: String,
+    /// By column: the first cell that is written and is not a number (its line, its text). A
+    /// twin that reads such a column is not judged on the cells that happen to be numbers.
+    pub unreadable: BTreeMap<String, (usize, String)>,
 }
 
 fn split(line: &str, delimiter: char) -> Vec<String> {
@@ -564,6 +567,7 @@ pub fn read_measurements(text: &str, data: &Data) -> Result<Measurements, String
     let mut times = Vec::new();
     let mut cells: Vec<Vec<Option<f64>>> = vec![Vec::new(); names.len()];
     let mut start = String::new();
+    let mut unreadable: BTreeMap<String, (usize, String)> = BTreeMap::new();
     for (number, line) in lines.enumerate() {
         let fields = split(line, delimiter);
         let Some(raw) = fields.get(time_column) else { continue };
@@ -573,7 +577,20 @@ pub fn read_measurements(text: &str, data: &Data) -> Result<Measurements, String
         }
         times.push(t);
         for (i, column) in cells.iter_mut().enumerate() {
-            column.push(fields.get(i).and_then(|v| v.replace(',', ".").parse::<f64>().ok()).filter(|v| v.is_finite()));
+            let text = fields.get(i).map(String::as_str).unwrap_or("");
+            // An empty cell, or one that says "not a number", is no value; any other text is not skipped.
+            let value = match text.replace(',', ".").parse::<f64>() {
+                Ok(v) if v.is_finite() => Some(v),
+                Ok(v) if v.is_nan() => None,
+                _ if text.is_empty() => None,
+                _ => {
+                    if i != time_column {
+                        unreadable.entry(names[i].clone()).or_insert((number + 2, text.to_string()));
+                    }
+                    None
+                }
+            };
+            column.push(value);
         }
     }
     if times.len() < 2 {
@@ -585,7 +602,7 @@ pub fn read_measurements(text: &str, data: &Data) -> Result<Measurements, String
     let first = times[0];
     let times: Vec<f64> = times.iter().map(|t| t - first).collect();
     let columns = names.into_iter().zip(cells).enumerate().filter(|(i, _)| *i != time_column).map(|(_, (n, c))| (n, c)).collect();
-    Ok(Measurements { times, columns, start })
+    Ok(Measurements { times, columns, start, unreadable })
 }
 
 /// A window as people read it: 45 s, 15 min, 6 h, 2 d.
@@ -690,7 +707,7 @@ pub fn read_parquet(path: &Path, data: &Data) -> Result<Measurements, String> {
         return Err("the instants of the data go back in time: sort the file by its time column".to_string());
     }
     let first = times[0];
-    Ok(Measurements { times: times.iter().map(|t| t - first).collect(), columns, start })
+    Ok(Measurements { times: times.iter().map(|t| t - first).collect(), columns, start, unreadable: BTreeMap::new() })
 }
 
 #[cfg(not(feature = "native"))]
@@ -701,6 +718,9 @@ pub fn read_parquet(_path: &Path, _data: &Data) -> Result<Measurements, String> 
 /// A measured column in SI at each instant, empty cells left out.
 fn channel(m: &Measurements, column: &str, unit: Option<&UnitSpec>) -> Result<Vec<(f64, f64)>, String> {
     let values = m.columns.get(column).ok_or_else(|| format!("the data has no column '{column}' (its columns: {})", m.columns.keys().cloned().collect::<Vec<_>>().join(", ")))?;
+    if let Some((line, text)) = m.unreadable.get(column) {
+        return Err(format!("the column '{column}' holds '{text}' at line {line}, which is not a number: leave a cell empty where there is no value"));
+    }
     let points: Vec<(f64, f64)> = m.times.iter().zip(values).filter_map(|(t, v)| v.map(|v| (*t, unit.map_or(v, |u| u.to_canonical(v))))).collect();
     if points.is_empty() {
         return Err(format!("the column '{column}' has no value"));
@@ -917,8 +937,15 @@ pub fn load_lines(export: &Export, staged: &[String]) -> Vec<String> {
     lines
 }
 
+/// Asks OpenModelica to count the wrapper's equations and unknowns before it is built. A wrapper
+/// that does not build stops the script there and leaves no message: this count is then what says why.
+pub fn check_lines() -> Vec<String> {
+    vec![format!("print(\"@@check \" + checkModel({WRAPPER}) + \"\\n\");"), "print(getErrorString());".to_string()]
+}
+
 fn script(export: &Export, staged: &[String], spec: &Spec, stop: f64, intervals: usize) -> String {
     let mut lines = load_lines(export, staged);
+    lines.extend(check_lines());
     lines.push(format!(
         "simulate({WRAPPER}, startTime=0, stopTime={}, numberOfIntervals={intervals}, tolerance={}, outputFormat=\"csv\", fileNamePrefix=\"{RESULT}\", simflags=\"-csvInput=twin_inputs.csv\");",
         modelica::names::real(stop),
@@ -1009,7 +1036,26 @@ pub fn failure(output: &str, what: &str) -> String {
         return format!("drives: '{name}' is a parameter of the physics: a measurement can only drive a variable; declare it as a variable (or an input) in the Modelica source");
     }
     let errors: Vec<&str> = output.lines().filter(|l| l.contains("Error")).take(4).collect();
+    // OpenModelica builds nothing from a model with more equations than unknowns, or fewer, and says nothing of it.
+    if let Some((equations, variables)) = balance(output).filter(|(e, v)| e != v && errors.is_empty()) {
+        return if equations > variables {
+            format!(
+                "the twin could not be {what}: its model has {equations} equations for {variables} unknowns, {} too many. A driven variable takes its value where it is declared (`Real x = ...;`), which the measurement replaces; given by an equation instead, it is defined twice",
+                equations - variables
+            )
+        } else {
+            format!("the twin could not be {what}: its model has {equations} equations for {variables} unknowns, {} missing: a variable of the physics has no equation", variables - equations)
+        };
+    }
     format!("the twin could not be {what}{}", if errors.is_empty() { " (see the log)".to_string() } else { format!(": {}", errors.join(" ")) })
+}
+
+/// The equations and the unknowns OpenModelica counted in the wrapper (`check_lines`), when it did.
+fn balance(output: &str) -> Option<(u64, u64)> {
+    let after = output.split("@@check ").nth(1)?;
+    let line = after.lines().find(|l| l.contains(" equation(s) and "))?;
+    let mut numbers = line.split_whitespace().filter_map(|w| w.parse::<u64>().ok());
+    Some((numbers.next()?, numbers.next()?))
 }
 
 /// The variables of the model the twin reads: what it is compared on, what its expectations read.
@@ -1113,6 +1159,7 @@ pub fn run_on(result: &CompilationResult, model_path: &Path, twin: &Twin, spec: 
         Err(error) => return finish(Outcome { verdict: "error".to_string(), ..outcome }, error),
     };
     series.set_units(units_from_init_xml(&xml));
+    series.set_held(held_from_init_xml(&xml));
     if let Some(error) = series.reaches(outcome.duration.max(1e-6)).err().filter(|_| !Series::ended_by_the_model(&run.output)) {
         return finish(Outcome { verdict: "error".to_string(), ..outcome }, error);
     }
@@ -1195,6 +1242,31 @@ pub fn judge(mut outcome: Outcome, spec: &Spec, instances: &BTreeMap<String, Str
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const REFUSED: &str = "@@load twin.mo true\n\n@@check Check of ArcLangTwin completed successfully.\nClass ArcLangTwin has 9 equation(s) and 8 variable(s).\n4 of these are trivial equation(s).\n\nrecord SimulationResult\n    messages = \"Failed to build model: ArcLangTwin\",\nend SimulationResult;\n";
+
+    #[test]
+    fn a_model_with_an_equation_too_many_says_so_and_what_a_driven_variable_needs() {
+        let reason = failure(REFUSED, "simulated");
+        assert!(reason.contains("9 equations for 8 unknowns, 1 too many"), "{reason}");
+        assert!(reason.contains("where it is declared"), "{reason}");
+        assert!(!reason.contains("see the log"), "{reason}");
+    }
+
+    #[test]
+    fn a_model_with_an_equation_missing_says_so() {
+        let reason = failure(&REFUSED.replace("9 equation(s) and 8", "7 equation(s) and 8"), "built as an FMU");
+        assert!(reason.contains("could not be built as an FMU: its model has 7 equations for 8 unknowns, 1 missing"), "{reason}");
+    }
+
+    #[test]
+    fn a_balanced_model_that_fails_keeps_the_errors_openmodelica_gives() {
+        let balanced = REFUSED.replace("9 equation(s) and 8", "8 equation(s) and 8");
+        assert_eq!(failure(&balanced, "simulated"), "the twin could not be simulated (see the log)");
+        let reason = failure(&format!("{REFUSED}Error: division by zero at time 3\n"), "simulated");
+        assert!(reason.ends_with("Error: division by zero at time 3"), "{reason}");
+        assert_eq!(failure("record SimulationResult\nend SimulationResult;\n", "simulated"), "the twin could not be simulated (see the log)");
+    }
 
     fn attributes(text: &str) -> HashMap<String, AttributeValue> {
         let source = format!("model T {{ name: \"t\" }}\ntwin \"W\" {}\n", text);
@@ -1318,6 +1390,18 @@ mod tests {
         assert_eq!(parse_compare("T ~ room °C within 0.5 K for 99 %").unwrap().share, 0.99);
         assert_eq!(parse_compare("T ~ room °C within 0.5 K").unwrap().share, 1.0);
         assert!(parse_compare("T ~ room within 0.5 for 120 %").unwrap_err().contains("0 to 100"));
+    }
+
+    #[test]
+    fn a_cell_that_is_not_a_number_is_not_skipped() {
+        let data = Data { file: "x.csv".into(), live: None, time: "t".into(), time_unit: lookup_unit("s").unwrap(), delimiter: None };
+        let m = read_measurements("t,room,state,gap\n0,20,OK,\n1,ERR,OK,NaN\n2,21,OK,3\n", &data).unwrap();
+        assert_eq!(m.unreadable.get("room"), Some(&(3, "ERR".to_string())));
+        let error = channel(&m, "room", None).unwrap_err();
+        assert!(error.contains("'ERR' at line 3"), "{error}");
+        // A column of text the twin does not read is no one's concern; an empty cell and NaN are no value.
+        assert!(m.unreadable.contains_key("state"));
+        assert_eq!(channel(&m, "gap", None).unwrap(), vec![(2.0, 3.0)]);
     }
 
     #[test]

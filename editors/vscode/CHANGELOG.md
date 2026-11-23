@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Fixed: the tools `arclang_set_attribute` and `arclang_rename` replaced the document with a text computed before your last keystrokes, and said "Applied" whatever VS Code answered. The edit is now refused when the document changed while it was computed, and a refused edit is reported as one.
+- Fixed: a proposal of the assistant that was stopped after its files were written (the model changed meanwhile, an edit refused, a file that cannot be written) left those files on disk. They are taken back: a proposal is applied whole or not at all.
+- Fixed: **Replace … in the editor** in the `@arclang` chat replaced a document that had changed since the model was written from it; it is now refused, and **Open as a new file** still shows the model.
+- Fixed: a view that asked for the snapshot of a document while an older version of it was being compiled got the older one.
+- Fixed: the file a PDF or PowerPoint export is written to is the one the command or the save dialog gave; the path the page sent back is no longer read.
+- Fixed: git is not run in a workspace that is not trusted (compare, history, branches, merge, CI): a repository's configuration can name programs to run.
+
 ## 4.13.0
 
 - Added: the example `examples/aerospace/tower-catch`: a heavy vehicle's belly flop, flip, landing burn and catch by two arms, simulated in OpenModelica, six requirements, the production gate passes (DO-178C); a flip started too low fails it.

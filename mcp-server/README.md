@@ -27,10 +27,9 @@ compiler's rule: it never says more than the compiler did.
 - Every tool is one subcommand of the CLI, and every subcommand has its tool.
   `tools/cli.py` says which subcommand each tool runs, and lists what is left
   out on purpose with its reason: the commands that are interactive, stay
-  running or open a browser (`serve`, `lsp`, `repl`, `explorer`), those the
-  CLI answers "Not implemented" for (`clean`, `sync`, `plugin`,
-  `info --dependencies`, `export -f pdf`), and a few options (`--open`,
-  `debug --dap`, `merge --install`). `tests/test_cli_parity.py` reads
+  running or open a browser (`serve`, `lsp`, `explorer`), and a few options
+  (`--open`, `debug --dap`, `merge --install`). What the CLI does not
+  implement is not in its help, and has no tool. `tests/test_cli_parity.py` reads
   `arclang --help` and fails when a subcommand, an option, a format, a view,
   a table kind or an edit operation exists that no tool reaches and no list
   leaves out. Every command line is an argument list, never a shell.
@@ -300,11 +299,9 @@ reduced result for each: see [BATCH_EXECUTION_GUIDE.md](BATCH_EXECUTION_GUIDE.md
 ### Not offered, on purpose
 
 The one place that says so is `src/arclang_mcp/tools/cli.py`, with a reason
-for each: `serve`, `lsp` and `repl` (they stay running or talk on the
-standard input), `explorer` (a page for a person, which can open a browser),
-`clean`, `sync` and `plugin` (the CLI answers "Not implemented"), and the
-options `--open`, `debug --dap`, `merge --install`, `info --dependencies`,
-`--verbose` and `--as`. Everything else of `arclang --help` has a tool.
+for each: `serve` and `lsp` (they stay running or talk on the standard
+input), `explorer` (a page for a person, which can open a browser), and the
+options `--open`, `debug --dap`, `merge --install`, `--verbose` and `--as`. Everything else of `arclang --help` has a tool.
 
 ## Tests
 

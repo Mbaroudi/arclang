@@ -54,7 +54,7 @@ Claude Desktop générait:
 
 ### 1. **Mise à Jour ARCLANG_SYNTAX_RULES.md** ✅
 
-**Fichier**: `/Users/malek/arclang/mcp-server/ARCLANG_SYNTAX_RULES.md`
+**Fichier**: `~/arclang/mcp-server/ARCLANG_SYNTAX_RULES.md`
 
 **Changements**:
 
@@ -105,7 +105,7 @@ Exemple de 60+ lignes montrant operational_analysis avec:
 
 ### 2. **Mise à Jour conversational-ai.ts** ✅
 
-**Fichier**: `/Users/malek/arclang/arcviz-web/apps/api/src/services/conversational-ai.ts`
+**Fichier**: `~/arclang/arcviz-web/apps/api/src/services/conversational-ai.ts`
 
 **Changements**:
 
@@ -148,7 +148,7 @@ Par un exemple complet de 25 lignes:
 
 ### 3. **Création Modèle Référence Complet** ✅
 
-**Fichier**: `/Users/malek/arclang/emergency_braking_sensor_fusion_complete.arc`
+**Fichier**: `~/arclang/emergency_braking_sensor_fusion_complete.arc`
 
 **Contenu**: 550+ lignes avec:
 - ✅ `model EmergencyBrakingSensorFusion { }`
@@ -181,7 +181,7 @@ Par un exemple complet de 25 lignes:
 - `req STK_001` au lieu de `req STK-001`
 - `traces: [STK_001]` au lieu de `traces: [STK-001]`
 
-**Action requise**: Fix dans `/Users/malek/arclang/src/compiler/parser.rs`
+**Action requise**: Fix dans `~/arclang/src/compiler/parser.rs`
 
 ### 2. **Casse des Attributs** ⚠️
 
@@ -252,7 +252,7 @@ req SYS_001 "Title" {
 
 ### Priorité 3: Fix Parser Bug (Optionnel)
 
-**Fichier**: `/Users/malek/arclang/src/compiler/parser.rs`
+**Fichier**: `~/arclang/src/compiler/parser.rs`
 
 Chercher le parsing des IDs de requirements et permettre les tirets:
 ```rust
@@ -283,7 +283,7 @@ Pour vérifier que tout fonctionne:
 
 ```bash
 # 1. Vérifier arclang accessible
-which arclang  # Doit retourner: /Users/malek/.local/bin/arclang
+which arclang  # Doit retourner: ~/.local/bin/arclang
 arclang --version  # Doit retourner: arclang 1.0.0
 
 # 2. Tester modèle minimal sans tirets
@@ -320,15 +320,15 @@ arclang check test.arc  # Doit retourner: ✓ No compilation errors
 
 ### Fichiers de Référence
 
-1. **Syntax Rules**: `/Users/malek/arclang/mcp-server/ARCLANG_SYNTAX_RULES.md`
-2. **Install Guide**: `/Users/malek/arclang/ARCLANG_INSTALL_GUIDE.md`
-3. **MCP README**: `/Users/malek/arclang/mcp-server/README.md`
-4. **Modèle Exemple**: `/Users/malek/arclang/emergency_braking_sensor_fusion_complete.arc`
+1. **Syntax Rules**: `~/arclang/mcp-server/ARCLANG_SYNTAX_RULES.md`
+2. **Install Guide**: `~/arclang/ARCLANG_INSTALL_GUIDE.md`
+3. **MCP README**: `~/arclang/mcp-server/README.md`
+4. **Modèle Exemple**: `~/arclang/emergency_braking_sensor_fusion_complete.arc`
 
 ### Exemples qui Compilent
 
-- `/Users/malek/arclang/examples/emergency_braking_logical.arc` ✅
-- `/Users/malek/arclang/examples/vehicle-system.arc` ✅
+- `~/arclang/examples/emergency_braking_logical.arc` ✅
+- `~/arclang/examples/vehicle-system.arc` ✅
 
 ### Claude Desktop Config
 
@@ -341,9 +341,9 @@ arclang check test.arc  # Doit retourner: ✓ No compilation errors
       "command": "/opt/homebrew/bin/python3.11",
       "args": ["-m", "arclang_mcp.server"],
       "env": {
-        "ARCLANG_WORKSPACE": "/Users/malek/arclang",
-        "ARCLANG_BINARY": "/Users/malek/.local/bin/arclang",
-        "PATH": "/Users/malek/.local/bin:/Users/malek/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+        "ARCLANG_WORKSPACE": "~/arclang",
+        "ARCLANG_BINARY": "~/.local/bin/arclang",
+        "PATH": "~/.local/bin:~/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
       }
     }
   }

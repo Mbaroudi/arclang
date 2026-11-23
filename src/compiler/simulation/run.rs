@@ -3,7 +3,7 @@
 //! the model without simulating anything.
 
 use super::expects::{self, Context};
-use super::results::{units_from_init_xml, Series};
+use super::results::{held_from_init_xml, units_from_init_xml, Series};
 use super::tool::{self, Tool, ToolConfig};
 use super::montecarlo;
 use super::sweep::{self, Point};
@@ -625,6 +625,7 @@ fn evaluate_point(csv: &str, xml: &str, stop: Option<f64>, parsed: &[expects::Ex
         series.reaches(stop)?;
     }
     series.set_units(units_from_init_xml(xml));
+    series.set_held(held_from_init_xml(xml));
     parsed.iter().map(|expect| expects::evaluate(expect, &mut Context { series: &series, notes })).collect()
 }
 
