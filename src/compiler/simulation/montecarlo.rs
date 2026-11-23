@@ -26,7 +26,7 @@
 use super::sweep::{self, Level, Point};
 use super::PointOutcome;
 use crate::compiler::quantity::Quantity;
-use rand_chacha::rand_core::{RngCore, SeedableRng};
+use rand_chacha::rand_core::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 use statrs::distribution::{Beta, ContinuousCDF, Normal, Triangular, Uniform};
