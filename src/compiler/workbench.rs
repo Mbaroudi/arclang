@@ -239,8 +239,15 @@ fn snapshot_of(compiled: Result<crate::CompilationResult, crate::CompilerError>,
                 cesam,
                 sysmlv2: options.exports.then(|| crate::compiler::sysmlv2_generator::generate_sysmlv2(model, &result.ast)),
                 reqif: options.exports.then(|| crate::compiler::reqif::generate_reqif(model, &result.ast)),
-                c_headers: options.exports.then(|| crate::compiler::c_header_generator::generate_c_headers(model, &result.ast)),
-                proto: options.exports.then(|| crate::compiler::proto_generator::generate_proto(model, &result.ast)),
+                // A file that would declare a name twice is not shown: the reason is, as a comment.
+                c_headers: options.exports.then(|| match crate::compiler::c_header_generator::clashes(&result.ast) {
+                    clashes if clashes.is_empty() => crate::compiler::c_header_generator::generate_c_headers(model, &result.ast),
+                    clashes => format!("/* {} */\n", crate::compiler::c_header_generator::refusal("C header", &clashes).replace("*/", "* /")),
+                }),
+                proto: options.exports.then(|| match crate::compiler::proto_generator::clashes(model, &result.ast) {
+                    clashes if clashes.is_empty() => crate::compiler::proto_generator::generate_proto(model, &result.ast),
+                    clashes => format!("// {}\n", crate::compiler::c_header_generator::refusal("Protobuf file", &clashes).replace('\n', " ")),
+                }),
             }
         }
     }

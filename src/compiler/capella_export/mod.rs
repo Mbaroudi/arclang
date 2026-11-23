@@ -31,6 +31,7 @@ mod operational;
 mod physical;
 mod relations;
 mod requirements;
+mod safe_ids;
 mod scenarios;
 mod stpa;
 mod system;
@@ -64,7 +65,12 @@ pub fn added_root_system(system_analysis_id: &str) -> String {
 }
 
 pub fn export(model: &Model, file_stem: &str) -> Exported {
+    let safe = safe_ids::model_with_safe_ids(model);
+    let model = safe.as_ref().map(|(model, _)| model).unwrap_or(model);
     let mut context = Context::default();
+    for note in safe.iter().flat_map(|(_, notes)| notes) {
+        context.note(note.clone());
+    }
     let name = model_name(model);
     let project_id = context::id_of(&model.attributes, &format!("project:{name}"));
     let mut project = El::root("org.polarsys.capella.core.data.capellamodeller:Project").attr("xmi:version", "2.0");

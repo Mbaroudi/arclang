@@ -255,19 +255,32 @@ impl Model {
         self.refinements.extend(refinements);
     }
 
-    /// Export the model to JSON string for diagram rendering
+    /// The model as JSON text, the same bytes on every run: the keys of each
+    /// object are in alphabetical order (attributes are kept in hash maps,
+    /// whose order changes from one run to the next).
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
-        serde_json::to_string_pretty(self)
+        serde_json::to_string_pretty(&self.to_json_value()?)
     }
-    
-    /// Export the model to JSON value for programmatic access
+
+    /// The model as a JSON value, the keys of each object in alphabetical order.
     pub fn to_json_value(&self) -> Result<serde_json::Value, serde_json::Error> {
-        serde_json::to_value(self)
+        fn ordered(value: serde_json::Value) -> serde_json::Value {
+            match value {
+                serde_json::Value::Object(map) => {
+                    let mut entries: Vec<(String, serde_json::Value)> = map.into_iter().collect();
+                    entries.sort_by(|a, b| a.0.cmp(&b.0));
+                    serde_json::Value::Object(entries.into_iter().map(|(k, v)| (k, ordered(v))).collect())
+                }
+                serde_json::Value::Array(items) => serde_json::Value::Array(items.into_iter().map(ordered).collect()),
+                other => other,
+            }
+        }
+        serde_json::to_value(self).map(ordered)
     }
-    
-    /// Export the model to compact JSON (no pretty printing)
+
+    /// The model as compact JSON, with the same order of keys.
     pub fn to_json_compact(&self) -> Result<String, serde_json::Error> {
-        serde_json::to_string(self)
+        serde_json::to_string(&self.to_json_value()?)
     }
 }
 

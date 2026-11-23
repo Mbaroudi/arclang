@@ -332,7 +332,7 @@ impl<'g> Mapper<'g> {
         let typed_steps = children.iter().filter(|c| c.kind == "ActionUsage" && c.types.iter().any(|t| matches!(self.graph.kind_of(t), "ActionDefinition" | "ActionUsage"))).count();
         let successions = children.iter().filter(|c| c.kind == "SuccessionAsUsage" || c.kind == "Succession").count();
         // Outside the profile, typed sub-actions are a decomposition.
-        (self.profiled && typed_steps >= 2) || (typed_steps >= 1 && successions >= 1)
+        typed_steps >= 1 && successions >= 1
     }
 
     // --- the structural nodes ---------------------------------------------
@@ -934,14 +934,21 @@ impl<'g> Mapper<'g> {
                 Some(parent) => self.line(0, &format!("type {} extends {} {{", string_literal(&name), string_literal(&parent))),
                 None => self.line(0, &format!("type {} {{", string_literal(&name))),
             }
-            if let Some(doc) = Self::description(def) {
-                // The export says a type's required attributes in its documentation.
+            // The export says a type's required attributes in a documentation
+            // of their own, after its description.
+            let exported = Self::exported_doc(def).map(|(n, r)| format!("{n} ({r})"));
+            let mut described = false;
+            for doc in def.docs.iter().filter(|d| exported.as_deref() != Some(d.as_str())) {
                 match doc.strip_prefix("instances must provide:") {
                     Some(list) => {
                         let required: Vec<String> = list.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
                         self.line(1, &format!("required: {}", list_literal(&required)));
                     }
-                    None => self.line(1, &format!("description: {}", string_literal(&doc))),
+                    None if !described => {
+                        described = true;
+                        self.line(1, &format!("description: {}", string_literal(doc)));
+                    }
+                    None => {}
                 }
             }
             self.attributes(1, &[def], &["description"]);
