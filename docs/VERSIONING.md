@@ -101,6 +101,13 @@ A verdict is expected to tighten between versions, never to loosen.
   (it used to gain indentation, and a line starting with a star was read
   differently by other tools). A file written by hand with such a margin
   loses the stars on import, where it used to keep them.
+- **Capella export of the operational analysis.** An `activity` written
+  inside an `entity` is exported, performed by that entity; it used to be
+  left out, with the interactions and the capability involvements that
+  name it. `precondition` and `postcondition` of a capability (operational,
+  system, or a capability realization) are Capella's pre-condition and
+  post-condition, a constraint each, and come back as such on import; they
+  used to be written as property values, and read back among `constraints`.
 
 ## Identity stability guarantee
 

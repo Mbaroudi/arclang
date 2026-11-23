@@ -224,7 +224,7 @@ pub(super) fn write(context: &mut Context, sa: &SystemAnalysis, above_root: Opti
         let mut el = apply(
             El::new("ownedCapabilities", "ctx:Capability", &capability.id).attr("name", &capability.name),
             &capability.attributes,
-            &["involves", "mission", "realizes", "parent", "extends", "includes", "specializes", "also_exploited_by"],
+            &["involves", "mission", "realizes", "parent", "extends", "includes", "specializes", "also_exploited_by", "precondition", "postcondition"],
         );
         for involved in &capability.involves {
             let Some(target) = context.resolve(involved).map(str::to_string) else { continue };
