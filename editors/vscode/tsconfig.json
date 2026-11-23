@@ -14,7 +14,12 @@
     "skipLibCheck": true,
     "sourceMap": true,
     "outDir": "out",
-    "rootDir": "."
+    "rootDir": ".",
+    "types": [
+      "node",
+      "vscode",
+      "mocha"
+    ]
   },
   "include": [
     "src",
