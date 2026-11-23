@@ -553,7 +553,7 @@ impl Parser {
             language = Some(self.string()?);
         }
         let body = match self.advance() {
-            Some(Kind::Comment(body)) => body.trim().to_string(),
+            Some(Kind::Comment(body)) => crate::compiler::sysml_export::text::comment_body(&body),
             _ => {
                 self.position -= 1;
                 return Err(self.error("a comment body `/* ... */`"));

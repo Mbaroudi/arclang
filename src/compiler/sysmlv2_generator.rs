@@ -105,7 +105,8 @@ fn string_literal(text: &str) -> String {
 }
 
 fn doc_line(indent: &str, text: &str) -> String {
-    format!("{indent}doc /* {} */\n", text.replace("*/", "* /"))
+    // A line after the first starts with ` * `, which a reader of the language takes off.
+    format!("{indent}doc /* {} */\n", text.replace("*/", "* /").replace('\n', &format!("\n{indent} * ")))
 }
 
 /// Unique identifier allocator: the same key always maps to the same

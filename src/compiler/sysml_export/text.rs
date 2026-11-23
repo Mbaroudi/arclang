@@ -56,9 +56,27 @@ pub fn string(text: &str) -> String {
     format!("\"{}\"", text.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
-/// `doc /* ... */`, the end marker of the comment made harmless.
+/// `doc /* ... */`, the end marker of the comment made harmless. Each line after the first
+/// starts with ` * `, which a reader of the language takes off (see `comment_body`): a line of
+/// the text that itself starts with a star, or with spaces, comes back as it was written.
 pub fn doc(text: &str) -> String {
-    format!("doc /* {} */", text.replace("*/", "* /"))
+    format!("doc /* {} */", text.replace("*/", "* /").replace('\n', "\n * "))
+}
+
+/// The text of a comment from what stands between `/*` and `*/`, as the language reads it: on
+/// each line after the first, the white space before a star, the star and one space after it
+/// are not part of the text.
+pub fn comment_body(raw: &str) -> String {
+    let mut lines = raw.split('\n');
+    let mut body = lines.next().unwrap_or("").to_string();
+    for line in lines {
+        body.push('\n');
+        match line.trim_start().strip_prefix('*') {
+            Some(rest) => body.push_str(rest.strip_prefix(' ').unwrap_or(rest)),
+            None => body.push_str(line),
+        }
+    }
+    body.trim().to_string()
 }
 
 pub fn number(n: f64) -> String {
@@ -128,5 +146,30 @@ mod tests {
         assert!(written("0.1234567891234 s").starts_with("0.1234567891234 ["), "{}", written("0.1234567891234 s"));
         assert!(written("20 °C").starts_with("293.15 ["), "{}", written("20 °C"));
         assert!(written("85 %").starts_with("85 ["), "{}", written("85 %"));
+    }
+}
+
+#[cfg(test)]
+mod comment_tests {
+    use super::{comment_body, doc};
+
+    fn read(written: &str) -> String {
+        comment_body(written.strip_prefix("doc /*").and_then(|rest| rest.strip_suffix("*/")).expect("a doc comment"))
+    }
+
+    #[test]
+    fn a_line_that_starts_with_a_star_or_with_spaces_comes_back_as_written() {
+        for text in ["one line", "limits:\n\t\t\t* vertical\n\t\t\t* horizontal", "a\n\n    indented\n* star", "a\n * b"] {
+            assert_eq!(read(&doc(text)), text);
+            // Indented by the writer of a nested body, as `Emitter::line` does.
+            let nested = doc(text).replace('\n', "\n        ");
+            assert_eq!(read(&nested), text);
+        }
+    }
+
+    #[test]
+    fn a_comment_written_by_hand_loses_its_margin_of_stars() {
+        assert_eq!(comment_body("\n     * first\n     * second\n     "), "first\nsecond");
+        assert_eq!(comment_body(" kept\n   as it is "), "kept\n   as it is");
     }
 }

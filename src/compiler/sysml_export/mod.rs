@@ -17,7 +17,7 @@ mod relations;
 mod security;
 mod views;
 mod tables; // tables hook
-mod text;
+pub(crate) mod text;
 mod types;
 
 use crate::compiler::ast::{AttributeValue, Model};

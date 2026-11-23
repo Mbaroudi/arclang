@@ -94,6 +94,13 @@ A verdict is expected to tighten between versions, never to loosen.
   than 200 levels is refused (a `.arc` model, a SysML v2 text, a rule); a
   Capella file beyond 1000 levels of elements too. They used to end the
   process.
+- **SysML v2 comments.** The text of a `doc` or `comment` is read as the
+  language says: on each line after the first, the white space before a
+  star, the star and one space after it are a margin, not text. The export
+  writes that margin, so a text of several lines comes back as written
+  (it used to gain indentation, and a line starting with a star was read
+  differently by other tools). A file written by hand with such a margin
+  loses the stars on import, where it used to keep them.
 
 ## Identity stability guarantee
 
