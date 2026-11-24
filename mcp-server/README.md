@@ -115,7 +115,7 @@ python test_install.py             # imports, and finds a compiler it can work w
 ### Claude Code
 
 ```bash
-claude mcp add --env ARCLANG_WORKSPACE=/path/to/your/models arclang -- arclang-mcp
+claude mcp add --env ARCLANG_WORKSPACE=/path/to/your/models -- arclang arclang-mcp
 ```
 
 ### Settings
